@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .paths import is_conflict_copy
+from .vaultinit import scratch_ignored
 
 if TYPE_CHECKING:
     from .service import Service
@@ -126,7 +127,7 @@ def _git_checks(svc: Service) -> list[dict[str, Any]]:
 
 
 def _path_checks(svc: Service) -> list[dict[str, Any]]:
-    """Prüfungen für Vault, Suchindex, Schreibrechte und Konfliktkopien.
+    """Prüfungen für Vault, Suchindex, Schreibrechte, Konfliktkopien und ``scratch/`` in ``.gitignore``.
 
     Args:
         svc: Dienst.
@@ -151,6 +152,10 @@ def _path_checks(svc: Service) -> list[dict[str, Any]]:
         checks.append(_check(label, ok, f"{path} beschreibbar.", f"{path} fehlt oder ist nicht beschreibbar."))
     checks.append(_check("conflict_copies", not conflicts, "Keine Nextcloud-Konfliktkopien.",
                          f"Konfliktkopien: {', '.join(conflicts)}"))
+    gitignore = cfg.root / ".gitignore"
+    ignored = gitignore.is_file() and scratch_ignored(gitignore.read_text(encoding="utf-8"))
+    checks.append(_check("scratch_ignored", ignored, "scratch/ steht in .gitignore.",
+                         "scratch/ fehlt in .gitignore (pkm init ergänzt es)."))
     return checks
 
 

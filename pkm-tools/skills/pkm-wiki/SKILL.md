@@ -13,6 +13,9 @@ sonst `PKM_ROOT` setzen. Sprache aller Inhalte: **Deutsch**.
 
 - `wiki/` gehört dir. `documents/` gehört dem Nutzer: dort **nichts** ändern, verschieben oder
   löschen. Einzige Ausnahme: `id`/`version` – und zwar nur über `pkm ids` und `pkm versions`.
+- `scratch/` (kurzlebige Notizen, Todo-Listen) wird **weder gelesen noch verarbeitet**. Kein
+  Beleg zeigt auf eine Datei dort. Wird eine Notiz nach `documents/` verschoben, ist sie beim
+  nächsten Lauf ein neues Dokument; aus `documents/` nach `scratch/` verschoben wirkt wie Löschen.
 - Im Wiki **nichts löschen**. Aussagen und Belege ergänzen, aktualisieren oder als überholt
   kennzeichnen.
 - **Keine Aussage ohne Beleg** auf ein Dokument in `documents/`. Wiki-Seiten sind keine Belege.

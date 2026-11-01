@@ -42,8 +42,8 @@ from .gitlayer import Commit, build_message
 from .ids import new_id
 from .normalize import encode, normalize_fragment, normalize_text
 from .parse import PREAMBLE, Parsed, body_lines, normalize_key_input, split_sections, strip_frontmatter
-from .paths import slugify
-from .vault import Doc, load_text_doc
+from .paths import is_platform_safe_name, slugify
+from .vault import SCRATCH, Doc, load_text_doc
 
 if TYPE_CHECKING:
     from .service import Service
@@ -56,6 +56,7 @@ except ImportError:  # pragma: no cover - Windows
 # Variables *******************************************************************
 
 INBOX = "documents/_inbox"
+CREATE_AREAS = ("documents", SCRATCH)
 DIFF_LINES = 80
 SHORTENING_RATIO = 0.6
 KINDS = ("note", "correction")
@@ -203,13 +204,14 @@ class Writer:
             Das geladene Dokument.
 
         Raises:
-            PkmError: ``forbidden`` außerhalb von ``documents/`` oder bei Nicht-Markdown,
+            PkmError: ``forbidden`` außerhalb von ``documents/`` und ``scratch/`` oder bei Nicht-Markdown,
                 ``invalid_encoding``/``invalid_frontmatter`` bei unlesbaren Dateien.
         """
         rel = self.svc.resolve(target)
-        if not rel.startswith("documents/"):
+        if not rel.startswith(("documents/", f"{SCRATCH}/")):
             raise PkmError(
-                "forbidden", "Nur Dokumente unter documents/ sind änderbar; wiki/ ist aus Chats nur lesbar.", path=rel
+                "forbidden", "Nur Dateien unter documents/ und scratch/ sind änderbar; wiki/ ist aus Chats nur lesbar.",
+                path=rel,
             )
         if not rel.lower().endswith(".md"):
             raise PkmError("forbidden", "Nur Markdown-Dateien sind änderbar.", path=rel)
@@ -367,11 +369,50 @@ class Writer:
             Rückgabe von ``finish``.
         """
         with self.lock():
-            self.git.require_ok()
             doc = self.editable_doc(target)
+            if doc.versioned:
+                self.git.require_ok()
             self.check_hash(doc, expected_hash)
-            doc = self.commit_user_state(doc)
-            result = self.finish(doc, transform(doc), note, source)
+            if doc.versioned:
+                doc = self.commit_user_state(doc)
+                result = self.finish(doc, transform(doc), note, source)
+            else:
+                result = self.finish_scratch(doc, transform(doc))
+        return result
+
+    def finish_scratch(self, doc: Doc, new_text: str) -> dict[str, Any]:
+        """Neue Fassung einer Datei in ``scratch/`` schreiben: ohne Version und ohne Commit.
+
+        ``updated`` wird nur gesetzt, wenn die Datei ein Frontmatter hat.
+
+        Args:
+            doc: Datei vor der Änderung.
+            new_text: Neuer Gesamttext.
+
+        Returns:
+            ``{path, status, new_hash, diff}``; ``status`` ist ``changed`` oder ``unchanged``.
+
+        Raises:
+            PkmError: ``too_large`` oder Fehler des Ergebnisses.
+        """
+        old_text = doc.text or ""
+        new_text = normalize_text(new_text)
+        result: dict[str, Any] = {"path": doc.rel, "status": "unchanged",
+                                  "new_hash": doc.hashes.file_hash if doc.hashes else None, "diff": ""}
+        if new_text != old_text:
+            new_doc = load_text_doc(doc.rel, new_text.encode("utf-8"))
+            if new_doc.parsed is not None and new_doc.parsed.has_frontmatter and not new_doc.error:
+                new_text = set_fields_linewise(new_text, {"updated": self.now_iso()})
+                new_doc = load_text_doc(doc.rel, new_text.encode("utf-8"))
+            if new_doc.error:
+                raise PkmError(new_doc.error, new_doc.error_message or "Ergebnis ungültig.")
+            self.check_size(new_text, "Die Datei")
+            self.write_atomic(doc.rel, new_text)
+            result = {
+                "path": doc.rel, "status": "changed",
+                "new_hash": new_doc.hashes.file_hash if new_doc.hashes else None,
+                "diff": unified_diff(old_text, new_text, "vorher", "nachher", DIFF_LINES),
+            }
         return result
 
     # Tools ********************************************************************
@@ -386,8 +427,10 @@ class Writer:
         kind: str | None = None,
         source: str | None = None,
         note: str | None = None,
+        area: str = "documents",
+        folder: str | None = None,
     ) -> dict[str, Any]:
-        """Tool ``create_document``: neues Dokument in ``documents/_inbox/`` (Version 1).
+        """Tool ``create_document``: neues Dokument in ``documents/_inbox/`` (Version 1) oder Notiz in ``scratch/``.
 
         Args:
             title: Titel; daraus wird der Dateiname gebildet.
@@ -398,9 +441,12 @@ class Writer:
             kind: ``note`` (Standard) oder ``correction``.
             source: Quelle, Standard ``claude-chat``.
             note: Änderungsnotiz für den Commit.
+            area: ``documents`` (Standard) oder ``scratch``.
+            folder: Nur bei ``scratch``: Unterordner in ``scratch/``.
 
         Returns:
-            ``{id, path, status: created, version: 1, new_hash, commit, diff}``.
+            ``{id, path, status: created, version: 1, new_hash, commit, diff}``; bei ``scratch``
+            ``{path, status: created, new_hash, diff}``.
 
         Raises:
             PkmError: ``invalid_argument``, ``too_large``, ``not_found`` (``related``) oder
@@ -409,19 +455,26 @@ class Writer:
         title = " ".join((title or "").split())
         if not title:
             raise PkmError("invalid_argument", "title fehlt.")
-        kind = kind or "note"
-        if kind not in KINDS:
+        if area not in CREATE_AREAS:
+            raise PkmError("invalid_argument", "area muss documents oder scratch sein.")
+        if folder and area != SCRATCH:
+            raise PkmError("invalid_argument", "folder gibt es nur bei area scratch.")
+        if kind is not None and kind not in KINDS:
             raise PkmError("invalid_argument", "kind muss note oder correction sein.")
         body = strip_frontmatter(normalize_fragment(content or ""))
         self.check_size(body, "Der Inhalt")
-        extra = {
-            "source": source or "claude-chat",
-            "context": " ".join(context.split()) if context else None,
+        common = {
             "topics": [str(t) for t in topics] if topics else None,
             "related": [f"[[{self._link_target(r)}]]" for r in related] if related else None,
             "kind": kind,
         }
-        return self._write_new(title, body, note or "neu angelegt", extra)
+        if area == SCRATCH:
+            result = self._write_scratch(title, body, _scratch_folder(folder), common)
+        else:
+            extra = {"source": source or "claude-chat", "context": " ".join(context.split()) if context else None,
+                     **common, "kind": kind or "note"}
+            result = self._write_new(title, body, note or "neu angelegt", extra)
+        return result
 
     def _write_new(self, title: str, body: str, note: str, extra: dict[str, Any]) -> dict[str, Any]:
         """Neues Dokument mit ID und Version 1 schreiben und committen.
@@ -464,6 +517,49 @@ class Writer:
             "diff": unified_diff("", text, "/dev/null", rel, DIFF_LINES),
         }
 
+    def _write_scratch(self, title: str, body: str, folder: str, optional: dict[str, Any]) -> dict[str, Any]:
+        """Notiz in ``scratch/`` anlegen: kleines Frontmatter, ohne ID, Version und Commit.
+
+        Args:
+            title: Titel.
+            body: Inhalt ohne Frontmatter.
+            folder: Geprüfter Unterordner (relativ zu ``scratch/``, ggf. leer).
+            optional: ``topics``, ``related`` und ``kind`` (leere Werte entfallen).
+
+        Returns:
+            ``{path, status: created, new_hash, diff}``.
+        """
+        with self.lock():
+            stamp = self.now_iso()
+            meta: dict[str, Any] = {"title": title, "created": stamp, "updated": stamp}
+            meta.update({k: v for k, v in optional.items() if v})
+            text = normalize_text(dump_meta(meta) + "\n" + body.lstrip("\n"))
+            base = "/".join(p for p in (SCRATCH, folder) if p)
+            rel = self._free_name(base, slugify(title))
+            self.write_atomic(rel, text)
+        doc = self.vault.load(rel)
+        return {"path": rel, "status": "created", "new_hash": doc.hashes.file_hash if doc.hashes else None,
+                "diff": unified_diff("", text, "/dev/null", rel, DIFF_LINES)}
+
+    def _free_name(self, base_dir: str, stem: str) -> str:
+        """Freien Dateinamen ``<stem>.md`` in einem Ordner finden (nie überschreiben).
+
+        Args:
+            base_dir: Ordner relativ zum Vault.
+            stem: Gewünschter Dateiname ohne Endung.
+
+        Returns:
+            Relativer Pfad; bei Namensgleichheit mit Suffix ``-2``, ``-3`` …
+        """
+        area = base_dir.split("/", 1)[0]
+        existing = {r.casefold() for r in self.vault.iter_files((area,))}
+        n = 1
+        rel = f"{base_dir}/{stem}.md"
+        while rel.casefold() in existing or self.vault.path(rel).exists():
+            n += 1
+            rel = f"{base_dir}/{stem}-{n}.md"
+        return rel
+
     def _link_target(self, target: str) -> str:
         """Ziel für ``related`` als Wikilink-Pfad.
 
@@ -486,14 +582,7 @@ class Writer:
         Returns:
             Relativer Pfad; bei Namensgleichheit mit Suffix ``-2``, ``-3`` …
         """
-        base = f"{date}_{slugify(title)}"
-        existing = {r.casefold() for r in self.vault.iter_files(("documents",))}
-        n = 1
-        rel = f"{INBOX}/{base}.md"
-        while rel.casefold() in existing or self.vault.path(rel).exists():
-            n += 1
-            rel = f"{INBOX}/{base}-{n}.md"
-        return rel
+        return self._free_name(INBOX, f"{date}_{slugify(title)}")
 
     def rewrite_document(
         self, target: str, content: str, expected_hash: str | None, note: str | None = None,
@@ -521,7 +610,8 @@ class Writer:
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
             _check_shortening(doc, new_body, confirm_shortening)
-            return doc.parsed.frontmatter_text + "\n" + new_body.lstrip("\n")
+            fm = doc.parsed.frontmatter_text
+            return fm + ("\n" if fm else "") + new_body.lstrip("\n")
 
         return self.change(target, expected_hash, transform, note or "neu gefasst")
 
@@ -648,7 +738,13 @@ class Writer:
 
         Returns:
             Rückgabe von ``finish`` mit der Notiz ``wiederhergestellt aus v<n>``.
+
+        Raises:
+            PkmError: ``not_versioned`` für Dateien in ``scratch/``.
         """
+        if not self.vault.load(self.svc.resolve(target)).versioned:
+            raise PkmError("not_versioned", "Dateien in scratch/ haben keine Versionen.", target=target)
+
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None and doc.id
             _, old_text = self.svc.text_at_version(doc.id, int(version))
@@ -660,6 +756,24 @@ class Writer:
         return self.change(target, expected_hash, transform, f"wiederhergestellt aus v{int(version)}", source)
 
 # Functions *******************************************************************
+
+
+def _scratch_folder(folder: str | None) -> str:
+    """Unterordner für ``scratch/`` prüfen.
+
+    Args:
+        folder: Angegebener Unterordner (``/`` als Trenner) oder ``None``.
+
+    Returns:
+        Bereinigter relativer Unterordner (leer für die Wurzel von ``scratch/``).
+
+    Raises:
+        PkmError: ``invalid_path`` bei ``..``, absoluten oder nicht plattformfesten Namen.
+    """
+    parts = [p for p in (folder or "").replace("\\", "/").strip().strip("/").split("/") if p]
+    if (folder or "").strip().startswith(("/", "\\")) or any(p == ".." or not is_platform_safe_name(p) for p in parts):
+        raise PkmError("invalid_path", f"Ungültiger Ordner: {folder}", folder=folder)
+    return "/".join(parts)
 
 
 def _initial_meta(doc_id: str, title: str, stamp: str, extra: dict[str, Any]) -> dict[str, Any]:

@@ -1,7 +1,11 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.13 (Entwurf zum Review) · **Stand:** 01.11.2026
+**Version:** 0.14 (Entwurf zum Review) · **Stand:** 01.11.2026
 
+> **Änderungen in 0.14**
+> - **Neuer Bereich `scratch/`** für kurzlebige Notizen und Todo-Listen, neben `documents/` und `wiki/`. Er wird **nie ins Wiki übernommen**, steht **nicht in Git** (nur Nextcloud) und wird von Lint, Ingest und allen Pflegebefehlen ignoriert. Chats dürfen dort anlegen und ändern, ohne Version und ohne Commit (3, 7.1–7.4, 8, 9.5, 10, 12, 14, 16).
+> - `create_document` hat den neuen Parameter `area` (`documents` | `scratch`). `search` kennt `scope: "scratch"`. Neuer Status `not_versioned` für `history` und `restore_document` in `scratch/`.
+>
 > **Änderungen in 0.13**
 > - **Überschriften, deren Text auf `#` plus Ziffern endet** (z. B. „Version#2“), können mit dem Duplikat-Suffix kollidieren. Die Suffix-Vergabe überspringt jetzt belegte Schlüssel, und Lint meldet solche Überschriften: als Warnung bei Verwechslungsgefahr, als Fehler bei tatsächlicher Kollision (4.8, 8, 14, 16).
 >
@@ -66,13 +70,14 @@ Ein persönliches Wissensmanagement (PKM), das
 ### Leitprinzipien
 
 1. **Zwei Bereiche, zwei Besitzer:** `documents/` gehört dem Nutzer (Pflege per Hand oder per MCP auf seine Anweisung). `wiki/` gehört dem Pflege-Agenten.
-2. **Schreibwege aus Chats sind technisch begrenzt:** Der MCP-Server legt neue Dateien nur in `documents/_inbox/` an. Er ändert nur bestehende Markdown-Dateien in `documents/`. Er löscht und verschiebt nichts. Jede Änderung ergibt eine neue Version und einen Git-Commit, ist also jederzeit umkehrbar. `wiki/` ist aus Chats nur lesbar. Diese Grenzen stehen im Code.
+2. **Schreibwege aus Chats sind technisch begrenzt:** Der MCP-Server legt neue Dateien nur in `documents/_inbox/` an. Er ändert nur bestehende Markdown-Dateien in `documents/`. Er löscht und verschiebt nichts. Jede Änderung ergibt eine neue Version und einen Git-Commit, ist also jederzeit umkehrbar. `wiki/` ist aus Chats nur lesbar. Ausnahme ist der Bereich `scratch/` für kurzlebige Notizen: Dort darf der Server anlegen und ändern, ohne Version und ohne Commit (3). Diese Grenzen stehen im Code.
 3. **Dokumente bleiben aufgeräumt:** Ein Dokument zeigt immer den aktuellen Stand. Die Geschichte liegt in Git, erreichbar über die Versionsnummer.
 4. **Der Pflege-Agent fasst Dokumente nicht an**, mit zwei Ausnahmen: Er trägt `id` nach und erhöht `version` bei Änderungen, die von Hand gemacht wurden.
 5. **Rückverfolgbarkeit:** Jede Aussage im Wiki verweist auf das Originaldokument (Abschnitt bzw. Seite, Zitat, ID, Version). Wiki-Seiten untereinander gelten nicht als Beleg.
 6. **Identität statt Pfad:** Dokumente werden über ihre ID gefunden. Pfade dürfen sich jederzeit ändern.
 7. **Alles ist Markdown plus Git.** Der Suchindex ist ein Wegwerf-Cache.
 8. **Keine LLM-Aufrufe im Server:** Der MCP-Server ist deterministisch. Die Intelligenz liegt beim Agenten.
+9. **Kurzlebiges bleibt draußen:** Notizen und Todo-Listen in `scratch/` werden nie ins Wiki übernommen und nie versioniert. Soll etwas daraus dauerhaft werden, wird es nach `documents/` verschoben.
 
 ---
 
@@ -131,6 +136,8 @@ Ein persönliches Wissensmanagement (PKM), das
 │   │   ├── zisterne.md
 │   │   └── datenblatt-tank.pdf
 │   └── …                     # beliebige Unterordner
+├── scratch/                  # kurzlebige Notizen, Todo-Listen: nicht in Git, nie ins Wiki
+│   └── …                     # beliebige Unterordner
 ├── wiki/
 │   ├── index.md              # Katalog: jede Seite mit Kurzfassung (generiert)
 │   ├── _status.md            # unverarbeitete Dokumente, Einsortier-Hinweise (generiert)
@@ -159,9 +166,17 @@ Außerhalb der Nextcloud, nur auf dem Mac:
 | `documents/**` (übrige) | alles | ändern (nur `.md`) | lesen, `id`/`version` setzen |
 | `wiki/` | lesen | **nur lesen** | lesen und schreiben |
 | `CLAUDE.md` | lesen und schreiben | – | Änderungen nur nach Zustimmung |
+| `scratch/**` | alles | neu anlegen, ändern (nur `.md`), ohne Version und Commit | **ignoriert** |
 | `.pkm/` | – | `mcp.log` (nur anhängen) | `state.json` |
 
-Ein Dokument ist „unverarbeitet“, solange seine aktuelle Version nicht in `state.json` als verarbeitet steht. Wo es liegt, ist dafür egal.
+Ein Dokument ist „unverarbeitet“, solange seine aktuelle Version nicht in `state.json` als verarbeitet steht. Wo es innerhalb von `documents/` liegt, ist dafür egal.
+
+**Bereich `scratch/`** (kurzlebige Notizen und Todo-Listen):
+- **Nie im Wiki:** Ingest, `pending`, Belege, Index und Status beachten `scratch/` nicht. Auch Lint ignoriert den Bereich vollständig, prüft aber weiterhin im Wiki, dass kein Beleg auf `scratch/` zeigt.
+- **Nicht in Git:** `scratch/` steht in `.gitignore` und wird nur über Nextcloud synchronisiert. Es gibt keine Versionsnummer, keinen Commit und keinen Verlauf. Als Rückfallebene für versehentliche Änderungen dienen die Dateiversionen der Nextcloud.
+- **Frontmatter optional:** Dateien in `scratch/` brauchen weder `id` noch `version`. `pkm ids` und `pkm versions` fassen sie nicht an.
+- **Übernehmen ins Wiki:** Wird eine Notiz dauerhaft wichtig, verschiebt der Nutzer sie in Obsidian nach `documents/`. Beim nächsten Pflegelauf bekommt sie ID und `version: 1`, wird als neues Dokument committet und dann verarbeitet. Die umgekehrte Richtung (aus `documents/` nach `scratch/`) wirkt wie ein Löschen. Die Belege werden dann behandelt wie bei einem gelöschten Original (9.1).
+- **Aufräumen** übernimmt der Nutzer in Obsidian. Löschen ist auch hier über den MCP-Server nicht möglich.
 
 ---
 
@@ -352,8 +367,9 @@ Alle Hashes werden voll (64 Hex-Zeichen) gespeichert, im Beispiel gekürzt. Was 
 | `state.json` | `documents`, `path`, `processed_version`, `file_hash`, `body_hash`, `meta_hash`, `sections`, `processed_at`, `wiki_pages` |
 | Abschnitte | Schlüssel nach 4.8, reserviert `_preamble`, Duplikate `Text#2` |
 | `pending`-Kategorien | `new`, `changed`, `meta_changed`, `moved`, `deleted`; je Abschnitt `added`, `removed`, `changed`, `renamed` |
+| Bereiche (`area`, `scope`) | `documents`, `scratch`; zusätzlich `wiki` und `all` (= `wiki` + `documents`) bei `search` |
 | MCP-Tools | `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`, `search`, `read`, `history`, `show_citations`, `read_index`, `list_unprocessed` |
-| Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding` |
+| Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding`, `not_versioned` |
 | CLI | `pkm init`, `ids`, `versions`, `pending`, `history`, `show`, `fix-citations`, `sync-citations`, `sha`, `mark`, `index`, `status`, `lint`, `restore`, `reindex`, `commit-wiki`, `doctor` |
 | Skills | `pkm-wiki`, `pkm-access` |
 
@@ -579,12 +595,13 @@ Diese Form ist nie Standard. Der Skill schlägt sie auch nicht von sich aus vor.
 - Kein Netzwerk, keine LLM-Aufrufe, keine Hintergrundprozesse
 - Umfang: rund 550 Zeilen plus Tests
 
-**Adressierung:** Jeder Parameter `target` akzeptiert einen relativen Pfad (`documents/haus/zisterne.md`), einen Wikilink (`[[documents/haus/zisterne]]`, `[[zisterne]]`) oder eine ID (`id:d-20261031-2340-k7q2`). Ein Kurzname ist der Dateiname ohne Endung. Er wird in NFC und ohne Unterscheidung von Groß- und Kleinschreibung verglichen. Mehrdeutige Kurznamen führen zum Fehler `ambiguous` mit Kandidatenliste.
+**Adressierung:** Jeder Parameter `target` akzeptiert einen relativen Pfad (`documents/haus/zisterne.md`), einen Wikilink (`[[documents/haus/zisterne]]`, `[[zisterne]]`) oder eine ID (`id:d-20261031-2340-k7q2`). Ein Kurzname ist der Dateiname ohne Endung. Er wird in NFC und ohne Unterscheidung von Groß- und Kleinschreibung verglichen. Mehrdeutige Kurznamen führen zum Fehler `ambiguous` mit Kandidatenliste. Pfade und Kurznamen können auch auf `scratch/` zeigen. IDs gibt es dort nicht.
 
 ### 7.2 Schreibende Tools
 
 Gemeinsame Regeln:
-- **Neuanlage** nur in `documents/_inbox/`. **Änderungen** nur an bestehenden `.md`-Dateien unter `documents/`.
+- **Neuanlage** nur in `documents/_inbox/` bzw. in `scratch/` (`area: "scratch"`). **Änderungen** nur an bestehenden `.md`-Dateien unter `documents/` und `scratch/`.
+- **Sonderregeln für `scratch/`:** Hash-Schutz, atomares Schreiben, Protokoll und Diff gelten wie überall. Es gibt aber **keine Versionierung und keinen Commit**: `version` wird nicht gesetzt oder erhöht, `note` wird ignoriert, `commit` und `version` fehlen in der Rückgabe. `updated` wird nur gesetzt, wenn die Datei ein Frontmatter hat (zeilengenau, 4.1). `rewrite_document` prüft die Kürzung auch hier.
 - **Hash-Schutz:** Jede Änderung verlangt `expected_hash` aus `read` oder aus der vorherigen Schreib-Rückgabe. Bei Abweichung kommt `conflict` mit dem neuen Hash zurück.
 - **Versionierung:** Jeder erfolgreiche Aufruf erhöht `version` um 1, setzt `updated` und erzeugt einen Commit nach 5.4. Weicht die Datei vom letzten Commit ab, weil sie von Hand geändert wurde, wird dieser Stand vorher als eigene Version committet.
 - **Änderungsnotiz:** Jedes Tool hat den optionalen Parameter `note` (eine Zeile). Sie wird zur Commit-Nachricht. Ohne Notiz erzeugt der Server eine Standardnotiz aus Tool und Abschnitt.
@@ -603,8 +620,12 @@ Gemeinsame Regeln:
 | `related` | list[string] | nein | Ziele verwandter Dokumente (Pfad/Wikilink/ID) |
 | `kind` | enum `note` \| `correction` | nein | Standard `note` |
 | `source` | string | nein | Standard `claude-chat` |
+| `area` | enum `documents` \| `scratch` | nein | Standard `documents` |
+| `folder` | string | nein | Nur bei `area: "scratch"`: Unterordner in `scratch/` (wird angelegt, falls nötig). Standard ist die Wurzel von `scratch/` |
 
-Ergebnis: Version 1, Commit `doc: <title> v1`. Bei Namensgleichheit wird ein Suffix angehängt, nie überschrieben.
+Ergebnis bei `documents`: Version 1, Commit `doc: <title> v1`. Bei Namensgleichheit wird ein Suffix angehängt, nie überschrieben.
+
+Ergebnis bei `scratch`: Datei `scratch/[<folder>/]<slug>.md` mit kleinem Frontmatter (`title`, `created`, `updated`), ohne `id`, `version` und Commit. `topics`, `related` und `kind` werden übernommen, falls angegeben. Bei Namensgleichheit wird ein Suffix angehängt.
 
 #### `rewrite_document`
 Ersetzt den **gesamten Inhalt** unterhalb des Frontmatters. Das ist der Normalfall bei fortgeführten Diskussionen.
@@ -650,7 +671,7 @@ Schutz gegen versehentlichen Verlust: Ist der neue Inhalt kürzer als 60 % des a
 Geschützt: `id`, `version`, `created`, `updated`. Das Frontmatter wird vollständig neu geschrieben, Kommentare darin gehen verloren (4.1).
 
 #### `restore_document`
-Holt den Inhalt einer früheren Version zurück, und zwar als **neue** Version. Die Geschichte wird nicht umgeschrieben.
+Holt den Inhalt einer früheren Version zurück, und zwar als **neue** Version. Die Geschichte wird nicht umgeschrieben. Für Dateien in `scratch/` kommt `not_versioned`.
 
 | Parameter | Typ | Pflicht | Beschreibung |
 |---|---|---|---|
@@ -670,7 +691,7 @@ Das Wiki ist aus Chats nicht änderbar. Ein Korrekturwunsch wird per `create_doc
 | Parameter | Typ | Standard | Beschreibung |
 |---|---|---|---|
 | `query` | string | – | Suchbegriffe, Präfixsuche aktiv |
-| `scope` | enum `wiki` \| `documents` \| `all` | `wiki` | |
+| `scope` | enum `wiki` \| `documents` \| `scratch` \| `all` | `wiki` | `all` umfasst `wiki` und `documents`. `scratch` wird nur durchsucht, wenn es ausdrücklich angegeben ist |
 | `max_results` | int | 8 | höchstens 25 |
 
 Rückgabe je Treffer: `id`, `version` (bei Dokumenten), `path`, `title`, `type`, `summary`, `snippet`, `score`, `updated`, `processed` (bei Dokumenten: ob die aktuelle Version im Wiki eingearbeitet ist).
@@ -681,9 +702,11 @@ Rückgabe je Treffer: `id`, `version` (bei Dokumenten), `path`, `title`, `type`,
 | `target` | string | Pfad, Wikilink oder ID |
 | `version` | int | optional. Liest eine frühere Version aus Git (nur lesend) |
 
-Rückgabe: `id`, `version`, `path`, `frontmatter`, `content`, `hash`, `editable`, `sections`, `backlinks`, `links`. Bei Wiki-Seiten zusätzlich `citations` (geparst, ohne Prüfung). Bei PDFs und Bildern nur Metadaten und Pfad. Lesbar sind `documents/` und `wiki/`.
+Rückgabe: `id`, `version`, `path`, `frontmatter`, `content`, `hash`, `editable`, `sections`, `backlinks`, `links`. Bei Wiki-Seiten zusätzlich `citations` (geparst, ohne Prüfung). Bei PDFs und Bildern nur Metadaten und Pfad. Lesbar sind `documents/`, `scratch/` und `wiki/`. In `scratch/` fehlen `id` und `version`, `editable` ist `true`.
 
 #### `history`
+Für Dateien in `scratch/` kommt `not_versioned`.
+
 | Parameter | Typ | Beschreibung |
 |---|---|---|
 | `target` | string | Dokument |
@@ -719,6 +742,7 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 - `PKM_CACHE_DIR/index.db`, FTS5 mit `unicode61 remove_diacritics 2`
 - Gewichte: Titel 5, Aliase/Tags/Themen 3, Kurzfassung 2, Text 1. Zusätzlich eine Tabelle `id → path, version` für die Auflösung nach 5.2
 - `index.db` liegt in `PKM_CACHE_DIR`, nie im Vault oder im Nextcloud-Ordner (7.1)
+- Der Index umfasst `wiki/`, `documents/` und `scratch/`. Welcher Bereich durchsucht wird, bestimmt `scope`
 - Vor jeder Anfrage werden geänderte Dateien nachindexiert (Vergleich von `mtime` und Größe)
 - Fehlt der Index oder ist er beschädigt, baut der Server ihn automatisch neu auf
 
@@ -755,6 +779,8 @@ Die Datei liegt auf dem Mac unter `~/Library/Application Support/Claude/claude_d
 ---
 
 ## 8. CLI `pkm`
+
+Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft nur, dass `scratch/` in `.gitignore` steht.
 
 | Befehl | Funktion |
 |---|---|
@@ -824,6 +850,7 @@ Erst den Index, dann die relevanten Seiten, dann die Antwort mit Verweisen auf d
 ### 9.5 Feste Regeln
 
 - Sprache: Deutsch.
+- `scratch/` wird weder gelesen noch verarbeitet. Kein Beleg zeigt auf eine Datei dort.
 - In `documents/` ausschließlich `id` und `version` setzen, und zwar nur über `pkm ids` und `pkm versions`. Sonst nichts ändern, verschieben oder löschen.
 - Im Wiki nichts löschen. Aussagen und Belege werden ergänzt, aktualisiert oder als überholt gekennzeichnet.
 - Keine Aussage ohne Beleg auf ein Dokument. Zitate in Belegen sind wörtlich aus der genannten Version kopiert. Nichts erfinden, Lücken als offene Frage markieren.
@@ -859,6 +886,13 @@ Erst den Index, dann die relevanten Seiten, dann die Antwort mit Verweisen auf d
 
 **Korrekturen am Wiki:** immer als Dokument mit `kind: correction` (7.2), nie direkt.
 
+**Notizen und Todo-Listen (`scratch/`):**
+- Auslöser sind z. B. „notier mir kurz …“, „setz das auf meine Todo-Liste“, „hak … ab“ oder „was steht auf meiner Liste?“.
+- Neue Notizen entstehen mit `create_document` und `area: "scratch"`. Bestehende Listen werden mit `append_to_document` bzw. `edit_document` geändert, etwa beim Abhaken (`- [ ]` → `- [x]`). Ist unklar, welche Liste gemeint ist, sucht der Chat mit `search` und `scope: "scratch"` und fragt bei mehreren Treffern nach.
+- **Auch hier gilt die Grundregel:** erst Entwurf bzw. Vorher/Nachher zeigen, dann nach Bestätigung schreiben.
+- Der Chat weist darauf hin, dass Inhalte in `scratch/` nicht ins Wiki übernommen werden. Soll etwas dauerhaft festgehalten werden, schlägt er stattdessen ein Dokument in `documents/` vor.
+- Für eine Datei in `scratch/` nennt der Chat keine Version und keinen Commit.
+
 ---
 
 ## 11. Projekt „PKM-Pflege“ und Automatisierung
@@ -886,7 +920,7 @@ Git ist Pflicht und übernimmt zwei Aufgaben: die **Versionsgeschichte jedes Dok
 So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. Ein `git revert` auf einen Agenten-Commit trifft nur das Wiki.
 
 - Das Git-Verzeichnis liegt außerhalb der Nextcloud (5.5). Die Versionsgeschichte existiert damit **nur auf dem Mac**. Gesichert wird sie über **Time Machine**, denn `~/Library/Application Support/pkm/` ist darin enthalten.
-- `.gitignore`: `.obsidian/workspace*`, `.pkm/mcp.log`, Nextcloud-Hilfsdateien (`.sync_*`, `.owncloudsync.log`, `*.part`)
+- `.gitignore`: `scratch/`, `.obsidian/workspace*`, `.pkm/mcp.log`, Nextcloud-Hilfsdateien (`.sync_*`, `.owncloudsync.log`, `*.part`)
 - Obsidian Git wird nicht verwendet. Das Plugin fände das Repo auch gar nicht, weil kein `.git` im Vault liegt.
 - Kein Remote. Ein Push auf ein privates Remote (z. B. Gitea auf dem Homeserver) lässt sich später ohne Änderung am Konzept nachrüsten.
 
@@ -922,6 +956,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 - Belege: Parser (inkl. `v:` und `#page=`), alle Status von `show_citations`, Auszug aus alter und aktueller Version, `fix-citations`, `sync-citations`, alle Lint-Prüfungen positiv und negativ
 - Suche: Umlaut-Toleranz, Gewichtung, inkrementelle Aktualisierung, Neuaufbau. `PKM_CACHE_DIR` innerhalb von `PKM_ROOT` wird abgelehnt
 - Ohne Git: schreibende Tools verweigert, lesende funktionieren
+- `scratch/`: Anlegen mit `area: "scratch"` und `folder`, Ändern ohne Version und Commit, `history`/`restore_document` liefern `not_versioned`, `search` findet `scratch/` nur mit `scope: "scratch"`, `pending`, `ids`, `versions` und `lint` ignorieren den Bereich, Lint meldet einen Beleg im Wiki, der auf `scratch/` zeigt, Verschieben von `scratch/` nach `documents/` ergibt beim nächsten Lauf `version: 1` und einen Commit
 - Getrenntes Git-Verzeichnis: alle Git-Operationen mit `--git-dir`/`--work-tree`, im Vault entsteht nie ein `.git`
 - Plattform: NFC/NFD-Pfade, CRLF-Datei ergibt denselben Hash wie LF, Windows-ungültige Zeichen und reservierte Namen im Slug ersetzt, Konfliktkopien erkannt und nicht verarbeitet, Groß-/Kleinschreibungs-Kollisionen gemeldet
 
@@ -935,7 +970,8 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 7. „Woher stammt die Angabe …?“ → Original mit Abschnitt, Zitat, Version und Status `ok`.
 8. „Dokumentiere das als Fortsetzung“ → Erst jetzt entsteht ein datierter Abschnitt.
 9. Auf dem Windows-Rechner ein Dokument in Obsidian ändern → Nach dem Sync und einem Pflegelauf gibt es eine neue Version mit `PKM-Source: user`, und das Wiki ist aktualisiert.
-10. `pkm doctor` und `pkm lint` melden null Fehler.
+10. Aus einem Chat: „Setz ‚Filter der Zisternenpumpe reinigen‘ auf meine Todo-Liste“ → Entwurf, dann ein Eintrag in `scratch/`. Es gibt keinen Commit, und nach einem Pflegelauf taucht der Eintrag nicht im Wiki auf.
+11. `pkm doctor` und `pkm lint` melden null Fehler.
 
 ---
 
@@ -985,6 +1021,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 19 | Plattform für Tests | Pfade überschreibbar, Tests auch unter Linux, produktiv nur macOS | 7.1 |
 | 20 | Agenten-Commit | `pkm commit-wiki`, nur `wiki/` und `.pkm/state.json` | 8, 9.1, 12 |
 | 21 | Überschriften auf `#` plus Ziffern | Suffix-Vergabe überspringt belegte Schlüssel. Lint warnt (`heading_suffix_like`) bzw. meldet einen Fehler bei Kollision (`heading_suffix_collision`) | 4.8, 8, 14 |
+| 22 | Bereich `scratch/` | Für kurzlebige Notizen und Todo-Listen. Nicht in Git, nie im Wiki, von Lint ignoriert. Chats dürfen anlegen und ändern (mit Entwurf), ohne Version und Commit | 3, 7, 8, 9.5, 10, 12 |
 
 ### Noch offen
 

@@ -38,14 +38,14 @@ from .index import SearchIndex, query_terms, snippet
 from .maint import Maintenance
 from .parse import normalize_key_input
 from .state import classify, load_state, state_key
-from .vault import AREAS, Doc, Vault, extract_links, load_text_doc, section_summary
+from .vault import AREAS, READ_AREAS, SCRATCH, Doc, Vault, extract_links, load_text_doc, section_summary
 from .writer import Writer
 
 # Variables *******************************************************************
 
 MAX_RESULTS = 25
 HISTORY_DIFF_LINES = 400
-SCOPES = {"wiki": ("wiki",), "documents": ("documents",), "all": AREAS}
+SCOPES = {"wiki": ("wiki",), "documents": ("documents",), "scratch": (SCRATCH,), "all": AREAS}
 UNPROCESSED_CATEGORIES = ("new", "changed", "meta_changed", "moved", "deleted")
 INDEX_ERRORS = (sqlite3.Error, PkmError, OSError)
 
@@ -122,7 +122,8 @@ class Service:  # pylint: disable=too-many-public-methods
                 paths = [p for p in self.index.find_id(doc_id) if self.vault.exists(p)]
             except INDEX_ERRORS:  # Der Index ist nur ein Cache.
                 paths = None
-        return paths if paths is not None else self.vault.scan_id(doc_id)
+        paths = paths if paths is not None else self.vault.scan_id(doc_id)
+        return [p for p in paths if not p.startswith(f"{SCRATCH}/")]
 
     def known_ids(self) -> set[str]:
         """Alle vergebenen IDs, bevorzugt über den Index.
@@ -141,7 +142,7 @@ class Service:  # pylint: disable=too-many-public-methods
             ids = {d.id for d in docs if d.id}
         return ids
 
-    def resolve(self, target: str, areas: tuple[str, ...] = AREAS) -> str:
+    def resolve(self, target: str, areas: tuple[str, ...] = READ_AREAS) -> str:
         """Ziel auflösen (Pfad, Wikilink, Kurzname oder ``id:``).
 
         Args:
@@ -153,7 +154,7 @@ class Service:  # pylint: disable=too-many-public-methods
         """
         return self.vault.resolve(target, areas, self.find_id)
 
-    def load(self, target: str, areas: tuple[str, ...] = AREAS) -> Doc:
+    def load(self, target: str, areas: tuple[str, ...] = READ_AREAS) -> Doc:
         """Ziel auflösen und laden.
 
         Args:
@@ -242,7 +243,8 @@ class Service:  # pylint: disable=too-many-public-methods
             Tupel aus (ID, aktueller Pfad oder ``None``, wenn das Dokument gelöscht ist).
 
         Raises:
-            PkmError: ``not_found``, wenn das Ziel fehlt oder keine ID hat.
+            PkmError: ``not_found``, wenn das Ziel fehlt oder keine ID hat; ``not_versioned``
+                für Dateien in ``scratch/``.
         """
         t = target.strip()
         try:
@@ -251,6 +253,8 @@ class Service:  # pylint: disable=too-many-public-methods
             if not (exc.status == "not_found" and t.startswith("id:") and is_valid_id(t[3:].strip())):
                 raise
             doc = None
+        if doc is not None and not doc.versioned:
+            raise PkmError("not_versioned", f"{doc.rel} liegt in scratch/ und hat keinen Verlauf.", path=doc.rel)
         if doc is None:
             result: tuple[str, str | None] = (t[3:].strip(), None)
         elif not doc.id:
@@ -266,7 +270,7 @@ class Service:  # pylint: disable=too-many-public-methods
 
         Args:
             query: Suchbegriffe.
-            scope: ``wiki``, ``documents`` oder ``all``.
+            scope: ``wiki``, ``documents``, ``scratch`` oder ``all`` (= ``wiki`` und ``documents``).
             max_results: Höchstzahl der Treffer (1–25).
 
         Returns:
@@ -278,7 +282,7 @@ class Service:  # pylint: disable=too-many-public-methods
         """
         areas = SCOPES.get(scope)
         if areas is None:
-            raise PkmError("invalid_argument", "scope muss wiki, documents oder all sein.")
+            raise PkmError("invalid_argument", "scope muss wiki, documents, scratch oder all sein.")
         hits = self.index.search(query, areas, max(1, min(int(max_results), MAX_RESULTS)))
         state = self.state()
         results = []
@@ -320,7 +324,10 @@ class Service:  # pylint: disable=too-many-public-methods
 
         Returns:
             Inhalt, Frontmatter, ``hash``, ``editable``, Abschnitte, Links und Rückverweise;
-            bei Wiki-Seiten zusätzlich die geparsten Belege.
+            bei Wiki-Seiten zusätzlich die geparsten Belege; in ``scratch/`` ohne ``id`` und ``version``.
+
+        Raises:
+            PkmError: ``not_versioned`` bei ``version`` für Dateien in ``scratch/``.
         """
         if version is not None:
             doc_id, rel = self._target_id(target)
@@ -366,6 +373,9 @@ class Service:  # pylint: disable=too-many-public-methods
                 result["backlinks"] = self._backlinks(doc)
             if doc.area == "wiki":
                 result["citations"] = citations.page_citations_for_read(doc)
+            if not doc.versioned:
+                result.pop("id")
+                result.pop("version")
         return result
 
     def _backlinks(self, doc: Doc) -> list[str]:
@@ -397,7 +407,7 @@ class Service:  # pylint: disable=too-many-public-methods
             Versionen mit Datum, Quelle, Notiz und Commit; mit ``diff_from`` zusätzlich ``diff``.
 
         Raises:
-            PkmError: ``not_found``, wenn es keine Versionen gibt.
+            PkmError: ``not_found``, wenn es keine Versionen gibt; ``not_versioned`` in ``scratch/``.
         """
         doc_id, rel = self._target_id(target)
         commits = self.git.log_for_id(doc_id)

@@ -42,6 +42,9 @@ from .paths import nfc, safe_resolve
 # Variables *******************************************************************
 
 AREAS = ("documents", "wiki")
+SCRATCH = "scratch"
+READ_AREAS = ("documents", "wiki", SCRATCH)
+ALL_AREAS = READ_AREAS
 WIKILINK_RE = re.compile(r"!?\[\[([^\]\|#]*)(?:#([^\]\|]*))?(?:\|[^\]]*)?\]\]")
 FULL_WIKILINK_RE = re.compile(r"!?\[\[([^\]\|#]*)(?:#[^\]\|]*)?(?:\|[^\]]*)?\]\]")
 SUMMARY_LABEL_RE = re.compile(r"^\*\*[^*]+:\*\*\s*")
@@ -49,7 +52,10 @@ MAX_SUMMARY_WIKI = 400
 MAX_SUMMARY_DOC = 200
 ID_SCAN_BYTES = 4096
 
-__all__ = ["AREAS", "PREAMBLE", "Doc", "Vault", "extract_links", "link_key", "load_text_doc", "summary_of"]
+__all__ = [
+    "ALL_AREAS", "AREAS", "PREAMBLE", "READ_AREAS", "SCRATCH", "Doc", "Vault", "extract_links", "link_key",
+    "load_text_doc", "summary_of",
+]
 
 # Classes *********************************************************************
 
@@ -87,7 +93,7 @@ class Doc:  # pylint: disable=too-many-instance-attributes
         """Bereich der Datei.
 
         Returns:
-            ``documents`` oder ``wiki``.
+            ``documents``, ``wiki`` oder ``scratch``.
         """
         return self.rel.split("/", 1)[0]
 
@@ -150,9 +156,18 @@ class Doc:  # pylint: disable=too-many-instance-attributes
         """Ob die Datei per MCP geändert werden darf.
 
         Returns:
-            ``True`` für gültige Markdown-Dateien unter ``documents/``.
+            ``True`` für gültige Markdown-Dateien unter ``documents/`` und ``scratch/``.
         """
-        return self.area == "documents" and self.kind == "md" and self.error is None
+        return self.area in ("documents", SCRATCH) and self.kind == "md" and self.error is None
+
+    @property
+    def versioned(self) -> bool:
+        """Ob die Datei versioniert wird (``scratch/`` nie, Spezifikation 3).
+
+        Returns:
+            ``False`` für Dateien in ``scratch/``.
+        """
+        return self.area != SCRATCH
 
     @property
     def link_path(self) -> str:

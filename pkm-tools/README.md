@@ -29,7 +29,8 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
 
 **Skills:** `skills/pkm-access/SKILL.md` (normale Chats), `skills/pkm-wiki/SKILL.md` (Pflegeprojekt).
 **Einrichtung:** [docs/einrichtung.md](../docs/einrichtung.md). **Abnahme:** [docs/abnahme.md](../docs/abnahme.md)
-(Simulation aller zehn Schritte: `tests/test_acceptance_simulation.py`).
+(Simulation der Schritte 1–9 und 11: `tests/test_acceptance_simulation.py`; Schritt 10 und alle
+`scratch/`-Fälle: `tests/test_scratch.py`).
 
 ## Abweichungen und Ergänzungen zur Spezifikation
 
@@ -86,7 +87,7 @@ Prüfen vor jedem Commit:
   (Testfunktionen: ein Satz, was geprüft wird).
 - Genau ein `return` je Funktion bzw. Methode.
 - Wenige, begründete `pylint: disable` nur dort, wo die Schnittstelle der Spezifikation es
-  erzwingt (z. B. acht Parameter von `create_document`, Parametername `set`) oder bei
+  erzwingt (z. B. zehn Parameter von `create_document`, Parametername `set`) oder bei
   Datenklassen mit vielen Feldern.
 
 Die Tests laufen auch unter Linux. Alle Pfade werden über Umgebungsvariablen gesetzt

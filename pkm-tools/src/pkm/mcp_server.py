@@ -128,7 +128,8 @@ def _register_read_tools(server: _Server) -> None:
 
     @server.tool()
     def search(query: str, scope: str = "wiki", max_results: int = 8) -> dict:
-        """Volltextsuche (Präfixsuche, umlauttolerant). scope: wiki (Standard) | documents | all.
+        """Volltextsuche (Präfixsuche, umlauttolerant). scope: wiki (Standard) | documents | scratch | all
+        (all = wiki + documents; scratch nur auf ausdrückliche Angabe).
         max_results höchstens 25. Treffer mit id, version, path, title, type, summary, snippet,
         score, updated und bei Dokumenten processed (ob im Wiki eingearbeitet)."""
         return call("search", Service.search, query=query, scope=scope, max_results=max_results)
@@ -168,8 +169,9 @@ def _register_read_tools(server: _Server) -> None:
 def _register_write_tools(server: _Server) -> None:
     """Schreibende Tools (7.2) registrieren.
 
-    Neuanlage nur in ``documents/_inbox/``, Änderungen nur an ``documents/**/*.md``. Jede Änderung
-    ergibt eine neue Version mit Git-Commit. Löschen und Verschieben gibt es nicht.
+    Neuanlage nur in ``documents/_inbox/`` bzw. ``scratch/``, Änderungen nur an ``documents/**/*.md``
+    und ``scratch/**/*.md``. Jede Änderung in ``documents/`` ergibt eine neue Version mit Git-Commit,
+    in ``scratch/`` ohne Version und Commit. Löschen und Verschieben gibt es nicht.
 
     Args:
         server: MCP-Server.
@@ -182,14 +184,18 @@ def _register_write_tools(server: _Server) -> None:
         topics: list[str] | None = None,
         context: str | None = None,
         related: list[str] | None = None,
-        kind: str = "note",
+        kind: str | None = None,
         source: str = "claude-chat",
         note: str | None = None,
+        area: str = "documents",
+        folder: str | None = None,
     ) -> dict:
-        """Neues Dokument in documents/_inbox/ anlegen (Version 1, Commit). Nur nach gezeigtem
-        und bestätigtem Entwurf. content ohne Frontmatter. kind: note | correction."""
+        """Neues Dokument in documents/_inbox/ anlegen (Version 1, Commit) oder mit area="scratch"
+        eine kurzlebige Notiz/Todo-Liste in scratch/[folder/] (ohne Version und Commit, nie im Wiki).
+        Nur nach gezeigtem und bestätigtem Entwurf. content ohne Frontmatter. kind: note | correction."""
         return call("create_document", Service.create_document, title=title, content=content, topics=topics,
-                    context=context, related=related, kind=kind, source=source, note=note)
+                    context=context, related=related, kind=kind, source=source, note=note, area=area,
+                    folder=folder)
 
     @server.tool()
     def rewrite_document(
@@ -232,7 +238,8 @@ def _register_write_tools(server: _Server) -> None:
 
     @server.tool()
     def restore_document(target: str, version: int, expected_hash: str) -> dict:
-        """Inhalt einer früheren Version als neue Version zurückholen (Geschichte bleibt erhalten)."""
+        """Inhalt einer früheren Version als neue Version zurückholen (Geschichte bleibt erhalten).
+        Für Dateien in scratch/ kommt not_versioned."""
         return call("restore_document", Service.restore_document, target=target, version=version,
                     expected_hash=expected_hash)
 

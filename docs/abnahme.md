@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Abnahmeprotokoll
 
-**Bezug:** Spezifikation 0.13, Abschnitt 14 („Abnahme (manuell)“) · Umsetzungsplan Phase 7
+**Bezug:** Spezifikation 0.14, Abschnitt 14 („Abnahme (manuell)“) · Umsetzungsplan Phase 7
 
 Die Abnahme läuft auf dem **Mac** mit echtem Nextcloud-Vault, Claude Desktop und Obsidian sowie
 für Schritt 9 auf dem **Windows-Rechner**. Voraussetzung ist die Einrichtung nach
@@ -211,7 +211,30 @@ pkmgit log -3 --format='%s | %(trailers:key=PKM-Source,valueonly)'
 
 ---
 
-## Schritt 10 – Doctor und Lint
+## Schritt 10 – Todo-Liste in `scratch/`
+
+**Eingabe** (normaler Chat): „Setz ‚Filter der Zisternenpumpe reinigen‘ auf meine Todo-Liste.“
+
+**Erwartet**
+- [ ] Der Chat zeigt einen Entwurf und legt nach Bestätigung eine Notiz in `scratch/` an
+      (`create_document` mit `area: "scratch"`), ohne Version und ohne Commit.
+- [ ] Er weist darauf hin, dass `scratch/` nicht ins Wiki übernommen wird.
+- [ ] „Hak den Filter ab“ → Vorher/Nachher, dann `- [x]` in der Datei; wieder ohne Commit.
+- [ ] Nach einem Pflegelauf taucht der Eintrag nicht im Wiki auf:
+
+```bash
+pkmgit log -3 --format='%s'
+```
+
+```bash
+grep -ri "zisternenpumpe" "$PKM_ROOT/wiki" || echo "nicht im Wiki"
+```
+
+**Ergebnis:** ☐  **Notiz:**
+
+---
+
+## Schritt 11 – Doctor und Lint
 
 ```bash
 pkm doctor
@@ -222,7 +245,7 @@ pkm lint --report
 ```
 
 **Erwartet**
-- [ ] `doctor`: `"status": "ok"`, `"errors": 0`.
+- [ ] `doctor`: `"status": "ok"`, `"errors": 0` (auch `scratch_ignored`).
 - [ ] `lint`: `"summary": {"error": 0, …}`; Bericht unter `wiki/_lint/YYYY-MM-DD.md`.
 - [ ] Hinweise (`info`) und Warnungen sind erklärbar und im Befund notiert.
 

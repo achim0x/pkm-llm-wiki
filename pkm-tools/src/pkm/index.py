@@ -34,7 +34,7 @@ from typing import Any, TypeVar
 from .config import Config
 from .errors import PkmError
 from .paths import transliterate
-from .vault import Doc, Vault, extract_links, link_key, summary_of
+from .vault import ALL_AREAS, Doc, Vault, extract_links, link_key, summary_of
 
 # Variables *******************************************************************
 
@@ -70,7 +70,7 @@ SEARCH_SQL = (
 
 
 class SearchIndex:
-    """FTS5-Index über ``documents/`` und ``wiki/``, inkrementell und selbstheilend."""
+    """FTS5-Index über ``documents/``, ``wiki/`` und ``scratch/``, inkrementell und selbstheilend."""
 
     def __init__(self, cfg: Config, vault: Vault) -> None:
         """Index-Zugriff anlegen.
@@ -225,7 +225,7 @@ class SearchIndex:
         known = {r[0]: (r[1], r[2]) for r in con.execute("SELECT path, mtime_ns, size FROM files")}
         seen: set[str] = set()
         updated = 0
-        for rel in self.vault.iter_files():
+        for rel in self.vault.iter_files(ALL_AREAS):
             seen.add(rel)
             doc = self._changed_doc(rel, known.get(rel), force)
             if doc is not None:
@@ -311,7 +311,7 @@ class SearchIndex:
 
         Args:
             query: Suchbegriffe.
-            areas: Bereiche (``documents``, ``wiki``).
+            areas: Bereiche (``documents``, ``wiki``, ``scratch``).
             limit: Höchstzahl der Treffer.
 
         Returns:

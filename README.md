@@ -10,6 +10,8 @@ Ein persönliches Wissensmanagement (PKM) aus reinem Markdown, das Claude für d
 - Aus **jedem Chat** kannst du das Wiki abfragen, dir die Quellen nennen lassen und Dokumente
   fortschreiben. Jede Änderung wird eine **neue Version mit Git-Commit** und ist jederzeit
   umkehrbar.
+- Für Kurzlebiges wie **Notizen und Todo-Listen** gibt es den Bereich `scratch/`: aus Chats
+  beschreibbar, aber ohne Versionen und nie im Wiki.
 
 Alles bleibt lesbares Markdown in einem normalen Ordner. Obsidian ist das Frontend, aber keine
 Voraussetzung.
@@ -81,6 +83,15 @@ Voraussetzung.
 - Ändert sich ein Dokument, verarbeitet der Agent **nur die geänderten Abschnitte**. Bei
   geänderten Entscheidungen bleibt „Bis Version 1: …“ mit Beleg auf die alte Version stehen.
 
+### Notizen und Todo-Listen in `scratch/`
+- „Notier mir kurz …“, „setz das auf meine Todo-Liste“, „hak … ab“: Claude legt Notizen in
+  `scratch/` an und ändert sie, ebenfalls erst nach einem Entwurf.
+- `scratch/` wird **nie ins Wiki übernommen**, hat **keine Versionen und keine Commits** und steht
+  nicht in Git (nur in der Nextcloud, deren Dateiversionen als Rückfallebene dienen). Lint,
+  Pflegelauf und Belege ignorieren den Bereich.
+- Wird eine Notiz dauerhaft wichtig, verschiebst du sie in Obsidian nach `documents/`. Beim nächsten
+  Pflegelauf ist sie ein ganz normales Dokument mit ID und Version 1.
+
 ### Fragen und Quellen
 - „Was weiß mein Wiki über …?“ beantwortet Claude aus dem Wiki, mit Verweisen auf die Seiten.
 - „Woher stammt das?“ liefert zu jeder Aussage das Original, den Abschnitt, das Zitat, die
@@ -134,6 +145,7 @@ flowchart LR
     subgraph Vault["Vault in der Nextcloud"]
         D["documents/<br/>gehört dir"]
         W["wiki/<br/>gehört dem Agenten"]
+        X["scratch/<br/>Notizen, nicht versioniert"]
         S[".pkm/state.json"]
     end
     O["Obsidian<br/>Mac und Windows"]
@@ -141,7 +153,8 @@ flowchart LR
     A -- "MCP: suchen, lesen,<br/>ablegen, fortschreiben" --> M
     B -- "Shell" --> C
     B -- "Dateizugriff" --> W
-    M -- "nur documents/ schreiben" --> D
+    M -- "documents/ schreiben" --> D
+    M -- "ohne Commit" --> X
     M -- "nur lesen" --> W
     M --> G
     M --> I
@@ -172,6 +185,7 @@ Der Windows-Rechner nutzt den Vault nur über Obsidian.
 │   ├── _inbox/             ← neue Dokumente aus Chats und vom Web Clipper
 │   ├── _attachments/       ← Bilder aus Web-Clips
 │   └── …                   ← beliebige eigene Ordner, z. B. haus/, garten/
+├── scratch/                ← Notizen und Todo-Listen: nicht in Git, nie im Wiki
 ├── wiki/                   ← gehört dem Pflege-Agenten
 │   ├── index.md            ← Katalog aller Seiten mit Kurzfassung (generiert)
 │   ├── _status.md          ← Offenes, Einsortier-Vorschläge, Probleme, Rückfragen (generiert)
@@ -186,6 +200,7 @@ Der Windows-Rechner nutzt den Vault nur über Obsidian.
 |---|---|---|---|
 | `documents/_inbox/` | alles | neu anlegen, ändern | lesen, `id`/`version` setzen |
 | `documents/**` | alles | ändern (nur Markdown) | lesen, `id`/`version` setzen |
+| `scratch/**` | alles | neu anlegen, ändern (nur Markdown), ohne Version und Commit | ignoriert |
 | `wiki/` | lesen | nur lesen | lesen und schreiben |
 | `CLAUDE.md` | lesen und schreiben | – | nur nach Zustimmung |
 
@@ -256,6 +271,8 @@ lösen die passenden Abläufe aus:
 | „Mach das rückgängig.“ | Holt die vorherige Version als neue Version zurück (nach Bestätigung). |
 | „Was weiß mein Wiki über …?“ | Antwort aus dem Wiki mit Verweisen auf die Seiten. |
 | „Woher stammt das?“ | Original, Abschnitt, Zitat, Versionen und Status je Aussage. |
+| „Notier mir kurz …“ / „Setz … auf meine Todo-Liste“ | Notiz in `scratch/` (nach Entwurf), ohne Version und Commit, nie im Wiki. |
+| „Hak … ab“ / „Was steht auf meiner Liste?“ | Ändert bzw. liest die Liste in `scratch/` (Suche mit `scope: "scratch"`). |
 | „Korrigier im Wiki: …“ | Legt ein **Korrektur-Dokument** an. Das Wiki selbst ändert nur der Pflege-Agent. |
 | „Dokumentiere das als Fortsetzung.“ | Nur auf diese ausdrückliche Anweisung entsteht ein datierter Abschnitt `## Fortsetzung YYYY-MM-DD`. |
 
@@ -303,6 +320,9 @@ Chat reicht es, das Thema zu nennen.
 - **Web Clipper** speichert nach `documents/_inbox/`, Bilder nach `documents/_attachments/`.
 - **PDFs und Bilder** kannst du ebenfalls ablegen. Sie werden über ihren Inhalt erkannt. Eine neue
   Fassung eines PDFs gilt als neues Dokument.
+- **Notizen und Todo-Listen** legst du in `scratch/` ab, wenn sie nicht ins Wiki sollen. Aufräumen
+  (löschen, verschieben) machst du dort selbst in Obsidian. Verschieben nach `documents/` macht
+  aus einer Notiz ein Dokument; umgekehrt wirkt es für das Wiki wie Löschen.
 - **Das Wiki** liest du in Obsidian, änderst es aber nicht. Fehler meldest du per
   Korrektur-Dokument aus einem Chat.
 - **Überschriften:** Abschnitte sind Überschriften der Ebene 1 und 2. Bitte vermeiden:
@@ -461,7 +481,7 @@ nützlich. Ausgabe ist immer JSON. Im Vault-Ordner findet die CLI den Vault selb
 | `pkm reindex` | Suchindex neu aufbauen |
 
 Ziele können ein Pfad (`documents/haus/zisterne.md`), ein Wikilink (`[[zisterne]]`) oder eine ID
-(`id:d-…`) sein.
+(`id:d-…`) sein. Alle Befehle außer `pkm reindex` ignorieren `scratch/`.
 
 ---
 

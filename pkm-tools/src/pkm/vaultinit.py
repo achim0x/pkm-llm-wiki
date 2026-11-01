@@ -43,8 +43,10 @@ DIRS = [
     "wiki/summaries",
     "wiki/syntheses",
     "wiki/_lint",
+    "scratch",
     ".pkm",
 ]
+SCRATCH_IGNORE = "scratch/"
 
 # Classes *********************************************************************
 
@@ -99,6 +101,36 @@ def _create_structure(cfg: Config) -> tuple[list[str], list[str]]:
     return created_dirs, created_files
 
 
+def ensure_scratch_ignored(cfg: Config) -> bool:
+    """``scratch/`` in eine bestehende ``.gitignore`` aufnehmen, falls es fehlt (ältere Vaults).
+
+    Args:
+        cfg: Konfiguration.
+
+    Returns:
+        ``True``, wenn die Datei ergänzt wurde.
+    """
+    p = cfg.root / ".gitignore"
+    text = p.read_text(encoding="utf-8") if p.is_file() else ""
+    missing = not scratch_ignored(text)
+    if missing:
+        p.write_text(text + ("" if not text or text.endswith("\n") else "\n") + SCRATCH_IGNORE + "\n",
+                     encoding="utf-8")
+    return missing
+
+
+def scratch_ignored(gitignore_text: str) -> bool:
+    """Prüfen, ob eine ``.gitignore`` den Bereich ``scratch/`` ausschließt.
+
+    Args:
+        gitignore_text: Inhalt der ``.gitignore``.
+
+    Returns:
+        ``True``, wenn eine Zeile ``scratch/``, ``/scratch/``, ``scratch`` oder ``/scratch`` lautet.
+    """
+    return any(line.strip().strip("/") == "scratch" for line in gitignore_text.splitlines())
+
+
 def init_vault(cfg: Config) -> dict[str, Any]:
     """``pkm init`` (idempotent).
 
@@ -106,7 +138,7 @@ def init_vault(cfg: Config) -> dict[str, Any]:
         cfg: Konfiguration.
 
     Returns:
-        Was angelegt wurde, ob das Repo neu ist, der Initial-Commit und Warnungen.
+        Was angelegt bzw. ergänzt wurde, ob das Repo neu ist, der Initial-Commit und Warnungen.
 
     Raises:
         PkmError: ``config_error``, wenn Git-Verzeichnis oder Suchindex im Vault liegen würden
@@ -118,6 +150,7 @@ def init_vault(cfg: Config) -> dict[str, Any]:
     if (cfg.root / ".git").exists():
         raise PkmError("config_error", "Im Vault liegt ein `.git`. Git muss außerhalb liegen (5.5).")
     created_dirs, created_files = _create_structure(cfg)
+    updated_files = [".gitignore"] if ".gitignore" not in created_files and ensure_scratch_ignored(cfg) else []
     git = Git(cfg.git_dir, cfg.root)
     repo_created = git.init()
     commit = None
@@ -134,6 +167,7 @@ def init_vault(cfg: Config) -> dict[str, Any]:
         "git_dir": str(cfg.git_dir),
         "created_dirs": created_dirs,
         "created_files": created_files,
+        "updated_files": updated_files,
         "repo_created": repo_created,
         "commit": commit,
         "warnings": warnings,

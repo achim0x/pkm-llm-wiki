@@ -345,7 +345,8 @@ class Linter:
             self.r.add("citation_format", "error", page.rel, f"[^{cit.label}]: {problem}.", footnote=cit.label)
         target = cit.target_rel or ""
         if cit.path and not target.startswith("documents/"):
-            check = "citation_to_wiki" if target.startswith("wiki/") else "citation_outside_documents"
+            check = {"wiki": "citation_to_wiki", "scratch": "citation_to_scratch"}.get(
+                target.split("/", 1)[0], "citation_outside_documents")
             self.r.add(check, "error", page.rel, f"[^{cit.label}] zeigt nicht auf documents/: {cit.path}.",
                        footnote=cit.label)
         elif cit.path:

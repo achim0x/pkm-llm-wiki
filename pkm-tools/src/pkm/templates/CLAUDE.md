@@ -10,6 +10,7 @@ nur nach Zustimmung des Nutzers.
 |---|---|---|
 | `documents/` (inkl. `_inbox/`, `_attachments/`) | Nutzer | Nutzer (Obsidian), pkm-mcp auf Anweisung des Nutzers; der Agent nur `id`/`version` über `pkm ids`/`pkm versions` |
 | `wiki/` | Pflege-Agent | nur der Agent; aus Chats nur lesbar |
+| `scratch/` | Nutzer | Nutzer (Obsidian), pkm-mcp auf Anweisung; ohne Version und Commit, nie im Wiki, nicht in Git |
 | `.pkm/state.json` | Pflege-Agent | `pkm mark` |
 | `CLAUDE.md` | Nutzer | Agent nur nach Zustimmung |
 

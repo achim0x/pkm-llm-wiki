@@ -1,4 +1,5 @@
 # PKM – nicht versionieren
+scratch/
 .obsidian/workspace*
 .pkm/mcp.log
 .sync_*

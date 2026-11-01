@@ -1,6 +1,6 @@
 ---
 name: pkm-access
-description: Das persönliche Wissensmanagement (PKM) aus normalen Chats nutzen – über die MCP-Tools des Servers „pkm“. Verwenden bei „leg das ins PKM“, „speicher das Ergebnis“, „führ das im Dokument zu … weiter“, „aktualisier mein Dokument …“, „was weiß mein Wiki über …“, „woher stammt das?“, „was hat sich geändert?“, „mach das rückgängig“, „korrigier im Wiki …“.
+description: Das persönliche Wissensmanagement (PKM) aus normalen Chats nutzen – über die MCP-Tools des Servers „pkm“. Verwenden bei „leg das ins PKM“, „speicher das Ergebnis“, „führ das im Dokument zu … weiter“, „aktualisier mein Dokument …“, „was weiß mein Wiki über …“, „woher stammt das?“, „was hat sich geändert?“, „mach das rückgängig“, „korrigier im Wiki …“, „notier mir kurz …“, „setz das auf meine Todo-Liste“, „hak … ab“, „was steht auf meiner Liste?“.
 ---
 
 # PKM aus Chats nutzen
@@ -79,6 +79,7 @@ Original per `edit_document` markieren:
 | `ambiguous` | Kandidaten nennen und nachfragen (bei Abschnitten: Schlüssel mit Suffix verwenden) |
 | `not_found` | Ziel oder Textstelle prüfen, ggf. `search` |
 | `forbidden` | Ziel ist nicht änderbar (z. B. `wiki/`); bei Wiki-Fehlern Korrektur-Dokument anlegen |
+| `not_versioned` | Datei liegt in `scratch/`: es gibt keinen Verlauf und nichts wiederherzustellen |
 | `git_unavailable`, `commit_failed`, `invalid_frontmatter`, `invalid_encoding` | Dem Nutzer melden; nicht umgehen |
 
 ## Verlauf
@@ -102,6 +103,26 @@ Original per `edit_document` markieren:
    Original nicht mehr da ist (Wortlaut stammt aus dem Verlauf).
 5. Ohne Nachfrage genügen die Wiki-Seiten. Die Originale anbieten, wenn die Antwort für eine
    Entscheidung gebraucht wird.
+
+## Notizen und Todo-Listen (`scratch/`)
+
+Für Kurzlebiges gibt es den Bereich `scratch/`: Er wird **nie ins Wiki übernommen** und **nicht
+versioniert** (kein Commit, kein Verlauf).
+
+- Auslöser: „notier mir kurz …“, „setz das auf meine Todo-Liste“, „hak … ab“, „was steht auf
+  meiner Liste?“.
+- **Neue Notiz:** `create_document` mit `area: "scratch"` (optional `folder`, z. B. `"todo"`).
+- **Bestehende Liste ändern:** `append_to_document` bzw. `edit_document`, z. B. beim Abhaken
+  `- [ ]` → `- [x]`. Ist unklar, welche Liste gemeint ist: `search` mit `scope: "scratch"`, bei
+  mehreren Treffern nachfragen.
+- **Auch hier gilt die Grundregel:** erst Entwurf bzw. Vorher/Nachher zeigen, dann nach
+  Bestätigung schreiben.
+- Darauf hinweisen, dass Inhalte in `scratch/` nicht ins Wiki kommen. Soll etwas dauerhaft
+  festgehalten werden, stattdessen ein Dokument in `documents/` vorschlagen (oder die Notiz in
+  Obsidian nach `documents/` verschieben lassen).
+- Für Dateien in `scratch/` **keine Version und keinen Commit nennen**. `history` und
+  `restore_document` liefern dort `not_versioned`.
+- `search` durchsucht `scratch/` nur mit `scope: "scratch"`.
 
 ## Korrekturen am Wiki
 
