@@ -1,0 +1,208 @@
+[
+ {
+  "name": "einfach",
+  "input": "---\nid: d-20261031-2340-k7q2\nversion: 1\ntitle: Test\n---\n\n## Ergebnis\nA\n\n## Offene Punkte\n- x\n",
+  "sections": [
+   [
+    "Ergebnis",
+    "A"
+   ],
+   [
+    "Offene Punkte",
+    "- x"
+   ]
+  ],
+  "meta": {
+   "id": "d-20261031-2340-k7q2",
+   "version": 1,
+   "title": "Test"
+  }
+ },
+ {
+  "name": "ohne_frontmatter_mit_vorspann",
+  "input": "Einleitung\n\n# Titel\nText\n## Teil\nMehr\n",
+  "sections": [
+   [
+    "_preamble",
+    "Einleitung"
+   ],
+   [
+    "Titel",
+    "Text"
+   ],
+   [
+    "Teil",
+    "Mehr"
+   ]
+  ]
+ },
+ {
+  "name": "vorspann_leer",
+  "input": "---\nx: 1\n---\n\n  \n\n## A\n",
+  "sections": [
+   [
+    "A",
+    ""
+   ]
+  ]
+ },
+ {
+  "name": "frontmatter_dots",
+  "input": "---\ntitle: T\n...\nText\n",
+  "sections": [
+   [
+    "_preamble",
+    "Text"
+   ]
+  ],
+  "meta": {
+   "title": "T"
+  }
+ },
+ {
+  "name": "frontmatter_ohne_abschluss",
+  "input": "---\ntitle: T\n\n## A\nx\n",
+  "sections": [],
+  "fm_error": true
+ },
+ {
+  "name": "frontmatter_ungueltig",
+  "input": "---\ntitle: [a\n---\n## A\n",
+  "sections": [],
+  "fm_error": true
+ },
+ {
+  "name": "codeblock_backticks",
+  "input": "## A\n```\n## kein Abschnitt\n```\n## B\nb\n",
+  "sections": [
+   [
+    "A",
+    "```\n## kein Abschnitt\n```"
+   ],
+   [
+    "B",
+    "b"
+   ]
+  ]
+ },
+ {
+  "name": "codeblock_tilde_verschachtelt",
+  "input": "## A\n~~~~\n~~~\n## nein\n~~~\n~~~~\n## B\n",
+  "sections": [
+   [
+    "A",
+    "~~~~\n~~~\n## nein\n~~~\n~~~~"
+   ],
+   [
+    "B",
+    ""
+   ]
+  ]
+ },
+ {
+  "name": "codeblock_kurzer_zaun_schliesst_nicht",
+  "input": "## A\n````\n```\n## nein\n````\n## B\n",
+  "sections": [
+   [
+    "A",
+    "````\n```\n## nein\n````"
+   ],
+   [
+    "B",
+    ""
+   ]
+  ]
+ },
+ {
+  "name": "codeblock_offen_bis_ende",
+  "input": "## A\n```\n## nein\n",
+  "sections": [
+   [
+    "A",
+    "```\n## nein"
+   ]
+  ]
+ },
+ {
+  "name": "setext_keine_grenze",
+  "input": "## A\nTitel\n=====\nZeile\n---\n",
+  "sections": [
+   [
+    "A",
+    "Titel\n=====\nZeile\n---"
+   ]
+  ]
+ },
+ {
+  "name": "ebene3_gehoert_dazu",
+  "input": "## A\n### Unter\nx\n## B\n",
+  "sections": [
+   [
+    "A",
+    "### Unter\nx"
+   ],
+   [
+    "B",
+    ""
+   ]
+  ]
+ },
+ {
+  "name": "atx_abschluss_und_leerraum",
+  "input": "## Offene  Punkte ##\nx\n",
+  "sections": [
+   [
+    "Offene Punkte",
+    "x"
+   ]
+  ]
+ },
+ {
+  "name": "einrueckung",
+  "input": "   ## Drei\nx\n    ## Vier ist Code\n",
+  "sections": [
+   [
+    "Drei",
+    "x\n    ## Vier ist Code"
+   ]
+  ]
+ },
+ {
+  "name": "kein_leerzeichen_keine_ueberschrift",
+  "input": "##Kein\n#Auch nicht\n",
+  "sections": [
+   [
+    "_preamble",
+    "##Kein\n#Auch nicht"
+   ]
+  ]
+ },
+ {
+  "name": "duplikate_ueber_ebenen",
+  "input": "# Notizen\na\n## Notizen\nb\n## Notizen\nc\n",
+  "sections": [
+   [
+    "Notizen",
+    "a"
+   ],
+   [
+    "Notizen#2",
+    "b"
+   ],
+   [
+    "Notizen#3",
+    "c"
+   ]
+  ]
+ },
+ {
+  "name": "leerzeilen_normalisiert",
+  "input": "## A\n\n\nx   \n\n\n\ny\t\n\n",
+  "sections": [
+   [
+    "A",
+    "x\n\ny"
+   ]
+  ]
+ }
+]

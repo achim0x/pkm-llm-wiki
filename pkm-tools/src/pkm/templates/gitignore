@@ -1,0 +1,7 @@
+# PKM – nicht versionieren
+.obsidian/workspace*
+.pkm/mcp.log
+.sync_*
+.owncloudsync.log
+*.part
+.DS_Store
