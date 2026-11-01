@@ -11,11 +11,34 @@ des Vault-Ordners in der Nextcloud, `<REPO>` = Ort dieses Repositorys auf dem Ma
 ## 1. Voraussetzungen (Mac)
 
 - Nextcloud-Desktop-Client, Obsidian, Claude Desktop
-- Git (Xcode Command Line Tools):
+- **Git**, installiert mit [pixi](https://pixi.sh). Der Befehl `pixi global install git` ist auf
+  macOS, Linux und Windows derselbe, braucht keine Administratorrechte und legt `git` nach
+  `~/.pixi/bin`. Zuerst pixi installieren (danach ein neues Terminal öffnen):
+
+  macOS und Linux:
 
   ```bash
-  xcode-select --install
+  curl -fsSL https://pixi.sh/install.sh | sh
   ```
+
+  Windows (PowerShell):
+
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm -useb https://pixi.sh/install.ps1 | iex"
+  ```
+
+  Dann Git installieren und prüfen:
+
+  ```bash
+  pixi global install git
+  ```
+
+  ```bash
+  git --version
+  ```
+
+  Ist Git schon vorhanden (z. B. über Homebrew oder die Xcode Command Line Tools), kann dieser
+  Schritt entfallen. Wichtig ist nur, dass der Ordner mit `git` in Abschnitt 5 im `PATH` steht.
 
 - `uv` (Python-Werkzeug), installiert nach `~/.local/bin`:
 
@@ -104,7 +127,7 @@ nicht vorhanden; bestehende Einträge unter `mcpServers` behalten):
       "env": {
         "PKM_ROOT": "<HOME>/Nextcloud/<VAULT>",
         "PKM_VAULT_NAME": "<VAULT>",
-        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+        "PATH": "<HOME>/.pixi/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
       }
     }
   }
@@ -113,6 +136,8 @@ nicht vorhanden; bestehende Einträge unter `mcpServers` behalten):
 
 - JSON kennt weder `~` noch Umgebungsvariablen: alle Pfade absolut.
 - `PATH` muss `git` enthalten, weil Claude Desktop Server mit minimaler Umgebung startet.
+  `<HOME>/.pixi/bin` ist der Ordner aus `pixi global install git`. Wo `git` liegt, zeigt
+  `command -v git`.
 - `PKM_VAULT_NAME` ist optional und sorgt für klickbare `obsidian://`-Links in Quellenangaben.
 - Alternative ohne Installation (wie Spezifikation 7.6):
   `"command": "<HOME>/.local/bin/uvx", "args": ["--from", "<REPO>/pkm-tools", "pkm-mcp"]`.
