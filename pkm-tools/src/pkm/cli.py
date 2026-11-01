@@ -49,6 +49,51 @@ def cmd_restore(cfg: Config, args: argparse.Namespace) -> Any:
     return svc.restore_document(args.target, args.version, current["hash"], source="user")
 
 
+def _maint(cfg: Config):
+    from .maint import Maintenance
+    from .service import Service
+
+    return Maintenance(Service(cfg))
+
+
+def cmd_ids(cfg: Config, args: argparse.Namespace) -> Any:
+    return _maint(cfg).ids()
+
+
+def cmd_versions(cfg: Config, args: argparse.Namespace) -> Any:
+    return _maint(cfg).versions()
+
+
+def cmd_pending(cfg: Config, args: argparse.Namespace) -> Any:
+    return _maint(cfg).pending()
+
+
+def cmd_mark(cfg: Config, args: argparse.Namespace) -> Any:
+    return _maint(cfg).mark(args.targets, args.pages, args.remove)
+
+
+def cmd_sha(cfg: Config, args: argparse.Namespace) -> Any:
+    return _maint(cfg).sha(args.target, args.section, args.full)
+
+
+def cmd_commit_wiki(cfg: Config, args: argparse.Namespace) -> Any:
+    return _maint(cfg).commit_wiki(args.message)
+
+
+def cmd_index(cfg: Config, args: argparse.Namespace) -> Any:
+    from .service import Service
+    from .wikigen import build_index
+
+    return build_index(Service(cfg))
+
+
+def cmd_status(cfg: Config, args: argparse.Namespace) -> Any:
+    from .service import Service
+    from .wikigen import build_status
+
+    return build_status(Service(cfg), args.question)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pkm", description="PKM-Werkzeuge (Pflege)")
     sub = p.add_subparsers(dest="command", required=True)
@@ -67,6 +112,26 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("target")
     r.add_argument("--version", type=int, required=True)
     r.set_defaults(func=cmd_restore)
+    sub.add_parser("ids", help="Fehlende id/version eintragen, je Dokument ein Commit").set_defaults(func=cmd_ids)
+    sub.add_parser("versions", help="Änderungen von Hand als Versionen committen").set_defaults(func=cmd_versions)
+    sub.add_parser("pending", help="Zu verarbeitende Dokumente (JSON)").set_defaults(func=cmd_pending)
+    m = sub.add_parser("mark", help="Dokumente als verarbeitet in state.json eintragen")
+    m.add_argument("targets", nargs="+", metavar="ID")
+    m.add_argument("--pages", nargs="*", default=[], metavar="PAGE")
+    m.add_argument("--remove", action="store_true", help="Einträge entfernen (z. B. gelöschte Dokumente)")
+    m.set_defaults(func=cmd_mark)
+    h = sub.add_parser("sha", help="Hashes nach 4.8 (Standard 6 Zeichen)")
+    h.add_argument("target")
+    h.add_argument("--section")
+    h.add_argument("--full", action="store_true")
+    h.set_defaults(func=cmd_sha)
+    sub.add_parser("index", help="wiki/index.md neu erzeugen").set_defaults(func=cmd_index)
+    st = sub.add_parser("status", help="wiki/_status.md neu erzeugen")
+    st.add_argument("--question", action="append", default=[], help="Rückfrage aufnehmen (mehrfach)")
+    st.set_defaults(func=cmd_status)
+    c = sub.add_parser("commit-wiki", help="Agenten-Commit: nur wiki/ und .pkm/state.json")
+    c.add_argument("--message", "-m", required=True)
+    c.set_defaults(func=cmd_commit_wiki)
     return p
 
 

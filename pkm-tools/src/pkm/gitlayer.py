@@ -161,6 +161,20 @@ class Git:
         out = self.run("status", "--porcelain=v1", "--untracked-files=all", "--", path).stdout
         return bool(out.strip())
 
+    def status_entries(self, *pathspecs: str) -> list[tuple[str, str]]:
+        """(XY, Pfad) für geänderte, gelöschte und nicht verfolgte Dateien, ohne Rename-Erkennung."""
+        out = self.run(
+            "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames", "--", *pathspecs
+        ).stdout.decode("utf-8", "replace")
+        entries = []
+        for rec in out.split("\0"):
+            if len(rec) > 3:
+                entries.append((rec[:2], rec[3:]))
+        return entries
+
+    def has_changes(self, *pathspecs: str) -> bool:
+        return bool(self.status_entries(*pathspecs))
+
     # --- Schreiben ---
     def commit_paths(self, paths: list[str], message: str, author: str | None = None, as_user: bool = False) -> str:
         """Genau diese Pfade committen; andere offene Änderungen bleiben unberührt.
@@ -191,7 +205,7 @@ class Git:
 
     # --- Lesen ---
     def show_file(self, sha: str, path: str) -> bytes:
-        if not re.fullmatch(r"[0-9a-f]{7,64}", sha):
+        if sha != "HEAD" and not re.fullmatch(r"[0-9a-f]{7,64}", sha):
             raise ValueError("Ungültiger Commit")
         return self.run("show", f"{sha}:{path}").stdout
 

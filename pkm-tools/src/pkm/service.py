@@ -217,20 +217,16 @@ class Service:
         return {"status": "ok", "path": "wiki/index.md", "content": content}
 
     def list_unprocessed(self) -> dict[str, Any]:
-        state = self.state()
-        items = []
-        for rel in self.vault.iter_files(("documents",)):
-            try:
-                doc = self.vault.load(rel)
-            except PkmError:
-                continue
-            key = state_key(doc)
-            entry = state["documents"].get(key) if key else None
-            info = classify(doc, entry)
-            if info is None:
-                continue
-            items.append({"id": doc.id, "title": doc.title, "path": rel, **info})
-        return {"status": "ok", "count": len(items), "documents": items}
+        """Wie `pkm pending`, als flache Liste mit Kategorie (live berechnet)."""
+        from .maint import Maintenance
+
+        pend = Maintenance(self).pending()
+        docs = [
+            {"category": category, **item}
+            for category in ("new", "changed", "meta_changed", "moved", "deleted")
+            for item in pend[category]
+        ]
+        return {"status": "ok", "count": len(docs), "documents": docs, "problems": pend["problems"]}
 
     def reindex(self) -> dict[str, Any]:
         return {"status": "ok", **self.index.rebuild()}

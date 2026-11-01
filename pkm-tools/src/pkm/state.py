@@ -30,30 +30,36 @@ def state_key(doc: Doc) -> str | None:
     return doc.id
 
 
-def section_changes(
-    old: dict[str, str], new: dict[str, str]
-) -> list[dict[str, str]]:
-    """Abschnittsvergleich: added, removed, changed, renamed (gleicher Hash)."""
-    removed = [k for k in old if k not in new]
-    added = [k for k in new if k not in old]
+def section_changes(old: dict[str, str], new: dict[str, str]) -> list[dict[str, str]]:
+    """Abschnittsvergleich nach 4.8: added, removed, changed, renamed.
+
+    Ein entfallener und ein neuer Inhalt mit gleichem Hash gelten als `renamed`. Das erkennt
+    auch Verschiebungen der Duplikat-Nummerierung (`Notizen#2` → `Notizen`).
+    """
+    same = {k for k in new if old.get(k) == new[k]}
+    new_open = [k for k in new if k not in same]
+    old_open = [k for k in old if k not in same]
+    consumed: set[str] = set()
+    renamed: dict[str, str] = {}
+    for n in new_open:
+        src = next((o for o in old_open if o != n and o not in consumed and old[o] == new[n]), None)
+        if src is not None:
+            consumed.add(src)
+            renamed[n] = src
     changes: list[dict[str, str]] = []
-    for k in new:
-        if k in old and old[k] != new[k]:
-            changes.append({"key": k, "change": "changed"})
-    used_added: set[str] = set()
-    still_removed: list[str] = []
-    for r in removed:
-        match = next((a for a in added if a not in used_added and new[a] == old[r]), None)
-        if match is not None:
-            used_added.add(match)
-            changes.append({"key": match, "change": "renamed", "from": r})
+    for n in new_open:
+        if n in renamed:
+            changes.append({"key": n, "change": "renamed", "from": renamed[n]})
+        elif n in old and n not in consumed:
+            changes.append({"key": n, "change": "changed"})
         else:
-            still_removed.append(r)
-    for a in added:
-        if a not in used_added:
-            changes.append({"key": a, "change": "added"})
-    for r in still_removed:
-        changes.append({"key": r, "change": "removed"})
+            changes.append({"key": n, "change": "added"})
+    for o in old_open:
+        if o in consumed:
+            continue
+        if o in new and o not in renamed:
+            continue  # bereits als changed gemeldet
+        changes.append({"key": o, "change": "removed"})
     return changes
 
 

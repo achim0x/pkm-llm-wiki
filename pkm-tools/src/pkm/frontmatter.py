@@ -57,7 +57,15 @@ def _field_re(key: str) -> re.Pattern[str]:
     return re.compile(rf"^{re.escape(key)}[ \t]*:")
 
 
-def set_fields_linewise(text: str, fields: dict[str, Any]) -> str:
+def _render(key: str, value: Any, block_lists: bool) -> list[str]:
+    if block_lists and isinstance(value, list | tuple):
+        if not value:
+            return [f"{key}: []"]
+        return [f"{key}:"] + [f"  - {format_scalar(v)}" for v in value]
+    return [f"{key}: {format_scalar(value)}"]
+
+
+def set_fields_linewise(text: str, fields: dict[str, Any], block_lists: bool = False) -> str:
     """Felder im Frontmatter zeilengenau setzen; fehlt das Frontmatter, wird es angelegt.
 
     Erwartet normalisierten Text mit gültigem oder fehlendem Frontmatter.
@@ -66,21 +74,24 @@ def set_fields_linewise(text: str, fields: dict[str, Any]) -> str:
     if err is not None:
         raise ValueError(err)
     if not has_fm:
-        return dump_meta(fields) + text
+        lines = ["---"] + [ln for k, v in fields.items() for ln in _render(k, v, block_lists)] + ["---"]
+        return "\n".join(lines) + "\n" + text
     inner = list(inner)
     for key, value in fields.items():
-        rendered = f"{key}: {format_scalar(value)}"
+        rendered = _render(key, value, block_lists)
         rx = _field_re(key)
         for i, line in enumerate(inner):
             if rx.match(line):
-                # Fortsetzungszeilen (eingerückt) des alten Werts entfernen
+                # Fortsetzungszeilen des alten Werts entfernen (eingerückt oder Blocklisten-Einträge)
                 j = i + 1
-                while j < len(inner) and inner[j][:1] in (" ", "\t") and inner[j].strip():
+                while j < len(inner) and inner[j].strip() and (
+                    inner[j][:1] in (" ", "\t") or inner[j].startswith("- ") or inner[j] == "-"
+                ):
                     j += 1
-                inner[i : j] = [rendered]
+                inner[i:j] = rendered
                 break
         else:
-            inner.append(rendered)
+            inner.extend(rendered)
     closing = fm_text.rstrip("\n").split("\n")[-1]
     return "\n".join(["---", *inner, closing]) + "\n" + body
 
