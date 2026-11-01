@@ -162,13 +162,16 @@ class Git:
         return bool(out.strip())
 
     # --- Schreiben ---
-    def commit_paths(self, paths: list[str], message: str, author: str | None = None) -> str:
-        """Genau diese Pfade committen; andere offene Änderungen bleiben unberührt."""
+    def commit_paths(self, paths: list[str], message: str, author: str | None = None, as_user: bool = False) -> str:
+        """Genau diese Pfade committen; andere offene Änderungen bleiben unberührt.
+
+        `as_user=True` committet mit der Git-Identität des Nutzers statt mit PKM_GIT_AUTHOR.
+        """
         if not paths:
             raise ValueError("Keine Pfade")
         self.run("add", "-A", "--", *paths)
         args = ["commit", "--quiet", "--only", "-F", "-"]
-        author = author or self.author
+        author = None if as_user else (author or self.author)
         if author:
             args.append(f"--author={author}")
         args += ["--", *paths]

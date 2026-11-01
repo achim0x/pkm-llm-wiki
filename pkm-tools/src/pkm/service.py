@@ -235,6 +235,32 @@ class Service:
     def reindex(self) -> dict[str, Any]:
         return {"status": "ok", **self.index.rebuild()}
 
+    # --- schreibende Tools (7.2) ---
+    @property
+    def writer(self):
+        from .writer import Writer
+
+        return Writer(self)
+
+    def create_document(self, **kwargs: Any) -> dict[str, Any]:
+        return self.writer.create_document(**kwargs)
+
+    def rewrite_document(self, **kwargs: Any) -> dict[str, Any]:
+        return self.writer.rewrite_document(**kwargs)
+
+    def append_to_document(self, **kwargs: Any) -> dict[str, Any]:
+        return self.writer.append_to_document(**kwargs)
+
+    def edit_document(self, **kwargs: Any) -> dict[str, Any]:
+        return self.writer.edit_document(**kwargs)
+
+    def update_frontmatter(self, **kwargs: Any) -> dict[str, Any]:
+        return self.writer.update_frontmatter(**kwargs)
+
+    def restore_document(self, target: str, version: int, expected_hash: str | None,
+                         source: str = "chat") -> dict[str, Any]:
+        return self.writer.restore_document(target, version, expected_hash, source)
+
 
 def dumps(data: Any) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)

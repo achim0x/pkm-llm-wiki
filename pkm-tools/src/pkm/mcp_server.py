@@ -130,7 +130,72 @@ def build_server() -> _Server:
 
 
 def _register_write_tools(server: _Server) -> None:
-    """Schreibende Tools (Phase 3)."""
+    """Schreibende Tools (7.2). Neuanlage nur in documents/_inbox/, Änderungen nur an
+    documents/**/*.md. Jede Änderung: neue Version + Git-Commit. Kein Löschen/Verschieben."""
+
+    @server.tool()
+    def create_document(
+        title: str,
+        content: str,
+        topics: list[str] | None = None,
+        context: str | None = None,
+        related: list[str] | None = None,
+        kind: str = "note",
+        source: str = "claude-chat",
+        note: str | None = None,
+    ) -> dict:
+        """Neues Dokument in documents/_inbox/ anlegen (Version 1, Commit). Nur nach gezeigtem
+        und bestätigtem Entwurf. content ohne Frontmatter. kind: note | correction."""
+        return call("create_document", lambda svc, **kw: svc.create_document(**kw), title=title,
+                    content=content, topics=topics, context=context, related=related, kind=kind,
+                    source=source, note=note)
+
+    @server.tool()
+    def rewrite_document(
+        target: str, content: str, expected_hash: str, note: str | None = None,
+        confirm_shortening: bool = False,
+    ) -> dict:
+        """Gesamten Inhalt unterhalb des Frontmatters ersetzen (Normalfall bei Fortsetzungen).
+        Bei deutlicher Kürzung oder fehlenden Abschnitten Status large_shortening: Kürzung vom
+        Nutzer bestätigen lassen und mit confirm_shortening=true erneut aufrufen."""
+        return call("rewrite_document", lambda svc, **kw: svc.rewrite_document(**kw), target=target,
+                    content=content, expected_hash=expected_hash, note=note,
+                    confirm_shortening=confirm_shortening)
+
+    @server.tool()
+    def append_to_document(
+        target: str, text: str, expected_hash: str, section: str | None = None, note: str | None = None,
+    ) -> dict:
+        """Text anhängen: am Ende des Abschnitts section (Schlüssel, z. B. "Offene Punkte",
+        "Notizen#2" oder "_preamble"), neuer Abschnitt falls nicht vorhanden, ohne section am Dateiende."""
+        return call("append_to_document", lambda svc, **kw: svc.append_to_document(**kw), target=target,
+                    text=text, expected_hash=expected_hash, section=section, note=note)
+
+    @server.tool()
+    def edit_document(target: str, old: str, new: str, expected_hash: str, note: str | None = None) -> dict:
+        """Textstelle old (muss genau einmal vorkommen) durch new ersetzen. new darf leer sein."""
+        return call("edit_document", lambda svc, **kw: svc.edit_document(**kw), target=target, old=old,
+                    new=new, expected_hash=expected_hash, note=note)
+
+    @server.tool()
+    def update_frontmatter(
+        target: str,
+        expected_hash: str,
+        set: dict | None = None,  # noqa: A002 - Name aus der Spezifikation
+        add: dict | None = None,
+        remove: list[str] | None = None,
+        note: str | None = None,
+    ) -> dict:
+        """Frontmatter ändern: set (setzen), add (an Listen anhängen), remove (Felder entfernen).
+        Geschützt: id, version, created, updated. Kommentare im Frontmatter gehen dabei verloren."""
+        return call("update_frontmatter", lambda svc, **kw: svc.update_frontmatter(**kw), target=target,
+                    expected_hash=expected_hash, set=set, add=add, remove=remove, note=note)
+
+    @server.tool()
+    def restore_document(target: str, version: int, expected_hash: str) -> dict:
+        """Inhalt einer früheren Version als neue Version zurückholen (Geschichte bleibt erhalten)."""
+        return call("restore_document", lambda svc, **kw: svc.restore_document(**kw), target=target,
+                    version=version, expected_hash=expected_hash)
 
 
 def main() -> None:

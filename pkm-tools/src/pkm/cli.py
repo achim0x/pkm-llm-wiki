@@ -41,6 +41,14 @@ def cmd_show(cfg: Config, args: argparse.Namespace) -> Any:
     return Service(cfg).show(args.target, args.version, args.section)
 
 
+def cmd_restore(cfg: Config, args: argparse.Namespace) -> Any:
+    from .service import Service
+
+    svc = Service(cfg)
+    current = svc.read(args.target)
+    return svc.restore_document(args.target, args.version, current["hash"], source="user")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pkm", description="PKM-Werkzeuge (Pflege)")
     sub = p.add_subparsers(dest="command", required=True)
@@ -55,6 +63,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--version", type=int, required=True)
     s.add_argument("--section")
     s.set_defaults(func=cmd_show)
+    r = sub.add_parser("restore", help="Frühere Version als neue Version zurückholen")
+    r.add_argument("target")
+    r.add_argument("--version", type=int, required=True)
+    r.set_defaults(func=cmd_restore)
     return p
 
 
