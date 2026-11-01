@@ -44,3 +44,35 @@ def git(env: dict[str, Path], *args: str) -> str:
         env=os.environ.copy(),
     )
     return out.stdout
+
+
+@pytest.fixture
+def cfg(isolated_env):
+    from pkm.config import Config
+    from pkm.vaultinit import init_vault
+
+    c = Config.from_env()
+    init_vault(c)
+    return c
+
+
+@pytest.fixture
+def svc(cfg):
+    from pkm.service import Service
+
+    return Service(cfg)
+
+
+def write(env_or_cfg, rel: str, text: str) -> Path:
+    root = env_or_cfg["root"] if isinstance(env_or_cfg, dict) else env_or_cfg.root
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(text.encode("utf-8"))
+    return p
+
+
+def commit_doc(cfg, rel: str, text: str, doc_id: str, version: int, source: str = "user", title: str = "T") -> str:
+    from pkm.gitlayer import Git, build_message
+
+    write(cfg, rel, text)
+    return Git(cfg.git_dir, cfg.root).commit_paths([rel], build_message(title, f"v{version}", "", doc_id, version, source))

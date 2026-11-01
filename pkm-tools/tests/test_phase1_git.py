@@ -14,7 +14,7 @@ from .conftest import git
 
 
 @pytest.fixture
-def cfg(isolated_env):
+def cfg(isolated_env):  # ohne init (überschreibt die gemeinsame Fixture)
     return Config.from_env()
 
 
