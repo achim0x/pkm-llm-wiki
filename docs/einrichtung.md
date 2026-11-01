@@ -265,7 +265,6 @@ Den Vault-Ordner in der Nextcloud als Vault öffnen und einstellen:
 | Dateien & Links → Wikilinks verwenden | an |
 | Dateien & Links → Standardordner für Anhänge | `documents/_attachments` |
 | Dateien & Links → Ausgeschlossene Dateien | `.pkm/` |
-| Web Clipper → Zielordner | `documents/_inbox` |
 
 **Property-Typen** einmalig festlegen (Einstellungen → Eigenschaften bzw. im Eigenschaften-Bereich
 einer Notiz). Obsidian legt den Typ vault-weit pro Feldname fest:
@@ -278,7 +277,14 @@ einer Notiz). Obsidian legt den Typ vault-weit pro Feldname fest:
 | `title`, `short_citation`, `date_document`, `status_markdown`, `toolchain_markdown`, `id`, `context`, `kind` | Text |
 | `tags`, `aliases` | Obsidian-Standard |
 
-**Web Clipper:** Die Vorlage an das Schema anpassen: `title` (Seitentitel), `source` (URL),
+**Web Clipper (optional):** [Obsidian Web Clipper](https://obsidian.md/clipper) ist kein
+Obsidian-Plugin, sondern eine Browser-Erweiterung (Chrome, Firefox, Safari, Edge). Die
+Einstellungen liegen in der Erweiterung selbst (Symbol in der Browserleiste → Zahnrad):
+
+- Allgemein → Vaults: Name des Vaults eintragen.
+- Vorlagen → Standardvorlage → Speicherort der Notiz (*Note location*): `documents/_inbox`.
+
+Die Vorlage außerdem an das Schema anpassen: `title` (Seitentitel), `source` (URL),
 `date_document` (Veröffentlichungsdatum, falls vorhanden), `date_markdown` (Zeitpunkt des Clippens
 im Format `YYYY-MM-DDTHH:MM:SS`), `toolchain_markdown: Obsidian Web Clipper`, `tags`.
 
