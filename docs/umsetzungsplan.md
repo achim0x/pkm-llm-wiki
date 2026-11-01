@@ -1,9 +1,13 @@
 # PKM mit LLM-Wiki – Umsetzungsplan
 
-**Bezug:** [Spezifikation v0.11](spezifikation.md) · **Stand:** 31.10.2026 · **Plan-Version:** 2
+**Bezug:** [Spezifikation v0.11](spezifikation.md) · **Stand:** 31.10.2026 · **Plan-Version:** 3
 
 Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnissen, Tests und Abnahmekriterien. Abschnittsnummern in Klammern (z. B. „5.4“) verweisen auf die Spezifikation.
 
+> **Änderungen in Plan-Version 3**
+> - K1 revidiert: Der Suchindex (SQLite) liegt in `PKM_CACHE_DIR` außerhalb der Nextcloud, nur `mcp.log` liegt in `.pkm/`. `pkm doctor` und der Server prüfen, dass `PKM_CACHE_DIR` nicht im Vault oder im Nextcloud-Ordner liegt.
+> - K6, K10, K11 wie vorgeschlagen entschieden. Keine Klärungen mehr offen.
+>
 > **Änderungen in Plan-Version 2**
 > - Bezug auf Spezifikation 0.11: Normalisierung, Abschnitte und Hashes nach 4.8 (`_preamble`, `Text#2`, `file_hash`/`body_hash`/`meta_hash`), `pending` mit `meta_changed` und `renamed`, Beleg-Feld `§:`.
 > - Klärungen K1–K12 entschieden bzw. durch 0.11 erledigt (Abschnitt 2).
@@ -38,7 +42,7 @@ Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnisse
 
 | # | Thema | Entscheidung | Folge für die Umsetzung |
 |---|---|---|---|
-| K1 | Ort von Suchindex und Protokoll | **`.pkm/`** im Vault: `.pkm/index.db`, `.pkm/mcp.log` | `PKM_CACHE_DIR` entfällt. `.gitignore` erhält `.pkm/index.db*` und `.pkm/mcp.log`. Siehe Hinweis unten |
+| K1 | Ort von Suchindex und Protokoll | Suchindex **`PKM_CACHE_DIR/index.db`** (außerhalb der Nextcloud, Standard `~/Library/Application Support/pkm`), Protokoll **`.pkm/mcp.log`** | `PKM_CACHE_DIR` darf nicht in `PKM_ROOT` oder im Nextcloud-Ordner liegen, siehe Hinweis unten. `.gitignore` erhält `.pkm/mcp.log` |
 | K2 | Wert für Änderungen von Hand | `user` (`chat` \| `user` \| `agent`) | einheitlich in Commits, `history`, CLI |
 | K3 | Commits von `pkm ids` | **je Dokument ein Commit** (`doc: <title> v1`, `PKM-Source: agent`), kein Sammel-Commit | Commit-Tabelle in 12 anpassen |
 | K4 | Definition `hash`/`expected_hash` | durch Spezifikation 0.11, Abschnitt 4.8 | – |
@@ -48,27 +52,30 @@ Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnisse
 | K9 | Kürzungsschutz bei Dokumenten ohne Standardabschnitte | durch 4.8 (Schlüsselvergleich, normalisierter Body) | – |
 | K12 | Agenten-Commit | neuer Befehl **`pkm commit-wiki --message "…"`**, committet nur `wiki/` und `.pkm/state.json` | in 4.7 und 8 aufnehmen |
 
-**Hinweis zu K1:** Die Spezifikation begründet in 5.5, dass SQLite-Dateien nicht in einen synchronisierten Ordner gehören. Mit `.pkm/index.db` im Nextcloud-Vault gilt das weiter. Umsetzung deshalb so, dass es unkritisch bleibt:
-- Der Index ist ein Wegwerf-Cache. Ist er beschädigt oder passt das Schema nicht, wird er neu aufgebaut (7.4). Er wird nur auf dem Mac geöffnet.
-- SQLite im Modus `journal_mode=DELETE` statt WAL, damit keine `-wal`/`-shm`-Dateien liegen bleiben.
-- Empfehlung in der Einrichtungsanleitung: In Nextcloud unter „Ignorierte Dateien“ `index.db*` und `mcp.log` eintragen. Das ist optional, spart aber Synchronisationsverkehr und Konfliktkopien.
-- `pkm doctor` warnt, wenn neben `.pkm/index.db` Nextcloud-Konfliktkopien liegen.
+**Hinweis zu K1:** Die SQLite-Datei darf nie synchronisiert werden (5.5). Deshalb:
+- Der Server prüft beim Start, dass `PKM_CACHE_DIR` nicht innerhalb von `PKM_ROOT` liegt (nach `resolve()`). Liegt es dort, legt er keinen Index an und meldet einen klaren Fehler; die lesenden Tools ohne Suche funktionieren weiter.
+- `pkm doctor` prüft das ebenfalls und warnt zusätzlich, wenn `PKM_CACHE_DIR` in einem typischen Nextcloud-Ordner liegt (Pfad enthält `Nextcloud` oder einen Ordner mit `.sync_*.db`/`.owncloudsync.log`).
+- Der Index ist ein Wegwerf-Cache. Fehlt er oder ist er beschädigt, wird er neu aufgebaut (7.4).
+- `mcp.log` liegt in `.pkm/` und wird mit synchronisiert, aber nicht in Git aufgenommen. Es ist eine reine Textdatei, die nur auf dem Mac angehängt wird.
 
-### 2.2 Noch offen (Arbeitsannahme gilt, bis widersprochen wird)
+### 2.2 Weitere Entscheidungen (wie vorgeschlagen)
 
-| # | Stelle | Arbeitsannahme |
+| # | Stelle | Entscheidung |
 |---|---|---|
 | K6 | `pkm versions` „erkennt auch Verschiebungen und committet sie mit“ | Verschiebe-Commit enthält alten und neuen Pfad derselben ID. Neue Version nur bei geändertem `body_hash` oder `meta_hash`, sonst Commit `doc: <title> moved` ohne Versionssprung |
 | K10 | Kurzname-Auflösung `[[zisterne]]` | Dateiname ohne Endung, Vergleich in NFC und ohne Groß-/Kleinschreibung; mehr als ein Treffer → `ambiguous` |
 | K11 | Konfiguration auf Nicht-macOS | Defaults abhängig von `sys.platform`; alle Pfade per Umgebungsvariable überschreibbar. Nur für Tests/CI, produktiv nur macOS |
 
+Damit ist keine Klärung mehr offen.
+
 ### 2.3 Nötige Anpassungen in der Spezifikation (für 0.12)
 
-- 3 (Ordnerbaum), 5.5, 7.1, 7.4: `index.db` und `mcp.log` unter `.pkm/`, `PKM_CACHE_DIR` streichen, Begründung in 5.5 anpassen (K1).
+- 3 (Ordnerbaum), 5.5, 7.1: `mcp.log` unter `.pkm/`, `index.db` bleibt in `PKM_CACHE_DIR` (Beschreibung von `PKM_CACHE_DIR` auf „Suchindex“ kürzen); 7.4 erste Zeile „`.pkm/index.db`“ → „`PKM_CACHE_DIR/index.db`“; Prüfung „`PKM_CACHE_DIR` nicht im Vault/Nextcloud“ in 7.1 und 8 (`doctor`) aufnehmen (K1).
 - 7.3 `history`: `source` „chat/nutzer/agent“ → `chat`/`user`/`agent` (K2).
-- 12: Commit `pkm: add missing ids` ersetzen durch einen Commit je Dokument (K3); `.gitignore` um `.pkm/index.db*` und `.pkm/mcp.log` ergänzen (K1).
+- 12: Commit `pkm: add missing ids` ersetzen durch einen Commit je Dokument (K3); `.gitignore` um `.pkm/mcp.log` ergänzen (K1).
 - 4.7 und 8: `pkm commit-wiki` aufnehmen (K12).
 - 4.1 bzw. 7.2: Hinweis zur Frontmatter-Behandlung (K8).
+- 8 `pkm versions`: Verhalten bei Verschiebungen (K6); 7.1 Adressierung: Kurznamen ohne Groß-/Kleinschreibung (K10).
 
 ---
 
@@ -89,7 +96,7 @@ pkm-tools/
 │   ├── ids.py                # ID-Erzeugung d-YYYYMMDD-HHMM-xxxx (4.1)
 │   ├── gitlayer.py           # git --git-dir/--work-tree, Commit mit Trailern, Log nach PKM-Id
 │   ├── vault.py              # Dokumentmodell, Bestandsaufnahme, Adressierung (7.1)
-│   ├── index.py              # SQLite FTS5 in .pkm/index.db (7.4, K1)
+│   ├── index.py              # SQLite FTS5 in PKM_CACHE_DIR/index.db (7.4, K1)
 │   ├── state.py              # state.json, pending-Berechnung (4.6, 4.8)
 │   ├── writer.py             # gemeinsame Schreiblogik: Hash-Schutz, Versionierung, Commit, Rollback (7.2)
 │   ├── citations.py          # Parser inkl. §:, Auflösung (5.2), fix/sync
@@ -125,7 +132,7 @@ pkm-tools/
 
 | Arbeitspaket | Inhalt | Tests |
 |---|---|---|
-| 1.1 `config` | `PKM_ROOT` Pflicht, übrige Defaults (7.1); `PKM_MAX_KB`, `PKM_GIT_AUTHOR`, `PKM_TZ`; Pfade für `.pkm/index.db` und `.pkm/mcp.log` abgeleitet (K1) | fehlendes `PKM_ROOT` → klarer Fehler |
+| 1.1 `config` | `PKM_ROOT` Pflicht, übrige Defaults (7.1); `PKM_MAX_KB`, `PKM_GIT_AUTHOR`, `PKM_TZ`; `PKM_CACHE_DIR` (Index) und `.pkm/mcp.log` (K1); Prüfung „`PKM_CACHE_DIR` nicht innerhalb `PKM_ROOT`“ | fehlendes `PKM_ROOT` → klarer Fehler; `PKM_CACHE_DIR` im Vault → Fehler |
 | 1.2 `paths` | `resolve()`-Prüfung gegen `PKM_ROOT`, keine Symlinks nach außen, NFC, Slug (Umlaute ausschreiben, ungültige Zeichen, reservierte Namen, ≤ 120 Zeichen, kein Punkt/Leerzeichen am Ende), Erkennung „conflicted copy“/„Konflikt“, Case-Kollisionen | `..`, absolute Pfade, Symlink nach außen, `CON.md`, NFD-Eingabe |
 | 1.3 `normalize` | 4.8 Schritt 1: UTF-8 (sonst `invalid_encoding`), BOM weg, CRLF/CR → LF, NFC, genau ein End-LF; Schreibfunktion erzeugt immer diese Form | Testvektoren: BOM, CRLF, einzelnes CR, NFD, kein/doppeltes End-LF, ungültiges UTF-8 |
 | 1.4 `parse` | 4.8 Schritt 2–3: Frontmatter (`---` … `---`/`...`, sonst `invalid_frontmatter`), Body, CommonMark-Codezäune (``` und ~~~, Zaunlänge), ATX-Überschriften Ebene 1/2 mit ≤ 3 Leerzeichen Einrückung, Setext ignorieren, `_preamble` (nur wenn nach Normalisierung nicht leer), Schlüsselbildung (ATX-Abschluss, Leerraum), Duplikate `#2`, `#3` über Ebene 1 und 2; Zeilenpositionen je Abschnitt für Schreib-Tools | Testvektoren: Überschrift im Codeblock, verschachtelte Zäune, Setext, `###` in `##`, `## Offene  Punkte ##`, Einrückung 4 Leerzeichen (keine Überschrift), Duplikate über Ebenen |
@@ -144,7 +151,7 @@ Die Testvektoren für 4.8 werden als JSON-Dateien in `tests/vectors/` abgelegt (
 | Arbeitspaket | Inhalt |
 |---|---|
 | 2.1 `vault` | Bestandsaufnahme von `documents/` und `wiki/` (Markdown und Anhänge), Dokumentmodell (Pfad, ID, Version, Titel, Frontmatter, Abschnitte, Hashes), Adressierung über Pfad / Wikilink / Kurzname / `id:` (K10), Fehler `not_found`/`ambiguous` mit Kandidaten; Dateien mit `invalid_encoding`/`invalid_frontmatter` werden mit Status geführt statt übersprungen |
-| 2.2 `index` | SQLite in `.pkm/index.db` (K1, `journal_mode=DELETE`), FTS5 `unicode61 remove_diacritics 2`, Spalten Titel/Aliase+Tags+Themen/Kurzfassung/Text mit `bm25`-Gewichten 5/3/2/1, Tabelle `docs(id, path, version, mtime, size, file_hash)`; vor jeder Anfrage inkrementell (mtime + Größe); bei Fehler/Schemaabweichung Neuaufbau; Präfixsuche durch `*` je Term, Eingabe für FTS escapen |
+| 2.2 `index` | SQLite in `PKM_CACHE_DIR/index.db` (K1), FTS5 `unicode61 remove_diacritics 2`, Spalten Titel/Aliase+Tags+Themen/Kurzfassung/Text mit `bm25`-Gewichten 5/3/2/1, Tabelle `docs(id, path, version, mtime, size, file_hash)`; vor jeder Anfrage inkrementell (mtime + Größe); bei Fehler/Schemaabweichung Neuaufbau; Präfixsuche durch `*` je Term, Eingabe für FTS escapen |
 | 2.3 MCP-Server | FastMCP-Grundgerüst, Protokoll nach `.pkm/mcp.log`, einheitliche Fehlerobjekte |
 | 2.4 Tools | `search` (Scope `wiki` Standard, max. 25, Feld `processed` aus `state.json`), `read` (inkl. `version` aus Git, `hash`, `editable`, `sections` mit Schlüsseln nach 4.8, `links`, `backlinks`; bei Wiki-Seiten `citations` – Parser kommt in Phase 5, bis dahin leer; bei `invalid_frontmatter` Rohtext), `history` (Liste + Diff zwischen Versionen), `read_index`, `list_unprocessed` (zunächst vereinfacht, in Phase 4 auf `state.pending` umgestellt) |
 
@@ -206,7 +213,7 @@ Kern ist `writer.apply_change(target, transform, note, source="chat")`, über de
 | 5.4 `fix-citations` | Link-Pfade in Fußnoten und `sources` auf aktuelle Orte umschreiben; Anker bzw. `§:` bei `renamed`-Abschnitten anpassen (nur `wiki/`) |
 | 5.5 `sync-citations` | `sources` aus Fußnoten erzeugen (eindeutig, sortiert, Wikilinks) |
 | 5.6 `lint` | Alle Prüfungen aus 8 plus aus 4.8: `invalid_encoding`, `invalid_frontmatter`, Setext-Überschriften, doppelte Überschriften Ebene 1/2, Überschriften mit `# ^ [ ] \|`; JSON-Bericht mit Schweregrad; jede Prüfung als eigene Funktion |
-| 5.7 `doctor` | Umgebungsprüfungen aus 8, `--short`; zusätzlich Konfliktkopien von `.pkm/index.db` (K1) |
+| 5.7 `doctor` | Umgebungsprüfungen aus 8, `--short`; zusätzlich `PKM_CACHE_DIR` außerhalb von Vault und Nextcloud (K1) |
 
 **Tests:** jede Lint-Prüfung positiv und negativ; alle Status von `show_citations`; Beleg mit `§:` auf Duplikat; Auszug aus alter und aktueller Version; Zitat-Prüfung gegen belegte Version (im normalisierten Text); Beleg auf Wiki-Seite wird gemeldet.
 
@@ -215,7 +222,7 @@ Kern ist `writer.apply_change(target, transform, note, source="chat")`, über de
 - **`skills/pkm-access/SKILL.md`** (schlank): Trigger aus 10; Grundregel „immer erst Entwurf, keine Ausnahme“; Abläufe Ablegen, Fortsetzen (6.2 Standard, 6.3 nur auf Anweisung), kleine Änderungen, Verlauf, Abfragen, Quellen, Korrekturen; Umgang mit `conflict`, `large_shortening` und `ambiguous` bei Abschnitten; Hinweis, dass `update_frontmatter` Kommentare im Frontmatter entfernt (K8).
 - **`skills/pkm-wiki/SKILL.md`**: Abläufe Ingest (9.1, Schritt für Schritt mit CLI-Aufrufen, Abschluss mit `pkm commit-wiki`), Lint (9.2), Abfrage (9.3), Schema (9.4), feste Regeln (9.5), Beleg-Format mit Beispiel inkl. `§:`, Umgang mit `meta_changed` und `renamed`, Verhalten im unbeaufsichtigten Lauf.
 - **`CLAUDE.md`-Vorlage** im Vault (über `pkm init`): Konventionen aus 4 und 9.5 in Kurzform.
-- **Einrichtungsanleitung** `docs/einrichtung.md`: `uv` installieren, Git-Identität, `pkm init`, `claude_desktop_config.json` (7.6), Skills installieren, Projekt „PKM-Pflege“ anlegen und Vault-Ordner verbinden, Obsidian-Einstellungen (13), Nextcloud „Ignorierte Dateien“: `index.db*`, `mcp.log` (K1), optional `.obsidian/workspace*.json`.
+- **Einrichtungsanleitung** `docs/einrichtung.md`: `uv` installieren, Git-Identität, `pkm init`, `claude_desktop_config.json` (7.6), Skills installieren, Projekt „PKM-Pflege“ anlegen und Vault-Ordner verbinden, Obsidian-Einstellungen (13), `PKM_CACHE_DIR` außerhalb der Nextcloud lassen (Standard genügt, K1), optional in Nextcloud `.obsidian/workspace*.json` ignorieren.
 - **Probelauf** mit 3–5 selbst angelegten Dokumenten (keine Startbefüllung, 16 Nr. 7).
 
 ### Phase 7 – Abnahme (1,5 PT)
@@ -247,7 +254,7 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 |---|---|---|
 | Nextcloud synchronisiert während eines Schreibvorgangs | Konfliktkopie, doppelte ID | atomares Schreiben, Hash-Schutz, `doctor`/`lint` melden Konfliktkopien, Pflegelauf bricht ab (9.1) |
 | `pkm versions` ändert eine Datei, die gerade auf Windows bearbeitet wird | Konfliktkopie | **bewusst in Kauf genommen (K7).** Nur zwei Zeilen werden geändert; Konfliktkopien meldet `lint`. Bei Bedarf Schonfrist nachrüsten |
-| `.pkm/index.db` im synchronisierten Vault (K1) | Konfliktkopien, unnötiger Sync | Index ist Wegwerf-Cache mit automatischem Neuaufbau, kein WAL, Nextcloud-Ignorierliste empfohlen, `doctor` warnt |
+| `PKM_CACHE_DIR` versehentlich in den Nextcloud-Ordner gelegt (K1) | SQLite wird synchronisiert und beschädigt | Server verweigert Index im Vault, `doctor` prüft den Ort |
 | Git-Verzeichnis außerhalb des Vaults geht verloren | Verlauf weg, Belege `v:` nicht mehr prüfbar | Time Machine (12), `doctor` prüft Erreichbarkeit; später optional Remote |
 | Claude Desktop startet MCP mit minimalem `PATH` | `git` nicht gefunden | absoluter `uvx`-Pfad, `PATH` in Config (7.6), klare Fehlermeldung, `doctor` |
 | Hash-Regeln werden später geändert | alle Einträge in `state.json` gelten als geändert | Testvektoren, Feld `version` in `state.json` als Formatversion, Migration bei Bedarf |
@@ -280,7 +287,6 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 
 ## 8. Nächste Schritte
 
-1. K6, K10, K11 bestätigen (oder Arbeitsannahme stehen lassen).
-2. Spezifikation auf 0.12 heben (Liste in 2.3).
-3. Phase 0 starten: Paketgerüst, Test-Fixture, CI.
-4. Phase 1 als erster Meilenstein, zuerst die Testvektoren für 4.8; danach kurzer Review von `parse`/`hashes` und Git-Schicht, weil alle weiteren Phasen darauf aufbauen.
+1. Spezifikation auf 0.12 heben (Liste in 2.3).
+2. Phase 0 starten: Paketgerüst, Test-Fixture, CI.
+3. Phase 1 als erster Meilenstein, zuerst die Testvektoren für 4.8; danach kurzer Review von `parse`/`hashes` und Git-Schicht, weil alle weiteren Phasen darauf aufbauen.
