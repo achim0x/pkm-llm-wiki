@@ -136,7 +136,7 @@ def _register_read_tools(server: _Server) -> None:
 
     @server.tool()
     def read(target: str, version: int | None = None) -> dict:
-        """Dokument oder Wiki-Seite lesen. target: Pfad, Wikilink oder id:d-…
+        """Dokument oder Wiki-Seite lesen. target: Pfad, Wikilink, id:d-… oder Kurzbezeichnung (short_citation).
         Mit version eine frühere Version aus Git (nur lesend). Liefert hash für expected_hash."""
         return call("read", Service.read, target=target, version=version)
 
@@ -181,21 +181,25 @@ def _register_write_tools(server: _Server) -> None:
     def create_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         title: str,
         content: str,
-        topics: list[str] | None = None,
+        tags: list[str] | None = None,
+        short_citation: str | None = None,
+        date_document: str | None = None,
         context: str | None = None,
         related: list[str] | None = None,
         kind: str | None = None,
-        source: str = "claude-chat",
+        toolchain: str | None = None,
         note: str | None = None,
         area: str = "documents",
         folder: str | None = None,
     ) -> dict:
         """Neues Dokument in documents/_inbox/ anlegen (Version 1, Commit) oder mit area="scratch"
         eine kurzlebige Notiz/Todo-Liste in scratch/[folder/] (ohne Version und Commit, nie im Wiki).
-        Nur nach gezeigtem und bestätigtem Entwurf. content ohne Frontmatter. kind: note | correction."""
-        return call("create_document", Service.create_document, title=title, content=content, topics=topics,
-                    context=context, related=related, kind=kind, source=source, note=note, area=area,
-                    folder=folder)
+        Nur nach gezeigtem und bestätigtem Entwurf. content ohne Frontmatter. tags: Kleinbuchstaben mit
+        Bindestrich. kind: note | standard | regulation | correction. toolchain: eigener Modellname plus
+        "(pkm-mcp)", wird zu toolchain_markdown."""
+        return call("create_document", Service.create_document, title=title, content=content, tags=tags,
+                    short_citation=short_citation, date_document=date_document, context=context, related=related,
+                    kind=kind, toolchain=toolchain, note=note, area=area, folder=folder)
 
     @server.tool()
     def rewrite_document(
@@ -232,7 +236,8 @@ def _register_write_tools(server: _Server) -> None:
         note: str | None = None,
     ) -> dict:
         """Frontmatter ändern: set (setzen), add (an Listen anhängen), remove (Felder entfernen).
-        Geschützt: id, version, created, updated. Kommentare im Frontmatter gehen dabei verloren."""
+        Geschützt: id, version, date_markdown, date_updated, status_markdown. Kommentare im Frontmatter gehen
+        dabei verloren."""
         return call("update_frontmatter", Service.update_frontmatter, target=target, expected_hash=expected_hash,
                     set=set, add=add, remove=remove, note=note)
 

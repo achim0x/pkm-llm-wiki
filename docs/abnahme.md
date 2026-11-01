@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Abnahmeprotokoll
 
-**Bezug:** Spezifikation 0.14, Abschnitt 14 („Abnahme (manuell)“) · Umsetzungsplan Phase 7
+**Bezug:** Spezifikation 0.18, Abschnitt 14 („Abnahme (manuell)“) · Umsetzungsplan Phase 7
 
 Die Abnahme läuft auf dem **Mac** mit echtem Nextcloud-Vault, Claude Desktop und Obsidian sowie
 für Schritt 9 auf dem **Windows-Rechner**. Voraussetzung ist die Einrichtung nach
@@ -263,6 +263,9 @@ pkm lint --report
 | Rückgängig | „Mach die letzte Änderung rückgängig“ | `restore_document` nach Bestätigung, neue Version, Notiz „wiederhergestellt aus v…“ | ☐ |
 | Konfliktkopie | Nextcloud-Konfliktkopie erzeugen (gleichzeitige Änderung) | `pkm doctor --short` meldet sie, Pflegelauf bricht ab | ☐ |
 | Kein `.git` im Vault | `ls -a "$PKM_ROOT"` | kein `.git` | ☐ |
+| Umgewandelte Norm | Norm mit unquotiertem `: ` im Titel und `short citation` nach `documents/` legen, `pkm lint`, dann `pkm fix-frontmatter` (erst ohne, dann mit Ziel) | Lint: `invalid_frontmatter` mit Hinweis; ohne Ziel nur Liste; mit Ziel nur Titelzeile und Feldname geändert. Nächster Pflegelauf hängt nur `id`/`version` an | ☐ |
+| Kurzbezeichnung | Im Chat „Was steht in EN 61000-4-6:2014 zum Anwendungsbereich?“ | Das Dokument wird über `short_citation` gefunden | ☐ |
+| Obsidian-Typen | Eigenschaften eines neuen Chat-Dokuments in Obsidian ansehen | `date_markdown`/`date_updated` als Datum & Uhrzeit, `tags` als Tags | ☐ |
 
 ---
 

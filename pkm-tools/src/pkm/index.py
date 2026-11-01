@@ -34,11 +34,12 @@ from typing import Any, TypeVar
 from .config import Config
 from .errors import PkmError
 from .paths import transliterate
+from .schema import citation_key
 from .vault import ALL_AREAS, Doc, Vault, extract_links, link_key, summary_of
 
 # Variables *******************************************************************
 
-SCHEMA = 1
+SCHEMA = 2
 WEIGHTS = (0.0, 5.0, 3.0, 2.0, 1.0)  # path, title, meta, summary, body
 SNIPPET_WIDTH = 160
 T = TypeVar("T")
@@ -48,9 +49,10 @@ CREATE TABLE IF NOT EXISTS info(key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS files(
     path TEXT PRIMARY KEY, area TEXT, kind TEXT, mtime_ns INTEGER, size INTEGER,
     id TEXT, version INTEGER, title TEXT, type TEXT, summary TEXT, updated TEXT,
-    file_hash TEXT, error TEXT
+    file_hash TEXT, error TEXT, citation TEXT
 );
 CREATE INDEX IF NOT EXISTS files_id ON files(id);
+CREATE INDEX IF NOT EXISTS files_citation ON files(citation);
 CREATE TABLE IF NOT EXISTS links(src TEXT, target TEXT);
 CREATE INDEX IF NOT EXISTS links_target ON links(target);
 CREATE INDEX IF NOT EXISTS links_src ON links(src);
@@ -60,7 +62,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
 """
 
 SEARCH_SQL = (
-    "SELECT f.path, f.area, f.kind, f.id, f.version, f.title, f.type, f.summary, f.updated, "
+    "SELECT f.path, f.area, f.kind, f.id, f.version, f.title, f.type, f.summary, f.updated, f.citation, "
     f"bm25(fts, {', '.join(str(w) for w in WEIGHTS)}) AS rank "
     "FROM fts JOIN files f ON f.path = fts.path "
     "WHERE fts MATCH ? AND f.area IN ({marks}) ORDER BY rank LIMIT ?"
@@ -175,15 +177,16 @@ class SearchIndex:
         meta = doc.meta
         summary = summary_of(doc) if doc.kind == "md" else ""
         file_hash = doc.hashes.file_hash if doc.hashes else doc.bin_hash
+        cit = doc.short_citation if doc.kind == "md" else None
         con.execute(
-            "INSERT INTO files VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO files VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 doc.rel, doc.area, doc.kind, doc.mtime_ns, doc.size, doc.id, doc.version,
-                doc.title, str(meta.get("type") or ""), summary, str(meta.get("updated") or ""),
-                file_hash, doc.error,
+                doc.title, str(meta.get("type") or ""), summary, str(meta.get("date_updated") or ""),
+                file_hash, doc.error, cit,
             ),
         )
-        tags = " ".join(_as_list(meta.get("aliases")) + _as_list(meta.get("tags")) + _as_list(meta.get("topics")))
+        tags = " ".join(_as_list(meta.get("aliases")) + _as_list(meta.get("tags")) + _as_list(cit))
         body = doc.body if doc.kind == "md" else ""
         con.execute(
             "INSERT INTO fts(path, title, meta, summary, body) VALUES(?,?,?,?,?)",
@@ -267,6 +270,24 @@ class SearchIndex:
         def query(con: sqlite3.Connection) -> list[str]:
             self._refresh(con)
             return [r[0] for r in con.execute("SELECT path FROM files WHERE id=? ORDER BY path", (doc_id,))]
+
+        return self._with_db(query)
+
+    def find_citation(self, value: str) -> list[str]:
+        """Pfade zu einer Kurzbezeichnung (``short_citation``).
+
+        Args:
+            value: Kurzbezeichnung.
+
+        Returns:
+            Sortierte Pfade in ``documents/``.
+        """
+        key = citation_key(value)
+
+        def query(con: sqlite3.Connection) -> list[str]:
+            self._refresh(con)
+            rows = con.execute("SELECT path, citation FROM files WHERE citation IS NOT NULL AND area='documents'")
+            return sorted(path for path, cit in rows if citation_key(cit) == key)
 
         return self._with_db(query)
 
@@ -424,11 +445,12 @@ def _hit(row: tuple[Any, ...], terms: list[str]) -> dict[str, Any]:
     Returns:
         Treffer als Wörterbuch; der Score ist der negierte BM25-Rang.
     """
-    path, area, kind, doc_id, version, title, typ, summary, updated, rank = row
+    path, area, kind, doc_id, version, title, typ, summary, updated, citation, rank = row
     return {
         "path": path, "area": area, "kind": kind, "id": doc_id, "version": version,
         "title": title, "type": typ or ("document" if area == "documents" else ""),
-        "summary": summary, "updated": updated, "score": round(-rank, 4), "terms": terms,
+        "summary": summary, "date_updated": updated, "short_citation": citation, "score": round(-rank, 4),
+        "terms": terms,
     }
 
 

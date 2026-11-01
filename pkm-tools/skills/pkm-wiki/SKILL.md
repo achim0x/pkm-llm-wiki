@@ -23,6 +23,11 @@ sonst `PKM_ROOT` setzen. Sprache aller Inhalte: **Deutsch**.
   Frage markieren.
 - Eigene Schlussfolgerungen kennzeichnen: „(abgeleitet aus [^b1] und [^b4])“.
 - `CLAUDE.md` nur nach Zustimmung des Nutzers ändern.
+- `status_markdown` unverändert lassen. Der Wert spielt für die Verarbeitung keine Rolle.
+- `pkm fix-frontmatter` nur auf ausdrückliche Anweisung des Nutzers ausführen. Meldet Lint
+  `invalid_frontmatter` mit Hinweis darauf, dem Nutzer den Befehl vorschlagen.
+- Dokumente mit `kind: standard` oder `regulation` werden verarbeitet wie `note`. In Belegen und
+  Zusammenfassungen von Normen die Kurzbezeichnung (`short_citation`) nennen.
 - `wiki/index.md`, `wiki/_status.md` und `sources` im Frontmatter nie von Hand pflegen –
   dafür gibt es `pkm index`, `pkm status`, `pkm sync-citations`.
 
@@ -38,7 +43,7 @@ title: Regenwasser-Ertrag
 aliases: [Regenertrag]
 tags: [zisterne, wasser]
 sources: []            # erzeugt pkm sync-citations
-updated: 2026-11-02
+date_updated: 2026-11-02T21:10:00   # YYYY-MM-DDTHH:MM:SS, Ortszeit ohne Zeitzone
 confidence: high       # high | medium | low
 ---
 

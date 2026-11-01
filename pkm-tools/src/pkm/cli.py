@@ -205,6 +205,19 @@ def cmd_commit_wiki(svc: Service, args: argparse.Namespace) -> Any:
     return Maintenance(svc).commit_wiki(args.message)
 
 
+def cmd_fix_frontmatter(svc: Service, args: argparse.Namespace) -> Any:
+    """``pkm fix-frontmatter <target>… [--all]`` (nur auf ausdrückliche Anweisung des Nutzers).
+
+    Args:
+        svc: Dienst.
+        args: ``targets`` und ``all``.
+
+    Returns:
+        Ergebnis von ``Maintenance.fix_frontmatter``.
+    """
+    return Maintenance(svc).fix_frontmatter(args.targets, args.all)
+
+
 def cmd_index(svc: Service, _args: argparse.Namespace) -> Any:
     """``pkm index``.
 
@@ -334,6 +347,10 @@ def build_parser() -> argparse.ArgumentParser:
     sh.add_argument("target")
     sh.add_argument("--section")
     sh.add_argument("--full", action="store_true")
+    ff = _add(sub, "fix-frontmatter", "Frontmatter reparieren (nur auf Anweisung; ohne Ziel nur auflisten)",
+              cmd_fix_frontmatter)
+    ff.add_argument("targets", nargs="*")
+    ff.add_argument("--all", action="store_true", help="alle betroffenen Dokumente reparieren")
     _add(sub, "index", "wiki/index.md neu erzeugen", cmd_index)
     st = _add(sub, "status", "wiki/_status.md neu erzeugen", cmd_status)
     st.add_argument("--question", action="append", default=[], help="Rückfrage aufnehmen (mehrfach)")

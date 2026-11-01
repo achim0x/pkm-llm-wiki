@@ -49,7 +49,7 @@ title: Zisterne
 aliases: [Regenwassertank]
 tags: [zisterne]
 sources: []
-updated: 2026-11-02
+date_updated: 2026-11-02T21:10:00
 confidence: medium
 ---
 
@@ -73,7 +73,7 @@ SUMMARY_PAGE = """---
 type: summary
 title: Zisterne – Überlaufsensor
 sources: []
-updated: 2026-11-02
+date_updated: 2026-11-02T21:10:00
 confidence: high
 ---
 
@@ -169,7 +169,7 @@ def _create_documents(svc: Service, cfg: Config) -> dict:
     Returns:
         Rückgabe von ``create_document`` für das Chat-Dokument.
     """
-    chat = svc.create_document(title="Zisterne – Überlaufsensor", topics=["zisterne"], content=(
+    chat = svc.create_document(title="Zisterne – Überlaufsensor", tags=["zisterne"], content=(
         "## Ergebnis\nDer Überlauf wird per Ultraschallsensor erkannt.\n\n"
         "## Entscheidungen\n- Ultraschallsensor am Deckel\n\n## Offene Punkte\n- Kabelweg\n"))
     write(cfg, "documents/haus/zisterne.md", "# Zisterne\n\n## Dach\nDachfläche laut Plan 92 m².\n")
@@ -218,7 +218,7 @@ def _finish_first_run(cfg: Config, capsys: pytest.CaptureFixture[str], chat_id: 
     assert run(capsys, "pending")["counts"]["new"] == 0
     status = (cfg.root / "wiki/_status.md").read_text()
     assert "## Noch nicht verarbeitet (0)" in status
-    assert "Vorschlag: documents/haus/" not in status  # topics passen nicht
+    assert "Vorschlag: documents/haus/" not in status  # tags passen nicht
 
 
 def _continue_in_chat(svc: Service, cfg: Config, env: dict, chat: dict) -> None:

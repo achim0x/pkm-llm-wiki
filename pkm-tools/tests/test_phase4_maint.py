@@ -39,7 +39,7 @@ from .conftest import git, write
 
 DOC = """---
 title: Bewässerung
-topics: [garten]
+tags: [garten]
 ---
 
 ## Ergebnis
@@ -56,7 +56,7 @@ title: Regenwasser-Ertrag
 sources:
   - "[[documents/a]]"
   - "[[documents/b]]"
-updated: 2026-11-02
+date_updated: 2026-11-02T21:10:00
 ---
 
 > **Kurzfassung:** Ertrag in L/mm.
@@ -119,11 +119,11 @@ def test_ids_assigns_and_commits_each(m, cfg, isolated_env):
 
 def test_ids_keeps_rest_bytes_and_comments(m, cfg):
     """pkm ids ändert nur id und version."""
-    text = "---\ntitle: X  # Kommentar\ntopics: [a]\n---\n\nInhalt  mit  Leerzeichen\n"
+    text = "---\ntitle: X  # Kommentar\ntags: [a]\n---\n\nInhalt  mit  Leerzeichen\n"
     write(cfg, "documents/x.md", text)
     m.ids()
     out = (cfg.root / "documents/x.md").read_text(encoding="utf-8")
-    assert out.startswith("---\ntitle: X  # Kommentar\ntopics: [a]\nid: d-")
+    assert out.startswith("---\ntitle: X  # Kommentar\ntags: [a]\nid: d-")
     assert out.endswith("version: 1\n---\n\nInhalt  mit  Leerzeichen\n")
 
 
@@ -156,7 +156,7 @@ def fixture_created(svc):
     Returns:
         Rückgabe von ``create_document``.
     """
-    return svc.create_document(title="Sensor", content="## Ergebnis\nA\n\n## Offene Punkte\n- x\n", topics=["zisterne"])
+    return svc.create_document(title="Sensor", content="## Ergebnis\nA\n\n## Offene Punkte\n- x\n", tags=["zisterne"])
 
 
 def test_versions_combines_hand_edits(m, svc, cfg, created, isolated_env):
@@ -267,7 +267,7 @@ def test_pending_order_only_and_meta(m, svc, created):
     item = m.pending()["changed"][0]
     assert item["sections"] == []
     m.mark([created["id"]])
-    svc.update_frontmatter(target=created["path"], expected_hash=r["new_hash"], add={"topics": ["neu"]})
+    svc.update_frontmatter(target=created["path"], expected_hash=r["new_hash"], add={"tags": ["neu"]})
     assert m.pending()["meta_changed"][0]["id"] == created["id"]
 
 
@@ -364,7 +364,7 @@ def test_index(svc, cfg):
 
 def test_status(svc, m, cfg, created):
     """pkm status zeigt Unverarbeitetes, Probleme, Einsortier-Vorschläge und Rückfragen."""
-    write(cfg, "documents/haus/alt.md", "---\nid: d-20261031-2340-abcd\nversion: 1\ntopics: [zisterne]\n---\nx\n")
+    write(cfg, "documents/haus/alt.md", "---\nid: d-20261031-2340-abcd\nversion: 1\ntags: [zisterne]\n---\nx\n")
     write(cfg, "documents/n (conflicted copy).md", "x\n")
     build_status(svc)
     text = (cfg.root / "wiki/_status.md").read_text()

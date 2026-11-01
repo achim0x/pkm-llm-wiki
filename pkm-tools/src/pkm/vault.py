@@ -38,6 +38,7 @@ from .ids import is_valid_id
 from .normalize import normalize_bytes
 from .parse import PREAMBLE, Parsed, parse
 from .paths import nfc, safe_resolve
+from .schema import citation_key, short_citation
 
 # Variables *******************************************************************
 
@@ -125,6 +126,15 @@ class Doc:  # pylint: disable=too-many-instance-attributes
         """
         value = self.meta.get("version")
         return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+    @property
+    def short_citation(self) -> str | None:
+        """Kurzbezeichnung aus ``short_citation`` (auch alte Schreibweise ``short citation``).
+
+        Returns:
+            Die Kurzbezeichnung oder ``None``.
+        """
+        return short_citation(self.meta)
 
     @property
     def stem(self) -> str:
@@ -292,13 +302,18 @@ class Vault:
         target: str,
         areas: tuple[str, ...] = AREAS,
         find_id: Callable[[str], list[str]] | None = None,
+        find_citation: Callable[[str], list[str]] | None = None,
     ) -> str:
-        """Ziel (Pfad, Wikilink, Kurzname oder ``id:``) in einen relativen Pfad auflösen.
+        """Ziel (Pfad, Wikilink, Kurzname, ``id:`` oder Kurzbezeichnung) in einen relativen Pfad auflösen.
+
+        Passt kein Pfad und kein Kurzname, wird ``short_citation`` verglichen (7.1).
 
         Args:
-            target: Ziel, z. B. ``documents/haus/zisterne.md``, ``[[zisterne]]`` oder ``id:d-…``.
+            target: Ziel, z. B. ``documents/haus/zisterne.md``, ``[[zisterne]]``, ``id:d-…`` oder
+                ``EN 61000-4-6:2014``.
             areas: Erlaubte Bereiche.
             find_id: Suche nach ID (z. B. über den Index); ohne Angabe ``scan_id``.
+            find_citation: Suche nach Kurzbezeichnung; ohne Angabe ``scan_citation``.
 
         Returns:
             Relativer Pfad der gefundenen Datei.
@@ -312,9 +327,18 @@ class Vault:
         if t.startswith("id:"):
             rel = self._resolve_id(t[3:].strip(), target, areas, find_id)
         else:
-            m = FULL_WIKILINK_RE.fullmatch(t)
-            t = (m.group(1).strip() if m else t).replace("\\", "/").strip("/")
-            rel = self._resolve_path(t, target, areas) if "/" in t else self._resolve_short(t, target, areas)
+            try:
+                m = FULL_WIKILINK_RE.fullmatch(t)
+                name = (m.group(1).strip() if m else t).replace("\\", "/").strip("/")
+                resolver = self._resolve_path if "/" in name else self._resolve_short
+                rel = resolver(name, target, areas)
+            except PkmError as exc:
+                if exc.status not in ("not_found", "invalid_path"):
+                    raise
+                found = [r for r in (find_citation or self.scan_citation)(t) if r.split("/", 1)[0] in areas]
+                if not found:
+                    raise
+                rel = _one(found, target)
         return rel
 
     def _resolve_id(
@@ -398,6 +422,24 @@ class Vault:
         for rel in self.iter_files():
             if is_markdown(rel) and needle in self._head(rel) and self.load(rel).id == doc_id:
                 found.append(rel)
+        return found
+
+    def scan_citation(self, value: str) -> list[str]:
+        """Kurzbezeichnung ohne Index suchen (langsam, Rückfallebene).
+
+        Args:
+            value: Kurzbezeichnung, z. B. ``EN 61000-4-6:2014``.
+
+        Returns:
+            Markdown-Dateien in ``documents/``, deren ``short_citation`` passt.
+        """
+        key = citation_key(value)
+        found = []
+        for rel in self.iter_files(("documents",)):
+            if is_markdown(rel) and b"citation" in self._head(rel):
+                cit = self.load(rel).short_citation
+                if cit and citation_key(cit) == key:
+                    found.append(rel)
         return found
 
     def _head(self, rel: str) -> bytes:

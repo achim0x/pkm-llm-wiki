@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any
 
 from . import hashes
 from .errors import PkmError
-from .frontmatter import set_fields_linewise
+from .frontmatter import fix_frontmatter_text, set_fields_linewise
 from .gitlayer import build_message
 from .ids import is_valid_id, new_id
 from .normalize import encode
@@ -481,6 +481,60 @@ class Maintenance:
                 "body_hash": cut(doc.hashes.body_hash), "meta_hash": cut(doc.hashes.meta_hash),
                 "file_hash": cut(doc.hashes.file_hash),
             }
+        return result
+
+    # fix-frontmatter **********************************************************
+
+    def fix_frontmatter(self, targets: list[str] | None = None, all_documents: bool = False) -> dict[str, Any]:
+        """``pkm fix-frontmatter``: Frontmatter zeilengenau reparieren (nur auf Anweisung, 4.1).
+
+        Setzt Werte mit ``: `` oder führenden YAML-Sonderzeichen in Anführungszeichen und benennt
+        ``short citation`` in ``short_citation`` um. Ohne Ziel und ohne ``all_documents`` werden die
+        betroffenen Dateien nur aufgelistet. Jede geänderte Datei mit ID wird als neue Version
+        committet (``PKM-Source: user``); Dateien ohne ID versioniert später ``pkm ids``.
+
+        Args:
+            targets: Pfade, Kurznamen, IDs oder Kurzbezeichnungen.
+            all_documents: Alle betroffenen Dokumente reparieren.
+
+        Returns:
+            ``dry_run`` und je Datei Pfad, Änderungen und ggf. Version und Commit.
+        """
+        dry_run = not targets and not all_documents
+        with self.writer.lock():
+            if not dry_run:
+                self.git.require_ok()
+            if targets:
+                docs = [self.vault.load(self.svc.resolve(t, ("documents",))) for t in targets]
+            else:
+                docs = [d for d in self.documents()[0] if d.kind == "md" and d.text is not None]
+            files = []
+            for doc in docs:
+                new_text, changes = fix_frontmatter_text(doc.text or "")
+                if changes:
+                    entry: dict[str, Any] = {"path": doc.rel, "changes": changes}
+                    if not dry_run:
+                        entry.update(self._apply_fix(doc.rel, new_text))
+                    files.append(entry)
+        return {"status": "ok", "dry_run": dry_run, "files": files}
+
+    def _apply_fix(self, rel: str, new_text: str) -> dict[str, Any]:
+        """Reparierte Fassung schreiben und (bei vorhandener ID) als Version committen.
+
+        Args:
+            rel: Relativer Pfad.
+            new_text: Reparierter Text.
+
+        Returns:
+            ``version`` und ``commit`` bzw. ``committed: False`` ohne ID.
+        """
+        self.writer.write_atomic(rel, new_text)
+        doc = self.vault.load(rel)
+        result: dict[str, Any] = {"committed": False}
+        if doc.id and not doc.error:
+            new_doc = self.writer.commit_user_state(doc)
+            result = {"committed": True, "version": new_doc.version,
+                      "commit": self.git.out("rev-parse", "HEAD").strip()[:10]}
         return result
 
     # commit-wiki **************************************************************

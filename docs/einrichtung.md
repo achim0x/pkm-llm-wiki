@@ -165,6 +165,25 @@ Den Ordner `<HOME>/Nextcloud/<VAULT>` als Vault öffnen und einstellen:
 | Dateien & Links → Ausgeschlossene Dateien | `.pkm/` |
 | Web Clipper → Zielordner | `documents/_inbox` |
 
+**Property-Typen** einmalig festlegen (Einstellungen → Eigenschaften bzw. im Eigenschaften-Bereich
+einer Notiz). Obsidian legt den Typ vault-weit pro Feldname fest:
+
+| Feld | Typ |
+|---|---|
+| `date_markdown`, `date_updated` | Datum & Uhrzeit |
+| `version` | Zahl |
+| `related`, `sources` | Liste |
+| `title`, `short_citation`, `date_document`, `status_markdown`, `toolchain_markdown`, `id`, `context`, `kind` | Text |
+| `tags`, `aliases` | Obsidian-Standard |
+
+**Web Clipper:** Die Vorlage an das Schema anpassen: `title` (Seitentitel), `source` (URL),
+`date_document` (Veröffentlichungsdatum, falls vorhanden), `date_markdown` (Zeitpunkt des Clippens
+im Format `YYYY-MM-DDTHH:MM:SS`), `toolchain_markdown: Obsidian Web Clipper`, `tags`.
+
+**Bereits umgewandelte Normen** in den Vault legen: Normtitel enthalten oft `: ` und müssen dann in
+Anführungszeichen stehen. `pkm lint` zeigt betroffene Dateien, `pkm fix-frontmatter` listet sie
+auf, mit Ziel oder `--all` repariert er sie.
+
 Optional: Dataview, Graph View. Die Einstellungen in `.obsidian/` werden über Nextcloud auch
 auf den Windows-Rechner übertragen. Kein Obsidian-Git-Plugin verwenden.
 

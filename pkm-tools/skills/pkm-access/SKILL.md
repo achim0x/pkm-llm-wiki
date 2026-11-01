@@ -17,7 +17,8 @@ mit Git-Commit.
 gezeigt und vom Nutzer bestätigt wurde**. Das gilt auch, wenn der Nutzer „direkt“, „einfach
 speichern“ o. Ä. sagt: Dann den Entwurf knapp zeigen und kurz bestätigen lassen.
 
-Ziele (`target`) können ein Pfad, ein Wikilink oder `id:d-…` sein. Nach dem ersten Kontakt
+Ziele (`target`) können ein Pfad, ein Wikilink, `id:d-…` oder eine Kurzbezeichnung aus
+`short_citation` (z. B. `EN 61000-4-6:2014`) sein. Nach dem ersten Kontakt
 mit einem Dokument immer die **ID** verwenden – der Ablageort kann sich ändern.
 
 ## Neu ablegen
@@ -25,7 +26,10 @@ mit einem Dokument immer die **ID** verwenden – der Ablageort kann sich änder
 1. Ergebnis verdichten in die Abschnitte:
    `## Ergebnis`, `## Entscheidungen`, `## Offene Punkte`, `## Kontext / Begründung`.
    Nur Belastbares aufnehmen, Hypothesen als solche kennzeichnen.
-2. Titel, `topics` (Kleinbuchstaben, Bindestriche) und ggf. `related` vorschlagen.
+2. Titel, `tags` (Kleinbuchstaben, Bindestriche) und ggf. `related` vorschlagen. Beim Anlegen
+   `toolchain` mit dem eigenen Modellnamen und `pkm-mcp` übergeben, z. B.
+   `"Claude Opus 5.5 (pkm-mcp)"`. Bei Normen oder Gesetzen `kind` (`standard`/`regulation`) und,
+   falls bekannt, `short_citation` und `date_document` mitgeben.
 3. Vorher prüfen, ob es schon ein Dokument gibt: `search` mit `scope: "documents"`.
    Gibt es eines zur selben Fragestellung, fragen, ob es aktualisiert werden soll (siehe unten).
 4. **Entwurf zeigen**, nach Bestätigung `create_document` (`content` ohne Frontmatter,
@@ -65,7 +69,8 @@ Original per `edit_document` markieren:
 - `append_to_document` mit `section`: Abschnittsschlüssel, z. B. `"Offene Punkte"`,
   `"_preamble"` (Text vor der ersten Überschrift) oder bei doppelten Überschriften `"Notizen#2"`.
 - `edit_document`: `old` muss genau einmal vorkommen; ausreichend Kontext mitgeben.
-- `update_frontmatter`: `id`, `version`, `created`, `updated` sind geschützt. Achtung:
+- `update_frontmatter`: `id`, `version`, `date_markdown`, `date_updated` und `status_markdown`
+  sind geschützt. Achtung:
   Kommentare im Frontmatter gehen dabei verloren – bei Dokumenten mit Kommentaren vorher erwähnen.
 
 ## Rückmeldungen der Tools

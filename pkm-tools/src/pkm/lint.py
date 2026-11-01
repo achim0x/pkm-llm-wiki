@@ -32,8 +32,17 @@ from typing import TYPE_CHECKING, Any
 from . import hashes
 from .citations import CONTENT_SECTIONS, Citation, Resolution, Resolver, expected_sources, norm_ws, parse_page
 from .errors import PkmError
+from .frontmatter import fix_frontmatter_text
 from .parse import Section, body_lines, find_setext
+from .parse import parse as parse_text
 from .paths import case_collisions, is_conflict_copy, is_platform_safe_name
+from .schema import (
+    DATE_FIELDS,
+    KINDS,
+    LEGACY_SHORT_CITATION,
+    is_valid_date_value,
+    looks_converted,
+)
 from .vault import Doc, extract_links, is_markdown, link_key, summary_of
 from .wikigen import FOLDER_TYPES, wiki_pages, write_if_changed
 
@@ -151,7 +160,7 @@ class Linter:
         git_ok = self.svc.git.problem() is None
         for doc in self.docs:
             if doc.kind == "md" and doc.error:
-                self.r.add(doc.error, "error", doc.rel, doc.error_message or doc.error)
+                self.r.add(doc.error, "error", doc.rel, _error_message(doc))
             elif doc.kind == "md" and not is_conflict_copy(PurePosixPath(doc.rel).name):
                 self._document(doc, git_ok)
                 if doc.id:
@@ -168,6 +177,7 @@ class Linter:
             doc: Dokument.
             git_ok: Ob Git verfügbar ist (für den Abgleich mit dem Verlauf).
         """
+        self._frontmatter(doc)
         if not doc.id:
             self.r.add("missing_id", "warning", doc.rel, "Dokument ohne gültige ID (pkm ids).")
         if doc.version is None:
@@ -178,6 +188,42 @@ class Linter:
                 self.r.add("version_mismatch", "error", doc.rel,
                            f"version {doc.version} passt nicht zum Verlauf (zuletzt v{versions[-1]}).")
         self.headings(doc)
+
+    def _frontmatter(self, doc: Doc) -> None:
+        """Frontmatter nach 4.1 prüfen: Herkunftsfelder, alte Feldnamen, ``kind``, Datumsfelder, ``tags``.
+
+        Args:
+            doc: Dokument mit gültigem Frontmatter.
+        """
+        meta = doc.meta
+        for field, label in (("date_markdown", "date_markdown"), ("toolchain_markdown", "toolchain_markdown")):
+            if field not in meta:
+                self.r.add(f"missing_{field}", "info", doc.rel, f"Feld {label} fehlt (wird nicht ergänzt).")
+        if LEGACY_SHORT_CITATION in meta:
+            self.r.add("legacy_short_citation", "info", doc.rel,
+                       "Feld „short citation“ mit Leerzeichen; pkm fix-frontmatter benennt es um (nur auf Anweisung).")
+        if "kind" not in meta and looks_converted(meta):
+            self.r.add("missing_kind", "info", doc.rel,
+                       "Umgewandeltes Dokument ohne kind (standard oder regulation von Hand ergänzen).")
+        elif "kind" in meta and meta["kind"] not in KINDS:
+            self.r.add("invalid_kind", "error", doc.rel, f"Unbekannter Wert in kind: {meta['kind']!r}.")
+        self._dates_and_tags(doc)
+
+    def _dates_and_tags(self, doc: Doc) -> None:
+        """Format der Datumsfelder und der Tags prüfen (Dokumente und Wiki-Seiten).
+
+        Args:
+            doc: Datei mit gültigem Frontmatter.
+        """
+        for field in DATE_FIELDS:
+            if field in doc.meta and not is_valid_date_value(doc.meta[field]):
+                self.r.add("invalid_date", "warning", doc.rel,
+                           f"{field} hat nicht das Format YYYY-MM-DDTHH:MM:SS bzw. YYYY-MM-DD (ohne Zeitzone): "
+                           f"{doc.meta[field]!r}.")
+        tags = doc.meta.get("tags")
+        if tags is not None and (not isinstance(tags, list) or any(" " in str(t).strip() for t in tags)):
+            self.r.add("invalid_tags", "warning", doc.rel,
+                       "tags muss eine Liste ohne Leerzeichen in den Einträgen sein.")
 
     def headings(self, doc: Doc) -> None:
         """Überschriften nach 4.8: Setext, Duplikate, Anker-Zeichen, Text auf ``#`` plus Ziffern.
@@ -265,6 +311,7 @@ class Linter:
             self.r.add("invalid_type", "warning", page.rel, f"type fehlt oder ist ungültig: {typ!r}.")
         elif folder in FOLDER_TYPES and FOLDER_TYPES[folder] != typ:
             self.r.add("type_folder_mismatch", "info", page.rel, f"type {typ} passt nicht zum Ordner {folder}/.")
+        self._dates_and_tags(page)
         conf = page.meta.get("confidence")
         if conf is not None and conf not in CONFIDENCE:
             self.r.add("invalid_confidence", "warning", page.rel, f"confidence ungültig: {conf!r}.")
@@ -302,7 +349,7 @@ class Linter:
                 names.update(str(a).casefold() for a in aliases)
         topics: Counter[str] = Counter()
         for doc in self.docs:
-            t = doc.meta.get("topics")
+            t = doc.meta.get("tags")
             if isinstance(t, list):
                 topics.update({str(x).casefold() for x in t})
         for topic, n in sorted(topics.items()):
@@ -400,6 +447,23 @@ class Linter:
                        f"[^{cit.label}] Zitat steht nicht in v{cit.version}, Abschnitt „{key}“.", footnote=cit.label)
 
 # Functions *******************************************************************
+
+
+def _error_message(doc: Doc) -> str:
+    """Fehlertext für unlesbare Dokumente, mit Hinweis auf ``pkm fix-frontmatter``, wenn das hilft.
+
+    Args:
+        doc: Dokument mit ``error``.
+
+    Returns:
+        Fehlertext.
+    """
+    message = doc.error_message or doc.error or ""
+    if doc.error == "invalid_frontmatter" and doc.text is not None:
+        fixed, changes = fix_frontmatter_text(doc.text)
+        if changes and parse_text(fixed).fm_error is None:
+            message += " Fehlende Anführungszeichen: pkm fix-frontmatter behebt das (nur auf Anweisung)."
+    return message
 
 
 def lint(svc: Service) -> dict[str, Any]:

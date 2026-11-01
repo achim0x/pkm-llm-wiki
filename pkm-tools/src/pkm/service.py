@@ -125,6 +125,23 @@ class Service:  # pylint: disable=too-many-public-methods
         paths = paths if paths is not None else self.vault.scan_id(doc_id)
         return [p for p in paths if not p.startswith(f"{SCRATCH}/")]
 
+    def find_citation(self, value: str) -> list[str]:
+        """Pfade zu einer Kurzbezeichnung suchen, bevorzugt über den Index.
+
+        Args:
+            value: Kurzbezeichnung (``short_citation``).
+
+        Returns:
+            Existierende Pfade in ``documents/``.
+        """
+        paths = None
+        if self.index_available():
+            try:
+                paths = [p for p in self.index.find_citation(value) if self.vault.exists(p)]
+            except INDEX_ERRORS:
+                paths = None
+        return paths if paths is not None else self.vault.scan_citation(value)
+
     def known_ids(self) -> set[str]:
         """Alle vergebenen IDs, bevorzugt über den Index.
 
@@ -152,7 +169,7 @@ class Service:  # pylint: disable=too-many-public-methods
         Returns:
             Relativer Pfad.
         """
-        return self.vault.resolve(target, areas, self.find_id)
+        return self.vault.resolve(target, areas, self.find_id, self.find_citation)
 
     def load(self, target: str, areas: tuple[str, ...] = READ_AREAS) -> Doc:
         """Ziel auflösen und laden.
@@ -275,7 +292,7 @@ class Service:  # pylint: disable=too-many-public-methods
 
         Returns:
             Treffer mit ``id``, ``path``, ``title``, ``type``, ``summary``, ``snippet``, ``score``,
-            ``updated`` und bei Dokumenten ``version`` und ``processed``.
+            ``date_updated``, ``short_citation`` und bei Dokumenten ``version`` und ``processed``.
 
         Raises:
             PkmError: ``invalid_argument`` bei unbekanntem ``scope``.
@@ -308,7 +325,8 @@ class Service:  # pylint: disable=too-many-public-methods
         except PkmError:
             doc = None
         if doc is not None:
-            item = {k: hit[k] for k in ("id", "path", "title", "type", "summary", "score", "updated")}
+            item = {k: hit[k] for k in ("id", "path", "title", "type", "summary", "score", "date_updated",
+                                        "short_citation")}
             item["snippet"] = snippet(doc.body, hit["terms"]) if doc.kind == "md" else ""
             if hit["area"] == "documents":
                 item["version"] = doc.version

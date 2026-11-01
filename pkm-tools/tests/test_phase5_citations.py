@@ -87,7 +87,7 @@ title: Regenwasser-Ertrag
 sources:
   - "[[{link}]]"
   - "[[documents/haus/datenblatt.pdf]]"
-updated: 2026-11-02
+date_updated: 2026-11-02T21:10:00
 confidence: high
 ---
 

@@ -208,14 +208,14 @@ Der Windows-Rechner nutzt den Vault nur über Obsidian.
 
 ```markdown
 ---
+title: Zisterne – Überlaufsensor
+date_markdown: 2026-10-31T23:40:12
+toolchain_markdown: Claude Opus 5.5 (pkm-mcp)
 id: d-20261031-2340-k7q2
 version: 3
-title: Zisterne – Überlaufsensor
-created: 2026-10-31T23:40:12+01:00
-updated: 2026-11-02T19:05:00+01:00
-source: claude-chat
+date_updated: 2026-11-02T19:05:00
 context: "Chat: Füllstandsberechnung Tank 1"
-topics: [zisterne, home-assistant]
+tags: [zisterne, home-assistant]
 related: ["[[documents/haus/zisterne]]"]
 kind: note
 ---
@@ -226,9 +226,24 @@ kind: note
 ## Kontext / Begründung
 ```
 
-`id`, `version`, `created` und `updated` setzen ausschließlich Server und CLI. Alles andere
-darfst du frei ändern. Eigene Notizen brauchen gar kein Frontmatter, ID und Version trägt der
-Pflegelauf nach.
+Die Feldnamen folgen dem Schema der digitalisierten Normen (`title`, `short_citation`,
+`date_document`, `status_markdown`, `date_markdown`, `toolchain_markdown`), ergänzt um `id`,
+`version`, `date_updated`, `context`, `tags`, `related` und `kind`.
+
+- `id`, `version`, `date_markdown` und `date_updated` setzen ausschließlich Server und CLI.
+  `status_markdown` (nur bei Normen) übernimmt das System unverändert. Alles andere darfst du frei
+  ändern.
+- Datumsfelder haben das Format `YYYY-MM-DDTHH:MM:SS` in Ortszeit ohne Zeitzone, wie Obsidian
+  „Datum & Uhrzeit“ es erwartet.
+- `kind` ist `note` (Standard), `standard` (Normen), `regulation` (Gesetze, Verordnungen) oder
+  `correction` (Korrekturwunsch).
+- Werte mit `: ` (etwa Normtitel) stehen in doppelten Anführungszeichen, sonst ist das YAML
+  ungültig. `pkm lint` meldet das, `pkm fix-frontmatter` behebt es auf deine Anweisung.
+- Eigene Notizen brauchen gar kein Frontmatter, ID und Version trägt der Pflegelauf nach. Bereits
+  umgewandelte Normen bekommen dabei nur `id` und `version` angehängt.
+
+Eine Norm lässt sich auch über ihre Kurzbezeichnung ansprechen, z. B. „Was sagt EN 61000-4-6:2014
+zu …?“: `short_citation` ist überall als Ziel verwendbar.
 
 ### Eine Wiki-Seite
 
@@ -452,7 +467,7 @@ Status, den Claude bei „Woher stammt das?“ nennt:
 
 **Lieber nicht:**
 - `wiki/` von Hand bearbeiten (Korrekturen per Chat als Korrektur-Dokument)
-- `id`, `version`, `created`, `updated` im Frontmatter ändern
+- `id`, `version`, `date_markdown`, `date_updated` oder `status_markdown` im Frontmatter ändern
 - dasselbe Dokument gleichzeitig auf Windows und per Chat ändern
 - `.git`, Suchindex oder Git-Verzeichnis in die Nextcloud legen
 - Dateien kopieren, ohne die ID der Kopie zu ändern (Lint meldet doppelte IDs)
@@ -477,11 +492,12 @@ nützlich. Ausgabe ist immer JSON. Im Vault-Ordner findet die CLI den Vault selb
 | `pkm show <ziel> --version <n> [--section <abschnitt>]` | frühere Version lesen |
 | `pkm restore <ziel> --version <n>` | frühere Version als neue Version zurückholen |
 | `pkm sha <ziel> [--section <abschnitt>] [--full]` | Hashes (für Belege und Fehlersuche) |
+| `pkm fix-frontmatter [<ziel>…] [--all]` | Frontmatter reparieren (Anführungszeichen, `short citation` → `short_citation`); ohne Ziel nur auflisten. Nur auf deine Anweisung |
 | `pkm mark`, `index`, `status`, `fix-citations`, `sync-citations`, `commit-wiki` | Bausteine des Pflegelaufs |
 | `pkm reindex` | Suchindex neu aufbauen |
 
-Ziele können ein Pfad (`documents/haus/zisterne.md`), ein Wikilink (`[[zisterne]]`) oder eine ID
-(`id:d-…`) sein. Alle Befehle außer `pkm reindex` ignorieren `scratch/`.
+Ziele können ein Pfad (`documents/haus/zisterne.md`), ein Wikilink (`[[zisterne]]`), eine ID
+(`id:d-…`) oder eine Kurzbezeichnung (`EN 61000-4-6:2014`) sein. Alle Befehle außer `pkm reindex` ignorieren `scratch/`.
 
 ---
 

@@ -47,7 +47,7 @@ DOC1 = f"""---
 id: {ID1}
 version: 1
 title: Zisterne – Überlaufsensor
-topics: [zisterne, sensor]
+tags: [zisterne, sensor]
 ---
 
 ## Ergebnis
@@ -329,7 +329,7 @@ def test_list_unprocessed(filled, cfg):
     assert entry["category"] == "changed" and entry["processed_version"] == 1
     changes = {(c["key"], c["change"]) for c in entry["sections"]}
     assert changes == {("Offene Punkte", "changed"), ("Resultat", "renamed")}
-    write(cfg, "documents/haus/zisterne.md", DOC1.replace("topics: [zisterne, sensor]", "topics: [zisterne]"))
+    write(cfg, "documents/haus/zisterne.md", DOC1.replace("tags: [zisterne, sensor]", "tags: [zisterne]"))
     entry = next(d for d in filled.list_unprocessed()["documents"] if d["id"] == ID1)
     assert entry["category"] == "meta_changed"
     assert H.short("abcdef12") == "abcdef"

@@ -179,7 +179,7 @@ def test_linewise_creates_frontmatter_rest_unchanged():
 def test_dump_meta_roundtrip():
     """Geschriebenes Frontmatter wird unverändert zurückgelesen."""
     meta = {"id": "d-20261031-2340-k7q2", "version": 1, "title": "Zisterne – Überlaufsensor",
-            "context": "Chat: Füllstand", "topics": ["zisterne", "home-assistant"],
+            "context": "Chat: Füllstand", "tags": ["zisterne", "home-assistant"],
             "related": ["[[documents/haus/zisterne]]"], "created": "2026-10-31T23:40:12+01:00",
             "n": "123", "flag": "yes"}
     p = parse(dump_meta(meta))

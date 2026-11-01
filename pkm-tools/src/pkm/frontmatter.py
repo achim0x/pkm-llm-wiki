@@ -34,10 +34,12 @@ from typing import Any
 import yaml
 
 from .parse import load_yaml, split_frontmatter
+from .schema import LEGACY_SHORT_CITATION, SHORT_CITATION
 
 # Variables *******************************************************************
 
-PROTECTED = ("id", "version", "created", "updated")
+PROTECTED = ("id", "version", "date_markdown", "date_updated", "status_markdown")
+TOP_LEVEL_FIELD_RE = re.compile(r"^([^\s#][^:]*?):(?:[ \t]+(.*))?$")
 PLAIN_FORBIDDEN_START = ("[", "{", "&", "*", "!", "|", ">", "'", '"', "%", "@", "`", "#", "-", "?", ":", ",")
 
 # Classes *********************************************************************
@@ -202,5 +204,72 @@ def set_fields_linewise(text: str, fields: dict[str, Any], block_lists: bool = F
         closing = fm_text.rstrip("\n").rsplit("\n", maxsplit=1)[-1]
         result = "\n".join(["---", *_apply_fields(inner, fields, block_lists), closing]) + "\n" + body
     return result
+
+def _line_is_valid(line: str) -> bool:
+    """Prüfen, ob eine Frontmatter-Zeile für sich gültiges YAML ist.
+
+    Args:
+        line: Zeile auf oberster Ebene (``key: value``).
+
+    Returns:
+        ``True``, wenn die Zeile fehlerfrei gelesen werden kann.
+    """
+    try:
+        load_yaml(line)
+        valid = True
+    except yaml.YAMLError:
+        valid = False
+    return valid
+
+
+def _fix_line(line: str) -> tuple[str, list[str]]:
+    """Eine Frontmatter-Zeile reparieren (4.1).
+
+    Benennt ``short citation`` in ``short_citation`` um und setzt Werte, die als YAML ungültig
+    sind (z. B. mit ``: `` oder führendem Sonderzeichen), in doppelte Anführungszeichen.
+
+    Args:
+        line: Zeile ohne LF.
+
+    Returns:
+        Tupel aus (neue Zeile, Beschreibungen der Änderungen).
+    """
+    changes: list[str] = []
+    m = TOP_LEVEL_FIELD_RE.match(line)
+    if m and not line[:1].isspace():
+        key, value = m.group(1), (m.group(2) or "")
+        if key == LEGACY_SHORT_CITATION:
+            key = SHORT_CITATION
+            changes.append(f"{LEGACY_SHORT_CITATION} → {SHORT_CITATION}")
+        if value.strip() and not _line_is_valid(f"k: {value}"):
+            value = json.dumps(value.strip(), ensure_ascii=False)
+            changes.append(f"{key}: Anführungszeichen ergänzt")
+        if changes:
+            line = f"{key}: {value}" if value else f"{key}:"
+    return line, changes
+
+
+def fix_frontmatter_text(text: str) -> tuple[str, list[str]]:
+    """Frontmatter zeilengenau reparieren; der übrige Text bleibt unverändert (``pkm fix-frontmatter``).
+
+    Gibt es schon ``short_citation``, bleibt eine zusätzliche Zeile ``short citation`` unverändert.
+
+    Args:
+        text: Normalisierter Dateitext.
+
+    Returns:
+        Tupel aus (neuer Text, Liste der Änderungen); ohne Frontmatter unverändert.
+    """
+    lines = text.split("\n")
+    changes: list[str] = []
+    close = next((i for i in range(1, len(lines)) if lines[i] in ("---", "...")), None) if lines[0] == "---" else None
+    if close is not None:
+        has_new_name = any(ln.startswith(f"{SHORT_CITATION}:") for ln in lines[1:close])
+        for i in range(1, close):
+            if not (has_new_name and lines[i].startswith(f"{LEGACY_SHORT_CITATION}:")):
+                lines[i], line_changes = _fix_line(lines[i])
+                changes.extend(line_changes)
+    return "\n".join(lines), changes
+
 
 # Main ************************************************************************

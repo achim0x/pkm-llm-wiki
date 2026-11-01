@@ -43,6 +43,7 @@ from .ids import new_id
 from .normalize import encode, normalize_fragment, normalize_text
 from .parse import PREAMBLE, Parsed, body_lines, normalize_key_input, split_sections, strip_frontmatter
 from .paths import is_platform_safe_name, slugify
+from .schema import DEFAULT_KIND, DEFAULT_TOOLCHAIN, KINDS, stamp
 from .vault import SCRATCH, Doc, load_text_doc
 
 if TYPE_CHECKING:
@@ -59,7 +60,8 @@ INBOX = "documents/_inbox"
 CREATE_AREAS = ("documents", SCRATCH)
 DIFF_LINES = 80
 SHORTENING_RATIO = 0.6
-KINDS = ("note", "correction")
+META_ORDER = ("title", "short_citation", "date_document", "date_markdown", "toolchain_markdown", "id", "version",
+              "context", "tags", "related", "kind")
 FILE_MODE_MASK = 0o777
 
 # Classes *********************************************************************
@@ -119,13 +121,13 @@ class Writer:
                 finally:
                     fcntl.flock(fh, fcntl.LOCK_UN)
 
-    def now_iso(self) -> str:
-        """Aktuelle Zeit als ISO-String mit Sekunden und Zeitzone.
+    def now_stamp(self) -> str:
+        """Aktuelle Zeit für Datumsfelder: Ortszeit ohne Zeitzone (4.1).
 
         Returns:
-            Zeitstempel, z. B. ``2026-11-02T19:05:00+01:00``.
+            Zeitstempel, z. B. ``2026-11-02T19:05:00``.
         """
-        return self.svc.now().isoformat(timespec="seconds")
+        return stamp(self.svc.now())
 
     def check_size(self, text: str, what: str) -> None:
         """Größengrenze ``PKM_MAX_KB`` prüfen.
@@ -307,7 +309,7 @@ class Writer:
         else:
             version = (prev.version or 0) + 1
             note = "Änderung von Hand" + (f", verschoben von {prev_path}" if moved else "")
-            plan = _UserVersion(doc.id, version, f"v{version}", note, {"updated": self.now_iso()})
+            plan = _UserVersion(doc.id, version, f"v{version}", note, {"date_updated": self.now_stamp()})
         if moved and not self.vault.exists(prev_path):
             plan.extra_paths.append(prev_path)
         return plan
@@ -339,7 +341,7 @@ class Writer:
             }
         else:
             version = (doc.version or 0) + 1
-            new_text = set_fields_linewise(new_text, {"version": version, "updated": self.now_iso()})
+            new_text = set_fields_linewise(new_text, {"version": version, "date_updated": self.now_stamp()})
             self.check_size(new_text, "Das Dokument")
             new_doc = load_text_doc(doc.rel, new_text.encode("utf-8"))
             if new_doc.error:
@@ -383,7 +385,7 @@ class Writer:
     def finish_scratch(self, doc: Doc, new_text: str) -> dict[str, Any]:
         """Neue Fassung einer Datei in ``scratch/`` schreiben: ohne Version und ohne Commit.
 
-        ``updated`` wird nur gesetzt, wenn die Datei ein Frontmatter hat.
+        ``date_updated`` wird nur gesetzt, wenn die Datei ein Frontmatter hat.
 
         Args:
             doc: Datei vor der Änderung.
@@ -402,7 +404,7 @@ class Writer:
         if new_text != old_text:
             new_doc = load_text_doc(doc.rel, new_text.encode("utf-8"))
             if new_doc.parsed is not None and new_doc.parsed.has_frontmatter and not new_doc.error:
-                new_text = set_fields_linewise(new_text, {"updated": self.now_iso()})
+                new_text = set_fields_linewise(new_text, {"date_updated": self.now_stamp()})
                 new_doc = load_text_doc(doc.rel, new_text.encode("utf-8"))
             if new_doc.error:
                 raise PkmError(new_doc.error, new_doc.error_message or "Ergebnis ungültig.")
@@ -421,11 +423,13 @@ class Writer:
         self,
         title: str,
         content: str,
-        topics: list[str] | None = None,
+        tags: list[str] | None = None,
+        short_citation: str | None = None,
+        date_document: str | None = None,
         context: str | None = None,
         related: list[str] | None = None,
         kind: str | None = None,
-        source: str | None = None,
+        toolchain: str | None = None,
         note: str | None = None,
         area: str = "documents",
         folder: str | None = None,
@@ -433,13 +437,15 @@ class Writer:
         """Tool ``create_document``: neues Dokument in ``documents/_inbox/`` (Version 1) oder Notiz in ``scratch/``.
 
         Args:
-            title: Titel; daraus wird der Dateiname gebildet.
+            title: Titel; daraus wird auch der Dateiname gebildet.
             content: Inhalt ohne Frontmatter (ein mitgeliefertes wird entfernt).
-            topics: Schlagwörter.
-            context: Herkunft, z. B. Chat-Titel.
+            tags: Schlagwörter (Kleinbuchstaben, Bindestrich).
+            short_citation: Kurzbezeichnung, z. B. ``EN 61000-4-6:2014``.
+            date_document: Ausgabedatum wie gedruckt.
+            context: Anlass, z. B. Chat-Titel.
             related: Verwandte Dokumente (Pfad, Wikilink oder ID).
-            kind: ``note`` (Standard) oder ``correction``.
-            source: Quelle, Standard ``claude-chat``.
+            kind: ``note`` (Standard), ``standard``, ``regulation`` oder ``correction``.
+            toolchain: Wird zu ``toolchain_markdown``; ohne Angabe ``pkm-mcp``.
             note: Änderungsnotiz für den Commit.
             area: ``documents`` (Standard) oder ``scratch``.
             folder: Nur bei ``scratch``: Unterordner in ``scratch/``.
@@ -453,46 +459,41 @@ class Writer:
                 ``git_unavailable``.
         """
         title = " ".join((title or "").split())
-        if not title:
-            raise PkmError("invalid_argument", "title fehlt.")
-        if area not in CREATE_AREAS:
-            raise PkmError("invalid_argument", "area muss documents oder scratch sein.")
-        if folder and area != SCRATCH:
-            raise PkmError("invalid_argument", "folder gibt es nur bei area scratch.")
-        if kind is not None and kind not in KINDS:
-            raise PkmError("invalid_argument", "kind muss note oder correction sein.")
+        _check_create_args(title, area, folder, kind)
         body = strip_frontmatter(normalize_fragment(content or ""))
         self.check_size(body, "Der Inhalt")
-        common = {
-            "topics": [str(t) for t in topics] if topics else None,
+        values = {
+            "title": title,
+            "short_citation": " ".join(short_citation.split()) if short_citation else None,
+            "date_document": date_document.strip() if date_document else None,
+            "context": " ".join(context.split()) if context else None,
+            "tags": [str(t) for t in tags] if tags else None,
             "related": [f"[[{self._link_target(r)}]]" for r in related] if related else None,
             "kind": kind,
         }
-        if area == SCRATCH:
-            result = self._write_scratch(title, body, _scratch_folder(folder), common)
-        else:
-            extra = {"source": source or "claude-chat", "context": " ".join(context.split()) if context else None,
-                     **common, "kind": kind or "note"}
-            result = self._write_new(title, body, note or "neu angelegt", extra)
-        return result
+        if area != SCRATCH:
+            values["kind"] = kind or DEFAULT_KIND
+            values["toolchain_markdown"] = " ".join(toolchain.split()) if toolchain else DEFAULT_TOOLCHAIN
+        return (self._write_scratch(body, _scratch_folder(folder), values) if area == SCRATCH
+                else self._write_new(body, note or "neu angelegt", values))
 
-    def _write_new(self, title: str, body: str, note: str, extra: dict[str, Any]) -> dict[str, Any]:
-        """Neues Dokument mit ID und Version 1 schreiben und committen.
+    def _write_new(self, body: str, note: str, values: dict[str, Any]) -> dict[str, Any]:
+        """Neues Dokument mit ``date_markdown``, ID und Version 1 schreiben und committen.
 
         Args:
-            title: Titel.
             body: Inhalt ohne Frontmatter.
             note: Änderungsnotiz.
-            extra: Weitere Felder (``source``, ``context``, ``topics``, ``related``, ``kind``).
+            values: Frontmatter-Felder aus dem Aufruf (``title`` … ``kind``).
 
         Returns:
             Rückgabe von ``_created_result``.
         """
+        title = values["title"]
         with self.lock():
             self.git.require_ok()
             now = self.svc.now()
             doc_id = new_id(now, exists=lambda i: i in self.svc.known_ids())
-            meta = _initial_meta(doc_id, title, now.isoformat(timespec="seconds"), extra)
+            meta = _ordered_meta({**values, "date_markdown": stamp(now), "id": doc_id, "version": 1})
             text = normalize_text(dump_meta(meta) + "\n" + body.lstrip("\n"))
             rel = self._free_inbox_name(now.date().isoformat(), title)
             sha = self.write_and_commit(rel, text, build_message(title, "v1", note, doc_id, 1, "chat"))
@@ -517,25 +518,22 @@ class Writer:
             "diff": unified_diff("", text, "/dev/null", rel, DIFF_LINES),
         }
 
-    def _write_scratch(self, title: str, body: str, folder: str, optional: dict[str, Any]) -> dict[str, Any]:
+    def _write_scratch(self, body: str, folder: str, values: dict[str, Any]) -> dict[str, Any]:
         """Notiz in ``scratch/`` anlegen: kleines Frontmatter, ohne ID, Version und Commit.
 
         Args:
-            title: Titel.
             body: Inhalt ohne Frontmatter.
             folder: Geprüfter Unterordner (relativ zu ``scratch/``, ggf. leer).
-            optional: ``topics``, ``related`` und ``kind`` (leere Werte entfallen).
+            values: Frontmatter-Felder aus dem Aufruf (leere Werte entfallen).
 
         Returns:
             ``{path, status: created, new_hash, diff}``.
         """
         with self.lock():
-            stamp = self.now_iso()
-            meta: dict[str, Any] = {"title": title, "created": stamp, "updated": stamp}
-            meta.update({k: v for k, v in optional.items() if v})
+            meta = _ordered_meta({**values, "date_markdown": self.now_stamp()})
             text = normalize_text(dump_meta(meta) + "\n" + body.lstrip("\n"))
             base = "/".join(p for p in (SCRATCH, folder) if p)
-            rel = self._free_name(base, slugify(title))
+            rel = self._free_name(base, slugify(values["title"]))
             self.write_atomic(rel, text)
         doc = self.vault.load(rel)
         return {"path": rel, "status": "created", "new_hash": doc.hashes.file_hash if doc.hashes else None,
@@ -776,21 +774,38 @@ def _scratch_folder(folder: str | None) -> str:
     return "/".join(parts)
 
 
-def _initial_meta(doc_id: str, title: str, stamp: str, extra: dict[str, Any]) -> dict[str, Any]:
-    """Frontmatter eines neuen Dokuments in der Reihenfolge aus 4.1.
+def _ordered_meta(values: dict[str, Any]) -> dict[str, Any]:
+    """Frontmatter eines neuen Dokuments in der Reihenfolge aus 4.1; leere Werte entfallen.
 
     Args:
-        doc_id: Neue ID.
-        title: Titel.
-        stamp: Zeitstempel für ``created`` und ``updated``.
-        extra: ``source``, ``context``, ``topics``, ``related`` und ``kind`` (leere Werte entfallen).
+        values: Feldwerte.
 
     Returns:
-        Die Felder.
+        Die Felder in der Reihenfolge von ``META_ORDER``.
     """
-    meta: dict[str, Any] = {"id": doc_id, "version": 1, "title": title, "created": stamp, "updated": stamp}
-    meta.update({k: v for k, v in extra.items() if v})
-    return meta
+    return {k: values[k] for k in META_ORDER if values.get(k) not in (None, "", [])}
+
+
+def _check_create_args(title: str, area: str, folder: str | None, kind: str | None) -> None:
+    """Parameter von ``create_document`` prüfen.
+
+    Args:
+        title: Bereinigter Titel.
+        area: Zielbereich.
+        folder: Unterordner (nur bei ``scratch``).
+        kind: Art des Dokuments oder ``None``.
+
+    Raises:
+        PkmError: ``invalid_argument`` bei fehlendem Titel, unbekanntem Bereich oder ``kind``.
+    """
+    if not title:
+        raise PkmError("invalid_argument", "title fehlt.")
+    if area not in CREATE_AREAS:
+        raise PkmError("invalid_argument", "area muss documents oder scratch sein.")
+    if folder and area != SCRATCH:
+        raise PkmError("invalid_argument", "folder gibt es nur bei area scratch.")
+    if kind is not None and kind not in KINDS:
+        raise PkmError("invalid_argument", f"kind muss einer der Werte {', '.join(KINDS)} sein.")
 
 
 def _count(haystack: str, needle: str) -> int:

@@ -98,7 +98,7 @@ def fixture_doc(svc):
     Returns:
         Rückgabe von ``create_document``.
     """
-    res = svc.create_document(title="Zisterne – Überlaufsensor", content=BODY, topics=["zisterne"],
+    res = svc.create_document(title="Zisterne – Überlaufsensor", content=BODY, tags=["zisterne"],
                               context="Chat: Füllstand", note=None)
     return res
 
@@ -111,9 +111,10 @@ def test_create(doc, svc, isolated_env, cfg):
     r = svc.read(doc["path"])
     assert r["id"] == doc["id"] and r["version"] == 1 and r["hash"] == doc["new_hash"]
     fm = r["frontmatter"]
-    assert fm["title"] == "Zisterne – Überlaufsensor" and fm["source"] == "claude-chat"
-    assert fm["kind"] == "note" and fm["topics"] == ["zisterne"] and fm["context"] == "Chat: Füllstand"
-    assert fm["created"] == fm["updated"]
+    assert fm["title"] == "Zisterne – Überlaufsensor" and "source" not in fm
+    assert fm["kind"] == "note" and fm["tags"] == ["zisterne"] and fm["context"] == "Chat: Füllstand"
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", fm["date_markdown"])
+    assert fm["toolchain_markdown"] == "pkm-mcp" and "date_updated" not in fm
     body, files, tr = last_commit(isolated_env)
     assert body.startswith("doc: Zisterne – Überlaufsensor v1")
     assert files == [doc["path"]]
@@ -179,7 +180,7 @@ def test_every_change_one_version_one_commit(doc, svc, isolated_env):
     assert "Textstelle geändert" in body
     cur = svc.read(doc["path"])
     assert cur["version"] == 2 and cur["hash"] == r["new_hash"]
-    assert cur["frontmatter"]["updated"] >= cur["frontmatter"]["created"]
+    assert cur["frontmatter"]["date_updated"] >= cur["frontmatter"]["date_markdown"]
     assert "+- Kabelweg prüfen" in r["diff"]
 
 
@@ -423,15 +424,15 @@ def test_edit_empty_new_deletes(doc, svc):
 def test_update_frontmatter(doc, svc):
     """set, add und remove ändern das Frontmatter."""
     r = svc.update_frontmatter(target=doc["path"], expected_hash=doc["new_hash"],
-                               set={"title": "Neuer Titel"}, add={"topics": ["sensor", "zisterne"]},
+                               set={"title": "Neuer Titel"}, add={"tags": ["sensor", "zisterne"]},
                                remove=["context"])
     fm = svc.read(doc["path"])["frontmatter"]
-    assert fm["title"] == "Neuer Titel" and fm["topics"] == ["zisterne", "sensor"]
+    assert fm["title"] == "Neuer Titel" and fm["tags"] == ["zisterne", "sensor"]
     assert "context" not in fm and fm["version"] == 2 and fm["id"] == doc["id"]
     assert r["version"] == 2
 
 
-@pytest.mark.parametrize("field", ["id", "version", "created", "updated"])
+@pytest.mark.parametrize("field", ["id", "version", "date_markdown", "date_updated", "status_markdown"])
 def test_update_frontmatter_protected(doc, svc, field):
     """Geschützte Felder lassen sich nicht ändern."""
     with pytest.raises(PkmError) as e:

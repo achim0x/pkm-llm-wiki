@@ -30,10 +30,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from .parse import Parsed, Section
+from .schema import LEGACY_SHORT_CITATION, SHORT_CITATION
 
 # Variables *******************************************************************
 
-META_FIELDS = ("title", "topics", "related", "kind")
+META_FIELDS = ("title", "short_citation", "date_document", "tags", "related", "kind")
 SHORT = 6
 
 # Classes *********************************************************************
@@ -153,27 +154,33 @@ def body_hash(p: Parsed) -> str:
 
 
 def _jsonable(value: Any) -> Any:
-    """Wert in eine JSON-taugliche Form bringen.
+    """Wert für ``meta_hash`` aufbereiten: Werte als Zeichenketten in Frontmatter-Schreibweise.
 
     Args:
         value: Beliebiger YAML-Wert.
 
     Returns:
-        Wert aus dict, list, str, int, float, bool oder None.
+        Zeichenkette, Liste bzw. Wörterbuch solcher Zeichenketten oder ``None``.
     """
     if isinstance(value, dict):
         result: Any = {str(k): _jsonable(v) for k, v in value.items()}
     elif isinstance(value, list | tuple):
         result = [_jsonable(v) for v in value]
-    elif value is None or isinstance(value, bool | int | float | str):
-        result = value
+    elif isinstance(value, bool):
+        result = "true" if value else "false"
+    elif value is None:
+        result = None
     else:
         result = str(value)
     return result
 
 
 def meta_hash(meta: dict[str, Any]) -> str:
-    """Hash der inhaltlich relevanten Metadaten (``title``, ``topics``, ``related``, ``kind``).
+    """Hash der inhaltlich relevanten Metadaten (4.8).
+
+    Eingang: ``title``, ``short_citation`` (auch in der alten Schreibweise ``short citation``),
+    ``date_document``, ``tags``, ``related``, ``kind``. ``status_markdown``, Datumsfelder, ``id``
+    und ``version`` sind bewusst ausgenommen.
 
     Args:
         meta: Frontmatter-Felder.
@@ -181,7 +188,10 @@ def meta_hash(meta: dict[str, Any]) -> str:
     Returns:
         SHA-256 des kanonischen JSON (sortiert, UTF-8, ohne Leerraum).
     """
-    data = {k: _jsonable(meta[k]) for k in META_FIELDS if k in meta}
+    fields = dict(meta)
+    if SHORT_CITATION not in fields and LEGACY_SHORT_CITATION in fields:
+        fields[SHORT_CITATION] = fields[LEGACY_SHORT_CITATION]
+    data = {k: _jsonable(fields[k]) for k in META_FIELDS if k in fields}
     return sha256_text(json.dumps(data, sort_keys=True, ensure_ascii=False, separators=(",", ":")))
 
 

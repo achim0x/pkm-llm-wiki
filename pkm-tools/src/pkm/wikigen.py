@@ -131,11 +131,11 @@ def _index_line(doc: Doc) -> str:
         doc: Wiki-Seite.
 
     Returns:
-        ``- [[pfad]] – Kurzfassung _(n Quellen, Datum)_``.
+        ``- [[pfad]] – Kurzfassung _(n Quellen, Datum)_`` (Datum ohne Uhrzeit).
     """
     summary = summary_of(doc) or "_(keine Kurzfassung)_"
     n = source_count(doc)
-    updated = str(doc.meta.get("updated") or "")
+    updated = str(doc.meta.get("date_updated") or "")[:10]
     info = f"{n} {'Quelle' if n == 1 else 'Quellen'}" + (f", {updated}" if updated else "")
     return f"- {doc.wikilink} – {summary} _({info})_"
 
@@ -167,7 +167,7 @@ def build_index(svc: Service) -> dict[str, Any]:
 
 
 def suggest_folder(doc: Doc, all_docs: list[Doc]) -> str | None:
-    """Einsortier-Vorschlag: Ordner, in dem die meisten Dokumente mit gleichen ``topics`` liegen.
+    """Einsortier-Vorschlag: Ordner, in dem die meisten Dokumente mit gleichen ``tags`` liegen.
 
     Args:
         doc: Dokument im Eingang.
@@ -176,16 +176,16 @@ def suggest_folder(doc: Doc, all_docs: list[Doc]) -> str | None:
     Returns:
         Ordner mit ``/`` am Ende oder ``None``.
     """
-    topics = doc.meta.get("topics")
-    wanted = {str(t).casefold() for t in topics} if isinstance(topics, list) else set()
+    tags = doc.meta.get("tags")
+    wanted = {str(t).casefold() for t in tags} if isinstance(tags, list) else set()
     votes: Counter[str] = Counter()
     for other in all_docs:
-        other_topics = other.meta.get("topics")
+        other_tags = other.meta.get("tags")
         if (
             wanted
             and not other.rel.startswith((INBOX, ATTACHMENTS))
-            and isinstance(other_topics, list)
-            and wanted & {str(t).casefold() for t in other_topics}
+            and isinstance(other_tags, list)
+            and wanted & {str(t).casefold() for t in other_tags}
         ):
             votes[str(PurePosixPath(other.rel).parent) + "/"] += 1
     return sorted(votes.items(), key=lambda kv: (-kv[1], kv[0]))[0][0] if votes else None

@@ -76,11 +76,11 @@ def commit_count(env: dict) -> int:
 def test_create_in_scratch_without_version_and_commit(svc, cfg, isolated_env):
     """Notizen in scratch/ haben ein kleines Frontmatter, keine ID, keine Version, keinen Commit."""
     before = commit_count(isolated_env)
-    res = svc.create_document(title="Todo Haus", content=TODO, area="scratch", folder="todo", topics=["haus"])
+    res = svc.create_document(title="Todo Haus", content=TODO, area="scratch", folder="todo", tags=["haus"])
     assert res["status"] == "created" and res["path"] == "scratch/todo/todo-haus.md"
     assert "id" not in res and "version" not in res and "commit" not in res
     meta = svc.read(res["path"])["frontmatter"]
-    assert list(meta) == ["title", "created", "updated", "topics"]
+    assert list(meta) == ["title", "date_markdown", "tags"]
     assert commit_count(isolated_env) == before
     assert git(isolated_env, "status", "--porcelain").strip() == ""
     assert (cfg.root / ".gitignore").read_text(encoding="utf-8").splitlines()[1] == "scratch/"
@@ -117,14 +117,14 @@ def test_read_scratch(svc, todo):
 def test_check_off_item_without_version(svc, cfg, isolated_env, todo):
     """Abhaken ändert die Datei ohne Version und Commit; updated wird gesetzt."""
     before = commit_count(isolated_env)
-    old_updated = svc.read(todo["path"])["frontmatter"]["updated"]
+    old_updated = svc.read(todo["path"])["frontmatter"].get("date_updated", "")
     r = svc.edit_document(target=todo["path"], old="- [ ] Filter", new="- [x] Filter",
                           expected_hash=todo["new_hash"], note="wird ignoriert")
     assert r["status"] == "changed" and "version" not in r and "commit" not in r
     assert "+- [x] Filter der Zisternenpumpe reinigen" in r["diff"]
     text = (cfg.root / todo["path"]).read_text(encoding="utf-8")
     assert "- [x] Filter" in text and "version:" not in text and "id:" not in text
-    assert svc.read(todo["path"])["frontmatter"]["updated"] >= old_updated
+    assert svc.read(todo["path"])["frontmatter"].get("date_updated", "") >= old_updated
     assert commit_count(isolated_env) == before
 
 

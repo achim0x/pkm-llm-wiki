@@ -127,7 +127,7 @@ def write_wiki(cfg, capsys, link, lines_extra=""):
 type: topic
 title: Zisterne
 sources: []
-updated: 2026-11-02
+date_updated: 2026-11-02T21:10:00
 confidence: high
 ---
 
@@ -149,7 +149,7 @@ Der Überlauf wird erkannt mit: {quote_ent}.[^b2]
 type: summary
 title: Überlaufsensor
 sources: []
-updated: 2026-11-02
+date_updated: 2026-11-02T21:10:00
 confidence: high
 ---
 
@@ -195,7 +195,7 @@ def _step_1_create(run: _Run) -> str:
         Die neue Dokument-ID.
     """
     assert not run.svc.search("Überlaufsensor", scope="documents")["results"]
-    doc = run.svc.create_document(title="Zisterne – Überlaufsensor", content=FIRST, topics=["zisterne"],
+    doc = run.svc.create_document(title="Zisterne – Überlaufsensor", content=FIRST, tags=["zisterne"],
                                   context="Chat: Überlaufsensor")
     assert doc["path"].startswith("documents/_inbox/") and doc["version"] == 1
     assert git(run.env, "show", "--name-only", "--format=%s", "HEAD").split("\n")[0].endswith(" v1")

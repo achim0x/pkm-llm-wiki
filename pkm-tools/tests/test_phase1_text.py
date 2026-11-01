@@ -132,8 +132,8 @@ def test_empty_section_hash():
 
 
 def test_updated_changes_only_file_hash():
-    """Eine Änderung nur an updated ändert nur den Datei-Hash."""
-    t1 = normalize_text("---\nid: d-20261031-2340-k7q2\ntitle: T\nupdated: 2026-11-01T10:00:00+01:00\n---\n## A\nx\n")
+    """Eine Änderung nur an date_updated ändert nur den Datei-Hash."""
+    t1 = normalize_text("---\nid: d-20261031-2340-k7q2\ntitle: T\ndate_updated: 2026-11-01T10:00:00\n---\n## A\nx\n")
     t2 = t1.replace("10:00:00", "11:00:00")
     h1, h2 = hashes.compute(t1, parse(t1)), hashes.compute(t2, parse(t2))
     assert h1.file_hash != h2.file_hash
@@ -142,13 +142,23 @@ def test_updated_changes_only_file_hash():
 
 
 def test_meta_hash_fields():
-    """meta_hash umfasst nur title, topics, related und kind."""
-    p = parse("---\ntitle: T\ntopics: [a, b]\nkind: note\nversion: 3\n---\n")
-    canon = json.dumps({"kind": "note", "title": "T", "topics": ["a", "b"]}, sort_keys=True,
-                       ensure_ascii=False, separators=(",", ":"))
+    """meta_hash umfasst title, short_citation, date_document, tags, related und kind als Zeichenketten."""
+    p = parse("---\ntitle: T\nshort_citation: EN 1:2014\ndate_document: 2014\ntags: [a, b]\nkind: note\n"
+              "version: 3\nstatus_markdown: draft\ndate_markdown: 2026-10-25\n---\n")
+    canon = json.dumps({"date_document": "2014", "kind": "note", "short_citation": "EN 1:2014", "tags": ["a", "b"],
+                        "title": "T"}, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     assert hashes.meta_hash(p.meta) == sha(canon)
-    p2 = parse("---\ntitle: T\ntopics: [a, c]\n---\n")
+    p2 = parse("---\ntitle: T\ntags: [a, c]\n---\n")
     assert hashes.meta_hash(p2.meta) != hashes.meta_hash(p.meta)
+
+
+def test_meta_hash_ignores_status_and_reads_legacy_name():
+    """status_markdown ändert meta_hash nicht; „short citation“ zählt wie short_citation."""
+    base = "---\ntitle: T\nshort_citation: EN 1:2014\nstatus_markdown: draft\n---\n"
+    released = base.replace("draft", "released")
+    legacy = base.replace("short_citation:", "short citation:")
+    hashes_ = {hashes.meta_hash(parse(t).meta) for t in (base, released, legacy)}
+    assert len(hashes_) == 1
 
 
 def test_timestamps_stay_strings():

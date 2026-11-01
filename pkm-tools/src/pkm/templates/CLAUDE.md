@@ -20,9 +20,15 @@ frei in Obsidian; Dokumente werden über ihre ID gefunden, nicht über den Pfad.
 ## Dokumente
 
 - Frontmatter-Pflichtfelder: `id` (`d-YYYYMMDD-HHMM-xxxx`) und `version` (ab 1).
-- Optional: `title`, `created`, `updated`, `source`, `context`, `topics`, `related`,
-  `kind` (`note` | `correction`).
-- `id`, `version`, `created`, `updated` setzen nur pkm-mcp bzw. die `pkm`-CLI.
+- Weitere Felder (Schema der digitalisierten Normen, zuerst in dieser Reihenfolge): `title`,
+  `short_citation`, `date_document`, `status_markdown`, `date_markdown`, `toolchain_markdown`;
+  danach `id`, `version`, `date_updated`, `context`, `tags`, `related`,
+  `kind` (`note` | `standard` | `regulation` | `correction`).
+- `id`, `version`, `date_markdown`, `date_updated` setzen nur pkm-mcp bzw. die `pkm`-CLI.
+  `status_markdown` wird unverändert übernommen und von keinem Werkzeug geändert.
+- Datumsfelder `date_markdown`/`date_updated`: `YYYY-MM-DDTHH:MM:SS` in Ortszeit ohne Zeitzone.
+- Feldnamen ohne Leerzeichen. Werte mit `: ` oder führendem YAML-Sonderzeichen in doppelte
+  Anführungszeichen setzen. `source` bleibt dem Web Clipper vorbehalten.
 - Jede Version ist genau ein Git-Commit mit den Zeilen `PKM-Id`, `PKM-Version`,
   `PKM-Source` (`chat` | `user` | `agent`). Der Verlauf liegt in Git, nicht im Dokument.
 - Empfohlene Gliederung für Chat-Ergebnisse: `## Ergebnis`, `## Entscheidungen`,
@@ -35,7 +41,7 @@ frei in Obsidian; Dokumente werden über ihre ID gefunden, nicht über den Pfad.
 
 - Seitentypen: `wiki/topics/` (topic), `wiki/entities/` (entity), `wiki/summaries/` (summary,
   eine Seite je Dokument), `wiki/syntheses/` (synthesis).
-- Frontmatter: `type`, `title`, `aliases`, `tags`, `sources` (erzeugt), `updated`,
+- Frontmatter: `type`, `title`, `aliases`, `tags`, `sources` (erzeugt), `date_updated`,
   `confidence` (`high` | `medium` | `low`).
 - Erste Zeile nach dem Frontmatter: `> **Kurzfassung:** …`
 - Jede Sachaussage in „Inhalt“ und „Widersprüche / offene Fragen“ endet mit einer Fußnote auf

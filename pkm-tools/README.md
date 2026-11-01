@@ -23,7 +23,7 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
 
 **CLI:** `pkm init`, `ids`, `versions`, `pending`, `mark <id>… [--pages <page>…] [--remove]`,
 `sha <target> [--section <key>] [--full]`, `index`, `status [--question <text>]…`,
-`commit-wiki -m <text>`, `history <target> [--diff <von> [<bis>]]`,
+`commit-wiki -m <text>`, `fix-frontmatter [<target>…] [--all]`, `history <target> [--diff <von> [<bis>]]`,
 `show <target> --version <n> [--section <key>]`, `restore <target> --version <n>`, `reindex`,
 `fix-citations [<page>…]`, `sync-citations [<page>…]`, `lint [--report]`, `doctor [--short]`.
 
