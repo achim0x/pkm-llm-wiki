@@ -19,7 +19,7 @@ durchgereicht; Pfade stehen immer nach ``--``. Es gibt keine Operation, die Gesc
 # See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://gnu.org>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # *****************************************************************************
 
