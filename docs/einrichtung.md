@@ -56,7 +56,8 @@ Python selbst muss nicht installiert sein, `uv` bringt eine passende Version mit
 
 ## 2. Paket installieren
 
-Repository holen (außerhalb der Nextcloud), dann die Befehle `pkm` und `pkm-mcp` installieren:
+Repository holen (außerhalb der Nextcloud), dann die Befehle `pkm`, `pkm-mcp` und `pkm-pflege-mcp`
+installieren:
 
 ```bash
 git clone https://github.com/achim0x/pkm-llm-wiki.git <REPO>
@@ -66,8 +67,8 @@ git clone https://github.com/achim0x/pkm-llm-wiki.git <REPO>
 uv tool install <REPO>/pkm-tools
 ```
 
-Danach liegen `pkm` und `pkm-mcp` in `<HOME>/.local/bin/` (unter Windows als `pkm.exe` und
-`pkm-mcp.exe`). Meldet `uv`, dass der Ordner nicht im `PATH` steht, einmal `uv tool update-shell`
+Danach liegen `pkm`, `pkm-mcp` und `pkm-pflege-mcp` in `<HOME>/.local/bin/` (unter Windows mit
+Endung `.exe`). Meldet `uv`, dass der Ordner nicht im `PATH` steht, einmal `uv tool update-shell`
 ausführen und das Terminal neu öffnen.
 
 Aktualisieren nach einem `git pull`:
@@ -167,6 +168,14 @@ Mac:
         "PKM_VAULT_NAME": "<VAULT>",
         "PATH": "<GITDIR>:/usr/bin:/bin"
       }
+    },
+    "pkm-pflege": {
+      "command": "<HOME>/.local/bin/pkm-pflege-mcp",
+      "env": {
+        "PKM_ROOT": "<HOME>/Nextcloud/<VAULT>",
+        "PKM_VAULT_NAME": "<VAULT>",
+        "PATH": "<GITDIR>:/usr/bin:/bin"
+      }
     }
   }
 }
@@ -183,11 +192,22 @@ Windows (in JSON jeden Backslash verdoppeln):
         "PKM_ROOT": "C:\\Users\\name\\Nextcloud\\<VAULT>",
         "PKM_VAULT_NAME": "<VAULT>"
       }
+    },
+    "pkm-pflege": {
+      "command": "C:\\Users\\name\\.local\\bin\\pkm-pflege-mcp.exe",
+      "env": {
+        "PKM_ROOT": "C:\\Users\\name\\Nextcloud\\<VAULT>",
+        "PKM_VAULT_NAME": "<VAULT>"
+      }
     }
   }
 }
 ```
 
+- **Zwei Server:** `pkm` (Tools für alle Chats: suchen, lesen, ablegen, fortschreiben) und
+  `pkm-pflege` (Wiki-Pflege: `begin_maintenance`, `write_wiki_page`, `finish_maintenance` plus die
+  lesenden Tools). Beide laufen auf diesem Rechner; Claude Desktop und Cowork erreichen sie,
+  solange Claude Desktop geöffnet ist.
 - JSON kennt weder `~` noch Umgebungsvariablen (`%APPDATA%`, `$HOME`): alle Pfade absolut.
 - **`PATH` (Mac):** Claude Desktop startet MCP-Server mit minimaler Umgebung, ohne das
   Shell-Profil. `pkm-mcp` ruft intern `git` auf und muss es über `PATH` finden. `<GITDIR>` ist der
@@ -214,7 +234,13 @@ Claude Desktop vollständig beenden (unter Windows auch im Infobereich der Taskl
 starten. Im Chat sollten unter den Werkzeugen die zwölf `pkm`-Tools erscheinen (`search`, `read`,
 `history`, `show_citations`, `read_index`, `list_unprocessed`, `create_document`,
 `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`,
-`restore_document`).
+`restore_document`) sowie der Server `pkm-pflege`.
+
+**`pkm-pflege` nur zur Pflege einschalten.** Claude Desktop gibt Server allen Unterhaltungen frei;
+auf ein Projekt beschränken lässt er sich nicht. Deshalb `pkm-pflege` in normalen Unterhaltungen
+im Werkzeug-Menü der Unterhaltung ausschalten und nur in Pflege-Unterhaltungen einschalten. Der
+Server schreibt ohnehin nur in `wiki/` und `.pkm/state.json`; jeder Pflegelauf ist ein eigener
+Agenten-Commit und lässt sich mit `git revert` zurücknehmen.
 
 ## 6. Skills installieren
 
@@ -242,17 +268,27 @@ Bestehende andere Skills bleiben unberührt (keine Startbefüllung).
 
 ## 7. Projekt „PKM-Pflege“
 
+Die Pflege läuft in Claude Desktop (Chat oder Cowork) über den Server `pkm-pflege`. Eine Shell auf
+diesem Rechner ist nicht nötig: Cowork führt Befehle ohnehin nur in einer abgeschotteten
+Umgebung aus, in der `pkm` und das Git-Verzeichnis fehlen.
+
 1. In Claude Desktop ein Projekt „PKM-Pflege“ anlegen.
-2. Projektanweisung (Pfade an das System anpassen):
+2. Projektanweisung:
 
-   > Dies ist das Pflegeprojekt für das PKM unter `<HOME>/Nextcloud/<VAULT>`. Nutze den Skill
-   > `pkm-wiki`. Arbeite im Vault-Ordner und rufe die CLI über `<HOME>/.local/bin/pkm` auf.
+   > Dies ist das Pflegeprojekt für das PKM. Nutze den Skill `pkm-wiki` und die Tools des Servers
+   > `pkm-pflege`. Dokumente in `documents/` änderst du nicht.
 
-3. In einem Chat des Projekts den Vault-Ordner verbinden („+“ → „Add folder“ bzw. „Ordner
-   hinzufügen“).
-4. Pflegeläufe werden manuell angestoßen: „Verarbeite neue Dokumente“, „Lint“.
+3. In der Pflege-Unterhaltung den Server `pkm-pflege` einschalten (siehe Abschnitt 5).
+4. Optional den Vault-Ordner verbinden („+“ → „Ordner hinzufügen“). Das ist nur nötig, damit
+   Claude den Inhalt von PDFs und Bildern lesen kann; Markdown liest es über `read`.
+5. Pflegeläufe werden manuell angestoßen: „Verarbeite neue Dokumente“, „Lint“.
    Eine geplante Aufgabe (täglich „Ingest, danach Lint“) wird erst später und nur auf
-   ausdrückliche Anweisung eingerichtet.
+   ausdrückliche Anweisung eingerichtet. Geplante Cowork-Aufgaben laufen in der Cloud und
+   erreichen `pkm-pflege` voraussichtlich nur, solange dieser Rechner an und Claude Desktop
+   geöffnet ist.
+
+Die CLI `pkm` bleibt für Einrichtung und Fehlersuche im Terminal (`pkm init`, `pkm doctor`,
+`pkm fix-frontmatter` …).
 
 ## 8. Obsidian
 

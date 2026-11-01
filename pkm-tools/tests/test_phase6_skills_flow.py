@@ -32,7 +32,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from pkm import mcp_server
+from pkm import mcp_server, pflege_server
 from pkm.cli import build_parser, main
 from pkm.config import Config
 from pkm.service import Service
@@ -123,7 +123,10 @@ def test_skill_tool_and_cli_names_exist():
     commands = set(usage.group(1).split(","))
     wiki = (SKILLS / "pkm-wiki" / "SKILL.md").read_text(encoding="utf-8")
     used = set(re.findall(r"\bpkm ([a-z][a-z-]+)", wiki))
-    assert used and used <= commands, used - commands
+    assert used <= commands, used - commands
+    pflege = {t.name for t in asyncio.run(pflege_server.build_server().list_tools())}
+    named = set(re.findall(r"`([a-z_]+)`", wiki)) & (pflege | SPEC_TOOLS)
+    assert pflege <= named, pflege - named
 
 
 # Pflegelauf ******************************************************************

@@ -1,6 +1,6 @@
 # pkm-tools
 
-MCP-Server `pkm-mcp` und CLI `pkm` für das PKM mit LLM-Wiki.
+MCP-Server `pkm-mcp` (Chats) und `pkm-pflege-mcp` (Wiki-Pflege) sowie CLI `pkm` für das PKM mit LLM-Wiki.
 Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/umsetzungsplan.md).
 
 ## Stand
@@ -20,6 +20,11 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
 **MCP-Tools:** `search`, `read`, `history`, `read_index`, `list_unprocessed`, `create_document`,
 `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`,
 `show_citations`.
+
+**MCP-Tools `pkm-pflege-mcp`:** die lesenden Tools sowie `begin_maintenance` (doctor, versions, ids,
+pending, fix-citations), `write_wiki_page` (nur `wiki/topics|entities|summaries|syntheses/`, mit
+`expected_hash`, ohne Commit) und `finish_maintenance` (fix-/sync-citations, mark mit aus den Belegen
+ermittelten Seiten, Log, index, status, lint, commit-wiki).
 
 **CLI:** `pkm init`, `ids`, `versions`, `pending`, `mark <id>… [--pages <page>…] [--remove]`,
 `sha <target> [--section <key>] [--full]`, `index`, `status [--question <text>]…`,
@@ -60,6 +65,11 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
   serialisiert.
 - `pkm init` legt `.obsidian/types.json` mit den Property-Typen des Schemas an bzw. ergänzt
   fehlende; vorhandene Typen bleiben. `pkm doctor` warnt bei fehlenden oder abweichenden Typen.
+- **Pflege über MCP statt Shell:** Cowork/Claude Desktop bieten keine Shell auf dem PKM-Rechner.
+  Die Pflege läuft deshalb über den zweiten Server `pkm-pflege-mcp` (`maintrun.py`) mit drei
+  Tools statt über CLI-Aufrufe. `pkm mark` ermittelt dort die Seiten selbst aus den Fußnoten.
+  Der Server lässt sich in Claude Desktop nicht auf ein Projekt beschränken; er wird nur in
+  Pflege-Unterhaltungen eingeschaltet.
 - **Windows als PKM-Rechner** (Spezifikation 5.5 nennt nur den Mac): Standardordner
   `%APPDATA%\pkm`, Sperre über `msvcrt` statt `fcntl`, `os.replace` mit Wiederholung bei
   gesperrten Dateien, `core.autocrlf=false` im PKM-Repo, Abhängigkeit `tzdata`. Einrichtung in

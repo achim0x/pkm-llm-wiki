@@ -229,9 +229,21 @@ Kern ist `writer.apply_change(target, transform, note, source="chat")`, über de
 
 Abnahmeschritte 1–10 aus 14 auf dem Mac mit echtem Nextcloud-Vault und Windows-Rechner durchgehen, Ergebnis je Schritt protokollieren (`docs/abnahme.md`). Fehler beheben, Skills nachschärfen (Formulierungen, die der Agent falsch versteht).
 
+### Phase 7a – Pflege über MCP statt Shell (Befund aus der Abnahme)
+
+**Befund:** Claude Desktop bzw. Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus (lokale VM, seit Oktober 2026 bei Pro/Max/Ultra in der Cloud). Darin fehlen `pkm`, Git und das Git-Verzeichnis; der Pflegeablauf aus 9.1 mit CLI-Aufrufen läuft dort nicht. Lokale MCP-Server erreicht Cowork dagegen über die Desktop-App.
+
+**Umsetzung:** zweiter MCP-Server `pkm-pflege-mcp` (`pflege_server.py`, Logik in `maintrun.py`) mit den lesenden Tools und drei Pflege-Tools:
+
+- `begin_maintenance`: `doctor --short` (bei Fehlern `blocked`), `versions`, `ids` (doppelte IDs → `needs_decision`), `pending`, bei Verschiebungen `fix-citations`; optional Lint.
+- `write_wiki_page`: Seite unter `wiki/topics|entities|summaries|syntheses/` anlegen oder ersetzen, mit `expected_hash`, ohne Commit; generierte Dateien gesperrt.
+- `finish_maintenance`: `fix-citations`, `sync-citations`, `mark` (Seiten aus den Fußnoten ermittelt), Austragen gelöschter Dokumente, Log-Eintrag mit Zeitstempel, `index`, `status` (mit Rückfragen), `lint`, `commit-wiki`.
+
+Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI bleibt für Einrichtung und Fehlersuche. Offener Punkt: Claude Desktop kann einen Server nicht auf ein Projekt beschränken. `pkm-pflege` wird nur in Pflege-Unterhaltungen eingeschaltet (organisatorische statt technischer Sperre); Spezifikation 7/9/11 entsprechend anpassen.
+
 ### Phase 8 – Automatik (später, 0,5 PT)
 
-Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im Projekt. Voraussetzung: mehrere manuelle Läufe ohne Nacharbeit.
+Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im Projekt. Voraussetzung: mehrere manuelle Läufe ohne Nacharbeit. Geplante Cowork-Aufgaben laufen in der Cloud und erreichen `pkm-pflege` voraussichtlich nur bei laufendem PKM-Rechner mit geöffneter Desktop-App – vorher testen.
 
 ---
 

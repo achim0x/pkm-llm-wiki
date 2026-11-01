@@ -23,6 +23,7 @@ dev = ["pytest>=8", "pytest-cov", "ruff", "pylint>=3"]
 [project.scripts]
 pkm = "pkm.cli:main"
 pkm-mcp = "pkm.mcp_server:main"
+pkm-pflege-mcp = "pkm.pflege_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pkm"]

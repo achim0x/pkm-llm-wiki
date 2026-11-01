@@ -36,9 +36,9 @@ from .errors import PkmError
 from .service import Service
 
 try:  # mcp >= 2
-    from mcp.server.mcpserver import MCPServer as _Server
+    from mcp.server.mcpserver import MCPServer as Server
 except ImportError:  # mcp 1.x
-    from mcp.server.fastmcp import FastMCP as _Server  # type: ignore[no-redef]
+    from mcp.server.fastmcp import FastMCP as Server  # type: ignore[no-redef]
 
 # Variables *******************************************************************
 
@@ -87,7 +87,7 @@ def _log(tool: str, args: dict[str, Any], result: dict[str, Any]) -> None:
         entry = {
             "ts": datetime.now(svc.cfg.tz).isoformat(timespec="seconds"),
             "tool": tool,
-            "target": args.get("target") or args.get("title") or args.get("query"),
+            "target": args.get("target") or args.get("path") or args.get("title") or args.get("query"),
             "status": result.get("status"),
             "version": result.get("version"),
             "commit": result.get("commit"),
@@ -119,7 +119,7 @@ def call(tool: str, fn: Callable[..., dict[str, Any]], **kwargs: Any) -> dict[st
     return result
 
 
-def _register_read_tools(server: _Server) -> None:
+def register_read_tools(server: Server) -> None:
     """Lesende Tools (7.3) registrieren.
 
     Args:
@@ -166,7 +166,7 @@ def _register_read_tools(server: _Server) -> None:
         return call("list_unprocessed", Service.list_unprocessed)
 
 
-def _register_write_tools(server: _Server) -> None:
+def _register_write_tools(server: Server) -> None:
     """Schreibende Tools (7.2) registrieren.
 
     Neuanlage nur in ``documents/_inbox/`` bzw. ``scratch/``, Änderungen nur an ``documents/**/*.md``
@@ -249,14 +249,14 @@ def _register_write_tools(server: _Server) -> None:
                     expected_hash=expected_hash)
 
 
-def build_server() -> _Server:
+def build_server() -> Server:
     """MCP-Server mit allen zwölf Tools aufbauen.
 
     Returns:
         Der Server.
     """
-    server = _Server("pkm", instructions=INSTRUCTIONS)
-    _register_read_tools(server)
+    server = Server("pkm", instructions=INSTRUCTIONS)
+    register_read_tools(server)
     _register_write_tools(server)
     return server
 

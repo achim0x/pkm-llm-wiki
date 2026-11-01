@@ -133,12 +133,13 @@ flowchart LR
     subgraph Chats["Beliebiger Claude-Chat"]
         A["Skill pkm-access"]
     end
-    subgraph Projekt["Claude-Projekt PKM-Pflege"]
+    subgraph Projekt["Claude-Projekt PKM-Pflege (Chat oder Cowork)"]
         B["Skill pkm-wiki"]
     end
     subgraph Mac["PKM-Rechner (Mac oder Windows)"]
         M["pkm-mcp<br/>(MCP-Server)"]
-        C["pkm<br/>(CLI)"]
+        P["pkm-pflege-mcp<br/>(MCP-Server Pflege)"]
+        C["pkm<br/>(CLI, Einrichtung)"]
         G[("Git-Verlauf<br/>außerhalb der Nextcloud")]
         I[("Suchindex<br/>(Cache)")]
     end
@@ -151,15 +152,16 @@ flowchart LR
     O["Obsidian<br/>alle Rechner"]
 
     A -- "MCP: suchen, lesen,<br/>ablegen, fortschreiben" --> M
-    B -- "Shell" --> C
-    B -- "Dateizugriff" --> W
+    B -- "MCP: beginnen,<br/>Seiten schreiben, abschließen" --> P
+    P -- "schreiben" --> W
+    P --> G
     M -- "documents/ schreiben" --> D
     M -- "ohne Commit" --> X
     M -- "nur lesen" --> W
     M --> G
     M --> I
+    P --> S
     C --> G
-    C --> S
     O <--> D
     O -. "lesen" .-> W
 ```
@@ -167,7 +169,8 @@ flowchart LR
 | Komponente | Rolle |
 |---|---|
 | **pkm-mcp** | MCP-Server für Claude Desktop. Zwölf Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für den Verlauf und die Belege. |
-| **pkm** | Kommandozeile für die Pflege (IDs, Versionen, offene Dokumente, Belege, Index, Lint, Doctor). |
+| **pkm-pflege-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `finish_maintenance` plus die lesenden Tools. Schreibt nur in `wiki/` und `.pkm/state.json`; nur in Pflege-Unterhaltungen einschalten. |
+| **pkm** | Kommandozeile für Einrichtung, Prüfung und Fehlersuche (dieselben Pflege-Befehle, einzeln). |
 | **Skill `pkm-access`** | Sagt Claude in normalen Chats, wann und wie die Tools zu nutzen sind, z. B. „immer erst ein Entwurf“. |
 | **Skill `pkm-wiki`** | Regeln und Abläufe für den Pflege-Agenten im Projekt „PKM-Pflege“. |
 | **Git** | Versionsgeschichte jedes Dokuments und Nachvollziehbarkeit der Agentenarbeit. Nur lokal auf dem PKM-Rechner, Teil der Datensicherung. |
@@ -352,7 +355,8 @@ Chat reicht es, das Thema zu nennen.
 
 ### Im Pflegeprojekt
 
-Im Claude-Projekt „PKM-Pflege“ ist der Vault-Ordner verbunden und der Skill `pkm-wiki` aktiv.
+Im Claude-Projekt „PKM-Pflege“ (Chat oder Cowork) ist der Skill `pkm-wiki` aktiv und in der
+Unterhaltung der Server `pkm-pflege` eingeschaltet. Eine Shell braucht der Agent nicht.
 Pflegeläufe stößt du selbst an:
 
 | Du sagst | Der Agent macht |
@@ -364,24 +368,19 @@ Pflegeläufe stößt du selbst an:
 
 ```mermaid
 flowchart TD
-    A["pkm doctor --short"] -->|Fehler, z. B. Konfliktkopie| X["Abbruch und Meldung"]
-    A -->|ok| B["pkm versions<br/>Änderungen von Hand werden Versionen"]
-    B --> C["pkm ids<br/>fehlende IDs eintragen"]
-    C --> D["pkm pending"]
-    D --> E{"Was liegt an?"}
+    A["begin_maintenance<br/>doctor · versions · ids · pending · fix-citations"] -->|"blocked: Fehler, z. B. Konfliktkopie"| X["Abbruch und Meldung"]
+    A -->|"needs_decision: doppelte IDs"| Q["Rückfrage an dich"]
+    A -->|ok| E{"Was liegt an?"}
     E -->|new| F["Dokument lesen, Zusammenfassung anlegen,<br/>Themen-/Entitätsseiten mit Belegen"]
     E -->|changed| G["nur geänderte Abschnitte (Diff),<br/>Belege auf neue Version,<br/>ggf. „Bis Version n: …“"]
     E -->|meta_changed| H["Zusammenfassung anpassen"]
-    E -->|moved| I["pkm fix-citations"]
     E -->|deleted| J["Aussagen als offene Frage markieren,<br/>Rückfrage an dich"]
-    F --> K["pkm sync-citations · mark · index · status"]
-    G --> K
-    H --> K
-    I --> K
-    J --> K
-    K --> L["Eintrag in wiki/log.md, pkm lint"]
-    L --> M["pkm commit-wiki"]
-    M --> N["Bericht im Chat"]
+    F --> W["write_wiki_page<br/>je Seite"]
+    G --> W
+    H --> W
+    J --> W
+    W --> K["finish_maintenance<br/>sources · mark · log · index · status · lint · commit-wiki"]
+    K --> N["Bericht im Chat"]
 ```
 
 **Was du nach einem Lauf anschauen solltest:**
@@ -476,8 +475,9 @@ Status, den Claude bei „Woher stammt das?“ nennt:
 
 ## CLI-Referenz
 
-Die CLI benutzt vor allem der Pflege-Agent. Für dich sind `doctor`, `lint`, `history` und `show`
-nützlich. Ausgabe ist immer JSON. Im Vault-Ordner findet die CLI den Vault selbst, sonst
+Der Pflege-Agent braucht die CLI nicht; er nutzt `pkm-pflege-mcp`, das dieselben Befehle bündelt.
+Für dich sind `init`, `doctor`, `lint`, `history`, `show` und `fix-frontmatter` nützlich.
+Ausgabe ist immer JSON. Im Vault-Ordner findet die CLI den Vault selbst, sonst
 `PKM_ROOT` setzen.
 
 | Befehl | Zweck |
@@ -524,7 +524,7 @@ pkm-llm-wiki/
 │   ├── umsetzungsplan.md    ← Phasen und Entscheidungen
 │   ├── einrichtung.md       ← Installation und Einrichtung
 │   └── abnahme.md           ← Abnahmeprotokoll
-└── pkm-tools/               ← Python-Paket: pkm-mcp und pkm
+└── pkm-tools/               ← Python-Paket: pkm-mcp, pkm-pflege-mcp und pkm
     ├── src/pkm/
     ├── skills/              ← pkm-access, pkm-wiki
     └── tests/
