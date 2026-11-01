@@ -14,7 +14,8 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
 | 4 | Pflege-CLI | fertig |
 | 5 | Belege, `lint`, `doctor` | fertig |
 | 6 | Skills, Vault-Vorlage, Einrichtungsanleitung | fertig |
-| 7–8 | Abnahme auf dem Mac, Automatik | offen |
+| 7 | Abnahme: Protokoll und Simulation fertig, Durchführung auf dem Mac offen | in Arbeit |
+| 8 | Automatik (geplante Aufgabe), nur auf Anweisung | offen |
 
 **MCP-Tools:** `search`, `read`, `history`, `read_index`, `list_unprocessed`, `create_document`,
 `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`,
@@ -27,7 +28,8 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
 `fix-citations [<page>…]`, `sync-citations [<page>…]`, `lint [--report]`, `doctor [--short]`.
 
 **Skills:** `skills/pkm-access/SKILL.md` (normale Chats), `skills/pkm-wiki/SKILL.md` (Pflegeprojekt).
-**Einrichtung:** [docs/einrichtung.md](../docs/einrichtung.md).
+**Einrichtung:** [docs/einrichtung.md](../docs/einrichtung.md). **Abnahme:** [docs/abnahme.md](../docs/abnahme.md)
+(Simulation aller zehn Schritte: `tests/test_acceptance_simulation.py`).
 
 ## Abweichungen und Ergänzungen zur Spezifikation
 
