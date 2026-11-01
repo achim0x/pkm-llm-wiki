@@ -29,6 +29,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from .errors import PkmError
+from .fsutil import write_bytes_atomic
 from .maint import Maintenance
 from .normalize import encode
 from .state import load_state
@@ -117,10 +118,7 @@ def write_if_changed(svc: Service, rel: str, text: str) -> bool:
     data = encode(text)
     changed = not (p.exists() and p.read_bytes() == data)
     if changed:
-        p.parent.mkdir(parents=True, exist_ok=True)
-        tmp = p.with_name(f".pkm-tmp-{p.name}")
-        tmp.write_bytes(data)
-        tmp.replace(p)
+        write_bytes_atomic(p, data)
     return changed
 
 

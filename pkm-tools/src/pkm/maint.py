@@ -25,7 +25,6 @@
 from __future__ import annotations
 
 import json
-import os
 from collections import defaultdict
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
@@ -33,6 +32,7 @@ from typing import TYPE_CHECKING, Any
 from . import hashes
 from .errors import PkmError
 from .frontmatter import fix_frontmatter_text, set_fields_linewise
+from .fsutil import write_bytes_atomic
 from .gitlayer import build_message
 from .ids import is_valid_id, new_id
 from .normalize import encode
@@ -441,9 +441,7 @@ class Maintenance:
         state["documents"] = dict(sorted(state["documents"].items()))
         p = self.cfg.state_path
         p.parent.mkdir(parents=True, exist_ok=True)
-        tmp = p.with_name(".state.json.tmp")
-        tmp.write_bytes(encode(json.dumps(state, ensure_ascii=False, indent=2) + "\n"))
-        os.replace(tmp, p)
+        write_bytes_atomic(p, encode(json.dumps(state, ensure_ascii=False, indent=2) + "\n"))
 
     # sha **********************************************************************
 

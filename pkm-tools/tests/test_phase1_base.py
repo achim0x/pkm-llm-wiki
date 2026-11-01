@@ -87,7 +87,10 @@ def test_symlink_outside_rejected(tmp_path):
     (root / "documents").mkdir(parents=True)
     outside = tmp_path / "outside"
     outside.mkdir()
-    os.symlink(outside, root / "documents" / "link")
+    try:
+        os.symlink(outside, root / "documents" / "link")
+    except OSError:  # Windows ohne Entwicklermodus erlaubt keine Symlinks
+        pytest.skip("Symlinks sind hier nicht erlaubt")
     with pytest.raises(PkmError):
         paths.safe_resolve(root, "documents/link/x.md")
 

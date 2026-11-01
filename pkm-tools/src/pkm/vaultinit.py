@@ -114,8 +114,8 @@ def ensure_scratch_ignored(cfg: Config) -> bool:
     text = p.read_text(encoding="utf-8") if p.is_file() else ""
     missing = not scratch_ignored(text)
     if missing:
-        p.write_text(text + ("" if not text or text.endswith("\n") else "\n") + SCRATCH_IGNORE + "\n",
-                     encoding="utf-8")
+        new = text + ("" if not text or text.endswith("\n") else "\n") + SCRATCH_IGNORE + "\n"
+        p.write_bytes(new.encode("utf-8"))
     return missing
 
 
@@ -153,6 +153,7 @@ def init_vault(cfg: Config) -> dict[str, Any]:
     updated_files = [".gitignore"] if ".gitignore" not in created_files and ensure_scratch_ignored(cfg) else []
     git = Git(cfg.git_dir, cfg.root)
     repo_created = git.init()
+    git.run("config", "core.autocrlf", "false")  # Git für Windows: Zeilenenden nie umwandeln
     commit = None
     warnings: list[str] = []
     if not git.has_head():

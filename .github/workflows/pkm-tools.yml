@@ -11,19 +11,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python: ["3.11", "3.12"]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: pkm-tools
+        shell: bash
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m venv .venv
-      - run: ./.venv/bin/pip install -e ".[dev]"
-      - run: ./.venv/bin/python -m ruff check .
-      - run: ./.venv/bin/python -m pylint --rcfile=.pylintrc src tests
-      - run: ./.venv/bin/python -m pytest -q
+      - name: Create .venv
+        run: |
+          python -m venv .venv
+          if [ -x .venv/Scripts/python.exe ]; then echo "PY=$PWD/.venv/Scripts/python.exe" >> "$GITHUB_ENV"; else echo "PY=$PWD/.venv/bin/python" >> "$GITHUB_ENV"; fi
+      - run: '"$PY" -m pip install -e ".[dev]"'
+      - run: '"$PY" -m ruff check .'
+      - run: '"$PY" -m pylint --rcfile=.pylintrc src tests'
+      - run: '"$PY" -m pytest -q'

@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 from .diffs import unified_diff
 from .errors import PkmError
 from .frontmatter import PROTECTED, dump_meta, set_fields_linewise
+from .fsutil import file_lock, replace_file
 from .gitlayer import Commit, build_message
 from .ids import new_id
 from .normalize import encode, normalize_fragment, normalize_text
@@ -48,11 +49,6 @@ from .vault import SCRATCH, Doc, load_text_doc
 
 if TYPE_CHECKING:
     from .service import Service
-
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - Windows
-    fcntl = None  # type: ignore[assignment]
 
 # Variables *******************************************************************
 
@@ -111,15 +107,11 @@ class Writer:
         Yields:
             Nichts; die Sperre gilt innerhalb des ``with``-Blocks.
         """
-        if fcntl is None or not self.cfg.git_dir.is_dir():
+        if not self.cfg.git_dir.is_dir():
             yield
         else:
-            with open(self.cfg.git_dir / "pkm.lock", "w", encoding="utf-8") as fh:
-                fcntl.flock(fh, fcntl.LOCK_EX)
-                try:
-                    yield
-                finally:
-                    fcntl.flock(fh, fcntl.LOCK_UN)
+            with file_lock(self.cfg.git_dir / "pkm.lock"):
+                yield
 
     def now_stamp(self) -> str:
         """Aktuelle Zeit für Datumsfelder: Ortszeit ohne Zeitzone (4.1).
@@ -160,7 +152,7 @@ class Writer:
                 os.fsync(fh.fileno())
             if mode is not None:
                 os.chmod(tmp, mode)
-            os.replace(tmp, p)
+            replace_file(tmp, p)
         finally:
             if tmp.exists():
                 tmp.unlink()
