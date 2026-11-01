@@ -197,8 +197,11 @@ Windows (in JSON jeden Backslash verdoppeln):
   dirname "$(command -v git)"
   ```
 
-  Liegt `git` in `/usr/bin` (Ausgabe `/usr/bin/git`, Git aus den Xcode Command Line Tools),
-  reicht `"PATH": "/usr/bin:/bin"`.
+  | Ausgabe von `command -v git` | Eintrag in der Config |
+  |---|---|
+  | `/usr/bin/git` (Xcode Command Line Tools) | `"PATH": "/usr/bin:/bin"` |
+  | `/opt/homebrew/bin/git` (Homebrew, Apple Silicon) | `"PATH": "/opt/homebrew/bin:/usr/bin:/bin"` |
+  | `/usr/local/bin/git` (Homebrew Intel, Installer) | `"PATH": "/usr/local/bin:/usr/bin:/bin"` |
 - **`PATH` (Windows):** normalerweise nicht nötig, weil der Git-Installer Git in den System-`PATH`
   einträgt. Meldet `pkm-mcp` trotzdem `git_unavailable`, ergänzen:
   `"PATH": "C:\\Program Files\\Git\\cmd;C:\\Windows\\System32"` (Trennzeichen `;`).
