@@ -133,7 +133,7 @@ pkm doctor
 
 `pkm init` ist idempotent und legt an: `documents/_inbox/`, `documents/_attachments/`,
 `wiki/` (mit `index.md`, `log.md`, `_status.md` und den Unterordnern), `scratch/`, `CLAUDE.md`,
-`.pkm/state.json`, `.gitignore` sowie das Git-Verzeichnis mit einem ersten Commit.
+`.pkm/state.json`, `.gitignore`, `.obsidian/types.json` (Property-Typen, siehe Abschnitt 8) sowie das Git-Verzeichnis mit einem ersten Commit.
 Liegen im Ordner schon Notizen, bleiben sie unverändert; sie bekommen beim ersten Pflegelauf
 eine ID (`pkm ids`). Unter Windows schaltet `pkm init` für das PKM-Repo `core.autocrlf` ab, damit
 Git die Zeilenenden nicht verändert.
@@ -266,7 +266,10 @@ Den Vault-Ordner in der Nextcloud als Vault öffnen und einstellen:
 | Dateien & Links → Standardordner für Anhänge | `documents/_attachments` |
 | Dateien & Links → Ausgeschlossene Dateien | `.pkm/` |
 
-**Property-Typen** einmalig festlegen. Obsidian legt den Typ vault-weit pro Feldname fest:
+**Property-Typen:** `pkm init` legt `.obsidian/types.json` an bzw. ergänzt fehlende Felder;
+von dir gesetzte Typen bleiben unverändert, Abweichungen meldet `pkm init` als Warnung und
+`pkm doctor`. Läuft Obsidian dabei, liest es die Datei erst nach einem Neustart. Obsidian legt den
+Typ vault-weit pro Feldname fest:
 
 | Feld | Typ |
 |---|---|
@@ -276,7 +279,7 @@ Den Vault-Ordner in der Nextcloud als Vault öffnen und einstellen:
 | `title`, `short_citation`, `date_document`, `status_markdown`, `toolchain_markdown`, `id`, `context`, `kind` | Text |
 | `tags`, `aliases` | Obsidian-Standard |
 
-So geht es in Obsidian (es gibt keine eigene Einstellungsseite dafür):
+Von Hand geht es in Obsidian so (es gibt keine eigene Einstellungsseite dafür):
 
 1. Eine Notiz öffnen, die das Feld im Frontmatter hat (z. B. ein aus dem Chat abgelegtes Dokument).
 2. Im Eigenschaften-Bereich oben in der Notiz auf das **Symbol links neben dem Feldnamen** klicken.

@@ -58,6 +58,8 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
   zusätzlich, wenn `commit.gpgsign` aktiv ist.
 - Alle schreibenden Vorgänge (MCP und CLI) sind über eine Sperrdatei im Git-Verzeichnis
   serialisiert.
+- `pkm init` legt `.obsidian/types.json` mit den Property-Typen des Schemas an bzw. ergänzt
+  fehlende; vorhandene Typen bleiben. `pkm doctor` warnt bei fehlenden oder abweichenden Typen.
 - **Windows als PKM-Rechner** (Spezifikation 5.5 nennt nur den Mac): Standardordner
   `%APPDATA%\pkm`, Sperre über `msvcrt` statt `fcntl`, `os.replace` mit Wiederholung bei
   gesperrten Dateien, `core.autocrlf=false` im PKM-Repo, Abhängigkeit `tzdata`. Einrichtung in

@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .paths import is_conflict_copy
-from .vaultinit import scratch_ignored
+from .vaultinit import PROPERTY_TYPES, TYPES_FILE, property_type_conflicts, read_property_types, scratch_ignored
 
 if TYPE_CHECKING:
     from .service import Service
@@ -192,6 +192,30 @@ def _obsidian_checks(root: Path) -> list[dict[str, Any]]:
     return checks
 
 
+def _property_type_check(root: Path) -> dict[str, Any]:
+    """Obsidian-Property-Typen aus ``.obsidian/types.json`` prüfen.
+
+    Args:
+        root: Vault-Wurzel.
+
+    Returns:
+        Prüfergebnis (fehlende oder abweichende Typen als Warnung).
+    """
+    data = read_property_types(root)
+    if data is None:
+        check = _check("obsidian_property_types", False, "", f"{TYPES_FILE} nicht lesbar.", "warning")
+    else:
+        types = data.get("types") or {}
+        missing = [k for k in PROPERTY_TYPES if k not in types]
+        conflicts = property_type_conflicts(types)
+        problems = [f"{k} fehlt" for k in missing] + [
+            f"{k}={v} (erwartet {PROPERTY_TYPES[k]})" for k, v in conflicts.items()]
+        check = _check("obsidian_property_types", not problems, "Obsidian-Property-Typen passen zum Schema.",
+                       "Obsidian-Property-Typen: " + ", ".join(problems)
+                       + ". Fehlende ergänzt `pkm init` (Obsidian danach neu starten).", "warning")
+    return check
+
+
 def doctor(svc: Service, short: bool = False) -> dict[str, Any]:
     """``pkm doctor``: Umgebung prüfen.
 
@@ -203,6 +227,7 @@ def doctor(svc: Service, short: bool = False) -> dict[str, Any]:
         ``status`` (``error``, wenn es Fehler gibt), Anzahl Fehler und Warnungen und die Prüfungen.
     """
     checks = _path_checks(svc) + _git_checks(svc) + _obsidian_checks(svc.cfg.root)
+    checks.append(_property_type_check(svc.cfg.root))
     errors = sum(1 for c in checks if c["severity"] == "error")
     warnings = sum(1 for c in checks if c["severity"] == "warning")
     shown = [c for c in checks if c["severity"] == "error"] if short else checks
