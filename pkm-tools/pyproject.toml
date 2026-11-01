@@ -14,6 +14,7 @@ authors = [{ name = "Achim0x" }]
 dependencies = [
     "mcp>=1.2",
     "pyyaml>=6",
+    "tzdata; sys_platform == 'win32'",  # Windows hat keine Zeitzonen-Datenbank für zoneinfo
 ]
 
 [project.optional-dependencies]
