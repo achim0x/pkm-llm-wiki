@@ -145,3 +145,11 @@ def test_problem_reports(cfg, isolated_env):
     assert g.problem() is None
     isolated_env["gitconfig"].write_text("")
     assert "Identität" in g.problem()
+
+
+def test_cli_without_pkm_root_uses_cwd(cfg, isolated_env, monkeypatch, capsys):
+    init_vault(cfg)
+    monkeypatch.delenv("PKM_ROOT")
+    monkeypatch.chdir(isolated_env["root"] / "documents")
+    assert main(["pending"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "ok"

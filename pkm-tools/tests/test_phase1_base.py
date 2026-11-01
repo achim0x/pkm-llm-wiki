@@ -142,3 +142,13 @@ def test_dump_meta_roundtrip():
                                     (["a"], '["a"]'), ("- x", '"- x"')])
 def test_format_scalar(v, out):
     assert format_scalar(v) == out
+
+
+def test_config_finds_vault_from_cwd(tmp_path):
+    (tmp_path / "v" / ".pkm").mkdir(parents=True)
+    (tmp_path / "v" / ".pkm" / "state.json").write_text("{}")
+    (tmp_path / "v" / "documents" / "x").mkdir(parents=True)
+    cfg = Config.from_env({"HOME": str(tmp_path)}, search_from=tmp_path / "v" / "documents" / "x")
+    assert cfg.root == (tmp_path / "v").resolve()
+    with pytest.raises(PkmError):
+        Config.from_env({"HOME": str(tmp_path)}, search_from=tmp_path)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Any
 
 from .config import Config
@@ -182,7 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        cfg = Config.from_env()
+        cfg = Config.from_env(search_from=None if args.command == "init" else Path.cwd())
         result = args.func(cfg, args)
     except PkmError as exc:
         _print(exc.to_dict())

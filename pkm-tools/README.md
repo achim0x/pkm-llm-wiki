@@ -13,7 +13,8 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
 | 3 | Schreibende MCP-Tools mit Versionierung | fertig |
 | 4 | Pflege-CLI | fertig |
 | 5 | Belege, `lint`, `doctor` | fertig |
-| 6–8 | Skills, Abnahme, Automatik | offen |
+| 6 | Skills, Vault-Vorlage, Einrichtungsanleitung | fertig |
+| 7–8 | Abnahme auf dem Mac, Automatik | offen |
 
 **MCP-Tools:** `search`, `read`, `history`, `read_index`, `list_unprocessed`, `create_document`,
 `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`,
@@ -25,7 +26,13 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
 `show <target> --version <n> [--section <key>]`, `restore <target> --version <n>`, `reindex`,
 `fix-citations [<page>…]`, `sync-citations [<page>…]`, `lint [--report]`, `doctor [--short]`.
 
+**Skills:** `skills/pkm-access/SKILL.md` (normale Chats), `skills/pkm-wiki/SKILL.md` (Pflegeprojekt).
+**Einrichtung:** [docs/einrichtung.md](../docs/einrichtung.md).
+
 ## Abweichungen und Ergänzungen zur Spezifikation
+
+- Fehlt `PKM_ROOT`, sucht die CLI den Vault vom aktuellen Ordner aufwärts (erster Ordner mit
+  `.pkm/state.json`). Der MCP-Server braucht `PKM_ROOT` weiterhin in seiner Konfiguration.
 
 - Das `mcp`-SDK 2.x heißt `MCPServer` statt `FastMCP`; der Server unterstützt beide Versionen.
 - Ändert ein Aufruf nichts (z. B. `edit_document` mit `old == new`), kommt `status: unchanged`

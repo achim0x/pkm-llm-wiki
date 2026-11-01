@@ -26,6 +26,15 @@ def default_app_dir(home: Path | None = None) -> Path:
     return Path(base) / "pkm" if base else home / ".local" / "share" / "pkm"
 
 
+def find_vault(start: Path) -> Path | None:
+    """Ersten Ordner ab `start` aufwärts, der `.pkm/state.json` enthält."""
+    start = start.resolve()
+    for p in [start, *start.parents]:
+        if (p / ".pkm" / "state.json").is_file():
+            return p
+    return None
+
+
 def _is_within(child: Path, parent: Path) -> bool:
     try:
         child.relative_to(parent)
@@ -45,11 +54,23 @@ class Config:
     git_author: str = DEFAULT_AUTHOR
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str] | None = None) -> Config:
+    def from_env(cls, env: Mapping[str, str] | None = None, search_from: Path | None = None) -> Config:
+        """Konfiguration aus der Umgebung.
+
+        Fehlt PKM_ROOT und ist `search_from` gesetzt (CLI), wird der Vault vom Ordner aus
+        aufwärts gesucht: Er ist der erste Ordner, der `.pkm/state.json` enthält.
+        """
         env = os.environ if env is None else env
         root_s = env.get("PKM_ROOT")
+        if not root_s and search_from is not None:
+            found = find_vault(search_from)
+            root_s = str(found) if found else None
         if not root_s:
-            raise PkmError("config_error", "PKM_ROOT ist nicht gesetzt (absoluter Pfad zum Vault).")
+            raise PkmError(
+                "config_error",
+                "PKM_ROOT ist nicht gesetzt (absoluter Pfad zum Vault) und im aktuellen Ordner "
+                "bzw. darüber liegt kein Vault mit .pkm/state.json.",
+            )
         root = Path(root_s).expanduser()
         if not root.is_absolute():
             raise PkmError("config_error", f"PKM_ROOT muss ein absoluter Pfad sein: {root_s}")
