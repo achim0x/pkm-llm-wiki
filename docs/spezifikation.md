@@ -1,7 +1,11 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.10 (Entwurf zum Review) · **Stand:** 01.11.2026
+**Version:** 0.11 (Entwurf zum Review) · **Stand:** 01.11.2026
 
+> **Änderungen in 0.11**
+> - **Hashes und Abschnitte exakt festgelegt** (neuer Abschnitt 4.8): Textnormalisierung, Erkennung von Frontmatter und Abschnitten (Ebene 1 und 2, außerhalb von Codeblöcken), Vorspann vor der ersten Überschrift als Abschnitt `_preamble`, doppelte Überschriften mit Schlüssel `Text#2`, `Text#3` sowie die genaue Eingabe von `hash`/`expected_hash`, `body_hash`, `meta_hash` und Abschnitts-Hashes.
+> - `state.json` speichert `file_hash`, `body_hash` und `meta_hash` statt eines einzelnen `sha256`. `pending` erkennt zusätzlich umbenannte Abschnitte und reine Metadaten-Änderungen.
+>
 > **Änderungen in 0.10**
 > - **Keine Startbefüllung.** Bestehende Skills oder andere Quellen werden nicht automatisch übernommen. Der Nutzer legt Wissen nach und nach selbst an, bei Bedarf per Chat (`create_document`) oder in Obsidian. Bestehende Skills bleiben unberührt und sind nicht Teil des Systems (15, 16).
 >
@@ -237,11 +241,12 @@ Der Tank fasst 6.500 L.[^b4]
 | Teil | Pflicht | Bedeutung |
 |---|---|---|
 | `[[<path>…]]` | ja | Vollständiger Pfad im Vault. Bei Nicht-Markdown mit Endung. Nur Ziele in `documents/`. Obsidian hält diesen Link beim Verschieben selbst aktuell |
-| `#<anchor>` | wenn möglich | Überschrift (`#Dach`) oder PDF-Seite (`#page=2`) |
+| `#<anchor>` | wenn möglich | Abschnittsschlüssel nach 4.8 ohne Duplikat-Suffix (`#Dach`) oder PDF-Seite (`#page=2`). Für den Vorspann (`_preamble`) entfällt der Anker |
+| `§:<schlüssel>` | nur bei Duplikaten | Vollständiger Schlüssel mit Suffix (`§:Notizen#2`), wenn die Überschrift im Dokument mehrfach vorkommt. Steht direkt nach dem Link |
 | `„<quote>“` | ja bei Text | Wörtliche Stelle aus dem Original in der genannten Version, höchstens 200 Zeichen |
 | `id:` | bei Markdown | Feste Dokument-ID |
 | `v:` | bei Markdown | Version des Dokuments, aus der die Aussage stammt. Über ID und Version ist der damalige Wortlaut in Git jederzeit abrufbar |
-| `sha:` | ja | Kurz-Hash des Abschnitts (Markdown) bzw. der Datei (PDF/Bild) in dieser Version |
+| `sha:` | ja | Die ersten 6 Zeichen des Abschnitts-Hashes (Markdown) bzw. des Datei-Hashes (PDF/Bild) in dieser Version, nach 4.8 |
 
 **Regeln:**
 - Jede Sachaussage in „Inhalt“ und „Widersprüche“ endet mit mindestens einer Fußnote. Fasst ein Absatz mehrere Aussagen aus derselben Stelle zusammen, genügt eine Fußnote am Absatzende.
@@ -299,8 +304,11 @@ Schlüssel ist die Dokument-ID (Markdown) bzw. `sha:<voller hash>` (PDF/Bild):
     "d-20261031-2340-k7q2": {
       "path": "documents/haus/2026-10-31_zisterne-ueberlaufsensor.md",
       "processed_version": 3,
-      "sha256": "…",
+      "file_hash": "…",
+      "body_hash": "…",
+      "meta_hash": "…",
       "sections": {
+        "_preamble": "9f0c2e…",
         "Ergebnis": "a1b2c3…",
         "Entscheidungen": "8b21e0…",
         "Offene Punkte": "d4e5f6…"
@@ -317,7 +325,7 @@ Schlüssel ist die Dokument-ID (Markdown) bzw. `sha:<voller hash>` (PDF/Bild):
 }
 ```
 
-Über die Hashes je Abschnitt (Ebene-2-Überschriften) erkennt der Agent, welche Teile sich zwischen der verarbeiteten und der aktuellen Version geändert haben. Er verarbeitet nur diese.
+Alle Hashes werden voll (64 Hex-Zeichen) gespeichert, im Beispiel gekürzt. Was sie abdecken und wie daraus Änderungen abgeleitet werden, regelt 4.8. Der Agent verarbeitet nur geänderte Abschnitte.
 
 ### 4.7 Namensübersicht (Schnittstelle englisch, Inhalt deutsch)
 
@@ -325,15 +333,70 @@ Schlüssel ist die Dokument-ID (Markdown) bzw. `sha:<voller hash>` (PDF/Bild):
 |---|---|
 | Dokument-Frontmatter | `id`, `version`, `title`, `created`, `updated`, `source`, `context`, `topics`, `related`, `kind` (`note` \| `correction`) |
 | Wiki-Frontmatter | `type` (`topic` \| `entity` \| `summary` \| `synthesis`), `title`, `aliases`, `tags`, `sources`, `updated`, `confidence` (`high` \| `medium` \| `low`) |
-| Beleg-Zeile | `id:`, `v:`, `sha:` |
+| Beleg-Zeile | `§:` (nur bei Duplikaten), `id:`, `v:`, `sha:` |
 | Commit-Zeilen | `PKM-Id`, `PKM-Version`, `PKM-Source` (`chat` \| `user` \| `agent`) |
-| `state.json` | `documents`, `path`, `processed_version`, `sha256`, `sections`, `processed_at`, `wiki_pages` |
+| `state.json` | `documents`, `path`, `processed_version`, `file_hash`, `body_hash`, `meta_hash`, `sections`, `processed_at`, `wiki_pages` |
+| Abschnitte | Schlüssel nach 4.8, reserviert `_preamble`, Duplikate `Text#2` |
+| `pending`-Kategorien | `new`, `changed`, `meta_changed`, `moved`, `deleted`; je Abschnitt `added`, `removed`, `changed`, `renamed` |
 | MCP-Tools | `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`, `search`, `read`, `history`, `show_citations`, `read_index`, `list_unprocessed` |
-| Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `conflict`, `ambiguous`, `not_found`, `large_shortening` |
+| Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding` |
 | CLI | `pkm init`, `ids`, `versions`, `pending`, `history`, `show`, `fix-citations`, `sync-citations`, `sha`, `mark`, `index`, `status`, `lint`, `restore`, `reindex`, `doctor` |
 | Skills | `pkm-wiki`, `pkm-access` |
 
 Deutsch bleiben: Texte in Dokumenten und Wiki-Seiten, Überschriften, Änderungsnotizen (`note`), `wiki/log.md`, `wiki/_status.md` und Lint-Berichte.
+
+### 4.8 Normalisierung, Abschnitte und Hashes
+
+Alle Hashes sind **SHA-256**, geschrieben als 64 Hex-Zeichen in Kleinbuchstaben. Gespeichert und zwischen Tools übergeben wird immer der volle Hash. Belege (`sha:`) und Anzeigen nutzen die ersten 6 Zeichen, verglichen wird dann per Präfix.
+
+#### Schritt 1: Text normalisieren
+
+Gilt für alle Markdown-Dateien, bevor irgendein Hash berechnet oder ein Text verglichen wird:
+1. Bytes als UTF-8 dekodieren und ein BOM am Anfang entfernen. Ist die Datei kein gültiges UTF-8, kommt `invalid_encoding`. Die Datei wird dann nicht verarbeitet, und Lint meldet sie.
+2. Zeilenenden vereinheitlichen: CRLF und einzelnes CR werden zu LF.
+3. Unicode-Normalform NFC herstellen.
+4. Am Dateiende steht genau ein LF. Fehlt es, wird es ergänzt, mehrere werden auf eins gekürzt.
+
+Der Server **schreibt** Dateien immer in dieser Form: UTF-8 ohne BOM, LF, NFC, ein abschließendes LF. Darüber hinaus wird nichts verändert. Leerzeichen innerhalb von Zeilen bleiben, wie sie sind.
+
+#### Schritt 2: Datei zerlegen
+
+- **Frontmatter:** liegt vor, wenn die erste Zeile genau `---` ist. Es endet an der nächsten Zeile, die genau `---` oder `...` lautet. Fehlt dieser Abschluss oder ist das YAML ungültig, kommt `invalid_frontmatter`: Lesende Tools liefern den Rohtext, schreibende verweigern, Lint meldet die Datei. Ausnahme: `pkm ids` legt bei Dateien *ohne* Frontmatter eines an (5.3), bei ungültigem Frontmatter tut es das nicht.
+- **Body:** alles nach der Abschlusszeile des Frontmatters, bzw. die ganze Datei, wenn es keines gibt.
+- **Abschnittsgrenzen:** ATX-Überschriften der **Ebene 1 oder 2** (`#` bzw. `##`, dann Leerzeichen oder Zeilenende, höchstens 3 Leerzeichen Einrückung), sofern sie **außerhalb eingezäunter Codeblöcke** stehen. Codeblöcke werden nach CommonMark-Regeln erkannt (Zaun aus ``` oder ~~~, schließender Zaun gleicher Art und mindestens gleicher Länge). Überschriften ab Ebene 3 gehören zum umgebenden Abschnitt. Setext-Überschriften (Textzeile mit `===` oder `---` darunter) sind keine Grenzen. Lint empfiehlt, sie durch ATX-Überschriften zu ersetzen.
+- **Abschnitt:** eine Grenzüberschrift und alle folgenden Zeilen bis vor die nächste Grenze bzw. bis zum Dateiende.
+- **Vorspann:** der Text zwischen Frontmatter und erster Grenze. Er ist ein eigener Abschnitt mit dem reservierten Schlüssel **`_preamble`**, sofern er nach der Abschnitts-Normalisierung (Schritt 4) nicht leer ist. In Belegen wird er ohne Anker verlinkt. In den Tools wird er mit `section: "_preamble"` angesprochen, `append_to_document` fügt dann am Ende des Vorspanns ein, also vor der ersten Überschrift.
+
+#### Schritt 3: Abschnittsschlüssel
+
+- Der **Schlüssel** ist der Überschriftentext. Dabei werden die führenden `#` mit dem folgenden Leerraum sowie eine schließende `#`-Folge (ATX-Abschluss) entfernt, Leerraum an den Enden gestrichen und innere Leerraumfolgen zu einem Leerzeichen zusammengefasst. Groß- und Kleinschreibung sowie Inline-Markdown bleiben erhalten. `## Offene  Punkte ##` ergibt also `Offene Punkte`.
+- **Doppelte Überschriften** (gleicher Schlüssel, auch über Ebene 1 und 2 hinweg) werden in Dokumentreihenfolge nummeriert. Das erste Vorkommen behält den Text, weitere bekommen `#2`, `#3` …, also `Notizen`, `Notizen#2`, `Notizen#3`. Weil `#` in Obsidian-Ankern nicht vorkommen kann, ist das Suffix eindeutig.
+  - In Tools gilt: `section: "Notizen"` meint immer das erste Vorkommen, `section: "Notizen#2"` das zweite. Gibt es ein Duplikat und wird der Schlüssel ohne Suffix übergeben, liefern `append_to_document` und `rewrite_document` (bei der Kürzungsprüfung) den Hinweis `ambiguous` mit allen Kandidaten. Der Chat muss dann den Schlüssel mit Suffix verwenden.
+  - In Belegen enthält der Link-Anker immer den Text **ohne** Suffix (`[[…#Notizen]]`), weil Obsidian `#Notizen#2` als Pfad zu einer Unterüberschrift „2“ deuten würde. Beim Klick springt Obsidian zum ersten Vorkommen. Den genauen Schlüssel trägt der Beleg in diesem Fall zusätzlich als Feld `§:Notizen#2`. Zusammen mit Zitat und Hash bleibt er eindeutig.
+  - Lint warnt vor doppelten Überschriften der Ebenen 1 und 2 in Dokumenten sowie vor Überschriften mit Zeichen, die Obsidian-Anker brechen (`# ^ [ ] |`).
+  - Die Werkzeuge erzeugen selbst keine Duplikate. Fortsetzungsabschnitte am selben Tag bekommen ` (2)` im *Text* (6.3).
+
+#### Schritt 4: Hashes
+
+| Hash | Eingabe | Zweck |
+|---|---|---|
+| **`hash`** (Rückgabe von `read` und Schreib-Tools, verlangt als `expected_hash`; in `state.json` als `file_hash`) | die **gesamte** normalisierte Datei einschließlich Frontmatter | Konfliktschutz. Jede Änderung, auch an Tags oder an `updated`, ändert ihn |
+| **Abschnitts-Hash** (`sections.<schlüssel>` in `state.json`, Präfix als `sha:` im Beleg) | der Abschnitt **ohne** seine Überschriftenzeile, normalisiert: jede Zeile rechts von Leerraum befreit, führende und abschließende Leerzeilen entfernt, Folgen von Leerzeilen zu einer einzigen zusammengefasst, Zeilen mit LF verbunden | Inhaltliche Änderungen je Abschnitt. Reine Leerraum-Änderungen lösen nichts aus. Ein leerer Abschnitt hat den Hash des leeren Strings |
+| **`body_hash`** | die Folge aller Abschnitte in Dokumentreihenfolge, je Abschnitt eine Zeile `<schlüssel>\t<abschnitts-hash>\n` | Schneller Test, ob sich am Inhalt überhaupt etwas geändert hat, Reihenfolge inklusive |
+| **`meta_hash`** | kanonisches JSON (sortierte Schlüssel, UTF-8, ohne Leerraum) der Felder `title`, `topics`, `related`, `kind`. Fehlende Felder fehlen auch im JSON | Inhaltlich relevante Metadaten. `id`, `version`, `created` und `updated` sind bewusst ausgenommen |
+| **Datei-Hash binär** | die Rohbytes ohne Normalisierung | PDFs und Bilder |
+
+#### Was daraus folgt
+
+`pkm pending` vergleicht je Dokument mit `state.json`:
+- `body_hash` und `meta_hash` unverändert: **nichts zu tun**, auch wenn sich `file_hash` geändert hat, etwa nur durch `updated` oder `version`.
+- Nur `meta_hash` geändert: **`meta_changed`**. Dann werden nur Zusammenfassungsseite und Index angepasst.
+- `body_hash` geändert: **`changed`**, mit dem Abschnittsvergleich:
+  - Schlüssel neu: `added`. Schlüssel weg: `removed`. Gleicher Schlüssel, anderer Hash: `changed`.
+  - Ein `removed` und ein `added` mit **gleichem Hash** werden zu **`renamed`** (alter → neuer Schlüssel) zusammengefasst. `pkm fix-citations` passt die Anker in den Belegen an. So werden auch Verschiebungen in der Duplikat-Nummerierung erkannt (`Notizen#2` → `Notizen`).
+  - Nur die Reihenfolge geändert, alle Abschnitts-Hashes gleich: `changed` ohne betroffene Abschnitte. Es wird nur der Stand vermerkt, eine inhaltliche Verarbeitung findet nicht statt.
+
+`edit_document` sucht `old` im **normalisierten Body** (Schritt 1). Auch `old` und `new` werden vorher normalisiert (LF, NFC), damit CRLF oder abweichende Unicode-Formen aus dem Chat nicht zu `not_found` führen. Die Kürzungsprüfung von `rewrite_document` (`large_shortening`) zählt Zeichen des normalisierten Bodys und vergleicht Abschnittsschlüssel nach Schritt 3.
 
 ---
 
@@ -417,7 +480,7 @@ Im Vault gibt es kein `.git`, und der Windows-Rechner sieht davon nichts. Aus de
 **Plattformfeste Dateien**
 - Vom Server erzeugte Dateinamen sind auf allen Systemen gültig: keine `\ / : * ? " < > |`, keine reservierten Windows-Namen (`CON`, `NUL`, `COM1` …), kein Punkt oder Leerzeichen am Ende, höchstens 120 Zeichen.
 - Pfade werden intern in Unicode-NFC verglichen und gespeichert, weil macOS Dateinamen mit Umlauten teils als NFD liefert.
-- Hashes werden über den Text mit einheitlichen Zeilenenden (LF) berechnet. Eine Datei, die auf Windows mit CRLF gespeichert wird, gilt dadurch nicht als geändert.
+- Hashes werden über normalisierten Text berechnet (4.8: UTF-8 ohne BOM, LF, NFC). Eine Datei, die auf Windows mit CRLF gespeichert wird, gilt dadurch nicht als geändert.
 - Zwei Dateien, die sich nur in Groß- und Kleinschreibung unterscheiden, meldet Lint als Fehler, weil sie unter macOS und Windows nicht unterscheidbar sind.
 
 **Chats und MCP:** Der MCP-Server läuft nur auf dem Mac und ist erreichbar, solange dort die Claude-Desktop-App läuft. Ein zweiter Server auf Windows ist bewusst nicht vorgesehen, sonst würden zwei Rechner in dieselbe Versionsgeschichte schreiben.
@@ -534,7 +597,7 @@ Ersetzt den **gesamten Inhalt** unterhalb des Frontmatters. Das ist der Normalfa
 | `note` | string | empfohlen | Änderungsnotiz für den Verlauf |
 | `confirm_shortening` | bool | nein | Standard `false` |
 
-Schutz gegen versehentlichen Verlust: Ist der neue Inhalt kürzer als 60 % des alten oder fehlen Ebene-2-Abschnitte des alten Inhalts, bricht das Tool mit `large_shortening` ab. Es nennt die betroffenen Abschnitte. Der Chat muss die Kürzung vom Nutzer bestätigen lassen und erneut mit `confirm_shortening: true` aufrufen. Das Frontmatter bleibt erhalten, nur die Serverfelder werden aktualisiert.
+Schutz gegen versehentlichen Verlust: Ist der neue Inhalt kürzer als 60 % des alten oder fehlen Abschnitte (Schlüssel nach 4.8) des alten Inhalts, bricht das Tool mit `large_shortening` ab. Es nennt die betroffenen Abschnitte. Der Chat muss die Kürzung vom Nutzer bestätigen lassen und erneut mit `confirm_shortening: true` aufrufen. Das Frontmatter bleibt erhalten, nur die Serverfelder werden aktualisiert.
 
 #### `append_to_document`
 | Parameter | Typ | Pflicht | Beschreibung |
@@ -629,7 +692,7 @@ Rückgabe je Beleg: `id`, `statement`, `original` (aktueller Pfad, aufgelöst na
 Gibt `wiki/index.md` zurück.
 
 #### `list_unprocessed`
-Liste der Dokumente, deren aktuelle Version noch nicht im Wiki eingearbeitet ist: ID, Titel, Pfad, `processed_version` → `version` und geänderte Abschnitte. Wird live berechnet.
+Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist (nach 4.8, „Was daraus folgt“): ID, Titel, Pfad, `processed_version` → `version`, Kategorie und betroffene Abschnitte. Wird live berechnet.
 
 ### 7.4 Suchindex
 
@@ -683,7 +746,7 @@ Die Datei liegt auf dem Mac unter `~/Library/Application Support/Claude/claude_d
 | `pkm show <target> --version <n> [--section <name>]` | Inhalt einer früheren Version |
 | `pkm fix-citations` | Korrigiert Links in Belegen und `sources`, deren Ziel verschoben wurde |
 | `pkm sync-citations [<page>…]` | Erzeugt `sources` aus den Fußnoten neu |
-| `pkm sha <target> [--section <name>]` | Kurz-Hash eines Abschnitts oder einer Datei für neue Belege |
+| `pkm sha <target> [--section <key>] [--full]` | Abschnitts- oder Datei-Hash nach 4.8 (Standard: 6 Zeichen für Belege). Ohne `--section` werden alle Schlüssel mit Hash, `body_hash`, `meta_hash` und `file_hash` aufgelistet. Hilft bei der Fehlersuche |
 | `pkm mark <id>… --pages <page>…` | Trägt verarbeitete Dokumente mit Version und Abschnitts-Hashes in `state.json` ein |
 | `pkm index` | Erzeugt `wiki/index.md` neu |
 | `pkm status` | Erzeugt `wiki/_status.md` neu, inklusive Einsortier-Vorschlägen für verarbeitete Dokumente im Eingang |
@@ -832,7 +895,9 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 - Versionen: jede Schreiboperation erhöht `version` um genau 1 und erzeugt genau einen Commit nur dieser Datei mit korrekten Zeilen. Von Hand geänderter Stand wird vor der MCP-Änderung separat committet. `pkm versions` fasst mehrere Änderungen von Hand zu einer Version zusammen. Commit-Fehler setzen die Datei zurück
 - `history` nach Verschieben und Umbenennen vollständig. `read` mit `version`. `restore_document` erzeugt eine neue Version
 - Änderungs-Tools: Hash-Konflikt, `large_shortening` und Bestätigung, Einfügen in bestehenden und neuen Abschnitt, `old` nicht gefunden oder mehrdeutig, geschützte Felder, Diff
-- Abschnitts-Hashes und `pending`: neu, geändert (mit Versionen und Abschnitten), verschoben (per ID bzw. Hash), verschoben *und* geändert, gelöscht
+- Normalisierung und Hashes (4.8), mit festen Testvektoren: BOM, CRLF/CR, NFD-Text, fehlendes oder doppeltes LF am Ende, ungültiges UTF-8. Frontmatter fehlend, ungültig oder mit `...`-Abschluss. Überschriften in Codeblöcken (``` und ~~~, verschachtelte Zaunlängen), Setext, Ebene 3 innerhalb von Ebene 2, ATX-Abschluss, Einrückung bis 3 Leerzeichen. Vorspann leer und nicht leer. Duplikate über Ebene 1 und 2. Leerraum-Änderungen lassen Abschnitts-Hashes unverändert. Eine Frontmatter-Änderung nur an `updated` ändert `file_hash`, aber nicht `body_hash` und `meta_hash`
+- `pending`: neu, `changed` mit `added`/`removed`/`changed`/`renamed` je Abschnitt, nur Reihenfolge, `meta_changed`, verschoben (per ID bzw. Hash), verschoben *und* geändert, gelöscht
+- Tools: `section` mit `_preamble` und mit Duplikat-Suffix, `ambiguous` ohne Suffix, `edit_document` mit CRLF- bzw. NFD-Eingabe
 - Belege: Parser (inkl. `v:` und `#page=`), alle Status von `show_citations`, Auszug aus alter und aktueller Version, `fix-citations`, `sync-citations`, alle Lint-Prüfungen positiv und negativ
 - Suche: Umlaut-Toleranz, Gewichtung, inkrementelle Aktualisierung, Neuaufbau
 - Ohne Git: schreibende Tools verweigert, lesende funktionieren
