@@ -4,7 +4,7 @@
 
 Die Abnahme läuft auf dem **Mac** mit echtem Nextcloud-Vault, Claude Desktop und Obsidian sowie
 für Schritt 9 auf dem **Windows-Rechner**. Voraussetzung ist die Einrichtung nach
-[einrichtung.md](einrichtung.md) (Abschnitte 1–9).
+[einrichtung.md](einrichtung.md) (Abschnitte 1–10).
 
 Ergebnis je Schritt eintragen: ✅ erfüllt · ⚠️ erfüllt mit Befund · ❌ nicht erfüllt.
 Befunde unten unter „Befunde“ sammeln; sie werden danach behoben (Code oder Skill-Formulierung).

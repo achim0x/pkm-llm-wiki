@@ -58,6 +58,10 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
   zusätzlich, wenn `commit.gpgsign` aktiv ist.
 - Alle schreibenden Vorgänge (MCP und CLI) sind über eine Sperrdatei im Git-Verzeichnis
   serialisiert.
+- **Windows als PKM-Rechner** (Spezifikation 5.5 nennt nur den Mac): Standardordner
+  `%APPDATA%\pkm`, Sperre über `msvcrt` statt `fcntl`, `os.replace` mit Wiederholung bei
+  gesperrten Dateien, `core.autocrlf=false` im PKM-Repo, Abhängigkeit `tzdata`. Einrichtung in
+  `docs/einrichtung.md`.
 
 ## Entwicklung
 
@@ -90,7 +94,7 @@ Prüfen vor jedem Commit:
   erzwingt (z. B. zehn Parameter von `create_document`, Parametername `set`) oder bei
   Datenklassen mit vielen Feldern.
 
-Die Tests laufen auch unter Linux. Alle Pfade werden über Umgebungsvariablen gesetzt
+Die Tests laufen unter Linux, macOS und Windows. Alle Pfade werden über Umgebungsvariablen gesetzt
 (`PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`, …), siehe Spezifikation 7.1.
 
 ## Lizenz

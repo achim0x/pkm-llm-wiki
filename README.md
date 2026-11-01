@@ -136,10 +136,10 @@ flowchart LR
     subgraph Projekt["Claude-Projekt PKM-Pflege"]
         B["Skill pkm-wiki"]
     end
-    subgraph Mac["Mac"]
+    subgraph Mac["PKM-Rechner (Mac oder Windows)"]
         M["pkm-mcp<br/>(MCP-Server)"]
         C["pkm<br/>(CLI)"]
-        G[("Git-Verlauf<br/>~/Library/Application Support/pkm")]
+        G[("Git-Verlauf<br/>außerhalb der Nextcloud")]
         I[("Suchindex<br/>(Cache)")]
     end
     subgraph Vault["Vault in der Nextcloud"]
@@ -148,7 +148,7 @@ flowchart LR
         X["scratch/<br/>Notizen, nicht versioniert"]
         S[".pkm/state.json"]
     end
-    O["Obsidian<br/>Mac und Windows"]
+    O["Obsidian<br/>alle Rechner"]
 
     A -- "MCP: suchen, lesen,<br/>ablegen, fortschreiben" --> M
     B -- "Shell" --> C
@@ -170,10 +170,10 @@ flowchart LR
 | **pkm** | Kommandozeile für die Pflege (IDs, Versionen, offene Dokumente, Belege, Index, Lint, Doctor). |
 | **Skill `pkm-access`** | Sagt Claude in normalen Chats, wann und wie die Tools zu nutzen sind, z. B. „immer erst ein Entwurf“. |
 | **Skill `pkm-wiki`** | Regeln und Abläufe für den Pflege-Agenten im Projekt „PKM-Pflege“. |
-| **Git** | Versionsgeschichte jedes Dokuments und Nachvollziehbarkeit der Agentenarbeit. Nur lokal, gesichert per Time Machine. |
+| **Git** | Versionsgeschichte jedes Dokuments und Nachvollziehbarkeit der Agentenarbeit. Nur lokal auf dem PKM-Rechner, Teil der Datensicherung. |
 
-Der MCP-Server und die Pflege laufen **nur auf dem Mac**, solange dort Claude Desktop läuft.
-Der Windows-Rechner nutzt den Vault nur über Obsidian.
+Der MCP-Server und die Pflege laufen auf **einem** PKM-Rechner, einem Mac oder einem Windows-PC,
+solange dort Claude Desktop läuft. Weitere Rechner nutzen den Vault nur über Obsidian.
 
 ---
 
@@ -422,8 +422,8 @@ stateDiagram-v2
 - Reines Verschieben erhöht die Version nicht.
 - Jeder Commit enthält genau ein Dokument. Agenten-Commits enthalten nur `wiki/` und
   `.pkm/state.json`. Ein `git revert` auf einen Agenten-Commit trifft also nur das Wiki.
-- Der Verlauf liegt nur auf dem Mac unter `~/Library/Application Support/pkm/git` und wird über
-  Time Machine gesichert.
+- Der Verlauf liegt nur auf dem PKM-Rechner (Mac: `~/Library/Application Support/pkm/git`,
+  Windows: `%APPDATA%\pkm\git`) und gehört in die Datensicherung.
 
 Verlauf im Terminal ansehen:
 
@@ -531,9 +531,9 @@ pkm-llm-wiki/
 ```
 
 Entwicklung und Tests: siehe [pkm-tools/README.md](pkm-tools/README.md). Die Tests laufen auf
-Linux und macOS (GitHub Actions).
+Linux, macOS und Windows (GitHub Actions).
 
-**Stand:** Phasen 0–6 umgesetzt. Die Abnahme auf dem Mac (Phase 7) steht aus. Die automatische
+**Stand:** Phasen 0–6 umgesetzt. Die Abnahme (Phase 7) steht aus. Die automatische
 Pflege (Phase 8) folgt nur auf Anweisung.
 
 ---

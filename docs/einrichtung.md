@@ -1,55 +1,62 @@
 # PKM mit LLM-Wiki – Einrichtung
 
-Diese Anleitung richtet das PKM auf dem **Mac** ein (Spezifikation 5.5, 7.6, 11, 13).
-Der Windows-Rechner braucht nur Obsidian und Nextcloud.
+Diese Anleitung richtet das PKM auf dem **PKM-Rechner** ein (Spezifikation 5.5, 7.6, 11, 13).
+Der PKM-Rechner ist der eine Rechner, auf dem Claude Desktop, der MCP-Server `pkm-mcp`, die CLI
+`pkm` und der Git-Verlauf liegen. Das kann ein **Mac** oder ein **Windows-PC** sein; beide
+Varianten sind gleichwertig. Weitere Rechner brauchen nur Obsidian und Nextcloud.
 
-Platzhalter: `<HOME>` = Home-Verzeichnis auf dem Mac (z. B. `/Users/name`), `<VAULT>` = Name
-des Vault-Ordners in der Nextcloud, `<REPO>` = Ort dieses Repositorys auf dem Mac.
+**Pro Vault genau ein PKM-Rechner.** Der Versionsverlauf liegt lokal auf diesem Rechner und wird
+nicht synchronisiert. Ein zweiter PKM-Rechner für denselben Vault würde einen zweiten, abweichenden
+Verlauf anlegen.
+
+Wo sich Mac und Windows unterscheiden, stehen beide Varianten untereinander. Befehle für Windows
+sind für **PowerShell** geschrieben.
+
+Platzhalter:
+
+| Platzhalter | Mac | Windows |
+|---|---|---|
+| `<HOME>` | Home-Verzeichnis, z. B. `/Users/name` | Benutzerordner, z. B. `C:\Users\name` |
+| `<VAULT>` | Name des Vault-Ordners in der Nextcloud | ebenso |
+| `<REPO>` | Ort dieses Repositorys (außerhalb der Nextcloud) | ebenso |
+| `<APPDIR>` | `<HOME>/Library/Application Support/pkm` | `%APPDATA%\pkm`, z. B. `C:\Users\name\AppData\Roaming\pkm` |
+
+`<APPDIR>` ist der Standardort für Git-Verzeichnis (`<APPDIR>/git`) und Suchindex
+(`<APPDIR>/index.db`). Er muss nicht eingestellt werden.
 
 ---
 
-## 1. Voraussetzungen (Mac)
+## 1. Voraussetzungen
 
 - Nextcloud-Desktop-Client, Obsidian, Claude Desktop
-- **Git**, installiert mit [pixi](https://pixi.sh). Der Befehl `pixi global install git` ist auf
-  macOS, Linux und Windows derselbe, braucht keine Administratorrechte und legt `git` nach
-  `~/.pixi/bin`. Zuerst pixi installieren (danach ein neues Terminal öffnen):
-
-  macOS und Linux:
-
-  ```bash
-  curl -fsSL https://pixi.sh/install.sh | sh
-  ```
-
-  Windows (PowerShell):
-
-  ```powershell
-  powershell -ExecutionPolicy ByPass -c "irm -useb https://pixi.sh/install.ps1 | iex"
-  ```
-
-  Dann Git installieren und prüfen:
-
-  ```bash
-  pixi global install git
-  ```
+- **Git** in einer aktuellen Version, Installation nach <https://git-scm.com/install/>.
+  Unter Windows im Installer die Standardoption „Git from the command line and also from
+  3rd-party software“ beibehalten, dann steht Git im System-`PATH`.
+  Prüfen (neues Terminal bzw. neue PowerShell öffnen):
 
   ```bash
   git --version
   ```
 
-  Ist Git schon vorhanden (z. B. über Homebrew oder die Xcode Command Line Tools), kann dieser
-  Schritt entfallen. Wichtig ist nur, dass der Ordner mit `git` in Abschnitt 5 im `PATH` steht.
+- **uv** (Python-Werkzeug), installiert nach `<HOME>/.local/bin`.
 
-- `uv` (Python-Werkzeug), installiert nach `~/.local/bin`:
+  Mac:
 
   ```bash
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
 
+  Windows:
+
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+
+Python selbst muss nicht installiert sein, `uv` bringt eine passende Version mit.
+
 ## 2. Paket installieren
 
-Repository auf den Mac holen (außerhalb der Nextcloud), dann die Befehle `pkm` und `pkm-mcp`
-installieren:
+Repository holen (außerhalb der Nextcloud), dann die Befehle `pkm` und `pkm-mcp` installieren:
 
 ```bash
 git clone https://github.com/achim0x/pkm-llm-wiki.git <REPO>
@@ -59,7 +66,11 @@ git clone https://github.com/achim0x/pkm-llm-wiki.git <REPO>
 uv tool install <REPO>/pkm-tools
 ```
 
-Danach liegen `pkm` und `pkm-mcp` in `<HOME>/.local/bin/`. Aktualisieren nach einem `git pull`:
+Danach liegen `pkm` und `pkm-mcp` in `<HOME>/.local/bin/` (unter Windows als `pkm.exe` und
+`pkm-mcp.exe`). Meldet `uv`, dass der Ordner nicht im `PATH` steht, einmal `uv tool update-shell`
+ausführen und das Terminal neu öffnen.
+
+Aktualisieren nach einem `git pull`:
 
 ```bash
 uv tool install --reinstall <REPO>/pkm-tools
@@ -81,18 +92,36 @@ Ist in deiner globalen Git-Konfiguration `commit.gpgsign` eingeschaltet, kann da
 Claude Desktop heraus scheitern (`pkm doctor` warnt). Dann für das PKM-Repo abschalten (nach
 Schritt 4):
 
+Mac:
+
 ```bash
 git --git-dir="<HOME>/Library/Application Support/pkm/git" config commit.gpgsign false
+```
+
+Windows:
+
+```powershell
+git --git-dir="$env:APPDATA\pkm\git" config commit.gpgsign false
 ```
 
 ## 4. Vault anlegen
 
 Der Vault liegt in der Nextcloud, Git-Verzeichnis und Suchindex liegen außerhalb unter
-`~/Library/Application Support/pkm/` (Standard, nichts einzustellen).
+`<APPDIR>` (Standard, nichts einzustellen).
+
+Mac:
 
 ```bash
 export PKM_ROOT="<HOME>/Nextcloud/<VAULT>"
 ```
+
+Windows:
+
+```powershell
+$env:PKM_ROOT = "$env:USERPROFILE\Nextcloud\<VAULT>"
+```
+
+Dann auf beiden Systemen:
 
 ```bash
 pkm init
@@ -103,10 +132,11 @@ pkm doctor
 ```
 
 `pkm init` ist idempotent und legt an: `documents/_inbox/`, `documents/_attachments/`,
-`wiki/` (mit `index.md`, `log.md`, `_status.md` und den Unterordnern), `CLAUDE.md`,
+`wiki/` (mit `index.md`, `log.md`, `_status.md` und den Unterordnern), `scratch/`, `CLAUDE.md`,
 `.pkm/state.json`, `.gitignore` sowie das Git-Verzeichnis mit einem ersten Commit.
 Liegen im Ordner schon Notizen, bleiben sie unverändert; sie bekommen beim ersten Pflegelauf
-eine ID (`pkm ids`).
+eine ID (`pkm ids`). Unter Windows schaltet `pkm init` für das PKM-Repo `core.autocrlf` ab, damit
+Git die Zeilenenden nicht verändert.
 
 Die CLI findet den Vault auch ohne `PKM_ROOT`, wenn sie in einem Ordner des Vaults aufgerufen
 wird (sie sucht aufwärts nach `.pkm/state.json`).
@@ -116,8 +146,16 @@ wird (sie sucht aufwärts nach `.pkm/state.json`).
 
 ## 5. MCP-Server in Claude Desktop
 
-Datei `<HOME>/Library/Application Support/Claude/claude_desktop_config.json` (anlegen, falls
-nicht vorhanden; bestehende Einträge unter `mcpServers` behalten):
+Konfigurationsdatei (anlegen, falls nicht vorhanden; bestehende Einträge unter `mcpServers`
+behalten). In Claude Desktop erreichbar über Einstellungen → Entwickler → „Konfiguration
+bearbeiten“.
+
+| System | Datei |
+|---|---|
+| Mac | `<HOME>/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+
+Mac:
 
 ```json
 {
@@ -127,32 +165,68 @@ nicht vorhanden; bestehende Einträge unter `mcpServers` behalten):
       "env": {
         "PKM_ROOT": "<HOME>/Nextcloud/<VAULT>",
         "PKM_VAULT_NAME": "<VAULT>",
-        "PATH": "<HOME>/.pixi/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+        "PATH": "<GITDIR>:/usr/bin:/bin"
       }
     }
   }
 }
 ```
 
-- JSON kennt weder `~` noch Umgebungsvariablen: alle Pfade absolut.
-- `PATH` muss `git` enthalten, weil Claude Desktop Server mit minimaler Umgebung startet.
-  `<HOME>/.pixi/bin` ist der Ordner aus `pixi global install git`. Wo `git` liegt, zeigt
-  `command -v git`.
+Windows (in JSON jeden Backslash verdoppeln):
+
+```json
+{
+  "mcpServers": {
+    "pkm": {
+      "command": "C:\\Users\\name\\.local\\bin\\pkm-mcp.exe",
+      "env": {
+        "PKM_ROOT": "C:\\Users\\name\\Nextcloud\\<VAULT>",
+        "PKM_VAULT_NAME": "<VAULT>"
+      }
+    }
+  }
+}
+```
+
+- JSON kennt weder `~` noch Umgebungsvariablen (`%APPDATA%`, `$HOME`): alle Pfade absolut.
+- **`PATH` (Mac):** Claude Desktop startet MCP-Server mit minimaler Umgebung, ohne das
+  Shell-Profil. `pkm-mcp` ruft intern `git` auf und muss es über `PATH` finden. `<GITDIR>` ist der
+  Ordner, in dem `git` liegt:
+
+  ```bash
+  dirname "$(command -v git)"
+  ```
+
+  Liegt `git` in `/usr/bin` (Ausgabe `/usr/bin/git`, Git aus den Xcode Command Line Tools),
+  reicht `"PATH": "/usr/bin:/bin"`.
+- **`PATH` (Windows):** normalerweise nicht nötig, weil der Git-Installer Git in den System-`PATH`
+  einträgt. Meldet `pkm-mcp` trotzdem `git_unavailable`, ergänzen:
+  `"PATH": "C:\\Program Files\\Git\\cmd;C:\\Windows\\System32"` (Trennzeichen `;`).
 - `PKM_VAULT_NAME` ist optional und sorgt für klickbare `obsidian://`-Links in Quellenangaben.
 - Alternative ohne Installation (wie Spezifikation 7.6):
-  `"command": "<HOME>/.local/bin/uvx", "args": ["--from", "<REPO>/pkm-tools", "pkm-mcp"]`.
+  `"command": "<HOME>/.local/bin/uvx"` (Windows: `uvx.exe`),
+  `"args": ["--from", "<REPO>/pkm-tools", "pkm-mcp"]`.
 
-Claude Desktop neu starten. Im Chat sollten unter den Werkzeugen die zwölf `pkm`-Tools
-erscheinen (`search`, `read`, `history`, `show_citations`, `read_index`, `list_unprocessed`,
-`create_document`, `rewrite_document`, `append_to_document`, `edit_document`,
-`update_frontmatter`, `restore_document`).
+Claude Desktop vollständig beenden (unter Windows auch im Infobereich der Taskleiste) und neu
+starten. Im Chat sollten unter den Werkzeugen die zwölf `pkm`-Tools erscheinen (`search`, `read`,
+`history`, `show_citations`, `read_index`, `list_unprocessed`, `create_document`,
+`rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`,
+`restore_document`).
 
 ## 6. Skills installieren
 
 Die Skills liegen in `<REPO>/pkm-tools/skills/`. Jeden Ordner als ZIP packen:
 
+Mac:
+
 ```bash
 cd <REPO>/pkm-tools/skills && zip -r pkm-access.zip pkm-access && zip -r pkm-wiki.zip pkm-wiki
+```
+
+Windows:
+
+```powershell
+cd <REPO>\pkm-tools\skills; Compress-Archive -Force pkm-access pkm-access.zip; Compress-Archive -Force pkm-wiki pkm-wiki.zip
 ```
 
 In Claude Desktop unter den Einstellungen bei den Skills (je nach App-Version „Einstellungen →
@@ -166,7 +240,7 @@ Bestehende andere Skills bleiben unberührt (keine Startbefüllung).
 ## 7. Projekt „PKM-Pflege“
 
 1. In Claude Desktop ein Projekt „PKM-Pflege“ anlegen.
-2. Projektanweisung:
+2. Projektanweisung (Pfade an das System anpassen):
 
    > Dies ist das Pflegeprojekt für das PKM unter `<HOME>/Nextcloud/<VAULT>`. Nutze den Skill
    > `pkm-wiki`. Arbeite im Vault-Ordner und rufe die CLI über `<HOME>/.local/bin/pkm` auf.
@@ -179,7 +253,7 @@ Bestehende andere Skills bleiben unberührt (keine Startbefüllung).
 
 ## 8. Obsidian
 
-Den Ordner `<HOME>/Nextcloud/<VAULT>` als Vault öffnen und einstellen:
+Den Vault-Ordner in der Nextcloud als Vault öffnen und einstellen:
 
 | Einstellung | Wert |
 |---|---|
@@ -210,7 +284,7 @@ Anführungszeichen stehen. `pkm lint` zeigt betroffene Dateien, `pkm fix-frontma
 auf, mit Ziel oder `--all` repariert er sie.
 
 Optional: Dataview, Graph View. Die Einstellungen in `.obsidian/` werden über Nextcloud auch
-auf den Windows-Rechner übertragen. Kein Obsidian-Git-Plugin verwenden.
+auf die anderen Rechner übertragen. Kein Obsidian-Git-Plugin verwenden.
 
 `pkm doctor` prüft die Einstellungen aus `.obsidian/app.json`.
 
@@ -219,7 +293,20 @@ auf den Windows-Rechner übertragen. Kein Obsidian-Git-Plugin verwenden.
 Keine Ausnahmen nötig, weil Git und Suchindex außerhalb liegen. Optional
 `.obsidian/workspace*.json` in Nextcloud ignorieren (geräteabhängige Dateien).
 
-## 10. Probelauf
+## 10. Datensicherung
+
+Der Versionsverlauf existiert nur auf dem PKM-Rechner unter `<APPDIR>/git`. Diesen Ordner in die
+Datensicherung aufnehmen; der Suchindex (`<APPDIR>/index.db`) ist nur ein Cache und kann fehlen.
+
+- **Mac:** Time Machine sichert `~/Library/Application Support/pkm/` automatisch mit.
+- **Windows:** Der Dateiversionsverlauf sichert `AppData` standardmäßig **nicht**. Entweder
+  `%APPDATA%\pkm\git` in einem Backup-Programm ausdrücklich aufnehmen, oder das Git-Verzeichnis
+  von Anfang an in einen gesicherten Ordner außerhalb der Nextcloud legen, z. B.
+  `C:\Users\name\Documents\pkm-git`, und `PKM_GIT_DIR` vor `pkm init` (in PowerShell) und in der
+  Claude-Desktop-Config (`"PKM_GIT_DIR": "C:\\Users\\name\\Documents\\pkm-git"`) setzen.
+  Der Dokumente-Ordner darf dabei nicht von OneDrive synchronisiert werden.
+
+## 11. Probelauf
 
 Mit drei bis fünf eigenen Dokumenten (es gibt keine Startbefüllung):
 
@@ -236,25 +323,32 @@ Mit drei bis fünf eigenen Dokumenten (es gibt keine Startbefüllung):
 7. **Quellen:** „Woher stammt die Angabe …?“ → Original, Abschnitt, Zitat, Version, Status.
 8. Abschluss: `pkm doctor` und `pkm lint` ohne Fehler.
 
-Die vollständige Abnahme steht in Abschnitt 14 der Spezifikation.
+Die vollständige Abnahme steht in [abnahme.md](abnahme.md) bzw. Abschnitt 14 der Spezifikation.
 
-## 11. Fehlersuche
+## 12. Fehlersuche
 
 | Problem | Prüfen |
 |---|---|
-| Tools erscheinen nicht in Claude Desktop | Pfad zu `pkm-mcp` in der Config, App neu starten, Log von Claude Desktop |
+| Tools erscheinen nicht in Claude Desktop | Pfad zu `pkm-mcp` in der Config (Windows: `.exe`, doppelte Backslashes), App vollständig beenden und neu starten, Log von Claude Desktop |
 | `git_unavailable` | `pkm doctor`: Git-Repo vorhanden (`pkm init`), Identität gesetzt, `PATH` in der Config |
 | `commit_failed` | Signierung (`commit.gpgsign`), Schreibrechte; die Datei wurde zurückgesetzt |
 | `conflict` | Datei wurde inzwischen geändert (z. B. in Obsidian oder per Sync) – neu lesen |
 | Suche findet nichts Neues | `pkm reindex` (der Index ist nur ein Cache) |
 | Konfliktkopien („conflicted copy“) | In Obsidian zusammenführen, Kopie löschen, dann `pkm versions` |
 
+Logs von Claude Desktop: Mac `~/Library/Logs/Claude/`, Windows `%APPDATA%\Claude\logs\`.
 Protokoll aller MCP-Vorgänge: `<VAULT>/.pkm/mcp.log`.
+
 Versionsgeschichte direkt ansehen:
+
+Mac:
 
 ```bash
 git --git-dir="<HOME>/Library/Application Support/pkm/git" --work-tree="<HOME>/Nextcloud/<VAULT>" log --oneline
 ```
 
-Die Versionsgeschichte existiert nur auf dem Mac und wird über Time Machine gesichert
-(`~/Library/Application Support/pkm/` ist darin enthalten).
+Windows:
+
+```powershell
+git --git-dir="$env:APPDATA\pkm\git" --work-tree="$env:USERPROFILE\Nextcloud\<VAULT>" log --oneline
+```
