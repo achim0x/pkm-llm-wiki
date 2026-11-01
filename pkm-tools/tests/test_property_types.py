@@ -86,7 +86,7 @@ def test_init_idempotent_types(cfg):
     """Ein zweiter Lauf ändert types.json nicht."""
     before = (cfg.root / TYPES_FILE).read_bytes()
     res = ensure_property_types(cfg.root)
-    assert res["added"] == [] and not res["created"]
+    assert not res["added"] and not res["created"]
     assert (cfg.root / TYPES_FILE).read_bytes() == before
 
 
