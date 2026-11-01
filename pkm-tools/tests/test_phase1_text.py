@@ -1,4 +1,28 @@
-"""Normalisierung, Abschnitte und Hashes (Spezifikation 4.8, Tests aus 14)."""
+"""Normalisierung, Abschnitte und Hashes (Spezifikation 4.8, Tests aus 14).
+
+    Author: Achim0x
+"""
+
+# *****************************************************************************
+# Copyright (c) Achim0x - https://github.com/achim0x/
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://gnu.org>.
+
+# *****************************************************************************
+
+# Imports *********************************************************************
+
+from __future__ import annotations
 
 import hashlib
 import json
@@ -11,14 +35,28 @@ from pkm.errors import PkmError
 from pkm.normalize import decode, encode, normalize_bytes, normalize_fragment, normalize_text
 from pkm.parse import normalize_key_input, parse
 
+# Variables *******************************************************************
+
 VECTORS = json.loads((Path(__file__).parent / "vectors" / "sections.json").read_text(encoding="utf-8"))
+
+# Classes *********************************************************************
+
+# Functions *******************************************************************
 
 
 def sha(s: str) -> str:
+    """SHA-256 eines Texts (unabhängige Vergleichsberechnung).
+
+    Args:
+        s: Text.
+
+    Returns:
+        64 Hex-Zeichen.
+    """
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-# --- Schritt 1 ---
+# Schritt 1 *******************************************************************
 @pytest.mark.parametrize(
     "raw, expected",
     [
@@ -34,32 +72,38 @@ def sha(s: str) -> str:
     ],
 )
 def test_normalize_text(raw, expected):
+    """Normalisierung nach 4.8, Schritt 1."""
     assert normalize_text(raw) == expected
 
 
 def test_invalid_utf8():
+    """Ungültiges UTF-8 ergibt invalid_encoding."""
     with pytest.raises(PkmError) as e:
         decode(b"\xff\xfeabc")
     assert e.value.status == "invalid_encoding"
 
 
 def test_crlf_and_lf_same_hash():
+    """CRLF- und LF-Fassung haben denselben Datei-Hash."""
     lf = normalize_bytes("---\ntitle: Ä\n---\n## A\nx\n".encode())
     crlf = normalize_bytes("\ufeff---\r\ntitle: Ä\r\n---\r\n## A\r\nx\r\n".encode())
     assert hashes.file_hash(lf) == hashes.file_hash(crlf)
 
 
 def test_encode_write_form():
+    """Die Schreibform ist UTF-8 ohne BOM mit LF am Ende."""
     assert encode("\ufeffa\r\nb") == b"a\nb\n"
 
 
 def test_fragment_keeps_end():
+    """Fragmente behalten ihr Ende."""
     assert normalize_fragment("a\r\nb") == "a\nb"
 
 
-# --- Schritte 2–4 mit Testvektoren ---
+# Schritte 2–4 mit Testvektoren ***********************************************
 @pytest.mark.parametrize("vec", VECTORS, ids=[v["name"] for v in VECTORS])
 def test_vectors(vec):
+    """Abschnitte und Hashes stimmen mit den Testvektoren überein."""
     text = normalize_text(vec["input"])
     p = parse(text)
     if vec.get("fm_error"):
@@ -75,17 +119,20 @@ def test_vectors(vec):
 
 
 def test_whitespace_change_keeps_section_hash():
+    """Reine Leerraum-Änderungen ändern den Abschnitts-Hash nicht."""
     a = parse(normalize_text("## A\nx\n\ny\n"))
     b = parse(normalize_text("## A\n\nx   \n\n\n\ny\n\n## B\n"))
     assert hashes.section_hashes(a)["A"] == hashes.section_hashes(b)["A"]
 
 
 def test_empty_section_hash():
+    """Ein leerer Abschnitt hat den Hash des leeren Strings."""
     p = parse("## A\n")
     assert hashes.section_hashes(p)["A"] == sha("")
 
 
 def test_updated_changes_only_file_hash():
+    """Eine Änderung nur an updated ändert nur den Datei-Hash."""
     t1 = normalize_text("---\nid: d-20261031-2340-k7q2\ntitle: T\nupdated: 2026-11-01T10:00:00+01:00\n---\n## A\nx\n")
     t2 = t1.replace("10:00:00", "11:00:00")
     h1, h2 = hashes.compute(t1, parse(t1)), hashes.compute(t2, parse(t2))
@@ -95,6 +142,7 @@ def test_updated_changes_only_file_hash():
 
 
 def test_meta_hash_fields():
+    """meta_hash umfasst nur title, topics, related und kind."""
     p = parse("---\ntitle: T\ntopics: [a, b]\nkind: note\nversion: 3\n---\n")
     canon = json.dumps({"kind": "note", "title": "T", "topics": ["a", "b"]}, sort_keys=True,
                        ensure_ascii=False, separators=(",", ":"))
@@ -104,11 +152,13 @@ def test_meta_hash_fields():
 
 
 def test_timestamps_stay_strings():
+    """Zeitstempel im Frontmatter bleiben Strings."""
     p = parse("---\ncreated: 2026-10-31T23:40:12+01:00\n---\n")
     assert p.meta["created"] == "2026-10-31T23:40:12+01:00"
 
 
 def test_reorder_changes_body_hash_not_sections():
+    """Umsortieren ändert body_hash, nicht die Abschnitts-Hashes."""
     a = parse("## A\nx\n## B\ny\n")
     b = parse("## B\ny\n## A\nx\n")
     assert hashes.section_hashes(a) == hashes.section_hashes(b)
@@ -116,6 +166,7 @@ def test_reorder_changes_body_hash_not_sections():
 
 
 def test_short_and_matches():
+    """Kurz-Hash und Präfixvergleich."""
     h = sha("x")
     assert hashes.short(h) == h[:6]
     assert hashes.matches(h, h[:6].upper())
@@ -128,4 +179,7 @@ def test_short_and_matches():
      ("_preamble", "_preamble"), ("  Kontext / Begründung ", "Kontext / Begründung")],
 )
 def test_normalize_key_input(inp, key):
+    """Eingaben für section werden in Schlüssel umgewandelt."""
     assert normalize_key_input(inp) == key
+
+# Main ************************************************************************

@@ -1,13 +1,46 @@
-"""Schreibende Tools (Spezifikation 5.4, 6, 7.2, Tests aus 14)."""
+"""Schreibende Tools (Spezifikation 5.4, 6, 7.2, Tests aus 14).
 
+    Author: Achim0x
+"""
+
+# *****************************************************************************
+# Copyright (c) Achim0x - https://github.com/achim0x/
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://gnu.org>.
+
+# *****************************************************************************
+
+# Imports *********************************************************************
+
+from __future__ import annotations
+
+import asyncio
+import json
 import re
+import shutil
 
 import pytest
 
+from pkm import mcp_server
+from pkm.cli import main
+from pkm.config import Config
 from pkm.errors import PkmError
 from pkm.gitlayer import parse_message
+from pkm.service import Service
 
 from .conftest import git, write
+
+# Variables *******************************************************************
 
 BODY = """## Ergebnis
 Sensor wird ein Ultraschallsensor.
@@ -23,27 +56,56 @@ Sensor wird ein Ultraschallsensor.
 Diskussion im Chat.
 """
 
+# Classes *********************************************************************
+
+# Functions *******************************************************************
+
 
 def commits(env) -> list[str]:
+    """Alle Commit-Hashes.
+
+    Args:
+        env: Isolierte Umgebung.
+
+    Returns:
+        Hashes, neueste zuerst.
+    """
     return git(env, "log", "--format=%H").split()
 
 
 def last_commit(env) -> tuple[str, list[str], dict]:
+    """Nachricht, Dateien und PKM-Zeilen des letzten Commits.
+
+    Args:
+        env: Isolierte Umgebung.
+
+    Returns:
+        Tupel aus (Nachricht, Dateien, PKM-Zeilen).
+    """
     body = git(env, "log", "-1", "--format=%B")
     files = git(env, "show", "--name-only", "--format=", "HEAD").split()
     _subject, _note, trailers = parse_message(body)
     return body, files, trailers
 
 
-@pytest.fixture
-def doc(svc):
+@pytest.fixture(name="doc")
+def fixture_doc(svc):
+    """Per Chat angelegtes Dokument mit den vier Standardabschnitten.
+
+    Args:
+        svc: Dienst.
+
+    Returns:
+        Rückgabe von ``create_document``.
+    """
     res = svc.create_document(title="Zisterne – Überlaufsensor", content=BODY, topics=["zisterne"],
                               context="Chat: Füllstand", note=None)
     return res
 
 
-# ------------------------------------------------------------ create_document
+# create_document *************************************************************
 def test_create(doc, svc, isolated_env, cfg):
+    """create_document legt v1 im Eingang an und committet nur diese Datei."""
     assert doc["status"] == "created" and doc["version"] == 1
     assert re.fullmatch(r"documents/_inbox/\d{4}-\d{2}-\d{2}_zisterne-ueberlaufsensor\.md", doc["path"])
     r = svc.read(doc["path"])
@@ -61,6 +123,7 @@ def test_create(doc, svc, isolated_env, cfg):
 
 
 def test_create_strips_frontmatter_and_suffixes(svc):
+    """Mitgeliefertes Frontmatter wird entfernt, gleiche Namen bekommen ein Suffix."""
     a = svc.create_document(title="Gleich", content="---\nid: fremd\n---\nText\n")
     b = svc.create_document(title="Gleich", content="Text 2")
     assert a["path"] != b["path"] and b["path"].endswith("_gleich-2.md")
@@ -68,6 +131,7 @@ def test_create_strips_frontmatter_and_suffixes(svc):
 
 
 def test_create_related_and_correction(svc, cfg, doc):
+    """related wird als Wikilink gespeichert, kind correction ist möglich."""
     write(cfg, "wiki/topics/regen.md", "---\ntype: topic\n---\n> Kurz\n")
     res = svc.create_document(title="Korrektur Regen", content="Falsch: x. Richtig: y.", kind="correction",
                               related=["[[wiki/topics/regen]]", f"id:{doc['id']}"])
@@ -81,10 +145,9 @@ def test_create_related_and_correction(svc, cfg, doc):
     assert e.value.status == "not_found"
 
 
-def test_create_too_large(svc, isolated_env, monkeypatch):
-    from pkm.config import Config
-    from pkm.service import Service
-
+@pytest.mark.usefixtures("svc", "isolated_env")
+def test_create_too_large(monkeypatch):
+    """Zu große Inhalte werden abgelehnt."""
     monkeypatch.setenv("PKM_MAX_KB", "1")
     with pytest.raises(PkmError) as e:
         Service(Config.from_env()).create_document(title="Groß", content="x" * 2000)
@@ -92,17 +155,20 @@ def test_create_too_large(svc, isolated_env, monkeypatch):
 
 
 def test_create_platform_safe_name(svc):
+    """Dateinamen aus Titeln sind plattformfest."""
     res = svc.create_document(title='CON: a/b*c?"d"<e>|', content="x")
     name = res["path"].rsplit("/", 1)[1]
     assert not re.search(r'[\\:*?"<>|]', name) and len(name) <= 120
 
 
 def test_slug_windows_reserved(svc):
+    """Reservierte Windows-Namen werden umgangen."""
     assert svc.create_document(title="NUL", content="x")["path"].endswith("_nul-doc.md")
 
 
-# ----------------------------------------------------------- Grundregeln
+# Grundregeln *****************************************************************
 def test_every_change_one_version_one_commit(doc, svc, isolated_env):
+    """Jede Änderung erhöht die Version um 1 und erzeugt genau einen Commit."""
     n = len(commits(isolated_env))
     r = svc.edit_document(target=f"id:{doc['id']}", old="Kabelweg", new="Kabelweg prüfen",
                           expected_hash=doc["new_hash"], note=None)
@@ -118,6 +184,7 @@ def test_every_change_one_version_one_commit(doc, svc, isolated_env):
 
 
 def test_hash_conflict(doc, svc):
+    """Ein falscher oder fehlender expected_hash ergibt conflict."""
     with pytest.raises(PkmError) as e:
         svc.edit_document(target=doc["path"], old="Kabelweg", new="x", expected_hash="0" * 64)
     assert e.value.status == "conflict" and e.value.data["current_hash"] == doc["new_hash"]
@@ -127,6 +194,7 @@ def test_hash_conflict(doc, svc):
 
 
 def test_other_open_changes_untouched(doc, svc, cfg, isolated_env):
+    """Offene Änderungen anderer Dateien bleiben unberührt."""
     write(cfg, "documents/andere.md", "offen\n")
     (cfg.root / "CLAUDE.md").write_text("geändert\n")
     svc.edit_document(target=doc["path"], old="Kabelweg", new="Kabel", expected_hash=doc["new_hash"])
@@ -136,12 +204,14 @@ def test_other_open_changes_untouched(doc, svc, cfg, isolated_env):
 
 @pytest.mark.parametrize("target", ["wiki/index.md", "CLAUDE.md", "../x.md", "/etc/passwd"])
 def test_forbidden_targets(svc, target):
+    """Ziele außerhalb von documents/ werden abgelehnt."""
     with pytest.raises(PkmError) as e:
         svc.edit_document(target=target, old="a", new="b", expected_hash="x")
     assert e.value.status in ("forbidden", "not_found", "invalid_path")
 
 
 def test_wiki_forbidden(svc, cfg):
+    """Wiki-Seiten sind aus Chats nicht änderbar."""
     write(cfg, "wiki/topics/t.md", "---\ntype: topic\n---\nText\n")
     h = svc.read("wiki/topics/t")["hash"]
     for call in (
@@ -155,6 +225,7 @@ def test_wiki_forbidden(svc, cfg):
 
 
 def test_pdf_forbidden(svc, cfg):
+    """Nicht-Markdown-Dateien sind nicht änderbar."""
     write(cfg, "documents/a.pdf", "%PDF")
     with pytest.raises(PkmError) as e:
         svc.edit_document(target="documents/a.pdf", old="a", new="b", expected_hash="x")
@@ -162,6 +233,7 @@ def test_pdf_forbidden(svc, cfg):
 
 
 def test_invalid_frontmatter_refused(svc, cfg):
+    """Dateien mit ungültigem Frontmatter werden nicht geändert."""
     write(cfg, "documents/k.md", "---\ntitle: [x\n---\nText\n")
     h = svc.read("documents/k.md")["hash"]
     with pytest.raises(PkmError) as e:
@@ -169,9 +241,9 @@ def test_invalid_frontmatter_refused(svc, cfg):
     assert e.value.status == "invalid_frontmatter"
 
 
-def test_without_git_writes_refused_reads_work(isolated_env, cfg, svc, doc):
-    import shutil
-
+@pytest.mark.usefixtures("isolated_env")
+def test_without_git_writes_refused_reads_work(cfg, svc, doc):
+    """Ohne Git sind Schreibtools gesperrt, Lesen und Suche gehen weiter."""
     shutil.rmtree(cfg.git_dir)
     with pytest.raises(PkmError) as e:
         svc.create_document(title="x", content="y")
@@ -181,6 +253,7 @@ def test_without_git_writes_refused_reads_work(isolated_env, cfg, svc, doc):
 
 
 def test_commit_failure_restores_file(doc, svc, cfg):
+    """Schlägt der Commit fehl, wird die Datei zurückgesetzt."""
     before = (cfg.root / doc["path"]).read_bytes()
     hook = cfg.git_dir / "hooks" / "pre-commit"
     hook.parent.mkdir(exist_ok=True)
@@ -196,13 +269,15 @@ def test_commit_failure_restores_file(doc, svc, cfg):
 
 
 def test_unchanged_no_commit(doc, svc, isolated_env):
+    """Eine Änderung ohne Wirkung ergibt unchanged ohne Commit."""
     n = len(commits(isolated_env))
     r = svc.edit_document(target=doc["path"], old="Kabelweg", new="Kabelweg", expected_hash=doc["new_hash"])
     assert r["status"] == "unchanged" and r["version"] == 1 and len(commits(isolated_env)) == n
 
 
-# ------------------------------------------------- Änderungen von Hand (5.4)
+# Änderungen von Hand (5.4) ***************************************************
 def test_hand_edit_committed_first(doc, svc, cfg, isolated_env):
+    """Eine Änderung von Hand wird vorher als eigene Version committet."""
     p = cfg.root / doc["path"]
     p.write_text(p.read_text(encoding="utf-8").replace("Kabelweg", "Kabelweg (von Hand)"), encoding="utf-8")
     h = svc.read(doc["path"])["hash"]
@@ -216,7 +291,9 @@ def test_hand_edit_committed_first(doc, svc, cfg, isolated_env):
     assert "Kabelweg (von Hand)" in svc.read(f"id:{doc['id']}", version=2)["content"]
 
 
-def test_hand_document_without_id_gets_id(svc, cfg, isolated_env):
+@pytest.mark.usefixtures("isolated_env")
+def test_hand_document_without_id_gets_id(svc, cfg):
+    """Ein Dokument ohne ID bekommt vor der Änderung ID und Version 1."""
     write(cfg, "documents/haus/eigen.md", "# Eigen\n\nText\n")
     h = svc.read("documents/haus/eigen.md")["hash"]
     r = svc.append_to_document(target="[[eigen]]", text="Mehr", expected_hash=h)
@@ -228,6 +305,7 @@ def test_hand_document_without_id_gets_id(svc, cfg, isolated_env):
 
 
 def test_hand_move_then_edit(doc, svc, cfg, isolated_env):
+    """Ein von Hand verschobenes Dokument wird ohne Versionssprung als moved committet."""
     (cfg.root / "documents/haus").mkdir()
     (cfg.root / doc["path"]).rename(cfg.root / "documents/haus/sensor.md")
     h = svc.read(f"id:{doc['id']}")["hash"]
@@ -238,8 +316,9 @@ def test_hand_move_then_edit(doc, svc, cfg, isolated_env):
     assert git(isolated_env, "status", "--porcelain").strip() == ""
 
 
-# ---------------------------------------------------------- rewrite_document
+# rewrite_document ************************************************************
 def test_rewrite(doc, svc):
+    """rewrite_document ersetzt den Inhalt und behält das Frontmatter."""
     new = BODY.replace("Ultraschallsensor", "Schwimmerschalter").replace("- Kabelweg\n", "")
     r = svc.rewrite_document(target=doc["path"], content=new, expected_hash=doc["new_hash"],
                              note="Sensor: Schwimmerschalter statt Ultraschall")
@@ -250,6 +329,7 @@ def test_rewrite(doc, svc):
 
 
 def test_rewrite_large_shortening(doc, svc):
+    """Starke Kürzung erfordert confirm_shortening."""
     with pytest.raises(PkmError) as e:
         svc.rewrite_document(target=doc["path"], content="## Ergebnis\nKurz.\n", expected_hash=doc["new_hash"])
     assert e.value.status == "large_shortening"
@@ -260,20 +340,24 @@ def test_rewrite_large_shortening(doc, svc):
 
 
 def test_rewrite_missing_section_only(doc, svc):
+    """Auch ein einzelner fehlender Abschnitt löst large_shortening aus."""
     new = BODY.replace("## Kontext / Begründung", "## Hintergrund")
     with pytest.raises(PkmError) as e:
         svc.rewrite_document(target=doc["path"], content=new, expected_hash=doc["new_hash"])
     assert e.value.data["missing_sections"] == ["Kontext / Begründung"]
 
 
-# ------------------------------------------------------- append_to_document
-def test_append_existing_section(doc, svc, cfg):
+# append_to_document **********************************************************
+@pytest.mark.usefixtures("cfg")
+def test_append_existing_section(doc, svc):
+    """append_to_document fügt am Ende eines Abschnitts ein."""
     svc.append_to_document(target=doc["path"], text="- Neu", expected_hash=doc["new_hash"], section="Offene Punkte")
     body = svc.read(doc["path"])["content"]
     assert "- Kabelweg\n\n- Neu\n\n## Kontext / Begründung" in body
 
 
 def test_append_new_section_and_end(doc, svc):
+    """Neuer Abschnitt bzw. Dateiende."""
     r = svc.append_to_document(target=doc["path"], text="Text A", expected_hash=doc["new_hash"], section="Quellen")
     assert svc.read(doc["path"])["content"].endswith("Diskussion im Chat.\n\n## Quellen\n\nText A\n")
     svc.append_to_document(target=doc["path"], text="Ende", expected_hash=r["new_hash"])
@@ -281,6 +365,7 @@ def test_append_new_section_and_end(doc, svc):
 
 
 def test_append_preamble(svc):
+    """Einfügen in den Vorspann, auch wenn es keinen gibt."""
     d = svc.create_document(title="Vorspann", content="Einleitung\n\n## A\nx\n")
     svc.append_to_document(target=d["path"], text="Zusatz", expected_hash=d["new_hash"], section="_preamble")
     assert svc.read(d["path"])["content"] == "\nEinleitung\n\nZusatz\n\n## A\nx\n"
@@ -290,6 +375,7 @@ def test_append_preamble(svc):
 
 
 def test_append_duplicates(svc):
+    """Doppelte Abschnitte verlangen den Schlüssel mit Suffix."""
     d = svc.create_document(title="Dup", content="## Notizen\na\n## Notizen\nb\n")
     with pytest.raises(PkmError) as e:
         svc.append_to_document(target=d["path"], text="c", expected_hash=d["new_hash"], section="Notizen")
@@ -298,8 +384,9 @@ def test_append_duplicates(svc):
     assert svc.read(d["path"])["content"] == "\n## Notizen\na\n## Notizen\nb\n\nc\n"
 
 
-# ------------------------------------------------------------ edit_document
+# edit_document ***************************************************************
 def test_edit_not_found_and_ambiguous(svc):
+    """Fehlende oder mehrfache Textstellen werden gemeldet."""
     d = svc.create_document(title="E", content="a a\n")
     with pytest.raises(PkmError) as e:
         svc.edit_document(target=d["path"], old="b", new="c", expected_hash=d["new_hash"])
@@ -310,6 +397,7 @@ def test_edit_not_found_and_ambiguous(svc):
 
 
 def test_edit_outside_frontmatter_only(svc):
+    """edit_document ändert nichts im Frontmatter."""
     d = svc.create_document(title="Titelwort", content="Text\n")
     with pytest.raises(PkmError) as e:
         svc.edit_document(target=d["path"], old="Titelwort", new="x", expected_hash=d["new_hash"])
@@ -317,6 +405,7 @@ def test_edit_outside_frontmatter_only(svc):
 
 
 def test_edit_crlf_and_nfd_input(svc):
+    """CRLF- und NFD-Eingaben werden normalisiert."""
     d = svc.create_document(title="Norm", content="Zeile eins\nÜber zwei\n")
     r = svc.edit_document(target=d["path"], old="Zeile eins\r\nÜber", new="Neu\r\nÜber",
                           expected_hash=d["new_hash"])
@@ -325,12 +414,14 @@ def test_edit_crlf_and_nfd_input(svc):
 
 
 def test_edit_empty_new_deletes(doc, svc):
+    """Ein leeres new löscht die Textstelle."""
     svc.edit_document(target=doc["path"], old="- Kabelweg\n", new="", expected_hash=doc["new_hash"])
     assert "Kabelweg" not in svc.read(doc["path"])["content"]
 
 
-# ------------------------------------------------------- update_frontmatter
+# update_frontmatter **********************************************************
 def test_update_frontmatter(doc, svc):
+    """set, add und remove ändern das Frontmatter."""
     r = svc.update_frontmatter(target=doc["path"], expected_hash=doc["new_hash"],
                                set={"title": "Neuer Titel"}, add={"topics": ["sensor", "zisterne"]},
                                remove=["context"])
@@ -342,17 +433,20 @@ def test_update_frontmatter(doc, svc):
 
 @pytest.mark.parametrize("field", ["id", "version", "created", "updated"])
 def test_update_frontmatter_protected(doc, svc, field):
+    """Geschützte Felder lassen sich nicht ändern."""
     with pytest.raises(PkmError) as e:
         svc.update_frontmatter(target=doc["path"], expected_hash=doc["new_hash"], set={field: "x"})
     assert e.value.status == "protected_field"
 
 
 def test_update_frontmatter_add_to_scalar(doc, svc):
+    """An Felder, die keine Liste sind, kann nichts angehängt werden."""
     with pytest.raises(PkmError):
         svc.update_frontmatter(target=doc["path"], expected_hash=doc["new_hash"], add={"title": ["x"]})
 
 
 def test_server_fields_linewise_keep_comments(svc, cfg):
+    """Kommentare im Frontmatter überstehen eine Änderung."""
     write(cfg, "documents/k.md", "---\ntitle: K  # mein Kommentar\n---\nText\n")
     h = svc.read("documents/k.md")["hash"]
     svc.edit_document(target="documents/k.md", old="Text", new="Neu", expected_hash=h)
@@ -360,8 +454,10 @@ def test_server_fields_linewise_keep_comments(svc, cfg):
     assert "title: K  # mein Kommentar" in text and "version: 2" in text
 
 
-# --------------------------------------------------------- restore_document
-def test_restore(doc, svc, isolated_env):
+# restore_document ************************************************************
+@pytest.mark.usefixtures("isolated_env")
+def test_restore(doc, svc):
+    """restore_document holt eine alte Version als neue Version zurück."""
     r2 = svc.edit_document(target=doc["path"], old="Kabelweg", new="Kabel", expected_hash=doc["new_hash"])
     r3 = svc.restore_document(target=doc["path"], version=1, expected_hash=r2["new_hash"])
     assert r3["version"] == 3 and "Kabelweg" in svc.read(doc["path"])["content"]
@@ -372,10 +468,8 @@ def test_restore(doc, svc, isolated_env):
 
 
 def test_cli_restore(doc, svc, capsys):
-    import json
 
-    from pkm.cli import main
-
+    """pkm restore committet mit Quelle user."""
     svc.edit_document(target=doc["path"], old="Kabelweg", new="Kabel", expected_hash=doc["new_hash"])
     assert main(["restore", doc["path"], "--version", "1"]) == 0
     out = json.loads(capsys.readouterr().out)
@@ -383,22 +477,19 @@ def test_cli_restore(doc, svc, capsys):
     assert svc.history(doc["path"])["versions"][-1]["source"] == "user"
 
 
-# ---------------------------------------------------------------- MCP-Tools
-def test_mcp_write_tools_registered(cfg):
-    import asyncio
+# MCP-Tools *******************************************************************
+@pytest.mark.usefixtures("cfg")
+def test_mcp_write_tools_registered():
 
-    from pkm import mcp_server
-
+    """Alle schreibenden Tools sind registriert."""
     names = {t.name for t in asyncio.run(mcp_server.build_server().list_tools())}
     assert {"create_document", "rewrite_document", "append_to_document", "edit_document",
             "update_frontmatter", "restore_document"} <= names
 
 
 def test_mcp_call_create_and_conflict(cfg):
-    import asyncio
 
-    from pkm import mcp_server
-
+    """Aufruf über den Server: Anlegen klappt, falscher Hash ergibt conflict."""
     mcp_server.reset_service()
     server = mcp_server.build_server()
     out = asyncio.run(server.call_tool("create_document", {"title": "Per MCP", "content": "Hallo"}))
@@ -410,3 +501,5 @@ def test_mcp_call_create_and_conflict(cfg):
     log = cfg.log_path.read_text(encoding="utf-8")
     assert '"tool": "create_document"' in log and '"status": "conflict"' in log
     mcp_server.reset_service()
+
+# Main ************************************************************************

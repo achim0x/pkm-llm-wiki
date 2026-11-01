@@ -6,14 +6,18 @@ build-backend = "hatchling.build"
 name = "pkm-tools"
 version = "0.1.0"
 description = "PKM mit LLM-Wiki: MCP-Server und CLI"
+readme = "README.md"
 requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Achim0x" }]
 dependencies = [
     "mcp>=1.2",
     "pyyaml>=6",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-cov", "ruff"]
+dev = ["pytest>=8", "pytest-cov", "ruff", "pylint>=3"]
 
 [project.scripts]
 pkm = "pkm.cli:main"
@@ -27,7 +31,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]

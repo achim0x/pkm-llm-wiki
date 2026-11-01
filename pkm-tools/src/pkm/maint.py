@@ -1,4 +1,26 @@
-"""Pflege-Befehle der CLI (Spezifikation 8): ids, versions, pending, mark, sha, commit-wiki."""
+"""Pflege-Befehle der CLI (Spezifikation 8): ids, versions, pending, mark, sha, commit-wiki.
+
+    Author: Achim0x
+"""
+
+# *****************************************************************************
+# Copyright (c) Achim0x - https://github.com/achim0x/
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://gnu.org>.
+
+# *****************************************************************************
+
+# Imports *********************************************************************
 
 from __future__ import annotations
 
@@ -22,25 +44,38 @@ from .vault import Doc, is_markdown, load_text_doc
 if TYPE_CHECKING:
     from .service import Service
 
+# Variables *******************************************************************
+
 WIKI_COMMIT_PATHS = ["wiki", ".pkm/state.json"]
+PENDING_CATEGORIES = ("new", "changed", "meta_changed", "moved", "deleted")
 
-
-def page_ref(rel: str) -> str:
-    """Wiki-Seite als Verweis ohne Endung (wie in state.json)."""
-    return rel[:-3] if rel.lower().endswith(".md") else rel
+# Classes *********************************************************************
 
 
 class Maintenance:
+    """Pflege-Befehle für den Pflege-Agenten (CLI)."""
+
     def __init__(self, svc: Service) -> None:
+        """Pflege-Befehle anlegen.
+
+        Args:
+            svc: Dienst mit Konfiguration, Vault, Git und Writer.
+        """
         self.svc = svc
         self.cfg = svc.cfg
         self.vault = svc.vault
         self.git = svc.git
         self.writer = svc.writer
 
-    # ------------------------------------------------------------ Bestand
+    # Bestand ******************************************************************
+
     def documents(self) -> tuple[list[Doc], list[dict[str, Any]]]:
-        """Alle Dateien unter documents/ (ohne Konfliktkopien) und gefundene Probleme."""
+        """Alle Dateien unter ``documents/`` laden (ohne Konfliktkopien).
+
+        Returns:
+            Tupel aus (Dokumente, Probleme wie Konfliktkopien, unlesbare Dateien,
+            Groß-/Kleinschreibungs-Kollisionen).
+        """
         docs: list[Doc] = []
         problems: list[dict[str, Any]] = []
         rels = list(self.vault.iter_files(("documents",)))
@@ -56,44 +91,43 @@ class Maintenance:
             if doc.error:
                 problems.append({"problem": doc.error, "path": rel, "message": doc.error_message})
             docs.append(doc)
-        for group in case_collisions(rels):
-            problems.append({"problem": "case_collision", "paths": group})
+        problems.extend({"problem": "case_collision", "paths": group} for group in case_collisions(rels))
         return docs, problems
 
     @staticmethod
     def duplicate_ids(docs: list[Doc]) -> dict[str, list[str]]:
+        """Doppelt vergebene IDs finden.
+
+        Args:
+            docs: Dokumente.
+
+        Returns:
+            ID → sortierte Pfade, nur für IDs mit mehreren Dateien.
+        """
         by_id: dict[str, list[str]] = defaultdict(list)
         for d in docs:
             if d.id:
                 by_id[d.id].append(d.rel)
         return {i: sorted(p) for i, p in by_id.items() if len(p) > 1}
 
-    # ---------------------------------------------------------------- ids
+    # ids **********************************************************************
+
     def ids(self) -> dict[str, Any]:
+        """``pkm ids``: fehlende ``id``/``version`` eintragen, je Dokument ein Commit.
+
+        Returns:
+            Vergebene IDs, doppelte IDs, übersprungene Dateien und Probleme.
+        """
         with self.writer.lock():
             self.git.require_ok()
             docs, problems = self.documents()
             known = {d.id for d in docs if d.id}
             assigned, skipped = [], []
             for doc in docs:
-                if doc.kind != "md":
-                    continue
-                if doc.error:
+                if doc.kind == "md" and doc.error:
                     skipped.append({"path": doc.rel, "reason": doc.error})
-                    continue
-                if doc.id and doc.version is not None:
-                    continue
-                fields: dict[str, Any] = {}
-                doc_id = doc.id
-                if not doc_id:
-                    doc_id = new_id(self.svc.now(), exists=lambda i: i in known)
-                    known.add(doc_id)
-                    fields["id"] = doc_id
-                fields["version"] = 1
-                text = set_fields_linewise(doc.text or "", fields)
-                msg = build_message(doc.title, "v1", "ID vergeben", doc_id, 1, "agent")
-                sha = self.writer.write_and_commit(doc.rel, text, msg)
-                assigned.append({"path": doc.rel, "id": doc_id, "commit": sha[:10]})
+                elif doc.kind == "md" and (not doc.id or doc.version is None):
+                    assigned.append(self._assign_id(doc, known))
             dups = self.duplicate_ids(self.documents()[0])
         return {
             "status": "ok",
@@ -103,9 +137,39 @@ class Maintenance:
             "problems": problems,
         }
 
-    # ----------------------------------------------------------- versions
+    def _assign_id(self, doc: Doc, known: set[str]) -> dict[str, Any]:
+        """ID (falls nötig) und Version 1 eintragen und committen (``PKM-Source: agent``).
+
+        Args:
+            doc: Dokument ohne ID oder Version.
+            known: Bereits vergebene IDs; die neue ID wird ergänzt.
+
+        Returns:
+            Pfad, ID und Commit.
+        """
+        fields: dict[str, Any] = {}
+        doc_id = doc.id
+        if not doc_id:
+            doc_id = new_id(self.svc.now(), exists=lambda i: i in known)
+            known.add(doc_id)
+            fields["id"] = doc_id
+        fields["version"] = 1
+        text = set_fields_linewise(doc.text or "", fields)
+        msg = build_message(doc.title, "v1", "ID vergeben", doc_id, 1, "agent")
+        sha = self.writer.write_and_commit(doc.rel, text, msg)
+        return {"path": doc.rel, "id": doc_id, "commit": sha[:10]}
+
+    # versions *****************************************************************
+
     def versions(self) -> dict[str, Any]:
-        """Von Hand geänderte Dokumente als Version committen (5.4), Verschiebungen mit."""
+        """``pkm versions``: von Hand geänderte Dokumente als Version committen (5.4).
+
+        Verschiebungen werden mit committet; Anhänge und gelöschte Dateien ebenfalls, damit
+        der Arbeitsbaum sauber bleibt.
+
+        Returns:
+            Committete und übersprungene Dateien.
+        """
         with self.writer.lock():
             self.git.require_ok()
             entries = self.git.status_entries("documents")
@@ -115,58 +179,105 @@ class Maintenance:
             skipped: list[dict[str, Any]] = []
             dups = self.duplicate_ids(self.documents()[0])
             handled: set[str] = set()
-            # 1. Markdown-Dokumente mit ID (inkl. Verschiebungen per ID)
             for rel in sorted(dirty - deleted):
-                if not is_markdown(rel) or not self.vault.exists(rel):
-                    continue
-                if is_conflict_copy(PurePosixPath(rel).name):
-                    skipped.append({"path": rel, "reason": "conflict_copy"})
-                    continue
-                doc = self.vault.load(rel)
-                if doc.error:
-                    skipped.append({"path": rel, "reason": doc.error})
-                    continue
-                if not doc.id:
-                    skipped.append({"path": rel, "reason": "missing_id"})
-                    continue
-                if doc.id in dups:
-                    skipped.append({"path": rel, "reason": "duplicate_id"})
-                    continue
-                before = self.git.out("rev-parse", "HEAD").strip()
-                prev_paths = {c.path for c in self.svc.versions(doc.id) if c.path}
-                new_doc = self.writer.commit_user_state(doc)
-                after = self.git.out("rev-parse", "HEAD").strip()
-                if after != before:
-                    handled.add(rel)
-                    handled.update(p for p in prev_paths if p in deleted)
-                    subject = self.git.out("log", "-1", "--format=%s").strip()
-                    committed.append({"path": rel, "id": doc.id, "version": new_doc.version,
-                                      "subject": subject, "commit": after[:10]})
-            # 2. Anhänge (PDF, Bilder): neu, verschoben (per Hash), gelöscht
+                if is_markdown(rel) and self.vault.exists(rel):
+                    entry = self._version_markdown(rel, dups, skipped)
+                    if entry is not None:
+                        handled.add(rel)
+                        handled.update(p for p in entry.pop("prev_paths") if p in deleted)
+                        committed.append(entry)
             committed += self._commit_binaries(dirty - handled, deleted - handled, skipped)
-            # 3. Gelöschte Markdown-Dokumente
-            for rel in sorted(deleted - handled):
-                if not is_markdown(rel):
-                    continue
-                committed.append(self._commit_deleted(rel))
+            committed += [self._commit_deleted(rel) for rel in sorted(deleted - handled) if is_markdown(rel)]
         return {"status": "ok", "committed": committed, "skipped": skipped}
 
-    def _commit_deleted(self, rel: str) -> dict[str, Any]:
-        old = load_text_doc(rel, self.git.show_file("HEAD", rel))
-        title = old.title
-        if old.id:
-            msg = build_message(title, "deleted", f"gelöscht: {rel}", old.id, old.version or 1, "user")
+    def _skip_reason(self, rel: str, doc: Doc, dups: dict[str, list[str]]) -> str | None:
+        """Grund, ein Markdown-Dokument in ``versions`` zu überspringen.
+
+        Args:
+            rel: Relativer Pfad.
+            doc: Geladenes Dokument.
+            dups: Doppelte IDs.
+
+        Returns:
+            ``conflict_copy``, ``invalid_*``, ``missing_id``, ``duplicate_id`` oder ``None``.
+        """
+        reason = None
+        if is_conflict_copy(PurePosixPath(rel).name):
+            reason = "conflict_copy"
+        elif doc.error:
+            reason = doc.error
+        elif not doc.id:
+            reason = "missing_id"
+        elif doc.id in dups:
+            reason = "duplicate_id"
+        return reason
+
+    def _version_markdown(
+        self, rel: str, dups: dict[str, list[str]], skipped: list[dict[str, Any]]
+    ) -> dict[str, Any] | None:
+        """Ein geändertes Markdown-Dokument als Version committen.
+
+        Args:
+            rel: Relativer Pfad.
+            dups: Doppelte IDs.
+            skipped: Liste übersprungener Dateien (wird ergänzt).
+
+        Returns:
+            Eintrag für ``committed`` mit ``prev_paths`` (frühere Pfade) oder ``None``.
+        """
+        result = None
+        doc = self.vault.load(rel)
+        reason = self._skip_reason(rel, doc, dups)
+        if reason is not None:
+            skipped.append({"path": rel, "reason": reason})
         else:
-            msg = f"doc: {title} deleted\n\ngelöscht: {rel}\n\nPKM-Source: user\n"
+            assert doc.id is not None
+            before = self.git.out("rev-parse", "HEAD").strip()
+            prev_paths = {c.path for c in self.svc.versions(doc.id) if c.path}
+            new_doc = self.writer.commit_user_state(doc)
+            after = self.git.out("rev-parse", "HEAD").strip()
+            if after != before:
+                result = {
+                    "path": rel, "id": doc.id, "version": new_doc.version,
+                    "subject": self.git.out("log", "-1", "--format=%s").strip(), "commit": after[:10],
+                    "prev_paths": prev_paths,
+                }
+        return result
+
+    def _commit_deleted(self, rel: str) -> dict[str, Any]:
+        """Gelöschtes Markdown-Dokument committen.
+
+        Args:
+            rel: Pfad der gelöschten Datei.
+
+        Returns:
+            Eintrag für ``committed``.
+        """
+        old = load_text_doc(rel, self.git.show_file("HEAD", rel))
+        if old.id:
+            msg = build_message(old.title, "deleted", f"gelöscht: {rel}", old.id, old.version or 1, "user")
+        else:
+            msg = f"doc: {old.title} deleted\n\ngelöscht: {rel}\n\nPKM-Source: user\n"
         sha = self.git.commit_paths([rel], msg, as_user=True)
         return {"path": rel, "id": old.id, "deleted": True, "commit": sha[:10]}
 
-    def _commit_binaries(self, dirty: set[str], deleted: set[str], skipped: list) -> list[dict[str, Any]]:
+    def _commit_binaries(
+        self, dirty: set[str], deleted: set[str], skipped: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Anhänge committen: neu, per Hash verschoben oder gelöscht.
+
+        Args:
+            dirty: Geänderte Pfade (ohne bereits behandelte).
+            deleted: Gelöschte Pfade (ohne bereits behandelte).
+            skipped: Liste übersprungener Dateien (wird ergänzt).
+
+        Returns:
+            Einträge für ``committed``.
+        """
         out: list[dict[str, Any]] = []
-        old_hashes = {}
-        for rel in sorted(deleted):
-            if not is_markdown(rel):
-                old_hashes[rel] = hashes.sha256_bytes(self.git.show_file("HEAD", rel))
+        old_hashes = {
+            rel: hashes.sha256_bytes(self.git.show_file("HEAD", rel)) for rel in sorted(deleted) if not is_markdown(rel)
+        }
         for rel in sorted(dirty - deleted):
             if is_markdown(rel) or not self.vault.exists(rel):
                 continue
@@ -175,145 +286,217 @@ class Maintenance:
                 continue
             h = hashes.sha256_bytes(self.vault.path(rel).read_bytes())
             src = next((o for o, oh in old_hashes.items() if oh == h), None)
-            paths = [rel]
             if src:
-                paths.append(src)
                 del old_hashes[src]
-                note, label = f"verschoben: {src} → {rel}", "moved"
-            else:
-                note, label = "neu oder geändert", "added"
-            msg = f"file: {PurePosixPath(rel).name} {label}\n\n{note}\n\nPKM-Source: user\n"
-            sha = self.git.commit_paths(paths, msg, as_user=True)
-            out.append({"path": rel, "moved_from": src, "sha256": h, "commit": sha[:10]})
+            out.append(self._commit_binary(rel, src, h))
         for rel in sorted(old_hashes):
             msg = f"file: {PurePosixPath(rel).name} deleted\n\ngelöscht: {rel}\n\nPKM-Source: user\n"
-            sha = self.git.commit_paths([rel], msg, as_user=True)
-            out.append({"path": rel, "deleted": True, "commit": sha[:10]})
+            out.append({"path": rel, "deleted": True, "commit": self.git.commit_paths([rel], msg, as_user=True)[:10]})
         return out
 
-    # ------------------------------------------------------------ pending
+    def _commit_binary(self, rel: str, src: str | None, file_hash: str) -> dict[str, Any]:
+        """Einen neuen oder verschobenen Anhang committen.
+
+        Args:
+            rel: Neuer Pfad.
+            src: Alter Pfad bei einer Verschiebung, sonst ``None``.
+            file_hash: SHA-256 der Datei.
+
+        Returns:
+            Eintrag für ``committed``.
+        """
+        if src:
+            paths, note, label = [rel, src], f"verschoben: {src} → {rel}", "moved"
+        else:
+            paths, note, label = [rel], "neu oder geändert", "added"
+        msg = f"file: {PurePosixPath(rel).name} {label}\n\n{note}\n\nPKM-Source: user\n"
+        sha = self.git.commit_paths(paths, msg, as_user=True)
+        return {"path": rel, "moved_from": src, "sha256": file_hash, "commit": sha[:10]}
+
+    # pending ******************************************************************
+
     def pending(self) -> dict[str, Any]:
+        """``pkm pending``: zu verarbeitende Dokumente nach 4.8.
+
+        Returns:
+            Listen ``new``, ``changed``, ``meta_changed``, ``moved``, ``deleted`` sowie ``problems``
+            und ``counts``.
+        """
         docs, problems = self.documents()
-        state = load_state(self.cfg)
-        entries: dict[str, dict[str, Any]] = state["documents"]
+        entries: dict[str, dict[str, Any]] = load_state(self.cfg)["documents"]
         dups = self.duplicate_ids(docs)
-        for i, paths in dups.items():
-            problems.append({"problem": "duplicate_id", "id": i, "paths": paths})
-        result: dict[str, list] = {"new": [], "changed": [], "meta_changed": [], "moved": [], "deleted": []}
+        problems.extend({"problem": "duplicate_id", "id": i, "paths": paths} for i, paths in dups.items())
+        result: dict[str, list[dict[str, Any]]] = {c: [] for c in PENDING_CATEGORIES}
         present: set[str] = set()
         for doc in docs:
-            if doc.kind == "md" and doc.error:
-                continue
-            key = state_key(doc)
-            if doc.kind == "md" and not key:
-                result["new"].append({"id": None, "path": doc.rel, "title": doc.title, "missing_id": True})
-                continue
-            if key in dups:
-                entry = entries.get(key)
-                if not entry or entry.get("path") != doc.rel:
-                    continue  # Duplikat: nur die bekannte Fassung verarbeiten
-            assert key is not None
+            if not (doc.kind == "md" and doc.error):
+                self._pending_doc(doc, entries, dups, result, present)
+        result["deleted"] = _deleted_entries(entries, present)
+        result.pop("invalid", None)
+        counts = {k: len(v) for k, v in result.items()}
+        return {"status": "ok", **result, "problems": problems, "counts": counts}
+
+    @staticmethod
+    def _pending_doc(
+        doc: Doc,
+        entries: dict[str, dict[str, Any]],
+        dups: dict[str, list[str]],
+        result: dict[str, list[dict[str, Any]]],
+        present: set[str],
+    ) -> None:
+        """Ein Dokument für ``pending`` einordnen.
+
+        Args:
+            doc: Dokument.
+            entries: Einträge aus ``state.json``.
+            dups: Doppelte IDs; bei Duplikaten zählt nur die bekannte Fassung.
+            result: Ergebnislisten (werden ergänzt).
+            present: Gefundene Schlüssel (wird ergänzt).
+        """
+        key = state_key(doc)
+        entry = entries.get(key) if key else None
+        if doc.kind == "md" and not key:
+            result["new"].append({"id": None, "path": doc.rel, "title": doc.title, "missing_id": True})
+        elif key is not None and (key not in dups or (entry and entry.get("path") == doc.rel)):
             present.add(key)
-            entry = entries.get(key)
-            base = {"id": doc.id, "path": doc.rel, "title": doc.title}
+            base: dict[str, Any] = {"id": doc.id, "path": doc.rel, "title": doc.title}
             if doc.kind == "bin":
                 base = {"id": None, "key": key, "path": doc.rel, "title": doc.title}
             if entry and entry.get("path") and entry["path"] != doc.rel:
                 result["moved"].append({**base, "from": entry["path"], "to": doc.rel})
             info = classify(doc, entry)
-            if info is None:
-                continue
-            category = info.pop("category")
-            result.setdefault(category, []).append({**base, **info})
-        for key, entry in sorted(entries.items()):
-            if key in present:
-                continue
-            item = {"key": key, "path": entry.get("path"), "processed_version": entry.get("processed_version"),
-                    "wiki_pages": entry.get("wiki_pages", [])}
-            if not key.startswith("sha:"):
-                item["id"] = key
-            result["deleted"].append(item)
-        result.pop("invalid", None)
-        counts = {k: len(v) for k, v in result.items()}
-        return {"status": "ok", **result, "problems": problems, "counts": counts}
+            if info is not None:
+                category = info.pop("category")
+                result.setdefault(category, []).append({**base, **info})
 
-    # --------------------------------------------------------------- mark
+    # mark *********************************************************************
+
     def mark(self, targets: list[str], pages: list[str] | None = None, remove: bool = False) -> dict[str, Any]:
+        """``pkm mark``: Dokumente als verarbeitet in ``state.json`` eintragen.
+
+        Args:
+            targets: IDs, Pfade oder (mit ``remove``) Schlüssel wie ``sha:…``.
+            pages: Wiki-Seiten, die die Dokumente belegen.
+            remove: Einträge entfernen statt eintragen.
+
+        Returns:
+            Die eingetragenen bzw. entfernten Schlüssel.
+
+        Raises:
+            PkmError: ``not_found`` oder ``invalid_argument``.
+        """
         with self.writer.lock():
             state = load_state(self.cfg)
             docs_state: dict[str, Any] = state["documents"]
             page_refs = [page_ref(self.svc.resolve(p, ("wiki",))) for p in (pages or [])]
-            marked = []
-            for target in targets:
-                if remove:
-                    key = target[3:] if target.startswith("id:") else target
-                    if key not in docs_state:
-                        raise PkmError("not_found", f"Kein Eintrag in state.json: {target}")
-                    del docs_state[key]
-                    marked.append({"key": key, "removed": True})
-                    continue
-                ref = f"id:{target}" if is_valid_id(target) else target
-                doc = self.vault.load(self.svc.resolve(ref, ("documents",)))
-                if doc.kind == "md" and (doc.error or not doc.id or doc.hashes is None):
-                    raise PkmError("invalid_argument", f"{doc.rel} hat keine gültige ID/Frontmatter.", path=doc.rel)
-                key = state_key(doc)
-                assert key is not None
-                old = docs_state.get(key, {})
-                wiki_pages = list(dict.fromkeys([*old.get("wiki_pages", []), *page_refs]))
-                now = self.svc.now().isoformat(timespec="seconds")
-                if doc.kind == "bin":
-                    entry = {"path": doc.rel, "processed_at": now, "wiki_pages": wiki_pages}
-                else:
-                    assert doc.hashes is not None
-                    entry = {
-                        "path": doc.rel,
-                        "processed_version": doc.version,
-                        "file_hash": doc.hashes.file_hash,
-                        "body_hash": doc.hashes.body_hash,
-                        "meta_hash": doc.hashes.meta_hash,
-                        "sections": dict(doc.hashes.sections),
-                        "processed_at": now,
-                        "wiki_pages": wiki_pages,
-                    }
-                docs_state[key] = entry
-                marked.append({"key": key, "path": doc.rel, "version": entry.get("processed_version")})
+            marked = [
+                _remove_entry(docs_state, t) if remove else self._mark_entry(docs_state, t, page_refs) for t in targets
+            ]
             self.save_state(state)
         return {"status": "ok", "marked": marked}
 
+    def _mark_entry(self, docs_state: dict[str, Any], target: str, page_refs: list[str]) -> dict[str, Any]:
+        """Ein Dokument mit Version und Hashes eintragen.
+
+        Args:
+            docs_state: ``documents`` aus ``state.json`` (wird geändert).
+            target: ID oder Pfad.
+            page_refs: Wiki-Seiten (werden mit vorhandenen zusammengeführt).
+
+        Returns:
+            Schlüssel, Pfad und verarbeitete Version.
+
+        Raises:
+            PkmError: ``invalid_argument`` bei Markdown ohne gültige ID.
+        """
+        ref = f"id:{target}" if is_valid_id(target) else target
+        doc = self.vault.load(self.svc.resolve(ref, ("documents",)))
+        key = state_key(doc)
+        if key is None or (doc.kind == "md" and (doc.error or doc.hashes is None)):
+            raise PkmError("invalid_argument", f"{doc.rel} hat keine gültige ID/Frontmatter.", path=doc.rel)
+        wiki_pages = list(dict.fromkeys([*docs_state.get(key, {}).get("wiki_pages", []), *page_refs]))
+        now = self.svc.now().isoformat(timespec="seconds")
+        entry: dict[str, Any] = {"path": doc.rel, "processed_at": now, "wiki_pages": wiki_pages}
+        if doc.hashes is not None:
+            entry = {
+                "path": doc.rel,
+                "processed_version": doc.version,
+                "file_hash": doc.hashes.file_hash,
+                "body_hash": doc.hashes.body_hash,
+                "meta_hash": doc.hashes.meta_hash,
+                "sections": dict(doc.hashes.sections),
+                "processed_at": now,
+                "wiki_pages": wiki_pages,
+            }
+        docs_state[key] = entry
+        return {"key": key, "path": doc.rel, "version": entry.get("processed_version")}
+
     def save_state(self, state: dict[str, Any]) -> None:
+        """``state.json`` atomar schreiben (Einträge sortiert).
+
+        Args:
+            state: Verarbeitungsstand.
+        """
         state["version"] = FORMAT
         state["documents"] = dict(sorted(state["documents"].items()))
-        text = json.dumps(state, ensure_ascii=False, indent=2) + "\n"
         p = self.cfg.state_path
         p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_name(".state.json.tmp")
-        tmp.write_bytes(encode(text))
+        tmp.write_bytes(encode(json.dumps(state, ensure_ascii=False, indent=2) + "\n"))
         os.replace(tmp, p)
 
-    # ---------------------------------------------------------------- sha
+    # sha **********************************************************************
+
     def sha(self, target: str, section: str | None = None, full: bool = False) -> dict[str, Any]:
+        """``pkm sha``: Hashes nach 4.8.
+
+        Args:
+            target: Dokument oder Anhang.
+            section: Abschnittsschlüssel; ohne Angabe alle Hashes.
+            full: Volle Hashes statt sechs Zeichen.
+
+        Returns:
+            Bei Anhängen ``file_hash``; mit ``section`` ``id``, ``version``, ``sha``; sonst alle
+            Abschnitts-Hashes sowie ``body_hash``, ``meta_hash`` und ``file_hash``.
+
+        Raises:
+            PkmError: Bei unlesbaren Dateien oder unbekanntem Abschnitt (``not_found``).
+        """
         doc = self.svc.load(target)
         cut = (lambda h: h) if full else hashes.short
         if doc.kind == "bin":
-            return {"status": "ok", "path": doc.rel, "file_hash": cut(doc.bin_hash or "")}
-        if doc.hashes is None:
+            result: dict[str, Any] = {"status": "ok", "path": doc.rel, "file_hash": cut(doc.bin_hash or "")}
+        elif doc.hashes is None:
             raise PkmError(doc.error or "invalid_encoding", doc.error_message or "Datei nicht lesbar.")
-        if section is not None:
+        elif section is not None:
             key = normalize_key_input(section)
             if key not in doc.hashes.sections:
-                raise PkmError("not_found", f"Abschnitt nicht gefunden: {section}",
-                               sections=list(doc.hashes.sections))
-            return {"status": "ok", "path": doc.rel, "id": doc.id, "version": doc.version,
-                    "section": key, "sha": cut(doc.hashes.sections[key])}
-        return {
-            "status": "ok", "path": doc.rel, "id": doc.id, "version": doc.version,
-            "sections": {k: cut(v) for k, v in doc.hashes.sections.items()},
-            "body_hash": cut(doc.hashes.body_hash), "meta_hash": cut(doc.hashes.meta_hash),
-            "file_hash": cut(doc.hashes.file_hash),
-        }
+                raise PkmError("not_found", f"Abschnitt nicht gefunden: {section}", sections=list(doc.hashes.sections))
+            result = {"status": "ok", "path": doc.rel, "id": doc.id, "version": doc.version,
+                      "section": key, "sha": cut(doc.hashes.sections[key])}
+        else:
+            result = {
+                "status": "ok", "path": doc.rel, "id": doc.id, "version": doc.version,
+                "sections": {k: cut(v) for k, v in doc.hashes.sections.items()},
+                "body_hash": cut(doc.hashes.body_hash), "meta_hash": cut(doc.hashes.meta_hash),
+                "file_hash": cut(doc.hashes.file_hash),
+            }
+        return result
 
-    # -------------------------------------------------------- commit-wiki
+    # commit-wiki **************************************************************
+
     def commit_wiki(self, message: str) -> dict[str, Any]:
+        """``pkm commit-wiki``: Agenten-Commit nur für ``wiki/`` und ``.pkm/state.json``.
+
+        Args:
+            message: Commit-Betreff; ``pkm:`` wird ergänzt, falls es fehlt.
+
+        Returns:
+            ``status: ok`` mit Commit und Dateien oder ``status: unchanged``.
+
+        Raises:
+            PkmError: ``invalid_argument`` ohne Nachricht, ``git_unavailable``.
+        """
         message = " ".join((message or "").split())
         if not message:
             raise PkmError("invalid_argument", "--message fehlt.")
@@ -322,8 +505,66 @@ class Maintenance:
         with self.writer.lock():
             self.git.require_ok()
             paths = [p for p in WIKI_COMMIT_PATHS if (self.cfg.root / p).exists()]
-            if not self.git.has_changes(*paths):
-                return {"status": "unchanged", "commit": None}
-            files = [p for _xy, p in self.git.status_entries(*paths)]
-            sha = self.git.commit_paths(paths, f"{message}\n\nPKM-Source: agent\n")
-        return {"status": "ok", "commit": sha[:10], "files": files}
+            result: dict[str, Any] = {"status": "unchanged", "commit": None}
+            if self.git.has_changes(*paths):
+                files = [p for _xy, p in self.git.status_entries(*paths)]
+                sha = self.git.commit_paths(paths, f"{message}\n\nPKM-Source: agent\n")
+                result = {"status": "ok", "commit": sha[:10], "files": files}
+        return result
+
+# Functions *******************************************************************
+
+
+def page_ref(rel: str) -> str:
+    """Wiki-Seite als Verweis ohne Endung (wie in ``state.json``).
+
+    Args:
+        rel: Relativer Pfad.
+
+    Returns:
+        Pfad ohne ``.md``.
+    """
+    return rel[:-3] if rel.lower().endswith(".md") else rel
+
+
+def _deleted_entries(entries: dict[str, dict[str, Any]], present: set[str]) -> list[dict[str, Any]]:
+    """Einträge aus ``state.json``, deren Dokument nicht mehr da ist.
+
+    Args:
+        entries: Einträge aus ``state.json``.
+        present: Schlüssel der gefundenen Dokumente.
+
+    Returns:
+        Einträge für ``deleted`` mit Pfad, verarbeiteter Version und Wiki-Seiten.
+    """
+    deleted = []
+    for key, entry in sorted(entries.items()):
+        if key not in present:
+            item = {"key": key, "path": entry.get("path"), "processed_version": entry.get("processed_version"),
+                    "wiki_pages": entry.get("wiki_pages", [])}
+            if not key.startswith("sha:"):
+                item["id"] = key
+            deleted.append(item)
+    return deleted
+
+
+def _remove_entry(docs_state: dict[str, Any], target: str) -> dict[str, Any]:
+    """Eintrag aus ``state.json`` entfernen.
+
+    Args:
+        docs_state: ``documents`` aus ``state.json`` (wird geändert).
+        target: Schlüssel (ID, ``id:…`` oder ``sha:…``).
+
+    Returns:
+        Schlüssel mit ``removed: True``.
+
+    Raises:
+        PkmError: ``not_found``, wenn es den Eintrag nicht gibt.
+    """
+    key = target[3:] if target.startswith("id:") else target
+    if key not in docs_state:
+        raise PkmError("not_found", f"Kein Eintrag in state.json: {target}")
+    del docs_state[key]
+    return {"key": key, "removed": True}
+
+# Main ************************************************************************

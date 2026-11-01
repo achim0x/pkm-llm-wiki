@@ -499,3 +499,10 @@ Linux und macOS (GitHub Actions).
 
 **Stand:** Phasen 0–6 umgesetzt. Die Abnahme auf dem Mac (Phase 7) steht aus. Die automatische
 Pflege (Phase 8) folgt nur auf Anweisung.
+
+---
+
+## Lizenz
+
+Copyright (c) Achim0x. Dieses Projekt steht unter der
+[GNU General Public License v3.0](LICENSE) oder einer späteren Version.

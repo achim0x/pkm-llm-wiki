@@ -60,12 +60,38 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
 
 ## Entwicklung
 
+Alle Python-Befehle laufen in einer projektlokalen `.venv` (nie im System-Python):
+
 ```bash
 cd pkm-tools
-pip install -e ".[dev]"
-pytest
-ruff check .
+python3 -m venv .venv
+./.venv/bin/pip install -e ".[dev]"
 ```
+
+Prüfen vor jedem Commit:
+
+```bash
+./.venv/bin/python -m ruff check .
+./.venv/bin/python -m pylint --rcfile=.pylintrc src tests
+./.venv/bin/python -m pytest -q
+```
+
+### Coding-Standard
+
+- PEP 8, Typannotationen, Zeilenlänge 120.
+- pylint ohne Warnungen und Fehler mit der `.pylintrc` im Paket (Google-Stil).
+- Jede Python-Datei beginnt mit Modul-Docstring (inkl. `Author`), GPL-Lizenzkopf und den
+  Abschnitten `Imports`, `Variables`, `Classes`, `Functions`, `Main` in dieser Reihenfolge.
+- Docstrings für Module, Klassen, Funktionen und Methoden mit `Args`/`Returns`
+  (Testfunktionen: ein Satz, was geprüft wird).
+- Genau ein `return` je Funktion bzw. Methode.
+- Wenige, begründete `pylint: disable` nur dort, wo die Schnittstelle der Spezifikation es
+  erzwingt (z. B. acht Parameter von `create_document`, Parametername `set`) oder bei
+  Datenklassen mit vielen Feldern.
 
 Die Tests laufen auch unter Linux. Alle Pfade werden über Umgebungsvariablen gesetzt
 (`PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`, …), siehe Spezifikation 7.1.
+
+## Lizenz
+
+GNU General Public License v3.0 oder später, siehe [LICENSE](LICENSE).

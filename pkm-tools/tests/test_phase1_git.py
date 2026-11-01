@@ -1,4 +1,28 @@
-"""Git-Schicht und `pkm init` (Spezifikation 5.4, 5.5, 8, 12)."""
+"""Git-Schicht und `pkm init` (Spezifikation 5.4, 5.5, 8, 12).
+
+    Author: Achim0x
+"""
+
+# *****************************************************************************
+# Copyright (c) Achim0x - https://github.com/achim0x/
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://gnu.org>.
+
+# *****************************************************************************
+
+# Imports *********************************************************************
+
+from __future__ import annotations
 
 import json
 
@@ -12,13 +36,29 @@ from pkm.vaultinit import init_vault
 
 from .conftest import git
 
+# Variables *******************************************************************
 
-@pytest.fixture
-def cfg(isolated_env):  # ohne init (überschreibt die gemeinsame Fixture)
+# Classes *********************************************************************
+
+# Functions *******************************************************************
+
+
+@pytest.fixture(name="cfg")
+def fixture_cfg(isolated_env):  # ohne init (überschreibt die gemeinsame Fixture)
+    """Konfiguration ohne ``pkm init`` (überschreibt die gemeinsame Fixture).
+
+    Args:
+        isolated_env: Isolierte Umgebung (nur für die Vorbereitung).
+
+    Returns:
+        Die Konfiguration.
+    """
+    del isolated_env  # nur für die Vorbereitung benötigt
     return Config.from_env()
 
 
 def test_init_creates_structure_without_dotgit(cfg, isolated_env):
+    """pkm init legt Struktur, Dateien, Repo und Initial-Commit an, ohne .git im Vault."""
     res = init_vault(cfg)
     root = isolated_env["root"]
     for d in ("documents/_inbox", "documents/_attachments", "wiki/topics", "wiki/_lint", ".pkm"):
@@ -33,6 +73,7 @@ def test_init_creates_structure_without_dotgit(cfg, isolated_env):
 
 
 def test_init_idempotent(cfg, isolated_env):
+    """Ein zweites pkm init ändert nichts."""
     init_vault(cfg)
     before = git(isolated_env, "rev-parse", "HEAD")
     res = init_vault(cfg)
@@ -42,29 +83,35 @@ def test_init_idempotent(cfg, isolated_env):
 
 
 def test_init_rejects_git_dir_in_vault(isolated_env, monkeypatch):
+    """Ein Git-Verzeichnis im Vault wird abgelehnt."""
     monkeypatch.setenv("PKM_GIT_DIR", str(isolated_env["root"] / "git"))
     with pytest.raises(PkmError):
         init_vault(Config.from_env())
 
 
 def test_init_rejects_cache_in_vault(isolated_env, monkeypatch):
+    """Ein Suchindex im Vault wird abgelehnt."""
     monkeypatch.setenv("PKM_CACHE_DIR", str(isolated_env["root"] / ".pkm"))
     with pytest.raises(PkmError):
         init_vault(Config.from_env())
 
 
 def test_init_without_identity(isolated_env):
+    """Ohne Git-Identität gibt es eine Warnung statt eines Commits."""
     isolated_env["gitconfig"].write_text("")
     res = init_vault(Config.from_env())
     assert res["commit"] is None and res["warnings"]
 
 
-def test_cli_init(isolated_env, capsys):
+@pytest.mark.usefixtures("isolated_env")
+def test_cli_init(capsys):
+    """pkm init über die CLI meldet ok."""
     assert main(["init"]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "ok"
 
 
 def test_message_roundtrip():
+    """Commit-Nachrichten lassen sich in Betreff, Notiz und PKM-Zeilen zerlegen."""
     msg = build_message("Zisterne – Sensor", "v3", "Sensor: Schwimmer", "d-20261031-2340-k7q2", 3, "chat")
     subject, note, tr = parse_message(msg)
     assert subject == "doc: Zisterne – Sensor v3"
@@ -73,6 +120,7 @@ def test_message_roundtrip():
 
 
 def test_commit_only_given_file(cfg, isolated_env):
+    """commit_paths committet nur die angegebene Datei mit PKM_GIT_AUTHOR."""
     init_vault(cfg)
     root = isolated_env["root"]
     g = Git(cfg.git_dir, cfg.root, cfg.git_author)
@@ -87,6 +135,7 @@ def test_commit_only_given_file(cfg, isolated_env):
 
 
 def test_commit_only_keeps_other_staged_changes(cfg, isolated_env):
+    """Andere offene Änderungen bleiben beim Commit unberührt."""
     init_vault(cfg)
     root = isolated_env["root"]
     g = Git(cfg.git_dir, cfg.root)
@@ -98,6 +147,7 @@ def test_commit_only_keeps_other_staged_changes(cfg, isolated_env):
 
 
 def test_log_for_id_after_move(cfg, isolated_env):
+    """Der Verlauf nach ID ist auch nach dem Verschieben vollständig."""
     init_vault(cfg)
     root = isolated_env["root"]
     g = Git(cfg.git_dir, cfg.root)
@@ -119,12 +169,14 @@ def test_log_for_id_after_move(cfg, isolated_env):
 
 
 def test_log_for_id_rejects_bad_id(cfg):
+    """Ungültige IDs werden nicht an git log weitergereicht."""
     g = Git(cfg.git_dir, cfg.root)
     with pytest.raises(PkmError):
         g.log_for_id("--all")
 
 
 def test_commit_failure_unstages(cfg, isolated_env):
+    """Ein fehlgeschlagener Commit hinterlässt keinen Index-Eintrag."""
     init_vault(cfg)
     root = isolated_env["root"]
     hook = cfg.git_dir / "hooks" / "pre-commit"
@@ -139,6 +191,7 @@ def test_commit_failure_unstages(cfg, isolated_env):
 
 
 def test_problem_reports(cfg, isolated_env):
+    """problem() nennt fehlendes Repo und fehlende Identität."""
     g = Git(cfg.git_dir, cfg.root)
     assert "pkm init" in g.problem()
     init_vault(cfg)
@@ -148,8 +201,11 @@ def test_problem_reports(cfg, isolated_env):
 
 
 def test_cli_without_pkm_root_uses_cwd(cfg, isolated_env, monkeypatch, capsys):
+    """Die CLI findet den Vault ohne PKM_ROOT vom aktuellen Ordner aus."""
     init_vault(cfg)
     monkeypatch.delenv("PKM_ROOT")
     monkeypatch.chdir(isolated_env["root"] / "documents")
     assert main(["pending"]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "ok"
+
+# Main ************************************************************************

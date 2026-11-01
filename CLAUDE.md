@@ -1,7 +1,10 @@
 # Arbeitsregeln für dieses Repository
 
 - Spezifikation: `docs/spezifikation.md`, Umsetzungsplan: `docs/umsetzungsplan.md`.
-- Code liegt in `pkm-tools/`. Vor jedem Commit dort `ruff check .` und `pytest -q` ausführen.
+- Code liegt in `pkm-tools/`. Alle Python-Befehle laufen in `pkm-tools/.venv`. Vor jedem Commit dort
+  `ruff check .`, `pylint --rcfile=.pylintrc src tests` (ohne Meldungen) und `pytest -q` ausführen.
+- Python-Code folgt dem Coding-Standard in `pkm-tools/README.md` (Lizenzkopf, Abschnitte,
+  Docstrings mit Args/Returns, ein `return` je Funktion, pylint sauber).
 - **Nach jedem Push den CI-Lauf (GitHub Actions, Workflow `pkm-tools`) prüfen und erst
   weiterarbeiten, wenn er grün ist.** Schlägt er fehl: Logs lesen, Ursache beheben, erneut prüfen.
   Der Workflow läuft nur bei Änderungen unter `pkm-tools/` oder an der Workflow-Datei.

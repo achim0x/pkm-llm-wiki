@@ -1,4 +1,28 @@
-"""Pflege-CLI (Spezifikation 4.3, 4.4, 4.6, 4.8 „Was daraus folgt“, 5.3, 5.4, 8)."""
+"""Pflege-CLI (Spezifikation 4.3, 4.4, 4.6, 4.8 „Was daraus folgt“, 5.3, 5.4, 8).
+
+    Author: Achim0x
+"""
+
+# *****************************************************************************
+# Copyright (c) Achim0x - https://github.com/achim0x/
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://gnu.org>.
+
+# *****************************************************************************
+
+# Imports *********************************************************************
+
+from __future__ import annotations
 
 import json
 
@@ -7,8 +31,11 @@ import pytest
 from pkm.cli import main
 from pkm.errors import PkmError
 from pkm.maint import Maintenance
+from pkm.wikigen import build_index, build_status
 
 from .conftest import git, write
+
+# Variables *******************************************************************
 
 DOC = """---
 title: Bewässerung
@@ -22,19 +49,56 @@ Täglich 10 Minuten.
 - Zeitplan
 """
 
+# index/status ****************************************************************
+WIKI_TOPIC = """---
+type: topic
+title: Regenwasser-Ertrag
+sources:
+  - "[[documents/a]]"
+  - "[[documents/b]]"
+updated: 2026-11-02
+---
 
-@pytest.fixture
-def m(svc):
+> **Kurzfassung:** Ertrag in L/mm.
+
+## Inhalt
+"""
+
+# Classes *********************************************************************
+
+# Functions *******************************************************************
+
+
+@pytest.fixture(name="m")
+def fixture_m(svc):
+    """Pflege-Befehle für den Dienst.
+
+    Args:
+        svc: Dienst.
+
+    Returns:
+        ``Maintenance``.
+    """
     return Maintenance(svc)
 
 
 def subjects(env, n=None):
+    """Commit-Betreffs.
+
+    Args:
+        env: Isolierte Umgebung.
+        n: Anzahl (ohne Angabe alle).
+
+    Returns:
+        Betreffs, neueste zuerst.
+    """
     args = ["log", "--format=%s"] + ([f"-{n}"] if n else [])
     return git(env, *args).strip().splitlines()
 
 
-# ---------------------------------------------------------------- ids
+# ids *************************************************************************
 def test_ids_assigns_and_commits_each(m, cfg, isolated_env):
+    """pkm ids vergibt IDs und committet je Dokument einzeln."""
     write(cfg, "documents/a.md", "# A\n\nText a\n")
     write(cfg, "documents/haus/b.md", DOC)
     write(cfg, "documents/c.md", "---\nid: d-20261031-2340-k7q2\ntitle: C\n---\nText\n")
@@ -54,6 +118,7 @@ def test_ids_assigns_and_commits_each(m, cfg, isolated_env):
 
 
 def test_ids_keeps_rest_bytes_and_comments(m, cfg):
+    """pkm ids ändert nur id und version."""
     text = "---\ntitle: X  # Kommentar\ntopics: [a]\n---\n\nInhalt  mit  Leerzeichen\n"
     write(cfg, "documents/x.md", text)
     m.ids()
@@ -63,6 +128,7 @@ def test_ids_keeps_rest_bytes_and_comments(m, cfg):
 
 
 def test_ids_reports_duplicates_and_skips_invalid(m, cfg):
+    """Doppelte IDs werden gemeldet, ungültige Dateien übersprungen."""
     write(cfg, "documents/a.md", "---\nid: d-20261031-2340-k7q2\nversion: 1\n---\nA\n")
     write(cfg, "documents/kopie.md", "---\nid: d-20261031-2340-k7q2\nversion: 1\n---\nA\n")
     write(cfg, "documents/kaputt.md", "---\ntitle: [x\n---\n")
@@ -72,19 +138,29 @@ def test_ids_reports_duplicates_and_skips_invalid(m, cfg):
 
 
 def test_ids_skips_conflict_copies(m, cfg):
+    """Konfliktkopien werden nicht verarbeitet."""
     write(cfg, "documents/n (conflicted copy 2026-11-01).md", "Text\n")
     res = m.ids()
     assert res["assigned"] == []
     assert res["problems"][0]["problem"] == "conflict_copy"
 
 
-# ----------------------------------------------------------- versions
-@pytest.fixture
-def created(svc):
+# versions ********************************************************************
+@pytest.fixture(name="created")
+def fixture_created(svc):
+    """Per Chat angelegtes Dokument mit zwei Abschnitten.
+
+    Args:
+        svc: Dienst.
+
+    Returns:
+        Rückgabe von ``create_document``.
+    """
     return svc.create_document(title="Sensor", content="## Ergebnis\nA\n\n## Offene Punkte\n- x\n", topics=["zisterne"])
 
 
 def test_versions_combines_hand_edits(m, svc, cfg, created, isolated_env):
+    """Mehrere Änderungen von Hand ergeben eine Version."""
     p = cfg.root / created["path"]
     p.write_text(p.read_text().replace("A\n", "B\n"))
     p.write_text(p.read_text().replace("B\n", "C\n"))
@@ -96,7 +172,9 @@ def test_versions_combines_hand_edits(m, svc, cfg, created, isolated_env):
     assert m.versions()["committed"] == []
 
 
-def test_versions_pure_move_no_version_bump(m, svc, cfg, created, isolated_env):
+@pytest.mark.usefixtures("svc")
+def test_versions_pure_move_no_version_bump(m, cfg, created, isolated_env):
+    """Reines Verschieben ergibt moved ohne Versionssprung."""
     (cfg.root / "documents/haus").mkdir()
     (cfg.root / created["path"]).rename(cfg.root / "documents/haus/sensor.md")
     res = m.versions()
@@ -107,6 +185,7 @@ def test_versions_pure_move_no_version_bump(m, svc, cfg, created, isolated_env):
 
 
 def test_versions_move_and_change(m, svc, cfg, created, isolated_env):
+    """Verschieben mit Änderung ergibt eine neue Version."""
     (cfg.root / "documents/haus").mkdir()
     (cfg.root / created["path"]).rename(cfg.root / "documents/haus/sensor.md")
     p = cfg.root / "documents/haus/sensor.md"
@@ -114,10 +193,13 @@ def test_versions_move_and_change(m, svc, cfg, created, isolated_env):
     res = m.versions()
     assert res["committed"][0]["version"] == 2
     assert git(isolated_env, "status", "--porcelain").strip() == ""
-    assert [v["path"] for v in svc.history(f"id:{created['id']}")["versions"]] == [created["path"], "documents/haus/sensor.md"]
+    paths = [v["path"] for v in svc.history(f"id:{created['id']}")["versions"]]
+    assert paths == [created["path"], "documents/haus/sensor.md"]
 
 
-def test_versions_crlf_from_windows_counts_as_change_only_if_content(m, svc, cfg, created):
+@pytest.mark.usefixtures("svc")
+def test_versions_crlf_from_windows_counts_as_change_only_if_content(m, cfg, created):
+    """Eine CRLF-Datei wird committet und mit LF zurückgeschrieben."""
     p = cfg.root / created["path"]
     p.write_bytes(p.read_bytes().replace(b"\n", b"\r\n"))
     # Datei weicht byteweise ab, Inhalt (normalisiert) gleich → trotzdem Version, Datei wird LF
@@ -127,6 +209,7 @@ def test_versions_crlf_from_windows_counts_as_change_only_if_content(m, svc, cfg
 
 
 def test_versions_binaries_and_deletions(m, cfg, isolated_env, created):
+    """Anhänge (neu, verschoben) und gelöschte Dokumente werden committet."""
     write(cfg, "documents/blatt.pdf", "%PDF-1")
     res = m.versions()
     assert res["committed"][0]["path"] == "documents/blatt.pdf"
@@ -142,6 +225,7 @@ def test_versions_binaries_and_deletions(m, cfg, isolated_env, created):
 
 
 def test_versions_skips_conflict_copy_and_missing_id(m, cfg):
+    """Konfliktkopien und Dokumente ohne ID werden übersprungen."""
     write(cfg, "documents/x (Konflikt).md", "x\n")
     write(cfg, "documents/ohne.md", "ohne id\n")
     res = m.versions()
@@ -149,8 +233,9 @@ def test_versions_skips_conflict_copy_and_missing_id(m, cfg):
     assert reasons == {"documents/x (Konflikt).md": "conflict_copy", "documents/ohne.md": "missing_id"}
 
 
-# ------------------------------------------------------- pending / mark
+# pending / mark **************************************************************
 def test_pending_lifecycle(m, svc, cfg, created):
+    """pending von new über mark bis changed mit renamed, changed und added."""
     pend = m.pending()
     assert [i["id"] for i in pend["new"]] == [created["id"]]
     m.mark([created["id"]], pages=["wiki/index.md"])
@@ -173,7 +258,9 @@ def test_pending_lifecycle(m, svc, cfg, created):
     assert next(c for c in item["sections"] if c["change"] == "renamed")["from"] == "Ergebnis"
 
 
-def test_pending_order_only_and_meta(m, svc, cfg, created):
+@pytest.mark.usefixtures("cfg")
+def test_pending_order_only_and_meta(m, svc, created):
+    """Nur Reihenfolge ergibt changed ohne Abschnitte; Metadaten ergeben meta_changed."""
     m.mark([created["id"]])
     r = svc.rewrite_document(target=created["path"], expected_hash=created["new_hash"],
                              content="## Offene Punkte\n- x\n\n## Ergebnis\nA\n")
@@ -185,6 +272,7 @@ def test_pending_order_only_and_meta(m, svc, cfg, created):
 
 
 def test_pending_removed_section_and_dup_rename(m, svc, created):
+    """Entfernte Abschnitte werden als removed gemeldet."""
     m.mark([created["id"]])
     svc.rewrite_document(target=created["path"], expected_hash=created["new_hash"], confirm_shortening=True,
                          content="## Ergebnis\nA\n")
@@ -192,6 +280,7 @@ def test_pending_removed_section_and_dup_rename(m, svc, created):
 
 
 def test_pending_dup_numbering_shift_is_rename(m, svc):
+    """Verschobene Duplikat-Nummern ergeben renamed."""
     d = svc.create_document(title="Dup", content="## Notizen\na\n## Notizen\nb\n")
     m.mark([d["id"]])
     svc.edit_document(target=d["path"], old="## Notizen\na\n", new="", expected_hash=d["new_hash"])
@@ -200,7 +289,9 @@ def test_pending_dup_numbering_shift_is_rename(m, svc):
     assert {"key": "Notizen", "change": "removed"} in secs
 
 
-def test_pending_moved_deleted_and_binaries(m, svc, cfg, created):
+@pytest.mark.usefixtures("svc")
+def test_pending_moved_deleted_and_binaries(m, cfg, created):
+    """Verschobene und gelöschte Dokumente und Anhänge."""
     write(cfg, "documents/blatt.pdf", "%PDF-1")
     m.mark([created["id"], "documents/blatt.pdf"], pages=["wiki/index"])
     (cfg.root / "documents/haus").mkdir()
@@ -219,7 +310,9 @@ def test_pending_moved_deleted_and_binaries(m, svc, cfg, created):
     assert res["marked"][0]["removed"]
 
 
-def test_pending_moved_and_changed(m, svc, cfg, created):
+@pytest.mark.usefixtures("svc")
+def test_pending_moved_and_changed(m, cfg, created):
+    """Verschoben und geändert zugleich."""
     m.mark([created["id"]])
     (cfg.root / "documents/neu.md").write_text((cfg.root / created["path"]).read_text().replace("A\n", "B\n"))
     (cfg.root / created["path"]).unlink()
@@ -228,7 +321,9 @@ def test_pending_moved_and_changed(m, svc, cfg, created):
     assert pend["changed"][0]["sections"] == [{"key": "Ergebnis", "change": "changed"}]
 
 
-def test_pending_duplicates_problem(m, svc, cfg, created):
+@pytest.mark.usefixtures("svc")
+def test_pending_duplicates_problem(m, cfg, created):
+    """Doppelte IDs erscheinen als Problem, nicht als neues Dokument."""
     m.mark([created["id"]])
     (cfg.root / "documents/kopie.md").write_text((cfg.root / created["path"]).read_text())
     pend = m.pending()
@@ -237,12 +332,14 @@ def test_pending_duplicates_problem(m, svc, cfg, created):
 
 
 def test_mark_rejects_unknown(m):
+    """mark lehnt unbekannte IDs ab."""
     with pytest.raises(PkmError):
         m.mark(["d-20261031-2340-k7q2"])
 
 
-# ---------------------------------------------------------------- sha
+# sha *************************************************************************
 def test_sha(m, created):
+    """pkm sha liefert alle oder einen Abschnitts-Hash."""
     res = m.sha(created["path"])
     assert set(res["sections"]) == {"Ergebnis", "Offene Punkte"} and len(res["file_hash"]) == 6
     one = m.sha(f"id:{created['id']}", section="## Ergebnis", full=True)
@@ -251,25 +348,8 @@ def test_sha(m, created):
         m.sha(created["path"], section="Fehlt")
 
 
-# ------------------------------------------------------- index/status
-WIKI_TOPIC = """---
-type: topic
-title: Regenwasser-Ertrag
-sources:
-  - "[[documents/a]]"
-  - "[[documents/b]]"
-updated: 2026-11-02
----
-
-> **Kurzfassung:** Ertrag in L/mm.
-
-## Inhalt
-"""
-
-
 def test_index(svc, cfg):
-    from pkm.wikigen import build_index
-
+    """pkm index gruppiert nach Typ mit Kurzfassung und Quellenzahl."""
     write(cfg, "wiki/topics/regenwasser-ertrag.md", WIKI_TOPIC)
     write(cfg, "wiki/entities/tank-1.md", "---\ntype: entity\ntitle: Tank 1\n---\n\n> Der Tank.\n")
     write(cfg, "wiki/summaries/x.md", "---\ntitle: X\n---\nkeine Kurzfassung\n")
@@ -283,8 +363,7 @@ def test_index(svc, cfg):
 
 
 def test_status(svc, m, cfg, created):
-    from pkm.wikigen import build_status
-
+    """pkm status zeigt Unverarbeitetes, Probleme, Einsortier-Vorschläge und Rückfragen."""
     write(cfg, "documents/haus/alt.md", "---\nid: d-20261031-2340-abcd\nversion: 1\ntopics: [zisterne]\n---\nx\n")
     write(cfg, "documents/n (conflicted copy).md", "x\n")
     build_status(svc)
@@ -300,16 +379,16 @@ def test_status(svc, m, cfg, created):
 
 
 def test_status_changed_line(svc, m, cfg, created):
-    from pkm.wikigen import build_status
-
+    """Geänderte Dokumente erscheinen mit Versionen und Abschnitten."""
     m.mark([created["id"]])
     svc.edit_document(target=created["path"], old="- x", new="- y", expected_hash=created["new_hash"])
     build_status(svc)
     assert "– v1 → v2, geändert: „Offene Punkte“" in (cfg.root / "wiki/_status.md").read_text()
 
 
-# --------------------------------------------------------- commit-wiki
+# commit-wiki *****************************************************************
 def test_commit_wiki_only_wiki_and_state(m, cfg, isolated_env, created):
+    """commit-wiki committet nur wiki/ und state.json."""
     write(cfg, "documents/offen.md", "offen\n")
     write(cfg, "wiki/topics/t.md", "---\ntype: topic\n---\n> K\n")
     m.mark([created["id"]])
@@ -323,10 +402,14 @@ def test_commit_wiki_only_wiki_and_state(m, cfg, isolated_env, created):
     assert m.commit_wiki("lint")["status"] == "unchanged"
 
 
-# ---------------------------------------------------------------- CLI
-def test_cli_commands(cfg, capsys, created):
+# CLI *************************************************************************
+@pytest.mark.usefixtures("cfg")
+def test_cli_commands(capsys, created):
+    """Alle Pflegebefehle laufen über die CLI."""
     for argv in (["ids"], ["versions"], ["pending"], ["sha", created["path"]], ["index"], ["status"],
                  ["mark", created["id"], "--pages", "wiki/index"], ["commit-wiki", "-m", "pkm: lint"]):
         assert main(argv) == 0, argv
         out = json.loads(capsys.readouterr().out)
         assert out["status"] in ("ok", "unchanged")
+
+# Main ************************************************************************

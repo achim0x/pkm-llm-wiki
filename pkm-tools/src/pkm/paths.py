@@ -1,4 +1,26 @@
-"""Pfadprüfung, Unicode-NFC, plattformfeste Dateinamen (Spezifikation 5.5, 7.5)."""
+"""Pfadprüfung, Unicode-NFC und plattformfeste Dateinamen (Spezifikation 5.5, 7.5).
+
+    Author: Achim0x
+"""
+
+# *****************************************************************************
+# Copyright (c) Achim0x - https://github.com/achim0x/
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://gnu.org>.
+
+# *****************************************************************************
+
+# Imports *********************************************************************
 
 from __future__ import annotations
 
@@ -10,6 +32,8 @@ from pathlib import Path, PurePosixPath
 
 from .errors import PkmError
 
+# Variables *******************************************************************
+
 MAX_NAME = 120
 WINDOWS_RESERVED = {
     "con", "prn", "aux", "nul",
@@ -20,23 +44,50 @@ INVALID_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 UMLAUTS = {"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue", "ß": "ss", "ẞ": "SS"}
 CONFLICT_RE = re.compile(r"conflicted copy|konflikt", re.IGNORECASE)
 
+# Classes *********************************************************************
+
+# Functions *******************************************************************
+
 
 def nfc(s: str) -> str:
+    """Text in Unicode-Normalform NFC bringen.
+
+    Args:
+        s: Beliebiger Text, z. B. ein Dateiname in NFD von macOS.
+
+    Returns:
+        Der Text in NFC.
+    """
     return unicodedata.normalize("NFC", s)
 
 
 def transliterate(s: str) -> str:
-    """Umlaute ausschreiben (ä → ae …)."""
+    """Umlaute und ß ausschreiben (ä → ae, ß → ss).
+
+    Args:
+        s: Beliebiger Text.
+
+    Returns:
+        Der Text mit ausgeschriebenen Umlauten.
+    """
     return "".join(UMLAUTS.get(ch, ch) for ch in s)
 
 
-def rel_posix(root: Path, path: Path) -> str:
-    """Relativer Pfad mit `/` in NFC."""
-    return nfc(path.relative_to(root).as_posix())
-
-
 def safe_resolve(root: Path, rel: str) -> Path:
-    """Relativen Pfad prüfen und auflösen. Kein `..`, nichts Absolutes, keine Symlinks nach außen."""
+    """Relativen Pfad prüfen und unterhalb des Vaults auflösen.
+
+    Erlaubt sind weder ``..`` noch absolute Pfade noch Symlinks, die aus dem Vault zeigen.
+
+    Args:
+        root: Vault-Wurzel (aufgelöst).
+        rel: Relativer Pfad, ``\\`` wird als ``/`` behandelt.
+
+    Returns:
+        Den Pfad im Vault (nicht aufgelöst, damit der Name erhalten bleibt).
+
+    Raises:
+        PkmError: ``invalid_path`` bei leeren, absoluten oder ausbrechenden Pfaden.
+    """
     rel = nfc(rel.strip().replace("\\", "/"))
     if not rel:
         raise PkmError("invalid_path", "Leerer Pfad.")
@@ -46,48 +97,75 @@ def safe_resolve(root: Path, rel: str) -> Path:
     if any(part == ".." for part in pure.parts):
         raise PkmError("invalid_path", "`..` ist in Pfaden nicht erlaubt.", path=rel)
     candidate = root.joinpath(*pure.parts)
-    resolved = candidate.resolve()
     try:
-        resolved.relative_to(root)
+        candidate.resolve().relative_to(root)
     except ValueError as exc:
         raise PkmError("invalid_path", "Pfad zeigt aus dem Vault heraus.", path=rel) from exc
     return candidate
 
 
 def slugify(title: str, max_len: int = 80) -> str:
-    """Dateinamenstauglicher Slug: Kleinbuchstaben, Bindestriche, Umlaute ausgeschrieben."""
+    """Dateinamenstauglichen Slug bilden: Kleinbuchstaben, Bindestriche, Umlaute ausgeschrieben.
+
+    Args:
+        title: Titel des Dokuments.
+        max_len: Höchstlänge des Slugs.
+
+    Returns:
+        Slug, der auf macOS und Windows gültig ist (nie leer, nie ein reservierter Name).
+    """
     s = transliterate(nfc(title))
     s = unicodedata.normalize("NFKD", s)
-    s = "".join(ch for ch in s if not unicodedata.combining(ch))
-    s = s.lower()
+    s = "".join(ch for ch in s if not unicodedata.combining(ch)).lower()
     s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
-    s = s[:max_len].rstrip("-")
-    if not s:
-        s = "dokument"
-    if s.split(".")[0] in WINDOWS_RESERVED:
+    s = s[:max_len].rstrip("-") or "dokument"
+    if s.split(".", maxsplit=1)[0] in WINDOWS_RESERVED:
         s = f"{s}-doc"
     return s
 
 
 def is_platform_safe_name(name: str) -> bool:
-    """Gültig auf macOS und Windows (5.5)."""
-    if not name or len(name) > MAX_NAME:
-        return False
-    if INVALID_CHARS.search(name):
-        return False
-    if name.endswith((".", " ")):
-        return False
-    return name.split(".")[0].lower() not in WINDOWS_RESERVED
+    """Prüfen, ob ein Datei- oder Ordnername auf macOS und Windows gültig ist (5.5).
+
+    Args:
+        name: Einzelner Namensbestandteil ohne ``/``.
+
+    Returns:
+        ``True``, wenn der Name zulässig ist.
+    """
+    return bool(
+        name
+        and len(name) <= MAX_NAME
+        and not INVALID_CHARS.search(name)
+        and not name.endswith((".", " "))
+        and name.split(".", maxsplit=1)[0].lower() not in WINDOWS_RESERVED
+    )
 
 
 def is_conflict_copy(name: str) -> bool:
-    """Nextcloud-Konfliktkopie (Dateiname enthält „conflicted copy“ bzw. „Konflikt“)."""
+    """Nextcloud-Konfliktkopie am Dateinamen erkennen.
+
+    Args:
+        name: Dateiname.
+
+    Returns:
+        ``True``, wenn der Name „conflicted copy“ oder „Konflikt“ enthält.
+    """
     return bool(CONFLICT_RE.search(name))
 
 
 def case_collisions(paths: Iterable[str]) -> list[list[str]]:
-    """Gruppen von Pfaden, die sich nur in Groß-/Kleinschreibung unterscheiden."""
+    """Pfade finden, die sich nur in Groß-/Kleinschreibung unterscheiden.
+
+    Args:
+        paths: Relative Pfade.
+
+    Returns:
+        Gruppen (sortiert) kollidierender Pfade; leer, wenn es keine gibt.
+    """
     groups: dict[str, list[str]] = defaultdict(list)
     for p in paths:
         groups[nfc(p).casefold()].append(p)
     return [sorted(g) for g in groups.values() if len(g) > 1]
+
+# Main ************************************************************************
