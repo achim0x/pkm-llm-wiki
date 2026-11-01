@@ -231,7 +231,7 @@ def _step_3_sort_in(run: _Run) -> None:
     (root / run.path).rename(root / SORTED)
     for page in ("wiki/topics/zisterne.md", "wiki/summaries/ueberlaufsensor.md"):
         p = root / page
-        p.write_text(p.read_text().replace(run.path[:-3], SORTED[:-3]))
+        p.write_text(p.read_text(encoding="utf-8").replace(run.path[:-3], SORTED[:-3]), encoding="utf-8", newline="\n")
     checks = {f["check"] for f in cli(run.capsys, "lint")["findings"]}
     assert "citation_moved" not in checks and "citation_missing" not in checks
 
@@ -267,7 +267,7 @@ def _write_wiki_with_old_version(run: _Run, doc_id: str) -> None:
     write_wiki(run.cfg, run.capsys, SORTED[:-3], "Bis Version 1: Ultraschallsensor am Deckel.[^b3]\n")
     p = run.cfg.root / "wiki/topics/zisterne.md"
     footnote = cite(old_ent, SORTED[:-3], "Entscheidungen", "Ultraschallsensor am Deckel")
-    p.write_text(p.read_text() + f"[^b3]: {footnote}\n")
+    p.write_text(p.read_text(encoding="utf-8") + f"[^b3]: {footnote}\n", encoding="utf-8", newline="\n")
     finish_run(run.capsys, doc_id, "pkm: ingest 1 documents")
 
 

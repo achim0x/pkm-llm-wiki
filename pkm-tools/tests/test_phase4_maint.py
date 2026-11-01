@@ -109,7 +109,7 @@ def test_ids_assigns_and_commits_each(m, cfg, isolated_env):
         assert git(isolated_env, "status", "--porcelain", "--", rel) == ""
     a = (cfg.root / "documents/a.md").read_text(encoding="utf-8")
     assert a.endswith("---\n# A\n\nText a\n") and "version: 1" in a
-    assert "id: d-20261031-2340-k7q2" in (cfg.root / "documents/c.md").read_text()
+    assert "id: d-20261031-2340-k7q2" in (cfg.root / "documents/c.md").read_text(encoding="utf-8")
     body = git(isolated_env, "log", "-1", "--format=%B")
     assert "PKM-Source: agent" in body and "PKM-Version: 1" in body
     for sha in git(isolated_env, "log", "-3", "--format=%H").split():
@@ -162,8 +162,8 @@ def fixture_created(svc):
 def test_versions_combines_hand_edits(m, svc, cfg, created, isolated_env):
     """Mehrere Änderungen von Hand ergeben eine Version."""
     p = cfg.root / created["path"]
-    p.write_text(p.read_text().replace("A\n", "B\n"))
-    p.write_text(p.read_text().replace("B\n", "C\n"))
+    p.write_text(p.read_text(encoding="utf-8").replace("A\n", "B\n"), encoding="utf-8", newline="\n")
+    p.write_text(p.read_text(encoding="utf-8").replace("B\n", "C\n"), encoding="utf-8", newline="\n")
     res = m.versions()
     assert [c["version"] for c in res["committed"]] == [2]
     hist = svc.history(created["path"])["versions"]
@@ -189,7 +189,7 @@ def test_versions_move_and_change(m, svc, cfg, created, isolated_env):
     (cfg.root / "documents/haus").mkdir()
     (cfg.root / created["path"]).rename(cfg.root / "documents/haus/sensor.md")
     p = cfg.root / "documents/haus/sensor.md"
-    p.write_text(p.read_text().replace("A\n", "Neu\n"))
+    p.write_text(p.read_text(encoding="utf-8").replace("A\n", "Neu\n"), encoding="utf-8", newline="\n")
     res = m.versions()
     assert res["committed"][0]["version"] == 2
     assert git(isolated_env, "status", "--porcelain").strip() == ""
@@ -239,7 +239,7 @@ def test_pending_lifecycle(m, svc, cfg, created):
     pend = m.pending()
     assert [i["id"] for i in pend["new"]] == [created["id"]]
     m.mark([created["id"]], pages=["wiki/index.md"])
-    state = json.loads(cfg.state_path.read_text())
+    state = json.loads(cfg.state_path.read_text(encoding="utf-8"))
     entry = state["documents"][created["id"]]
     assert entry["processed_version"] == 1 and entry["wiki_pages"] == ["wiki/index"]
     assert set(entry["sections"]) == {"Ergebnis", "Offene Punkte"} and len(entry["body_hash"]) == 64
@@ -314,7 +314,9 @@ def test_pending_moved_deleted_and_binaries(m, cfg, created):
 def test_pending_moved_and_changed(m, cfg, created):
     """Verschoben und geändert zugleich."""
     m.mark([created["id"]])
-    (cfg.root / "documents/neu.md").write_text((cfg.root / created["path"]).read_text().replace("A\n", "B\n"))
+    changed = (cfg.root / created["path"]).read_text(encoding="utf-8").replace("A\n", "B\n")
+    (cfg.root / "documents/neu.md").write_text(changed,
+                 encoding="utf-8", newline="\n")
     (cfg.root / created["path"]).unlink()
     pend = m.pending()
     assert pend["moved"][0]["to"] == "documents/neu.md"
@@ -325,7 +327,8 @@ def test_pending_moved_and_changed(m, cfg, created):
 def test_pending_duplicates_problem(m, cfg, created):
     """Doppelte IDs erscheinen als Problem, nicht als neues Dokument."""
     m.mark([created["id"]])
-    (cfg.root / "documents/kopie.md").write_text((cfg.root / created["path"]).read_text())
+    (cfg.root / "documents/kopie.md").write_text((cfg.root / created["path"]).read_text(encoding="utf-8"),
+                 encoding="utf-8", newline="\n")
     pend = m.pending()
     assert any(p["problem"] == "duplicate_id" for p in pend["problems"])
     assert pend["counts"]["new"] == 0 and pend["counts"]["moved"] == 0
@@ -354,7 +357,7 @@ def test_index(svc, cfg):
     write(cfg, "wiki/entities/tank-1.md", "---\ntype: entity\ntitle: Tank 1\n---\n\n> Der Tank.\n")
     write(cfg, "wiki/summaries/x.md", "---\ntitle: X\n---\nkeine Kurzfassung\n")
     res = build_index(svc)
-    text = (cfg.root / "wiki/index.md").read_text()
+    text = (cfg.root / "wiki/index.md").read_text(encoding="utf-8")
     assert res["pages"] == 3 and res["changed"]
     assert "## Themen\n\n- [[wiki/topics/regenwasser-ertrag]] – Ertrag in L/mm. _(2 Quellen, 2026-11-02)_" in text
     assert "## Entitäten\n\n- [[wiki/entities/tank-1]] – Der Tank. _(0 Quellen)_" in text
@@ -367,12 +370,12 @@ def test_status(svc, m, cfg, created):
     write(cfg, "documents/haus/alt.md", "---\nid: d-20261031-2340-abcd\nversion: 1\ntags: [zisterne]\n---\nx\n")
     write(cfg, "documents/n (conflicted copy).md", "x\n")
     build_status(svc)
-    text = (cfg.root / "wiki/_status.md").read_text()
+    text = (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
     assert f"## Noch nicht verarbeitet (2)\n- [[{created['path'][:-3]}]] – neu (v1)" in text
     assert "Konfliktkopie: documents/n (conflicted copy).md" in text
     m.mark([created["id"], "d-20261031-2340-abcd"])
     build_status(svc, ["Wohin mit dem Sensor-Dokument?"])
-    text = (cfg.root / "wiki/_status.md").read_text()
+    text = (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
     assert "## Noch nicht verarbeitet (0)" in text
     assert f"- [[{created['path'][:-3]}]] → Vorschlag: documents/haus/" in text
     assert "## Rückfragen (1)\n- Wohin mit dem Sensor-Dokument?" in text
@@ -383,7 +386,7 @@ def test_status_changed_line(svc, m, cfg, created):
     m.mark([created["id"]])
     svc.edit_document(target=created["path"], old="- x", new="- y", expected_hash=created["new_hash"])
     build_status(svc)
-    assert "– v1 → v2, geändert: „Offene Punkte“" in (cfg.root / "wiki/_status.md").read_text()
+    assert "– v1 → v2, geändert: „Offene Punkte“" in (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
 
 
 # commit-wiki *****************************************************************

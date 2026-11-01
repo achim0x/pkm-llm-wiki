@@ -199,7 +199,7 @@ def test_format_scalar(v, out):
 def test_config_finds_vault_from_cwd(tmp_path):
     """Ohne PKM_ROOT wird der Vault aufwärts gesucht."""
     (tmp_path / "v" / ".pkm").mkdir(parents=True)
-    (tmp_path / "v" / ".pkm" / "state.json").write_text("{}")
+    (tmp_path / "v" / ".pkm" / "state.json").write_text("{}", encoding="utf-8", newline="\n")
     (tmp_path / "v" / "documents" / "x").mkdir(parents=True)
     cfg = Config.from_env({"HOME": str(tmp_path)}, search_from=tmp_path / "v" / "documents" / "x")
     assert cfg.root == (tmp_path / "v").resolve()

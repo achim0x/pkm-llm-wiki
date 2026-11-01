@@ -28,7 +28,10 @@ damit Einstellungen des Rechners (z. B. Commit-Signierung) die Tests nicht beein
 from __future__ import annotations
 
 import os
+import shutil
+import stat
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -59,7 +62,7 @@ def fixture_isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dic
     home = tmp_path / "home"
     home.mkdir()
     gitconfig = home / ".gitconfig"
-    gitconfig.write_text("[user]\n\tname = Test User\n\temail = test@example.org\n", encoding="utf-8")
+    gitconfig.write_text("[user]\n\tname = Test User\n\temail = test@example.org\n", encoding="utf-8", newline="\n")
     root = tmp_path / "Nextcloud" / "Vault"
     root.mkdir(parents=True)
     app = tmp_path / "app"
@@ -89,7 +92,7 @@ def git(env: dict[str, Path], *args: str) -> str:
         ["git", f"--git-dir={env['git_dir']}", f"--work-tree={env['root']}", *args],
         check=True,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         env=os.environ.copy(),
     )
     return out.stdout
@@ -161,5 +164,28 @@ def commit_doc(cfg: Config, rel: str, text: str, doc_id: str, version: int) -> s
     write(cfg, rel, text)
     message = build_message("T", f"v{version}", "", doc_id, version, "user")
     return Git(cfg.git_dir, cfg.root).commit_paths([rel], message)
+
+def remove_tree(path: Path) -> None:
+    """Ordner löschen, auch schreibgeschützte Dateien (Git-Objekte unter Windows).
+
+    Args:
+        path: Zu löschender Ordner.
+    """
+    def make_writable(func, target, _exc):  # pylint: disable=unused-argument
+        """Schreibschutz aufheben und den Löschversuch wiederholen.
+
+        Args:
+            func: Fehlgeschlagene Funktion (z. B. ``os.unlink``).
+            target: Betroffener Pfad.
+            _exc: Ausnahme (ungenutzt).
+        """
+        os.chmod(target, stat.S_IWRITE)
+        func(target)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=make_writable)  # pylint: disable=unexpected-keyword-arg
+    else:
+        shutil.rmtree(path, onerror=make_writable)  # pylint: disable=deprecated-argument
+
 
 # Main ************************************************************************

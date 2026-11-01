@@ -27,7 +27,6 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-import shutil
 
 import pytest
 
@@ -38,7 +37,7 @@ from pkm.errors import PkmError
 from pkm.gitlayer import parse_message
 from pkm.service import Service
 
-from .conftest import git, write
+from .conftest import git, remove_tree, write
 
 # Variables *******************************************************************
 
@@ -197,7 +196,7 @@ def test_hash_conflict(doc, svc):
 def test_other_open_changes_untouched(doc, svc, cfg, isolated_env):
     """Offene Änderungen anderer Dateien bleiben unberührt."""
     write(cfg, "documents/andere.md", "offen\n")
-    (cfg.root / "CLAUDE.md").write_text("geändert\n")
+    (cfg.root / "CLAUDE.md").write_text("geändert\n", encoding="utf-8", newline="\n")
     svc.edit_document(target=doc["path"], old="Kabelweg", new="Kabel", expected_hash=doc["new_hash"])
     status = git(isolated_env, "status", "--porcelain")
     assert "documents/andere.md" in status and "CLAUDE.md" in status
@@ -245,7 +244,7 @@ def test_invalid_frontmatter_refused(svc, cfg):
 @pytest.mark.usefixtures("isolated_env")
 def test_without_git_writes_refused_reads_work(cfg, svc, doc):
     """Ohne Git sind Schreibtools gesperrt, Lesen und Suche gehen weiter."""
-    shutil.rmtree(cfg.git_dir)
+    remove_tree(cfg.git_dir)
     with pytest.raises(PkmError) as e:
         svc.create_document(title="x", content="y")
     assert e.value.status == "git_unavailable"
@@ -258,7 +257,7 @@ def test_commit_failure_restores_file(doc, svc, cfg):
     before = (cfg.root / doc["path"]).read_bytes()
     hook = cfg.git_dir / "hooks" / "pre-commit"
     hook.parent.mkdir(exist_ok=True)
-    hook.write_text("#!/bin/sh\nexit 1\n")
+    hook.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8", newline="\n")
     hook.chmod(0o755)
     with pytest.raises(PkmError) as e:
         svc.edit_document(target=doc["path"], old="Kabelweg", new="x", expected_hash=doc["new_hash"])
@@ -280,7 +279,8 @@ def test_unchanged_no_commit(doc, svc, isolated_env):
 def test_hand_edit_committed_first(doc, svc, cfg, isolated_env):
     """Eine Änderung von Hand wird vorher als eigene Version committet."""
     p = cfg.root / doc["path"]
-    p.write_text(p.read_text(encoding="utf-8").replace("Kabelweg", "Kabelweg (von Hand)"), encoding="utf-8")
+    p.write_text(p.read_text(encoding="utf-8").replace("Kabelweg", "Kabelweg (von Hand)"),
+                 encoding="utf-8", newline="\n")
     h = svc.read(doc["path"])["hash"]
     n = len(commits(isolated_env))
     r = svc.append_to_document(target=doc["path"], text="- Neuer Punkt", expected_hash=h, section="Offene Punkte")

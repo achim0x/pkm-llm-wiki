@@ -321,7 +321,7 @@ def test_list_unprocessed(filled, cfg):
         "path": doc.rel, "processed_version": 1, "file_hash": doc.hashes.file_hash,
         "body_hash": doc.hashes.body_hash, "meta_hash": doc.hashes.meta_hash,
         "sections": dict(doc.hashes.sections)}}}
-    cfg.state_path.write_text(json.dumps(state))
+    cfg.state_path.write_text(json.dumps(state), encoding="utf-8", newline="\n")
     res = filled.list_unprocessed()
     assert "documents/haus/zisterne.md" not in {d["path"] for d in res["documents"]}
     write(cfg, "documents/haus/zisterne.md", DOC1.replace("klären", "prüfen").replace("## Ergebnis", "## Resultat"))

@@ -216,7 +216,7 @@ def _finish_first_run(cfg: Config, capsys: pytest.CaptureFixture[str], chat_id: 
     assert lint["summary"]["error"] == 0 and lint["summary"]["warning"] == 0, lint["findings"]
     assert run(capsys, "commit-wiki", "-m", "pkm: ingest 3 documents")["status"] == "ok"
     assert run(capsys, "pending")["counts"]["new"] == 0
-    status = (cfg.root / "wiki/_status.md").read_text()
+    status = (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
     assert "## Noch nicht verarbeitet (0)" in status
     assert "Vorschlag: documents/haus/" not in status  # tags passen nicht
 

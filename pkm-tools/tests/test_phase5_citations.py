@@ -109,7 +109,7 @@ Zweiter Absatz zur Notiz.[^b4]
     write(cfg, "wiki/entities/tank-1.md", "---\ntype: entity\ntitle: Tank 1\nsources: []\n---\n\n> Der Tank.\n\n"
           "## Siehe auch\n- [[wiki/topics/regenwasser-ertrag]]\n")
     see_also = "\n## Siehe auch\n- [[wiki/entities/tank-1]]\n"
-    page2 = (cfg.root / "wiki/topics/regenwasser-ertrag.md").read_text() + see_also
+    page2 = (cfg.root / "wiki/topics/regenwasser-ertrag.md").read_text(encoding="utf-8") + see_also
     write(cfg, "wiki/topics/regenwasser-ertrag.md", page2)
     return {"doc": d, "link": link, "sha": sha, "pdf": pdf, "page": "wiki/topics/regenwasser-ertrag.md"}
 
@@ -228,7 +228,7 @@ def test_fix_citations_moved(svc, setup, cfg):
     (cfg.root / setup["doc"]["path"]).rename(cfg.root / "documents/neu/zisterne.md")
     res = fix_citations(svc)
     assert res["pages_changed"] == 1
-    text = (cfg.root / setup["page"]).read_text()
+    text = (cfg.root / setup["page"]).read_text(encoding="utf-8")
     assert "[^b1]: [[documents/neu/zisterne#Dach]] · „Dachfläche laut Plan 92 m²“" in text
     assert "[^b4]: [[documents/neu/zisterne#Notizen]] §:Notizen#2 · „zweite Notiz“" in text
     assert '  - "[[documents/neu/zisterne]]"' in text
@@ -241,13 +241,14 @@ def test_fix_citations_renamed_section(svc, setup, cfg):
     d = setup["doc"]
     svc.edit_document(target=d["path"], old="## Dach\n", new="## Dachfläche\n", expected_hash=d["new_hash"])
     fix_citations(svc, [setup["page"]])
-    assert f"[^b1]: [[{setup['link']}#Dachfläche]]" in (cfg.root / setup["page"]).read_text()
+    assert f"[^b1]: [[{setup['link']}#Dachfläche]]" in (cfg.root / setup["page"]).read_text(encoding="utf-8")
 
 
 def test_sync_citations(svc, setup, cfg):
     """sync-citations erzeugt sources aus den Fußnoten."""
     p = cfg.root / setup["page"]
-    p.write_text(p.read_text().replace('  - "[[documents/haus/datenblatt.pdf]]"\n', ""))
+    p.write_text(p.read_text(encoding="utf-8").replace('  - "[[documents/haus/datenblatt.pdf]]"\n', ""),
+                 encoding="utf-8", newline="\n")
     res = sync_citations(svc)
     assert res["pages_changed"] == 1
     meta = svc.read(setup["page"])["frontmatter"]
@@ -280,13 +281,13 @@ def test_lint_clean(svc):
 def test_lint_citation_problems(svc, setup, cfg):
     """Falsches Zitat, falscher sha, fehlende Fußnoten und Belege auf Wiki-Seiten."""
     p = cfg.root / setup["page"]
-    t = p.read_text()
+    t = p.read_text(encoding="utf-8")
     t = t.replace("„Dachfläche laut Plan 92 m²“", "„Dachfläche 100 m²“")  # Zitat falsch
     t = t.replace(f"sha:{setup['sha']['Entscheidungen']}", "sha:000000")  # sha falsch
     t = t.replace("Der Tank fasst 6.500 L.[^b3]", "Der Tank fasst 6.500 L.[^b3] Ohne Beleg hier.\n\nNeue Aussage.[^b9]")
     t += "[^b5]: [[wiki/entities/tank-1]] · „x“ · sha:abcdef\n"
     t = t.replace("## Inhalt\n", "## Inhalt\nAussage ganz ohne Fußnote.\n\n")
-    p.write_text(t)
+    p.write_text(t, encoding="utf-8", newline="\n")
     c = checks(lint(svc))
     page = setup["page"]
     for expected in ("quote_not_found", "sha_mismatch", "footnote_undefined", "footnote_unused",
@@ -310,11 +311,12 @@ def test_lint_moved_newer_missing(svc, setup, cfg):
 def test_lint_anchor_missing_and_sources(svc, setup, cfg):
     """Fehlender Anker, ungültige confidence und veraltete sources."""
     p = cfg.root / setup["page"]
-    text = p.read_text().replace("#Entscheidungen]]", "#Gibtsnicht]]")
-    p.write_text(text.replace("confidence: high", "confidence: sicher"))
+    text = p.read_text(encoding="utf-8").replace("#Entscheidungen]]", "#Gibtsnicht]]")
+    p.write_text(text.replace("confidence: high", "confidence: sicher"), encoding="utf-8", newline="\n")
     c = checks(lint(svc))
     assert ("anchor_missing", setup["page"]) in c and ("invalid_confidence", setup["page"]) in c
-    p.write_text(p.read_text().replace('  - "[[documents/haus/datenblatt.pdf]]"\n', ""))
+    p.write_text(p.read_text(encoding="utf-8").replace('  - "[[documents/haus/datenblatt.pdf]]"\n', ""),
+                 encoding="utf-8", newline="\n")
     assert ("sources_out_of_sync", setup["page"]) in checks(lint(svc))
 
 
@@ -337,7 +339,7 @@ def test_lint_documents_and_platform(svc, setup, cfg):
     write(cfg, "documents/ohne.md", "# Ohne\n\nTitel\n=====\n\n## A\n## A\n## B [x]\n")
     write(cfg, "documents/kaputt.md", "---\ntitle: [x\n---\n")
     (cfg.root / "documents/bin.md").write_bytes(b"\xff")
-    write(cfg, "documents/kopie (conflicted copy).md", (cfg.root / setup["doc"]["path"]).read_text())
+    write(cfg, "documents/kopie (conflicted copy).md", (cfg.root / setup["doc"]["path"]).read_text(encoding="utf-8"))
     write(cfg, "documents/Gross.md", "x\n")
     write(cfg, "documents/gross.md", "y\n")
     # macOS (APFS) und Windows unterscheiden Groß-/Kleinschreibung nicht: dort entsteht nur eine Datei
@@ -359,9 +361,9 @@ def test_lint_version_mismatch_and_duplicates(svc, setup, cfg):
     """Version passt nicht zum Verlauf; doppelte IDs."""
     d = setup["doc"]
     p = cfg.root / d["path"]
-    p.write_text(p.read_text().replace("version: 1", "version: 7"))
+    p.write_text(p.read_text(encoding="utf-8").replace("version: 1", "version: 7"), encoding="utf-8", newline="\n")
     svc.git.commit_paths([d["path"]], "manuell\n", as_user=True)
-    write(cfg, "documents/kopie.md", p.read_text())
+    write(cfg, "documents/kopie.md", p.read_text(encoding="utf-8"))
     c = checks(lint(svc))
     assert ("version_mismatch", d["path"]) in c
     assert ("duplicate_id", sorted([d["path"], "documents/kopie.md"])[0]) in c
@@ -372,7 +374,7 @@ def test_lint_report(svc, cfg):
     """lint --report schreibt den Bericht nach wiki/_lint/."""
     res = lint(svc)
     rel = write_report(svc, res)
-    assert rel.startswith("wiki/_lint/") and (cfg.root / rel).read_text().startswith("# Lint-Bericht")
+    assert rel.startswith("wiki/_lint/") and (cfg.root / rel).read_text(encoding="utf-8").startswith("# Lint-Bericht")
 
 
 # doctor **********************************************************************
@@ -388,7 +390,8 @@ def test_doctor_problems(svc, cfg, isolated_env):
     """doctor erkennt .git im Vault, Konfliktkopien und Commit-Signierung."""
     (cfg.root / ".git").mkdir()
     write(cfg, "documents/a (conflicted copy).md", "x")
-    isolated_env["gitconfig"].write_text("[user]\n name=A\n email=a@b\n[commit]\n gpgsign = true\n")
+    isolated_env["gitconfig"].write_text("[user]\n name=A\n email=a@b\n[commit]\n gpgsign = true\n",
+                 encoding="utf-8", newline="\n")
     res = doctor(svc)
     bad = {c["check"]: c["severity"] for c in res["checks"] if not c["ok"]}
     assert bad["no_dotgit_in_vault"] == "error" and bad["conflict_copies"] == "error"

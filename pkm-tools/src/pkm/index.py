@@ -104,15 +104,18 @@ class SearchIndex:
         """
         self.path.parent.mkdir(parents=True, exist_ok=True)
         con = sqlite3.connect(self.path)
-        con.execute("PRAGMA journal_mode=DELETE")
-        con.executescript(DDL)
-        row = con.execute("SELECT value FROM info WHERE key='schema'").fetchone()
-        if row is None:
-            con.execute("INSERT INTO info VALUES('schema', ?)", (str(SCHEMA),))
-            con.commit()
-        elif row[0] != str(SCHEMA):
-            con.close()
-            raise sqlite3.DatabaseError("schema mismatch")
+        try:
+            con.execute("PRAGMA journal_mode=DELETE")
+            con.executescript(DDL)
+            row = con.execute("SELECT value FROM info WHERE key='schema'").fetchone()
+            if row is None:
+                con.execute("INSERT INTO info VALUES('schema', ?)", (str(SCHEMA),))
+                con.commit()
+            elif row[0] != str(SCHEMA):
+                raise sqlite3.DatabaseError("schema mismatch")
+        except sqlite3.Error:
+            con.close()  # Unter Windows ließe sich die Datei sonst nicht löschen und neu aufbauen.
+            raise
         return con
 
     def _drop(self) -> None:

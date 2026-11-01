@@ -228,7 +228,8 @@ def test_doctor_and_init_scratch_ignore(svc, cfg):
     """doctor meldet fehlendes scratch/ in .gitignore; pkm init ergänzt es in älteren Vaults."""
     assert next(c for c in doctor(svc)["checks"] if c["check"] == "scratch_ignored")["ok"]
     gitignore = cfg.root / ".gitignore"
-    gitignore.write_text(gitignore.read_text(encoding="utf-8").replace("scratch/\n", ""), encoding="utf-8")
+    gitignore.write_text(gitignore.read_text(encoding="utf-8").replace("scratch/\n", ""),
+                 encoding="utf-8", newline="\n")
     assert doctor(svc)["status"] == "error"
     assert init_vault(Config.from_env())["updated_files"] == [".gitignore"]
     assert doctor(svc)["status"] == "ok"

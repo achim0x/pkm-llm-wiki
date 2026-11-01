@@ -65,10 +65,10 @@ def test_init_creates_structure_without_dotgit(cfg, isolated_env):
         assert (root / d).is_dir()
     for f in ("CLAUDE.md", "wiki/index.md", "wiki/log.md", "wiki/_status.md", ".pkm/state.json", ".gitignore"):
         assert (root / f).is_file()
-    assert json.loads((root / ".pkm/state.json").read_text()) == {"version": 1, "documents": {}}
+    assert json.loads((root / ".pkm/state.json").read_text(encoding="utf-8")) == {"version": 1, "documents": {}}
     assert not (root / ".git").exists()
     assert res["repo_created"] and res["commit"]
-    assert ".pkm/mcp.log" in (root / ".gitignore").read_text()
+    assert ".pkm/mcp.log" in (root / ".gitignore").read_text(encoding="utf-8")
     assert git(isolated_env, "log", "--format=%s").strip() == "pkm: init"
 
 
@@ -98,7 +98,7 @@ def test_init_rejects_cache_in_vault(isolated_env, monkeypatch):
 
 def test_init_without_identity(isolated_env):
     """Ohne Git-Identität gibt es eine Warnung statt eines Commits."""
-    isolated_env["gitconfig"].write_text("")
+    isolated_env["gitconfig"].write_text("", encoding="utf-8", newline="\n")
     res = init_vault(Config.from_env())
     assert res["commit"] is None and res["warnings"]
 
@@ -124,8 +124,8 @@ def test_commit_only_given_file(cfg, isolated_env):
     init_vault(cfg)
     root = isolated_env["root"]
     g = Git(cfg.git_dir, cfg.root, cfg.git_author)
-    (root / "documents/a.md").write_text("a\n")
-    (root / "documents/b.md").write_text("b\n")
+    (root / "documents/a.md").write_text("a\n", encoding="utf-8", newline="\n")
+    (root / "documents/b.md").write_text("b\n", encoding="utf-8", newline="\n")
     msg = build_message("A", "v1", "", "d-20261031-2340-k7q2", 1, "chat")
     sha = g.commit_paths(["documents/a.md"], msg)
     assert g.commit_files(sha) == [("A", "documents/a.md")]
@@ -139,8 +139,8 @@ def test_commit_only_keeps_other_staged_changes(cfg, isolated_env):
     init_vault(cfg)
     root = isolated_env["root"]
     g = Git(cfg.git_dir, cfg.root)
-    (root / "CLAUDE.md").write_text("geändert\n")
-    (root / "documents/a.md").write_text("a\n")
+    (root / "CLAUDE.md").write_text("geändert\n", encoding="utf-8", newline="\n")
+    (root / "documents/a.md").write_text("a\n", encoding="utf-8", newline="\n")
     sha = g.commit_paths(["documents/a.md"], "x\n")
     assert [p for _, p in g.commit_files(sha)] == ["documents/a.md"]
     assert g.is_dirty("CLAUDE.md")
@@ -152,14 +152,14 @@ def test_log_for_id_after_move(cfg, isolated_env):
     root = isolated_env["root"]
     g = Git(cfg.git_dir, cfg.root)
     did = "d-20261031-2340-k7q2"
-    (root / "documents/_inbox/x.md").write_text("v1\n")
+    (root / "documents/_inbox/x.md").write_text("v1\n", encoding="utf-8", newline="\n")
     g.commit_paths(["documents/_inbox/x.md"], build_message("X", "v1", "neu", did, 1, "chat"))
     (root / "documents/haus").mkdir()
     (root / "documents/_inbox/x.md").rename(root / "documents/haus/y.md")
-    (root / "documents/haus/y.md").write_text("v2\n")
+    (root / "documents/haus/y.md").write_text("v2\n", encoding="utf-8", newline="\n")
     g.commit_paths(["documents/_inbox/x.md", "documents/haus/y.md"], build_message("X", "v2", "", did, 2, "user"))
     other = "d-20261031-2340-abcd"
-    (root / "documents/z.md").write_text("z\n")
+    (root / "documents/z.md").write_text("z\n", encoding="utf-8", newline="\n")
     g.commit_paths(["documents/z.md"], build_message("Z", "v1", "", other, 1, "chat"))
     log = g.log_for_id(did)
     assert [c.version for c in log] == [1, 2]
@@ -181,10 +181,10 @@ def test_commit_failure_unstages(cfg, isolated_env):
     root = isolated_env["root"]
     hook = cfg.git_dir / "hooks" / "pre-commit"
     hook.parent.mkdir(exist_ok=True)
-    hook.write_text("#!/bin/sh\nexit 1\n")
+    hook.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8", newline="\n")
     hook.chmod(0o755)
     g = Git(cfg.git_dir, cfg.root)
-    (root / "documents/a.md").write_text("a\n")
+    (root / "documents/a.md").write_text("a\n", encoding="utf-8", newline="\n")
     with pytest.raises(PkmError):
         g.commit_paths(["documents/a.md"], "x\n")
     assert git(isolated_env, "diff", "--cached", "--name-only").strip() == ""
@@ -196,7 +196,7 @@ def test_problem_reports(cfg, isolated_env):
     assert "pkm init" in g.problem()
     init_vault(cfg)
     assert g.problem() is None
-    isolated_env["gitconfig"].write_text("")
+    isolated_env["gitconfig"].write_text("", encoding="utf-8", newline="\n")
     assert "Identität" in g.problem()
 
 
