@@ -335,7 +335,7 @@ class Writer:
                     heading = [f"## {key}", ""]
                     out = _insert_block(lines, len(lines) - 1, heading + block) if lines else heading + block
                 else:
-                    dups = [s.key for s in sections if s.key.split("#")[0] == key and s.key != key]
+                    dups = [s.key for s in sections if s.level and s.base == key and s.key != key]
                     if "#" not in key and dups:
                         raise PkmError(
                             "ambiguous", f"Abschnitt „{key}“ kommt mehrfach vor. Bitte mit Suffix angeben.",

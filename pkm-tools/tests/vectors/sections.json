@@ -204,5 +204,59 @@
     "x\n\ny"
    ]
   ]
+ },
+ {
+  "name": "woertliches_suffix_wird_uebersprungen",
+  "input": "## Version\na\n## Version#2\nb\n## Version\nc\n",
+  "sections": [
+   [
+    "Version",
+    "a"
+   ],
+   [
+    "Version#2",
+    "b"
+   ],
+   [
+    "Version#3",
+    "c"
+   ]
+  ]
+ },
+ {
+  "name": "woertliches_suffix_vor_duplikat",
+  "input": "## Version#2\nb\n## Version\na\n## Version\nc\n## Version\nd\n",
+  "sections": [
+   [
+    "Version#2",
+    "b"
+   ],
+   [
+    "Version",
+    "a"
+   ],
+   [
+    "Version#3",
+    "c"
+   ],
+   [
+    "Version#4",
+    "d"
+   ]
+  ]
+ },
+ {
+  "name": "woertliches_suffix_doppelt",
+  "input": "## Version#2\nb\n## Version#2\nc\n",
+  "sections": [
+   [
+    "Version#2",
+    "b"
+   ],
+   [
+    "Version#2#2",
+    "c"
+   ]
+  ]
  }
 ]

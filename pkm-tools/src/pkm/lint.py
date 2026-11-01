@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
 WIKI_TYPES = ("topic", "entity", "summary", "synthesis")
 CONFIDENCE = ("high", "medium", "low")
 BAD_ANCHOR_CHARS = set("#^[]|")
+SUFFIX_LIKE_RE = re.compile(r"#([0-9]+)$")
 SEVERITIES = ("error", "warning", "info")
 
 
@@ -119,13 +121,28 @@ class Linter:
         for i in find_setext(lines):
             self.r.add("setext_heading", "info", doc.rel,
                        f"Setext-Überschrift (Zeile {i + 1} im Inhalt) ist keine Abschnittsgrenze; bitte # verwenden.")
-        for sec in doc.parsed.sections:
-            if sec.level and "#" in sec.key and sec.key.rsplit("#", 1)[1].isdigit():
-                self.r.add("duplicate_heading", "warning", doc.rel, f"Überschrift „{sec.key.rsplit('#', 1)[0]}“ kommt mehrfach vor.")
-            base = sec.key.rsplit("#", 1)[0] if sec.level else ""
-            if base and BAD_ANCHOR_CHARS & set(base):
+        headings = [s for s in doc.parsed.sections if s.level]
+        bases = {s.base for s in headings}
+        reported: set[str] = set()
+        for sec in headings:
+            if sec.key != sec.base and sec.base not in reported:
+                reported.add(sec.base)
+                self.r.add("duplicate_heading", "warning", doc.rel, f"Überschrift „{sec.base}“ kommt mehrfach vor.")
+            m = SUFFIX_LIKE_RE.search(sec.base)
+            if m and sec.key == sec.base:
+                stem = sec.base[: m.start()]
+                if stem in bases:
+                    self.r.add("heading_suffix_collision", "error", doc.rel,
+                               f"Überschrift „{sec.base}“ kollidiert mit dem Duplikat-Suffix von „{stem}“; "
+                               f"bitte umformulieren (z. B. „{stem} {m.group(1)}“).")
+                else:
+                    self.r.add("heading_suffix_like", "warning", doc.rel,
+                               f"Überschrift „{sec.base}“ endet auf # plus Ziffern und kann mit einem "
+                               f"Duplikat-Suffix verwechselt werden; bitte umformulieren (z. B. „{stem} {m.group(1)}“).")
+            text = sec.base[: m.start()] if m else sec.base
+            if BAD_ANCHOR_CHARS & set(text):
                 self.r.add("heading_bad_chars", "warning", doc.rel,
-                           f"Überschrift „{base}“ enthält Zeichen, die Obsidian-Anker brechen (# ^ [ ] |).")
+                           f"Überschrift „{sec.base}“ enthält Zeichen, die Obsidian-Anker brechen (# ^ [ ] |).")
 
     # ------------------------------------------------------------- Struktur
     def resolve_link(self, target: str) -> set[str]:
@@ -250,7 +267,8 @@ def lint(svc: Service) -> dict[str, Any]:
 CHECK_GROUPS = {
     "Plattform": ("conflict_copy", "unsafe_filename", "case_collision"),
     "Dokumente": ("missing_id", "missing_version", "version_mismatch", "duplicate_id", "invalid_encoding",
-                  "invalid_frontmatter", "setext_heading", "duplicate_heading", "heading_bad_chars"),
+                  "invalid_frontmatter", "setext_heading", "duplicate_heading", "heading_bad_chars",
+                  "heading_suffix_like", "heading_suffix_collision"),
 }
 
 

@@ -26,8 +26,9 @@ frei in Obsidian; Dokumente werden über ihre ID gefunden, nicht über den Pfad.
   `PKM-Source` (`chat` | `user` | `agent`). Der Verlauf liegt in Git, nicht im Dokument.
 - Empfohlene Gliederung für Chat-Ergebnisse: `## Ergebnis`, `## Entscheidungen`,
   `## Offene Punkte`, `## Kontext / Begründung`. Fortsetzungen aktualisieren diese Abschnitte.
-- Abschnitte sind Überschriften der Ebene 1 und 2 (`#`, `##`). Doppelte Überschriften und die
-  Zeichen `# ^ [ ] |` in Überschriften vermeiden.
+- Abschnitte sind Überschriften der Ebene 1 und 2 (`#`, `##`). Doppelte Überschriften, die
+  Zeichen `# ^ [ ] |` und Überschriften, die auf `#` plus Ziffern enden („Version#2“ →
+  besser „Version 2“), vermeiden.
 
 ## Wiki
 

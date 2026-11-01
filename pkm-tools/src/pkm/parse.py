@@ -42,6 +42,7 @@ class Section:
     start: int  # Index der ersten Zeile (Überschrift bzw. Vorspann) in body_lines
     end: int  # exklusiv
     content_lines: list[str] = field(default_factory=list)  # ohne Überschrift, ohne LF
+    base: str = ""  # Überschriftentext als Schlüssel ohne Duplikat-Suffix
 
     @property
     def content(self) -> str:
@@ -192,14 +193,26 @@ def split_sections(body: str) -> list[Section]:
     pre = lines[:first]
     if not _normalized_content_empty(pre):
         sections.append(Section(PREAMBLE, 0, None, 0, first, pre))
-    seen: dict[str, int] = {}
-    for idx, (line_no, level, raw) in enumerate(heads):
+    bases = [heading_key(raw) for _, _, raw in heads]
+    literal = set(bases)  # wörtliche Überschriften sind belegte Schlüssel (4.8)
+    used: set[str] = set()
+    last: dict[str, int] = {}
+    for idx, (line_no, level, _raw) in enumerate(heads):
         end = heads[idx + 1][0] if idx + 1 < len(heads) else len(lines)
-        base = heading_key(raw)
-        n = seen.get(base, 0) + 1
-        seen[base] = n
-        key = base if n == 1 else f"{base}#{n}"
-        sections.append(Section(key, level, lines[line_no], line_no, end, lines[line_no + 1 : end]))
+        base = bases[idx]
+        if base not in used:
+            key = base
+            last.setdefault(base, 1)
+        else:
+            # Suffix vergeben und dabei Nummern überspringen, deren Schlüssel schon als
+            # wörtliche Überschrift vorkommt (z. B. „Version#2“) oder bereits vergeben ist.
+            n = last.get(base, 1) + 1
+            while f"{base}#{n}" in literal or f"{base}#{n}" in used:
+                n += 1
+            last[base] = n
+            key = f"{base}#{n}"
+        used.add(key)
+        sections.append(Section(key, level, lines[line_no], line_no, end, lines[line_no + 1 : end], base))
     return sections
 
 

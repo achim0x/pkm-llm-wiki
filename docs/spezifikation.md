@@ -1,7 +1,10 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.12 (Entwurf zum Review) · **Stand:** 01.11.2026
+**Version:** 0.13 (Entwurf zum Review) · **Stand:** 01.11.2026
 
+> **Änderungen in 0.13**
+> - **Überschriften, deren Text auf `#` plus Ziffern endet** (z. B. „Version#2“), können mit dem Duplikat-Suffix kollidieren. Die Suffix-Vergabe überspringt jetzt belegte Schlüssel, und Lint meldet solche Überschriften: als Warnung bei Verwechslungsgefahr, als Fehler bei tatsächlicher Kollision (4.8, 8, 14, 16).
+>
 > **Änderungen in 0.12** (Entscheidungen aus dem Umsetzungsplan, Abschnitt 16)
 > - **Suchindex nur in `PKM_CACHE_DIR`**, das außerhalb des Vaults und der Nextcloud liegen muss. Server und `pkm doctor` prüfen das. Das **Protokoll** `mcp.log` liegt in `.pkm/` (nicht in Git) (3, 5.5, 7.1, 7.4, 8, 12).
 > - **`pkm ids` committet je Dokument einzeln** (`doc: <title> v1`, `PKM-Source: agent`). Der Sammel-Commit `pkm: add missing ids` entfällt (5.4, 8, 12).
@@ -381,10 +384,16 @@ Der Server **schreibt** Dateien immer in dieser Form: UTF-8 ohne BOM, LF, NFC, e
 #### Schritt 3: Abschnittsschlüssel
 
 - Der **Schlüssel** ist der Überschriftentext. Dabei werden die führenden `#` mit dem folgenden Leerraum sowie eine schließende `#`-Folge (ATX-Abschluss) entfernt, Leerraum an den Enden gestrichen und innere Leerraumfolgen zu einem Leerzeichen zusammengefasst. Groß- und Kleinschreibung sowie Inline-Markdown bleiben erhalten. `## Offene  Punkte ##` ergibt also `Offene Punkte`.
-- **Doppelte Überschriften** (gleicher Schlüssel, auch über Ebene 1 und 2 hinweg) werden in Dokumentreihenfolge nummeriert. Das erste Vorkommen behält den Text, weitere bekommen `#2`, `#3` …, also `Notizen`, `Notizen#2`, `Notizen#3`. Weil `#` in Obsidian-Ankern nicht vorkommen kann, ist das Suffix eindeutig.
-  - In Tools gilt: `section: "Notizen"` meint immer das erste Vorkommen, `section: "Notizen#2"` das zweite. Gibt es ein Duplikat und wird der Schlüssel ohne Suffix übergeben, liefern `append_to_document` und `rewrite_document` (bei der Kürzungsprüfung) den Hinweis `ambiguous` mit allen Kandidaten. Der Chat muss dann den Schlüssel mit Suffix verwenden.
+- **Doppelte Überschriften** (gleicher Schlüssel, auch über Ebene 1 und 2 hinweg) werden in Dokumentreihenfolge nummeriert. Das erste Vorkommen behält den Text, weitere bekommen `#2`, `#3` …, also `Notizen`, `Notizen#2`, `Notizen#3`.
+  - **Kollisionen mit wörtlichen Überschriften:** Endet ein Überschriftentext selbst auf `#` plus Ziffern (z. B. „Version#2“), ist dieser Text bereits ein belegter Schlüssel. Die Suffix-Vergabe überspringt deshalb jede Nummer, deren Schlüssel schon als wörtliche Überschrift im Dokument vorkommt. Beispiel: `## Version`, `## Version#2`, `## Version` ergibt die Schlüssel `Version`, `Version#2` (wörtlich) und `Version#3`. Damit bleibt jeder Schlüssel eindeutig und die Zuordnung deterministisch. Ändert sich allerdings die Menge der wörtlichen Überschriften, können sich Suffixe verschieben. `pending` erkennt das als `renamed` (gleicher Abschnitts-Hash).
+  - In Tools gilt: `section: "Notizen"` meint immer das erste Vorkommen. Ein Schlüssel mit Suffix meint genau den Abschnitt, dem dieser Schlüssel nach den Regeln oben zugeordnet ist, im Normalfall also `Notizen#2` das zweite Vorkommen. Gibt es ein Duplikat und wird der Schlüssel ohne Suffix übergeben, liefern `append_to_document` und `rewrite_document` (bei der Kürzungsprüfung) den Hinweis `ambiguous` mit allen Kandidaten. Der Chat muss dann den Schlüssel mit Suffix verwenden.
   - In Belegen enthält der Link-Anker immer den Text **ohne** Suffix (`[[…#Notizen]]`), weil Obsidian `#Notizen#2` als Pfad zu einer Unterüberschrift „2“ deuten würde. Beim Klick springt Obsidian zum ersten Vorkommen. Den genauen Schlüssel trägt der Beleg in diesem Fall zusätzlich als Feld `§:Notizen#2`. Zusammen mit Zitat und Hash bleibt er eindeutig.
   - Lint warnt vor doppelten Überschriften der Ebenen 1 und 2 in Dokumenten sowie vor Überschriften mit Zeichen, die Obsidian-Anker brechen (`# ^ [ ] |`).
+  - Lint meldet außerdem gesondert **Überschriften der Ebenen 1 und 2, deren Text auf `#` plus Ziffern endet** (Muster `#[0-9]+$` nach der Schlüssel-Normalisierung):
+    - als **Warnung** (`heading_suffix_like`), wenn keine Kollision vorliegt, weil der Schlüssel mit einem Duplikat-Suffix verwechselt werden kann,
+    - als **Fehler** (`heading_suffix_collision`), wenn im selben Dokument auch die Grundüberschrift vorkommt (z. B. `Version` und `Version#2`), weil dann nur die Überspring-Regel die Schlüssel auseinanderhält.
+
+    Empfehlung in beiden Fällen: Überschrift umformulieren, z. B. „Version 2“ statt „Version#2“.
   - Die Werkzeuge erzeugen selbst keine Duplikate. Fortsetzungsabschnitte am selben Tag bekommen ` (2)` im *Text* (6.3).
 
 #### Schritt 4: Hashes
@@ -761,7 +770,7 @@ Die Datei liegt auf dem Mac unter `~/Library/Application Support/Claude/claude_d
 | `pkm mark <id>… --pages <page>…` | Trägt verarbeitete Dokumente mit Version und Abschnitts-Hashes in `state.json` ein |
 | `pkm index` | Erzeugt `wiki/index.md` neu |
 | `pkm status` | Erzeugt `wiki/_status.md` neu, inklusive Einsortier-Vorschlägen für verarbeitete Dokumente im Eingang |
-| `pkm lint` | JSON-Bericht. **Struktur:** kaputte Links, verwaiste Wiki-Seiten, fehlende Kurzfassung, fehlerhaftes Frontmatter, häufige Begriffe ohne Seite. **Belege:** Ziel fehlt oder verschoben, Anker fehlt, Zitat nicht in der belegten Version, Status `newer_version`, Beleg zeigt auf Wiki-Seite, Absatz ohne Fußnote, Fußnote ohne Definition, `sources` nicht synchron. **Dokumente:** ohne ID oder Version, doppelte IDs, `version` passt nicht zum Commit-Verlauf. **Plattform:** Nextcloud-Konfliktkopien, nicht plattformfeste Dateinamen, Namen, die sich nur in Groß- und Kleinschreibung unterscheiden |
+| `pkm lint` | JSON-Bericht. **Struktur:** kaputte Links, verwaiste Wiki-Seiten, fehlende Kurzfassung, fehlerhaftes Frontmatter, häufige Begriffe ohne Seite. **Belege:** Ziel fehlt oder verschoben, Anker fehlt, Zitat nicht in der belegten Version, Status `newer_version`, Beleg zeigt auf Wiki-Seite, Absatz ohne Fußnote, Fußnote ohne Definition, `sources` nicht synchron. **Dokumente:** ohne ID oder Version, doppelte IDs, `version` passt nicht zum Commit-Verlauf. **Plattform:** Nextcloud-Konfliktkopien, nicht plattformfeste Dateinamen, Namen, die sich nur in Groß- und Kleinschreibung unterscheiden. **Überschriften (4.8):** Duplikate, Zeichen, die Anker brechen, Text auf `#` plus Ziffern (`heading_suffix_like` als Warnung, `heading_suffix_collision` als Fehler) |
 | `pkm restore <target> --version <n>` | Wie `restore_document` |
 | `pkm reindex` | Baut den Suchindex neu auf |
 | `pkm commit-wiki --message "<text>"` | Agenten-Commit am Ende eines Pflegelaufs (12). Committet ausschließlich `wiki/` und `.pkm/state.json`. Offene Änderungen in `documents/` bleiben unberührt |
@@ -907,7 +916,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 - Versionen: jede Schreiboperation erhöht `version` um genau 1 und erzeugt genau einen Commit nur dieser Datei mit korrekten Zeilen. Von Hand geänderter Stand wird vor der MCP-Änderung separat committet. `pkm versions` fasst mehrere Änderungen von Hand zu einer Version zusammen und committet reines Verschieben ohne Versionssprung, Verschieben mit Änderung als neue Version. `pkm commit-wiki` lässt offene Änderungen in `documents/` unberührt. Commit-Fehler setzen die Datei zurück
 - `history` nach Verschieben und Umbenennen vollständig. `read` mit `version`. `restore_document` erzeugt eine neue Version
 - Änderungs-Tools: Hash-Konflikt, `large_shortening` und Bestätigung, Einfügen in bestehenden und neuen Abschnitt, `old` nicht gefunden oder mehrdeutig, geschützte Felder, Diff
-- Normalisierung und Hashes (4.8), mit festen Testvektoren: BOM, CRLF/CR, NFD-Text, fehlendes oder doppeltes LF am Ende, ungültiges UTF-8. Frontmatter fehlend, ungültig oder mit `...`-Abschluss. Überschriften in Codeblöcken (``` und ~~~, verschachtelte Zaunlängen), Setext, Ebene 3 innerhalb von Ebene 2, ATX-Abschluss, Einrückung bis 3 Leerzeichen. Vorspann leer und nicht leer. Duplikate über Ebene 1 und 2. Leerraum-Änderungen lassen Abschnitts-Hashes unverändert. Eine Frontmatter-Änderung nur an `updated` ändert `file_hash`, aber nicht `body_hash` und `meta_hash`
+- Normalisierung und Hashes (4.8), mit festen Testvektoren: BOM, CRLF/CR, NFD-Text, fehlendes oder doppeltes LF am Ende, ungültiges UTF-8. Frontmatter fehlend, ungültig oder mit `...`-Abschluss. Überschriften in Codeblöcken (``` und ~~~, verschachtelte Zaunlängen), Setext, Ebene 3 innerhalb von Ebene 2, ATX-Abschluss, Einrückung bis 3 Leerzeichen. Vorspann leer und nicht leer. Duplikate über Ebene 1 und 2. Wörtliche Überschrift `Version#2` neben zwei `Version`: Schlüssel `Version`, `Version#2`, `Version#3`. Lint meldet `heading_suffix_like` bzw. `heading_suffix_collision`. Leerraum-Änderungen lassen Abschnitts-Hashes unverändert. Eine Frontmatter-Änderung nur an `updated` ändert `file_hash`, aber nicht `body_hash` und `meta_hash`
 - `pending`: neu, `changed` mit `added`/`removed`/`changed`/`renamed` je Abschnitt, nur Reihenfolge, `meta_changed`, verschoben (per ID bzw. Hash), verschoben *und* geändert, gelöscht
 - Tools: `section` mit `_preamble` und mit Duplikat-Suffix, `ambiguous` ohne Suffix, `edit_document` mit CRLF- bzw. NFD-Eingabe
 - Belege: Parser (inkl. `v:` und `#page=`), alle Status von `show_citations`, Auszug aus alter und aktueller Version, `fix-citations`, `sync-citations`, alle Lint-Prüfungen positiv und negativ
@@ -975,6 +984,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 18 | Kurznamen | Ohne Groß-/Kleinschreibung, mehrdeutig → `ambiguous` | 7.1 |
 | 19 | Plattform für Tests | Pfade überschreibbar, Tests auch unter Linux, produktiv nur macOS | 7.1 |
 | 20 | Agenten-Commit | `pkm commit-wiki`, nur `wiki/` und `.pkm/state.json` | 8, 9.1, 12 |
+| 21 | Überschriften auf `#` plus Ziffern | Suffix-Vergabe überspringt belegte Schlüssel. Lint warnt (`heading_suffix_like`) bzw. meldet einen Fehler bei Kollision (`heading_suffix_collision`) | 4.8, 8, 14 |
 
 ### Noch offen
 
