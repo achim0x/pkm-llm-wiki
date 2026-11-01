@@ -263,13 +263,17 @@ def test_lint_documents_and_platform(svc, setup, cfg):
     write(cfg, "documents/kopie (conflicted copy).md", (cfg.root / setup["doc"]["path"]).read_text())
     write(cfg, "documents/Gross.md", "x\n")
     write(cfg, "documents/gross.md", "y\n")
+    # macOS (APFS) und Windows unterscheiden Groß-/Kleinschreibung nicht: dort entsteht nur eine Datei
+    case_sensitive = len({p.name for p in (cfg.root / "documents").glob("[Gg]ross.md")}) == 2
     p = cfg.root / setup["doc"]["path"]
     c = checks(lint(svc))
-    for expected, path in [("missing_id", "documents/ohne.md"), ("setext_heading", "documents/ohne.md"),
+    expected_checks = [("missing_id", "documents/ohne.md"), ("setext_heading", "documents/ohne.md"),
                            ("duplicate_heading", "documents/ohne.md"), ("heading_bad_chars", "documents/ohne.md"),
                            ("invalid_frontmatter", "documents/kaputt.md"), ("invalid_encoding", "documents/bin.md"),
-                           ("conflict_copy", "documents/kopie (conflicted copy).md"),
-                           ("case_collision", "documents/Gross.md")]:
+                           ("conflict_copy", "documents/kopie (conflicted copy).md")]
+    if case_sensitive:
+        expected_checks.append(("case_collision", "documents/Gross.md"))
+    for expected, path in expected_checks:
         assert (expected, path) in c, expected
     assert p.exists()
 
