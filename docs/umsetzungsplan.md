@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Umsetzungsplan
 
-**Bezug:** [Spezifikation v0.11](spezifikation.md) · **Stand:** 31.10.2026 · **Plan-Version:** 3
+**Bezug:** [Spezifikation v0.12](spezifikation.md) · **Stand:** 31.10.2026 · **Plan-Version:** 3
 
 Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnissen, Tests und Abnahmekriterien. Abschnittsnummern in Klammern (z. B. „5.4“) verweisen auf die Spezifikation.
 
@@ -68,7 +68,7 @@ Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnisse
 
 Damit ist keine Klärung mehr offen.
 
-### 2.3 Nötige Anpassungen in der Spezifikation (für 0.12)
+### 2.3 Anpassungen in der Spezifikation (erledigt in 0.12)
 
 - 3 (Ordnerbaum), 5.5, 7.1: `mcp.log` unter `.pkm/`, `index.db` bleibt in `PKM_CACHE_DIR` (Beschreibung von `PKM_CACHE_DIR` auf „Suchindex“ kürzen); 7.4 erste Zeile „`.pkm/index.db`“ → „`PKM_CACHE_DIR/index.db`“; Prüfung „`PKM_CACHE_DIR` nicht im Vault/Nextcloud“ in 7.1 und 8 (`doctor`) aufnehmen (K1).
 - 7.3 `history`: `source` „chat/nutzer/agent“ → `chat`/`user`/`agent` (K2).
@@ -287,6 +287,5 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 
 ## 8. Nächste Schritte
 
-1. Spezifikation auf 0.12 heben (Liste in 2.3).
-2. Phase 0 starten: Paketgerüst, Test-Fixture, CI.
-3. Phase 1 als erster Meilenstein, zuerst die Testvektoren für 4.8; danach kurzer Review von `parse`/`hashes` und Git-Schicht, weil alle weiteren Phasen darauf aufbauen.
+1. Phase 0 starten: Paketgerüst, Test-Fixture, CI.
+2. Phase 1 als erster Meilenstein, zuerst die Testvektoren für 4.8; danach kurzer Review von `parse`/`hashes` und Git-Schicht, weil alle weiteren Phasen darauf aufbauen.

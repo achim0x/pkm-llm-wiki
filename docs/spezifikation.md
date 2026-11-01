@@ -1,7 +1,17 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.11 (Entwurf zum Review) · **Stand:** 01.11.2026
+**Version:** 0.12 (Entwurf zum Review) · **Stand:** 01.11.2026
 
+> **Änderungen in 0.12** (Entscheidungen aus dem Umsetzungsplan, Abschnitt 16)
+> - **Suchindex nur in `PKM_CACHE_DIR`**, das außerhalb des Vaults und der Nextcloud liegen muss. Server und `pkm doctor` prüfen das. Das **Protokoll** `mcp.log` liegt in `.pkm/` (nicht in Git) (3, 5.5, 7.1, 7.4, 8, 12).
+> - **`pkm ids` committet je Dokument einzeln** (`doc: <title> v1`, `PKM-Source: agent`). Der Sammel-Commit `pkm: add missing ids` entfällt (5.4, 8, 12).
+> - **Neuer Befehl `pkm commit-wiki`** für den Agenten-Commit, der nur `wiki/` und `.pkm/state.json` erfasst (4.7, 8, 9.1, 12).
+> - **Frontmatter:** Serverfelder werden zeilengenau ersetzt, der Rest bleibt unverändert. `update_frontmatter` schreibt das Frontmatter neu, Kommentare darin gehen dabei verloren (4.1, 7.2).
+> - **`pkm versions` bei Verschiebungen:** ein Commit mit altem und neuem Pfad; neue Version nur bei geändertem Inhalt oder Metadaten (8).
+> - **Kurznamen** werden ohne Groß- und Kleinschreibung aufgelöst (7.1).
+> - **Plattform:** Alle Pfade sind per Umgebungsvariable überschreibbar, damit die Tests auch unter Linux laufen. Produktiv nur macOS (7.1).
+> - `history`: `source` einheitlich `chat`, `user` oder `agent` (7.3).
+>
 > **Änderungen in 0.11**
 > - **Hashes und Abschnitte exakt festgelegt** (neuer Abschnitt 4.8): Textnormalisierung, Erkennung von Frontmatter und Abschnitten (Ebene 1 und 2, außerhalb von Codeblöcken), Vorspann vor der ersten Überschrift als Abschnitt `_preamble`, doppelte Überschriften mit Schlüssel `Text#2`, `Text#3` sowie die genaue Eingabe von `hash`/`expected_hash`, `body_hash`, `meta_hash` und Abschnitts-Hashes.
 > - `state.json` speichert `file_hash`, `body_hash` und `meta_hash` statt eines einzelnen `sha256`. `pending` erkennt zusätzlich umbenannte Abschnitte und reine Metadaten-Änderungen.
@@ -129,15 +139,15 @@ Ein persönliches Wissensmanagement (PKM), das
 │   └── _lint/                # Lint-Berichte
 ├── CLAUDE.md                 # Schema: Konventionen und Regeln
 ├── .pkm/
-│   └── state.json            # Verarbeitungsstand (im Git)
+│   ├── state.json            # Verarbeitungsstand (im Git)
+│   └── mcp.log               # Protokoll aller MCP-Vorgänge (nicht im Git)
 ├── .obsidian/
 └── .gitignore                # kein .git im Vault, siehe 5.5
 
 Außerhalb der Nextcloud, nur auf dem Mac:
 ~/Library/Application Support/pkm/
 ├── git/                      # Git-Verzeichnis des Vaults (PKM_GIT_DIR)
-├── index.db                  # Suchindex, Cache (PKM_CACHE_DIR)
-└── mcp.log                   # Protokoll aller MCP-Vorgänge
+└── index.db                  # Suchindex, Cache (PKM_CACHE_DIR)
 ```
 
 | Bereich | Nutzer (Obsidian) | pkm-mcp (Chat, auf Anweisung des Nutzers) | Pflege-Agent |
@@ -146,7 +156,7 @@ Außerhalb der Nextcloud, nur auf dem Mac:
 | `documents/**` (übrige) | alles | ändern (nur `.md`) | lesen, `id`/`version` setzen |
 | `wiki/` | lesen | **nur lesen** | lesen und schreiben |
 | `CLAUDE.md` | lesen und schreiben | – | Änderungen nur nach Zustimmung |
-| `.pkm/` | – | – | `state.json` |
+| `.pkm/` | – | `mcp.log` (nur anhängen) | `state.json` |
 
 Ein Dokument ist „unverarbeitet“, solange seine aktuelle Version nicht in `state.json` als verarbeitet steht. Wo es liegt, ist dafür egal.
 
@@ -177,6 +187,7 @@ kind: note                                 # optional: note | correction
 - **ID-Format:** `d-YYYYMMDD-HHMM-xxxx`. Das sind Zeitpunkt der Vergabe und vier Zufallszeichen aus `0-9a-z` ohne `0 1 l o`. Kollisionen prüft der Server gegen den Index.
 - **`version`:** ganze Zahl, beginnt bei 1 und steigt mit jeder Änderung um 1. Zu jeder Version gibt es genau einen Git-Commit (Abschnitt 5.4).
 - **Geschützte Felder:** `id`, `version`, `created` und `updated` werden ausschließlich vom Server bzw. der CLI gesetzt und sind über `update_frontmatter` nicht änderbar.
+- **Frontmatter-Erhalt:** Server und CLI setzen die geschützten Felder **zeilengenau**: Nur die betreffende Zeile wird ersetzt oder ergänzt, Reihenfolge, Formatierung und Kommentare der übrigen Zeilen bleiben erhalten. Nur `update_frontmatter` schreibt das Frontmatter vollständig neu (Feldreihenfolge bleibt, Umlaute bleiben lesbar). Kommentare im Frontmatter gehen dabei verloren.
 
 **Gliederung von Chat-Ergebnissen** (Empfehlung des Skills, nicht erzwungen):
 
@@ -340,7 +351,7 @@ Alle Hashes werden voll (64 Hex-Zeichen) gespeichert, im Beispiel gekürzt. Was 
 | `pending`-Kategorien | `new`, `changed`, `meta_changed`, `moved`, `deleted`; je Abschnitt `added`, `removed`, `changed`, `renamed` |
 | MCP-Tools | `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`, `search`, `read`, `history`, `show_citations`, `read_index`, `list_unprocessed` |
 | Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding` |
-| CLI | `pkm init`, `ids`, `versions`, `pending`, `history`, `show`, `fix-citations`, `sync-citations`, `sha`, `mark`, `index`, `status`, `lint`, `restore`, `reindex`, `doctor` |
+| CLI | `pkm init`, `ids`, `versions`, `pending`, `history`, `show`, `fix-citations`, `sync-citations`, `sha`, `mark`, `index`, `status`, `lint`, `restore`, `reindex`, `commit-wiki`, `doctor` |
 | Skills | `pkm-wiki`, `pkm-access` |
 
 Deutsch bleiben: Texte in Dokumenten und Wiki-Seiten, Überschriften, Änderungsnotizen (`note`), `wiki/log.md`, `wiki/_status.md` und Lint-Berichte.
@@ -451,7 +462,7 @@ PKM-Source: chat
 |---|---|---|
 | MCP (Chat) | sofort bei jeder Änderung | Der Server erhöht `version`, setzt `updated`, schreibt die Datei und committet mit `--only` genau diese Datei (mit `--git-dir`/`--work-tree`, 5.5). Andere offene Änderungen im Vault bleiben unberührt |
 | Nutzer (Obsidian, Dateimanager) | nachgezogen | (a) Ändert danach der MCP-Server dieselbe Datei, committet er **vorher** den Stand des Nutzers als eigene Version (`PKM-Source: user`). (b) Spätestens zu Beginn des nächsten Pflegelaufs zieht `pkm versions` alle von Hand geänderten Dokumente nach, je Dokument eine Version |
-| Agent | beim Pflegelauf | Nur `pkm ids` und die Duplikat-Auflösung |
+| Agent | beim Pflegelauf | Nur `pkm ids` und die Duplikat-Auflösung, je Dokument ein Commit |
 
 Mehrere Änderungen von Hand zwischen zwei Commits werden also zu **einer** Version zusammengefasst. Das ist gewollt, weil Obsidian Zwischenstände beim Tippen speichert.
 
@@ -470,7 +481,7 @@ Mehrere Änderungen von Hand zwischen zwei Commits werden also zu **einer** Vers
 git --git-dir="$PKM_GIT_DIR" --work-tree="$PKM_ROOT" …
 ```
 
-Im Vault gibt es kein `.git`, und der Windows-Rechner sieht davon nichts. Aus demselben Grund liegen Suchindex (SQLite) und Protokoll in `PKM_CACHE_DIR`. SQLite-Dateien eignen sich nicht für Dateisynchronisation. Nur `.pkm/state.json` liegt im Vault: Die Datei ist klein, wird nur auf dem Mac geschrieben und ist so in der Versionsgeschichte enthalten.
+Im Vault gibt es kein `.git`, und der Windows-Rechner sieht davon nichts. Aus demselben Grund liegt der Suchindex (SQLite) in `PKM_CACHE_DIR`. SQLite-Dateien eignen sich nicht für Dateisynchronisation. `PKM_CACHE_DIR` darf deshalb weder im Vault noch sonst im Nextcloud-Ordner liegen (7.1). Im Vault liegen nur zwei Dateien unter `.pkm/`: `state.json` ist klein, wird nur auf dem Mac geschrieben und ist so in der Versionsgeschichte enthalten. `mcp.log` ist eine reine Textdatei, an die nur der Mac anhängt. Sie wird mit synchronisiert, steht aber nicht in Git.
 
 **Sync-Verzögerung und Konflikte**
 - Änderungen vom Windows-Rechner erreichen den Mac erst nach dem Sync. Sobald sie angekommen sind, verhindert der Hash-Schutz, dass ein Chat einen veralteten Stand überschreibt.
@@ -547,11 +558,11 @@ Diese Form ist nie Standard. Der Skill schlägt sie auch nicht von sich aus vor.
 
 - Python ≥ 3.11, offizielles `mcp`-SDK (FastMCP), Transport stdio
 - Abhängigkeiten: `mcp`, `pyyaml`. Sonst Standardbibliothek (`sqlite3` mit FTS5, `subprocess` für `git`)
-- Plattform: **macOS**, denn der Server läuft nur auf dem Mac (5.5). Voraussetzung ist `git` (Xcode Command Line Tools oder Homebrew)
+- Plattform: **macOS**, denn der Server läuft nur auf dem Mac (5.5). Voraussetzung ist `git` (Xcode Command Line Tools oder Homebrew). Die Standardpfade richten sich nach dem Betriebssystem; alle Pfade sind per Umgebungsvariable überschreibbar, damit die automatischen Tests auch unter Linux laufen
 - Konfiguration über Umgebungsvariablen:
   - `PKM_ROOT` (Pflicht): absoluter Pfad zum Vault im Nextcloud-Ordner
   - `PKM_GIT_DIR` (Standard `~/Library/Application Support/pkm/git`): Git-Verzeichnis außerhalb der Nextcloud
-  - `PKM_CACHE_DIR` (Standard `~/Library/Application Support/pkm`): Suchindex und Protokoll
+  - `PKM_CACHE_DIR` (Standard `~/Library/Application Support/pkm`): Suchindex. Muss außerhalb von `PKM_ROOT` und des Nextcloud-Ordners liegen. Liegt es nach `resolve()` innerhalb von `PKM_ROOT`, legt der Server keinen Index an und meldet einen Fehler. `search` ist dann nicht verfügbar, die übrigen lesenden Tools funktionieren weiter
   - `PKM_TZ` (Standard `Europe/Berlin`)
   - `PKM_MAX_KB` (Standard 200): Grenze für ein Dokument bzw. für den Text einer einzelnen Änderung
   - `PKM_VAULT_NAME` (optional): Name des Obsidian-Vaults, um klickbare `obsidian://`-Links zu liefern
@@ -559,7 +570,7 @@ Diese Form ist nie Standard. Der Skill schlägt sie auch nicht von sich aus vor.
 - Kein Netzwerk, keine LLM-Aufrufe, keine Hintergrundprozesse
 - Umfang: rund 550 Zeilen plus Tests
 
-**Adressierung:** Jeder Parameter `target` akzeptiert einen relativen Pfad (`documents/haus/zisterne.md`), einen Wikilink (`[[documents/haus/zisterne]]`, `[[zisterne]]`) oder eine ID (`id:d-20261031-2340-k7q2`). Mehrdeutige Kurznamen führen zum Fehler `ambiguous` mit Kandidatenliste.
+**Adressierung:** Jeder Parameter `target` akzeptiert einen relativen Pfad (`documents/haus/zisterne.md`), einen Wikilink (`[[documents/haus/zisterne]]`, `[[zisterne]]`) oder eine ID (`id:d-20261031-2340-k7q2`). Ein Kurzname ist der Dateiname ohne Endung. Er wird in NFC und ohne Unterscheidung von Groß- und Kleinschreibung verglichen. Mehrdeutige Kurznamen führen zum Fehler `ambiguous` mit Kandidatenliste.
 
 ### 7.2 Schreibende Tools
 
@@ -569,7 +580,7 @@ Gemeinsame Regeln:
 - **Versionierung:** Jeder erfolgreiche Aufruf erhöht `version` um 1, setzt `updated` und erzeugt einen Commit nach 5.4. Weicht die Datei vom letzten Commit ab, weil sie von Hand geändert wurde, wird dieser Stand vorher als eigene Version committet.
 - **Änderungsnotiz:** Jedes Tool hat den optionalen Parameter `note` (eine Zeile). Sie wird zur Commit-Nachricht. Ohne Notiz erzeugt der Server eine Standardnotiz aus Tool und Abschnitt.
 - **Atomar:** Die Datei wird erst in eine temporäre Datei geschrieben und dann umbenannt. Schlägt der Commit fehl, wird die Datei zurückgesetzt und ein Fehler gemeldet.
-- **Protokoll** in `.pkm/mcp.log`.
+- **Protokoll** in `.pkm/mcp.log` (nur anhängen, nicht in Git).
 - **Rückgabe:** `{ id, path, status, version, new_hash, commit, diff }`. Der Diff ist ein Unified Diff, gekürzt auf 80 Zeilen.
 - **Nicht angeboten:** Löschen, Umbenennen, Verschieben, jede Änderung in `wiki/`.
 
@@ -627,7 +638,7 @@ Schutz gegen versehentlichen Verlust: Ist der neue Inhalt kürzer als 60 % des a
 | `expected_hash` | string | ja | |
 | `note` | string | nein | |
 
-Geschützt: `id`, `version`, `created`, `updated`.
+Geschützt: `id`, `version`, `created`, `updated`. Das Frontmatter wird vollständig neu geschrieben, Kommentare darin gehen verloren (4.1).
 
 #### `restore_document`
 Holt den Inhalt einer früheren Version zurück, und zwar als **neue** Version. Die Geschichte wird nicht umgeschrieben.
@@ -670,7 +681,7 @@ Rückgabe: `id`, `version`, `path`, `frontmatter`, `content`, `hash`, `editable`
 | `diff_from` | int | optional. Version, ab der verglichen wird |
 | `diff_to` | int | optional. Standard ist die aktuelle Version |
 
-Rückgabe: Liste der Versionen mit `version`, `date`, `source` (chat/nutzer/agent), `note` und `commit`. Mit `diff_from` zusätzlich ein Unified Diff zwischen den Versionen. Grundlage sind die `PKM-Id`-Zeilen der Commits, deshalb funktioniert das auch nach Verschieben und Umbenennen.
+Rückgabe: Liste der Versionen mit `version`, `date`, `source` (`chat` | `user` | `agent`), `note` und `commit`. Mit `diff_from` zusätzlich ein Unified Diff zwischen den Versionen. Grundlage sind die `PKM-Id`-Zeilen der Commits, deshalb funktioniert das auch nach Verschieben und Umbenennen.
 
 #### `show_citations`
 | Parameter | Typ | Pflicht | Beschreibung |
@@ -696,9 +707,9 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 
 ### 7.4 Suchindex
 
-- `.pkm/index.db`, FTS5 mit `unicode61 remove_diacritics 2`
+- `PKM_CACHE_DIR/index.db`, FTS5 mit `unicode61 remove_diacritics 2`
 - Gewichte: Titel 5, Aliase/Tags/Themen 3, Kurzfassung 2, Text 1. Zusätzlich eine Tabelle `id → path, version` für die Auflösung nach 5.2
-- `index.db` liegt in `PKM_CACHE_DIR`, nicht im Vault
+- `index.db` liegt in `PKM_CACHE_DIR`, nie im Vault oder im Nextcloud-Ordner (7.1)
 - Vor jeder Anfrage werden geänderte Dateien nachindexiert (Vergleich von `mtime` und Größe)
 - Fehlt der Index oder ist er beschädigt, baut der Server ihn automatisch neu auf
 
@@ -739,8 +750,8 @@ Die Datei liegt auf dem Mac unter `~/Library/Application Support/Claude/claude_d
 | Befehl | Funktion |
 |---|---|
 | `pkm init` | Legt Struktur, `CLAUDE.md`, `wiki/index.md`, `log.md`, `_status.md`, `state.json` und `.gitignore` an, initialisiert das Git-Verzeichnis außerhalb des Vaults, falls nötig (idempotent) |
-| `pkm ids` | Trägt fehlende `id`/`version` in Markdown-Dokumente ein und committet (`PKM-Source: agent`). Meldet doppelte IDs |
-| `pkm versions` | Committet alle von Hand geänderten Dokumente als neue Version (je Dokument eine, `PKM-Source: user`). Erkennt auch Verschiebungen und committet sie mit |
+| `pkm ids` | Trägt fehlende `id`/`version` in Markdown-Dokumente ein und committet **je Dokument einzeln** (`doc: <title> v1`, `PKM-Source: agent`). Meldet doppelte IDs |
+| `pkm versions` | Committet alle von Hand geänderten Dokumente als neue Version (je Dokument eine, `PKM-Source: user`). Erkennt auch Verschiebungen (Markdown über die ID, PDF/Bild über den Hash) und committet sie mit: ein Commit enthält dann alten und neuen Pfad. Eine neue Version entsteht nur, wenn sich `body_hash` oder `meta_hash` geändert hat (4.8). Reines Verschieben ergibt den Commit `doc: <title> moved` ohne Versionssprung |
 | `pkm pending` | JSON-Liste der zu verarbeitenden Dokumente: `new`, `changed` (mit `processed_version` → `version` und geänderten Abschnitten), `moved` (alt → neu), `deleted` (mit betroffenen Wiki-Seiten) |
 | `pkm history <target> [--diff <von> [<bis>]]` | Wie das MCP-Tool `history` |
 | `pkm show <target> --version <n> [--section <name>]` | Inhalt einer früheren Version |
@@ -753,7 +764,8 @@ Die Datei liegt auf dem Mac unter `~/Library/Application Support/Claude/claude_d
 | `pkm lint` | JSON-Bericht. **Struktur:** kaputte Links, verwaiste Wiki-Seiten, fehlende Kurzfassung, fehlerhaftes Frontmatter, häufige Begriffe ohne Seite. **Belege:** Ziel fehlt oder verschoben, Anker fehlt, Zitat nicht in der belegten Version, Status `newer_version`, Beleg zeigt auf Wiki-Seite, Absatz ohne Fußnote, Fußnote ohne Definition, `sources` nicht synchron. **Dokumente:** ohne ID oder Version, doppelte IDs, `version` passt nicht zum Commit-Verlauf. **Plattform:** Nextcloud-Konfliktkopien, nicht plattformfeste Dateinamen, Namen, die sich nur in Groß- und Kleinschreibung unterscheiden |
 | `pkm restore <target> --version <n>` | Wie `restore_document` |
 | `pkm reindex` | Baut den Suchindex neu auf |
-| `pkm doctor` | Prüft die Umgebung: Git-Verzeichnis außerhalb des Vaults und erreichbar, kein `.git` im Vault, `user.name`/`user.email`, Schreibrechte, Nextcloud-Konfliktkopien, Obsidian-Einstellungen aus Abschnitt 13 (soweit in `.obsidian/app.json` lesbar). Mit `--short` nur Fehler |
+| `pkm commit-wiki --message "<text>"` | Agenten-Commit am Ende eines Pflegelaufs (12). Committet ausschließlich `wiki/` und `.pkm/state.json`. Offene Änderungen in `documents/` bleiben unberührt |
+| `pkm doctor` | Prüft die Umgebung: Git-Verzeichnis außerhalb des Vaults und erreichbar, `PKM_CACHE_DIR` außerhalb des Vaults und des Nextcloud-Ordners, kein `.git` im Vault, `user.name`/`user.email`, Schreibrechte, Nextcloud-Konfliktkopien, Obsidian-Einstellungen aus Abschnitt 13 (soweit in `.obsidian/app.json` lesbar). Mit `--short` nur Fehler |
 
 ---
 
@@ -780,7 +792,7 @@ Die Datei liegt auf dem Mac unter `~/Library/Application Support/Claude/claude_d
 8. **Korrektur-Dokumente** (`kind: correction`): Die Korrektur des Nutzers hat Vorrang vor älteren Quellen und gilt selbst als Beleg. Die betroffene Wiki-Seite wird angepasst und die alte Aussage im Log als ersetzt vermerkt. Widerspricht die Korrektur einer Quelle, die neuer ist als sie selbst, fragt der Agent nach.
 9. `pkm sync-citations`, `pkm mark …`, `pkm index`, `pkm status`.
 10. Eintrag in `wiki/log.md`.
-11. Commit des Agenten nach Abschnitt 12.
+11. Commit des Agenten mit `pkm commit-wiki` (Abschnitt 12).
 12. Kurzer Bericht im Chat: neue und geänderte Seiten, überholte Aussagen, Beleg-Probleme, Einsortier-Vorschläge, Rückfragen.
 
 **Grenzen:** Mehr als 10 Dokumente pro Lauf werden in Etappen verarbeitet. Bei unklarer Einordnung fragt der Agent nach. Im unbeaufsichtigten Lauf entscheidet er konservativ und vermerkt die Frage im Log.
@@ -859,13 +871,13 @@ Git ist Pflicht und übernimmt zwei Aufgaben: die **Versionsgeschichte jedes Dok
 |---|---|---|---|
 | `doc: <title> v<n>` | pkm-mcp | bei jeder Änderung aus einem Chat | genau ein Dokument |
 | `doc: <title> v<n>` (Quelle `user`) | pkm-mcp bzw. `pkm versions` | vor einer MCP-Änderung bzw. zu Beginn eines Pflegelaufs | genau ein von Hand geändertes Dokument |
-| `pkm: add missing ids` | `pkm ids` | im Pflegelauf, falls nötig | nur Frontmatter-Felder `id`/`version` |
-| `pkm: ingest <n> documents` / `pkm: lint` | Pflege-Agent | am Ende eines Laufs | nur `wiki/` und `.pkm/state.json` |
+| `doc: <title> v1` (Quelle `agent`) | `pkm ids` | im Pflegelauf, falls nötig | genau ein Dokument, nur Frontmatter-Felder `id`/`version` |
+| `pkm: ingest <n> documents` / `pkm: lint` | Pflege-Agent über `pkm commit-wiki` | am Ende eines Laufs | nur `wiki/` und `.pkm/state.json` |
 
 So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. Ein `git revert` auf einen Agenten-Commit trifft nur das Wiki.
 
 - Das Git-Verzeichnis liegt außerhalb der Nextcloud (5.5). Die Versionsgeschichte existiert damit **nur auf dem Mac**. Gesichert wird sie über **Time Machine**, denn `~/Library/Application Support/pkm/` ist darin enthalten.
-- `.gitignore`: `.obsidian/workspace*`, Nextcloud-Hilfsdateien (`.sync_*`, `.owncloudsync.log`, `*.part`)
+- `.gitignore`: `.obsidian/workspace*`, `.pkm/mcp.log`, Nextcloud-Hilfsdateien (`.sync_*`, `.owncloudsync.log`, `*.part`)
 - Obsidian Git wird nicht verwendet. Das Plugin fände das Repo auch gar nicht, weil kein `.git` im Vault liegt.
 - Kein Remote. Ein Push auf ein privates Remote (z. B. Gitea auf dem Homeserver) lässt sich später ohne Änderung am Konzept nachrüsten.
 
@@ -890,16 +902,16 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 
 **Automatisiert (pytest, mit temporärem Git-Repo):**
 - Pfadprüfung, Neuanlage nur in `_inbox/`, Änderungen nur in `documents/**/*.md`, `wiki/` immer abgelehnt
-- Adressierung über Pfad, Wikilink, Kurzname und ID, einschließlich `ambiguous`
-- ID-Vergabe: Format, Kollisionsprüfung, `pkm ids` bei Datei mit und ohne Frontmatter (Inhalt byte-genau erhalten), doppelte IDs
-- Versionen: jede Schreiboperation erhöht `version` um genau 1 und erzeugt genau einen Commit nur dieser Datei mit korrekten Zeilen. Von Hand geänderter Stand wird vor der MCP-Änderung separat committet. `pkm versions` fasst mehrere Änderungen von Hand zu einer Version zusammen. Commit-Fehler setzen die Datei zurück
+- Adressierung über Pfad, Wikilink, Kurzname (auch in anderer Groß-/Kleinschreibung) und ID, einschließlich `ambiguous`
+- ID-Vergabe: Format, Kollisionsprüfung, `pkm ids` bei Datei mit und ohne Frontmatter (Inhalt byte-genau erhalten, Kommentare im Frontmatter erhalten), je Dokument ein Commit, doppelte IDs
+- Versionen: jede Schreiboperation erhöht `version` um genau 1 und erzeugt genau einen Commit nur dieser Datei mit korrekten Zeilen. Von Hand geänderter Stand wird vor der MCP-Änderung separat committet. `pkm versions` fasst mehrere Änderungen von Hand zu einer Version zusammen und committet reines Verschieben ohne Versionssprung, Verschieben mit Änderung als neue Version. `pkm commit-wiki` lässt offene Änderungen in `documents/` unberührt. Commit-Fehler setzen die Datei zurück
 - `history` nach Verschieben und Umbenennen vollständig. `read` mit `version`. `restore_document` erzeugt eine neue Version
 - Änderungs-Tools: Hash-Konflikt, `large_shortening` und Bestätigung, Einfügen in bestehenden und neuen Abschnitt, `old` nicht gefunden oder mehrdeutig, geschützte Felder, Diff
 - Normalisierung und Hashes (4.8), mit festen Testvektoren: BOM, CRLF/CR, NFD-Text, fehlendes oder doppeltes LF am Ende, ungültiges UTF-8. Frontmatter fehlend, ungültig oder mit `...`-Abschluss. Überschriften in Codeblöcken (``` und ~~~, verschachtelte Zaunlängen), Setext, Ebene 3 innerhalb von Ebene 2, ATX-Abschluss, Einrückung bis 3 Leerzeichen. Vorspann leer und nicht leer. Duplikate über Ebene 1 und 2. Leerraum-Änderungen lassen Abschnitts-Hashes unverändert. Eine Frontmatter-Änderung nur an `updated` ändert `file_hash`, aber nicht `body_hash` und `meta_hash`
 - `pending`: neu, `changed` mit `added`/`removed`/`changed`/`renamed` je Abschnitt, nur Reihenfolge, `meta_changed`, verschoben (per ID bzw. Hash), verschoben *und* geändert, gelöscht
 - Tools: `section` mit `_preamble` und mit Duplikat-Suffix, `ambiguous` ohne Suffix, `edit_document` mit CRLF- bzw. NFD-Eingabe
 - Belege: Parser (inkl. `v:` und `#page=`), alle Status von `show_citations`, Auszug aus alter und aktueller Version, `fix-citations`, `sync-citations`, alle Lint-Prüfungen positiv und negativ
-- Suche: Umlaut-Toleranz, Gewichtung, inkrementelle Aktualisierung, Neuaufbau
+- Suche: Umlaut-Toleranz, Gewichtung, inkrementelle Aktualisierung, Neuaufbau. `PKM_CACHE_DIR` innerhalb von `PKM_ROOT` wird abgelehnt
 - Ohne Git: schreibende Tools verweigert, lesende funktionieren
 - Getrenntes Git-Verzeichnis: alle Git-Operationen mit `--git-dir`/`--work-tree`, im Vault entsteht nie ein `.git`
 - Plattform: NFC/NFD-Pfade, CRLF-Datei ergibt denselben Hash wie LF, Windows-ungültige Zeichen und reservierte Namen im Slug ersetzt, Konfliktkopien erkannt und nicht verarbeitet, Groß-/Kleinschreibungs-Kollisionen gemeldet
@@ -948,6 +960,21 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 8 | Allgemeinheit | Keine Personennamen, Pfade als Platzhalter | überall |
 | 9 | MCP-Toolnamen | Englisch | 2, 6, 7, 10 |
 | 10 | Übrige Schnittstellen-Namen | Englisch (Parameter, Felder, Werte, CLI, Commit-Zeilen, Skills). Inhalte deutsch | 4.7 und überall |
+
+### Getroffen (Umsetzungsplan, 01.11.2026)
+
+| # | Thema | Entscheidung | Umgesetzt in |
+|---|---|---|---|
+| 11 | Suchindex und Protokoll | Index in `PKM_CACHE_DIR` außerhalb von Vault und Nextcloud, geprüft von Server und `doctor`. Protokoll in `.pkm/mcp.log`, nicht in Git | 3, 5.5, 7.1, 7.2, 7.4, 8, 12 |
+| 12 | Quelle bei Änderungen von Hand | `user` | 5.4, 7.3 |
+| 13 | Commits von `pkm ids` | Je Dokument ein Commit, kein Sammel-Commit | 5.4, 8, 12 |
+| 14 | Hashes und Abschnitte | Festgelegt in 4.8 | 4.8 |
+| 15 | Schonfrist für gerade bearbeitete Dateien in `pkm versions` | Vorerst keine | – |
+| 16 | Frontmatter-Erhalt | Serverfelder zeilengenau, `update_frontmatter` schreibt neu | 4.1, 7.2 |
+| 17 | Verschieben in `pkm versions` | Ein Commit mit altem und neuem Pfad, neue Version nur bei geändertem Inhalt oder Metadaten | 8 |
+| 18 | Kurznamen | Ohne Groß-/Kleinschreibung, mehrdeutig → `ambiguous` | 7.1 |
+| 19 | Plattform für Tests | Pfade überschreibbar, Tests auch unter Linux, produktiv nur macOS | 7.1 |
+| 20 | Agenten-Commit | `pkm commit-wiki`, nur `wiki/` und `.pkm/state.json` | 8, 9.1, 12 |
 
 ### Noch offen
 
