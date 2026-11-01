@@ -266,8 +266,7 @@ Den Vault-Ordner in der Nextcloud als Vault öffnen und einstellen:
 | Dateien & Links → Standardordner für Anhänge | `documents/_attachments` |
 | Dateien & Links → Ausgeschlossene Dateien | `.pkm/` |
 
-**Property-Typen** einmalig festlegen (Einstellungen → Eigenschaften bzw. im Eigenschaften-Bereich
-einer Notiz). Obsidian legt den Typ vault-weit pro Feldname fest:
+**Property-Typen** einmalig festlegen. Obsidian legt den Typ vault-weit pro Feldname fest:
 
 | Feld | Typ |
 |---|---|
@@ -276,6 +275,39 @@ einer Notiz). Obsidian legt den Typ vault-weit pro Feldname fest:
 | `related`, `sources` | Liste |
 | `title`, `short_citation`, `date_document`, `status_markdown`, `toolchain_markdown`, `id`, `context`, `kind` | Text |
 | `tags`, `aliases` | Obsidian-Standard |
+
+So geht es in Obsidian (es gibt keine eigene Einstellungsseite dafür):
+
+1. Eine Notiz öffnen, die das Feld im Frontmatter hat (z. B. ein aus dem Chat abgelegtes Dokument).
+2. Im Eigenschaften-Bereich oben in der Notiz auf das **Symbol links neben dem Feldnamen** klicken.
+3. **Eigenschaftstyp** (*Property type*) wählen.
+
+Alle Felder des Vaults auf einmal zeigt die Seitenleiste **Alle Eigenschaften** (Kernplugin
+„Eigenschaftenansicht“, Befehl „Eigenschaften anzeigen“); dort per Rechtsklick auf ein Feld den Typ
+ändern.
+
+Alternativ die Datei `<VAULT>/.obsidian/types.json` bei **geschlossenem** Obsidian anlegen bzw.
+ergänzen (bestehende Einträge behalten):
+
+```json
+{
+  "types": {
+    "date_markdown": "datetime",
+    "date_updated": "datetime",
+    "version": "number",
+    "related": "multitext",
+    "sources": "multitext",
+    "title": "text",
+    "short_citation": "text",
+    "date_document": "text",
+    "status_markdown": "text",
+    "toolchain_markdown": "text",
+    "id": "text",
+    "context": "text",
+    "kind": "text"
+  }
+}
+```
 
 **Web Clipper (optional):** [Obsidian Web Clipper](https://obsidian.md/clipper) ist kein
 Obsidian-Plugin, sondern eine Browser-Erweiterung (Chrome, Firefox, Safari, Edge). Die
