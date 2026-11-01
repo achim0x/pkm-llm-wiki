@@ -178,7 +178,9 @@ def test_read_document(filled):
 
 def test_read_wiki_not_editable(filled):
     r = filled.read("wiki/topics/regenwasser-ertrag")
-    assert r["editable"] is False and r["citations"] == []
+    assert r["editable"] is False
+    assert [(c["id"], c["path"], c["version"], c["sha"]) for c in r["citations"]] == [
+        ("b1", "documents/haus/zisterne", 2, "3f9a1c")]
     assert r["links"] == ["documents/haus/zisterne"]
 
 

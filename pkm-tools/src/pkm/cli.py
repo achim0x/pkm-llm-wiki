@@ -94,6 +94,38 @@ def cmd_status(cfg: Config, args: argparse.Namespace) -> Any:
     return build_status(Service(cfg), args.question)
 
 
+def cmd_fix_citations(cfg: Config, args: argparse.Namespace) -> Any:
+    from .citations import fix_citations
+    from .service import Service
+
+    return fix_citations(Service(cfg), args.pages or None)
+
+
+def cmd_sync_citations(cfg: Config, args: argparse.Namespace) -> Any:
+    from .citations import sync_citations
+    from .service import Service
+
+    return sync_citations(Service(cfg), args.pages or None)
+
+
+def cmd_lint(cfg: Config, args: argparse.Namespace) -> Any:
+    from .lint import lint, write_report
+    from .service import Service
+
+    svc = Service(cfg)
+    result = lint(svc)
+    if args.report:
+        result["report"] = write_report(svc, result)
+    return result
+
+
+def cmd_doctor(cfg: Config, args: argparse.Namespace) -> Any:
+    from .doctor import doctor
+    from .service import Service
+
+    return doctor(Service(cfg), args.short)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pkm", description="PKM-Werkzeuge (Pflege)")
     sub = p.add_subparsers(dest="command", required=True)
@@ -132,6 +164,18 @@ def build_parser() -> argparse.ArgumentParser:
     c = sub.add_parser("commit-wiki", help="Agenten-Commit: nur wiki/ und .pkm/state.json")
     c.add_argument("--message", "-m", required=True)
     c.set_defaults(func=cmd_commit_wiki)
+    fc = sub.add_parser("fix-citations", help="Belege auf verschobene Originale/umbenannte Abschnitte korrigieren")
+    fc.add_argument("pages", nargs="*")
+    fc.set_defaults(func=cmd_fix_citations)
+    sc = sub.add_parser("sync-citations", help="sources aus den Fußnoten erzeugen")
+    sc.add_argument("pages", nargs="*")
+    sc.set_defaults(func=cmd_sync_citations)
+    li = sub.add_parser("lint", help="Prüfbericht (JSON)")
+    li.add_argument("--report", action="store_true", help="Bericht nach wiki/_lint/YYYY-MM-DD.md schreiben")
+    li.set_defaults(func=cmd_lint)
+    do = sub.add_parser("doctor", help="Umgebung prüfen")
+    do.add_argument("--short", action="store_true", help="nur Fehler")
+    do.set_defaults(func=cmd_doctor)
     return p
 
 

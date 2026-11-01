@@ -12,16 +12,18 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
 | 2 | Adressierung, Suchindex, lesende MCP-Tools | fertig |
 | 3 | Schreibende MCP-Tools mit Versionierung | fertig |
 | 4 | Pflege-CLI | fertig |
-| 5–8 | Belege, Skills, Abnahme | offen |
+| 5 | Belege, `lint`, `doctor` | fertig |
+| 6–8 | Skills, Abnahme, Automatik | offen |
 
 **MCP-Tools:** `search`, `read`, `history`, `read_index`, `list_unprocessed`, `create_document`,
-`rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`.
-`show_citations` folgt mit Phase 5.
+`rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`,
+`show_citations`.
 
 **CLI:** `pkm init`, `ids`, `versions`, `pending`, `mark <id>… [--pages <page>…] [--remove]`,
 `sha <target> [--section <key>] [--full]`, `index`, `status [--question <text>]…`,
 `commit-wiki -m <text>`, `history <target> [--diff <von> [<bis>]]`,
-`show <target> --version <n> [--section <key>]`, `restore <target> --version <n>`, `reindex`.
+`show <target> --version <n> [--section <key>]`, `restore <target> --version <n>`, `reindex`,
+`fix-citations [<page>…]`, `sync-citations [<page>…]`, `lint [--report]`, `doctor [--short]`.
 
 ## Abweichungen und Ergänzungen zur Spezifikation
 
@@ -36,6 +38,14 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
   Dokumente, damit der Arbeitsbaum sauber bleibt. Anhänge haben keine `PKM-Id`.
 - `pkm mark --remove <key>` entfernt Einträge aus `state.json` (z. B. nach Verarbeitung eines
   gelöschten Dokuments). `pkm status --question` nimmt Rückfragen in `_status.md` auf.
+- `show_citations` mit `statement`: Liegt das Textstück vor einer Fußnotengruppe, werden nur diese
+  Belege geliefert, sonst die des ganzen Absatzes.
+- Status von Belegen: `missing` vor `newer_version` vor `moved` vor `ok`. Ist ein Original verschoben
+  *und* geändert, ist der Status `newer_version`; `lint` meldet zusätzlich `citation_moved`.
+- Belegpflicht prüft `lint` in den Abschnitten „Inhalt“ und „Widersprüche / offene Fragen“
+  (`citations.CONTENT_SECTIONS`).
+- `pkm lint --report` schreibt den Bericht nach `wiki/_lint/YYYY-MM-DD.md`. `pkm doctor` warnt
+  zusätzlich, wenn `commit.gpgsign` aktiv ist.
 - Alle schreibenden Vorgänge (MCP und CLI) sind über eine Sperrdatei im Git-Verzeichnis
   serialisiert.
 

@@ -167,7 +167,9 @@ class Service:
             except Exception:  # noqa: BLE001
                 result["backlinks"] = []
         if doc.area == "wiki":
-            result["citations"] = []  # Parser folgt mit Phase 5 (show_citations)
+            from .citations import page_citations_for_read
+
+            result["citations"] = page_citations_for_read(doc)
         return result
 
     def history(self, target: str, diff_from: int | None = None, diff_to: int | None = None) -> dict[str, Any]:
@@ -230,6 +232,12 @@ class Service:
 
     def reindex(self) -> dict[str, Any]:
         return {"status": "ok", **self.index.rebuild()}
+
+    def show_citations(self, target: str, statement: str | None = None,
+                       with_excerpt: bool = False) -> dict[str, Any]:
+        from .citations import show_citations
+
+        return show_citations(self, target, statement, with_excerpt)
 
     # --- schreibende Tools (7.2) ---
     @property

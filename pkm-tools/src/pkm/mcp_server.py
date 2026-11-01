@@ -116,6 +116,15 @@ def build_server() -> _Server:
         return call("history", t_history, target=target, diff_from=diff_from, diff_to=diff_to)
 
     @server.tool()
+    def show_citations(target: str, statement: str | None = None, with_excerpt: bool = False) -> dict:
+        """Belege einer Wiki-Seite: Original (aktueller Pfad), Abschnitt/Seite, Zitat, belegte und
+        aktuelle Version, Status (ok | moved | newer_version | missing) und Obsidian-Link.
+        statement grenzt auf Absätze mit diesem Text ein. with_excerpt lädt den Abschnitt aus der
+        belegten und, falls abweichend, der aktuellen Version."""
+        return call("show_citations", lambda svc, **kw: svc.show_citations(**kw), target=target,
+                    statement=statement, with_excerpt=with_excerpt)
+
+    @server.tool()
     def read_index() -> dict:
         """Gibt wiki/index.md zurück (Katalog aller Wiki-Seiten mit Kurzfassung)."""
         return call("read_index", t_read_index)

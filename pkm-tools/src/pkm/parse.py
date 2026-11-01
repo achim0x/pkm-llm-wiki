@@ -121,9 +121,8 @@ def normalize_key_input(key: str) -> str:
     return heading_key(key)
 
 
-def find_headings(lines: list[str]) -> list[tuple[int, int, str]]:
-    """Grenzüberschriften (Ebene 1/2) außerhalb eingezäunter Codeblöcke: (zeile, ebene, roh)."""
-    result: list[tuple[int, int, str]] = []
+def iter_outside_fences(lines: list[str]):
+    """(Index, Zeile) aller Zeilen außerhalb eingezäunter Codeblöcke (ohne Zaunzeilen)."""
     fence: tuple[str, int] | None = None
     for i, line in enumerate(lines):
         if fence is not None:
@@ -141,6 +140,32 @@ def find_headings(lines: list[str]) -> list[tuple[int, int, str]]:
             if not (marker[0] == "`" and "`" in info):
                 fence = (marker[0], len(marker))
                 continue
+        yield i, line
+
+
+SETEXT_RE = re.compile(r"^ {0,3}(=+|-+)[ \t]*$")
+LIST_RE = re.compile(r"^ {0,3}([-*+]|\d+[.)])[ \t]")
+
+
+def find_setext(lines: list[str]) -> list[int]:
+    """Zeilen mit Setext-Unterstreichung (keine Abschnittsgrenze, Lint-Hinweis)."""
+    result: list[int] = []
+    prev: str | None = None
+    for i, line in iter_outside_fences(lines):
+        if (
+            SETEXT_RE.match(line) and prev is not None and prev.strip()
+            and not ATX_RE.match(prev) and not prev.lstrip().startswith(("#", ">"))
+            and not LIST_RE.match(prev) and not SETEXT_RE.match(prev)
+        ):
+            result.append(i)
+        prev = line
+    return result
+
+
+def find_headings(lines: list[str]) -> list[tuple[int, int, str]]:
+    """Grenzüberschriften (Ebene 1/2) außerhalb eingezäunter Codeblöcke: (zeile, ebene, roh)."""
+    result: list[tuple[int, int, str]] = []
+    for i, line in iter_outside_fences(lines):
         m = ATX_RE.match(line)
         if m:
             result.append((i, len(m.group(1)), m.group(2) or ""))
