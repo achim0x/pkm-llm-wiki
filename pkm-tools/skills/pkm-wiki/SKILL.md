@@ -10,18 +10,22 @@ Nutzers; eine Shell oder die CLI `pkm` brauchst du nicht (in Cowork gibt es dort
 
 | Tool | Zweck |
 |---|---|
-| `begin_maintenance` | Vorlauf: Umgebung prüfen, Handänderungen als Versionen, fehlende IDs, `pending`, Belege auf verschobene Dokumente korrigieren |
+| `begin_maintenance` | Vorlauf: Umgebung prüfen, Handänderungen als Versionen, fehlende IDs, `pending` (neue Dokumente mit `missing_fields`), `known_tags`, Belege auf verschobene Dokumente korrigieren |
 | `read`, `history`, `search`, `read_index`, `show_citations`, `list_unprocessed` | Dokumente, Versionen, Diffs und Wiki-Seiten lesen |
 | `write_wiki_page` | Wiki-Seite anlegen oder vollständig ersetzen (ohne Commit) |
-| `finish_maintenance` | Abschluss: Belege, `sources`, Verarbeitungsstand, Log, Index, Status, Lint, Agenten-Commit |
+| `set_document_metadata` | Nur nach Bestätigung: `title`, `context`, `tags`, `kind`, `short_citation` eines Dokuments eintragen |
+| `finish_maintenance` | Abschluss: Belege (verschoben, umbenannt, `v:` bei unveränderten Abschnitten angehoben), `sources`, Verarbeitungsstand, Log, Index, Status, Lint, Agenten-Commit |
 
 Sprache aller Inhalte: **Deutsch**.
 
 ## Feste Regeln
 
 - `wiki/` gehört dir. `documents/` gehört dem Nutzer: dort **nichts** ändern, verschieben oder
-  löschen. `id`/`version` setzt `begin_maintenance`. Die Dokument-Tools des Servers `pkm`
-  (`create_document`, `edit_document` …) benutzt du in der Pflege nicht.
+  löschen. `id`/`version` setzt `begin_maintenance`. Einzige weitere Ausnahme: `title`,
+  `context`, `tags`, `kind`, `short_citation` – nur nach **ausdrücklicher Bestätigung** des
+  Nutzers im Chat und nur mit `set_document_metadata` (siehe „Frontmatter-Vorschläge“). Die
+  Dokument-Tools des Servers `pkm` (`create_document`, `edit_document`, `update_frontmatter` …)
+  benutzt du in der Pflege nicht.
 - `scratch/` (kurzlebige Notizen, Todo-Listen) wird **weder gelesen noch verarbeitet**. Kein
   Beleg zeigt auf eine Datei dort. Wird eine Notiz nach `documents/` verschoben, ist sie beim
   nächsten Lauf ein neues Dokument; aus `documents/` nach `scratch/` verschoben wirkt wie Löschen.
@@ -39,6 +43,25 @@ Sprache aller Inhalte: **Deutsch**.
   Zusammenfassungen von Normen die Kurzbezeichnung (`short_citation`) nennen.
 - `wiki/index.md`, `wiki/_status.md`, `wiki/log.md` und `sources` im Frontmatter erzeugt
   `finish_maintenance`; `write_wiki_page` lehnt diese Dateien ab.
+
+## Frontmatter-Vorschläge
+
+Bei jedem **neuen** Dokument das Frontmatter prüfen (`missing_fields` aus `begin_maintenance`,
+auch dünne Werte). Vorschläge als YAML-Block im Bericht, **noch nichts eintragen**:
+
+- `title`: sprechender Titel.
+- `context`: eine Zeile `"<Art>: <Inhalt>"` (Art: Chat, Podcast, Buch, Artikel, Recherche, Notiz),
+  wegen `: ` in doppelten Anführungszeichen.
+- `tags`: 4–8 Stück, klein, Bindestriche, Umlaute ausgeschrieben; vorhandene Tags aus
+  `known_tags` wiederverwenden.
+- `kind`: `note` (Standard) | `standard` / `regulation` (dann auch `short_citation` vorschlagen) |
+  `correction`.
+
+Nach ausdrücklicher Bestätigung: `read` → `hash` → `set_document_metadata` (`set` mit den
+bestätigten Feldern, `add` nur für weitere `tags`). Vorhandene Werte nicht überschreiben;
+`overwrite: true` nur, wenn der Nutzer das ausdrücklich will. Bei `conflict` neu lesen und dem
+Nutzer melden; bei `field_exists` den vorhandenen Wert nennen und nachfragen. Jede Eintragung
+ist eine neue Version des Dokuments; beim nächsten Lauf erscheint es als `meta_changed`.
 
 ## Formate
 
@@ -74,6 +97,10 @@ Die Dachfläche beträgt 92 m².[^b1]
 [^b6]: [[documents/haus/notizen#Notizen]] §:Notizen#2 · „zweite Notiz“ · id:d-… · v:1 · sha:a6fd6c
 ```
 
+Gliederung in „Inhalt“: Zwischenüberschriften (`###`), reine Fett-Zeilen und reine Link-Zeilen
+sind erlaubt und brauchen keinen Beleg. Eine Tabelle belegst du mit einer Fußnote in der
+Tabelle oder in einer Zeile direkt darunter (z. B. `[^b3]` oder `Quelle: [^b3]`).
+
 **Beleg-Zeile:** `[^b<n>]: [[<pfad>#<anker>]] · „<zitat>“ · id:<id> · v:<version> · sha:<6 zeichen>`
 - Pfad vollständig ab Vault-Wurzel, Markdown ohne `.md`, PDF/Bild mit Endung. Nur `documents/`.
 - Anker = Abschnittsschlüssel **ohne** Duplikat-Suffix; bei doppelten Überschriften zusätzlich
@@ -83,6 +110,11 @@ Die Dachfläche beträgt 92 m².[^b1]
 - `id`, `v` und `sha` stehen in der Antwort von **`read`**: `id`, `version` und unter `sections`
   je Abschnitt `key` und `sha`. Für eine ältere Version `read` mit `version`. Für PDF/Bild: die
   ersten 6 Zeichen von `hash` aus `read`.
+- Abschnitte mit `empty: true` (z. B. die H1 direkt vor dem ersten `##`) haben keinen eigenen
+  Text: nicht belegen, sondern den Unterabschnitt mit dem Zitat.
+- Große Dokumente: `read` mit `content: false` (nur Metadaten, `sections`, `content_length`),
+  dann abschnittsweise mit `section` oder seitenweise mit `offset`/`max_chars`. Fehlt `content`
+  mit `content_omitted`, war das Dokument zu groß für einen Aufruf.
 - Jede Sachaussage in „Inhalt“ und „Widersprüche / offene Fragen“ endet mit mindestens einer
   Fußnote (ein Absatz aus derselben Stelle: eine Fußnote am Absatzende genügt).
 - Überholte Aussagen behalten ihren Beleg auf die **alte** Version.
@@ -118,7 +150,9 @@ nur die Liste als `log_entry`:
       10–15 Themen-, Entitäts- und Syntheseseiten aktualisieren oder anlegen. Jede neue oder
       geänderte Aussage bekommt eine Fußnote.
    3. Querverweise in beide Richtungen setzen („Siehe auch“).
-   4. Bestehende Seiten vor dem Ändern mit `read` lesen und deren `hash` als `expected_hash`
+   4. Frontmatter prüfen und Vorschläge erarbeiten (siehe „Frontmatter-Vorschläge“), noch
+      nichts eintragen.
+   5. Bestehende Seiten vor dem Ändern mit `read` lesen und deren `hash` als `expected_hash`
       an `write_wiki_page` geben (immer den ganzen Seiteninhalt schreiben). Bei `conflict` neu
       lesen.
 3. **`changed`**: Nur die gemeldeten Abschnitte verarbeiten. Diff lesen:
@@ -131,9 +165,11 @@ nur die Liste als `log_entry`:
    - `removed`: betroffene Aussagen prüfen (überholt kennzeichnen statt löschen).
    - `renamed`: nur Anker anpassen (erledigt `begin_maintenance`/`finish_maintenance`).
    - Leere Abschnittsliste (nur Reihenfolge geändert): nichts inhaltlich tun.
-   - Belege auf unveränderte Abschnitte auf die neue Version anheben (nur `v:` und `sha:`).
+   - Belege auf unveränderte Abschnitte hebt `finish_maintenance` selbst auf die neue Version
+     (nur `v:`; `sha:` bleibt).
    - Zusammenfassungsseite des Dokuments aktualisieren.
-4. **`meta_changed`**: nur Zusammenfassungsseite (Titel, Themen, Verweise) anpassen.
+4. **`meta_changed`**: nur Zusammenfassungsseite (Titel, Themen, Verweise) anpassen. Die Belege
+   hebt `finish_maintenance` auf die neue Version.
 5. **`deleted`**: betroffene Aussagen (siehe `wiki_pages`) **nicht löschen**, sondern unter
    „Widersprüche / offene Fragen“ vermerken: „Original nicht mehr vorhanden (letzter Stand in
    Git, v<n>)“, `confidence: low`, Rückfrage im Bericht. Den Schlüssel in `removed` angeben.
@@ -153,7 +189,8 @@ nur die Liste als `log_entry`:
    - Meldet `lint` Fehler in deinen Seiten: mit `write_wiki_page` beheben und
      `finish_maintenance` erneut mit `operation: fix` aufrufen (ohne `processed`).
 9. Kurzer Bericht im Chat: neue/geänderte Seiten, überholte Aussagen, Beleg-Probleme,
-   Einsortier-Vorschläge (aus `wiki/_status.md`), Rückfragen.
+   Einsortier-Vorschläge (aus `wiki/_status.md`), Rückfragen – und **je neuem Dokument mit
+   fehlenden Feldern den YAML-Block** mit der Frage, ob er eingetragen werden soll.
 
 Nextcloud-Konfliktkopien werden nie verarbeitet; der Nutzer führt sie in Obsidian zusammen.
 
@@ -162,7 +199,8 @@ Nextcloud-Konfliktkopien werden nie verarbeitet; der Nutzer führt sie in Obsidi
 1. `begin_maintenance` mit `with_lint: true` (Ergebnis unter `lint`).
 2. **Selbst beheben** (mit `write_wiki_page`): kaputte Links mit eindeutigem Ziel, fehlende
    Kurzfassungen. Verschobene Belege, `sources` und Index erledigt `finish_maintenance`.
-3. **Vorschlagen statt ausführen:** inhaltliche Widersprüche, Zusammenlegen von Seiten, neue
+3. **Vorschlagen statt ausführen:** fehlende Frontmatter-Felder von Dokumenten (YAML-Block wie
+   unter „Frontmatter-Vorschläge“), inhaltliche Widersprüche, Zusammenlegen von Seiten, neue
    Seiten, doppelte IDs, Belege mit `newer_version`, die nicht automatisch angehoben werden
    konnten, Hinweise zu Dokumenten (`documents/` fasst du nicht an).
 4. `finish_maintenance` mit `operation: lint`, `lint_report: true` (Bericht nach
@@ -183,7 +221,8 @@ Vault-Ordner verbunden ist; sonst übernimmt der Nutzer die Änderung selbst.
 
 ## Unbeaufsichtigter Lauf (geplante Aufgabe)
 
-Nicht auf Antworten warten. Konservativ entscheiden: Bei unklarer Einordnung, Duplikaten,
+Nicht auf Antworten warten. Frontmatter-Vorschläge **nie eintragen**, sondern als Frage über
+`questions` nach `wiki/_status.md`. Konservativ entscheiden: Bei unklarer Einordnung, Duplikaten,
 Widersprüchen zu neueren Quellen oder gelöschten Originalen **nichts Riskantes tun**, sondern
 die Frage über `questions` von `finish_maintenance` in `wiki/_status.md` aufnehmen und im Log
 vermerken. Den Lauf trotzdem mit `finish_maintenance` abschließen.

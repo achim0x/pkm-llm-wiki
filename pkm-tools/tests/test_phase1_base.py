@@ -190,7 +190,9 @@ def test_dump_meta_roundtrip():
 
 
 @pytest.mark.parametrize("v, out", [(3, "3"), ("abc", "abc"), ("a: b", '"a: b"'), ("true", '"true"'),
-                                    (["a"], '["a"]'), ("- x", '"- x"')])
+                                    (["a"], "[a]"), (["a, b", "c"], '["a, b", "c"]'),
+                                    (["[[documents/x]]"], '["[[documents/x]]"]'), ([1], "[1]"),
+                                    ("- x", '"- x"')])
 def test_format_scalar(v, out):
     """Werte werden einfach oder als JSON geschrieben."""
     assert format_scalar(v) == out

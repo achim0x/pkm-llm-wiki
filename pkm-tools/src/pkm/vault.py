@@ -604,12 +604,15 @@ def section_summary(doc: Doc) -> list[dict[str, Any]]:
         doc: Dokument.
 
     Returns:
-        Je Abschnitt Schlüssel, Ebene und Kurz-Hash; leer bei nicht lesbaren Dateien.
+        Je Abschnitt Schlüssel, Ebene und Kurz-Hash (``empty: true`` bei Abschnitten ohne eigenen
+        Text); leer bei nicht lesbaren Dateien.
     """
     result: list[dict[str, Any]] = []
     if doc.parsed is not None and doc.hashes is not None:
+        sections = doc.hashes.sections
         result = [
-            {"key": s.key, "level": s.level, "sha": hashes.short(doc.hashes.sections[s.key])}
+            {"key": s.key, "level": s.level, "sha": hashes.short(sections[s.key])}
+            | ({"empty": True} if sections[s.key] == hashes.EMPTY_HASH else {})
             for s in doc.parsed.sections
         ]
     return result

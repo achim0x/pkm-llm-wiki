@@ -41,6 +41,9 @@ DATE_FIELDS = ("date_markdown", "date_updated")
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 DATE_VALUE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?$")
 CONVERTED_MARKERS = ("status_markdown", SHORT_CITATION, LEGACY_SHORT_CITATION, "date_document")
+FIELD_ORDER = ("title", "short_citation", "date_document", "status_markdown", "date_markdown", "toolchain_markdown",
+               "id", "version", "date_updated", "context", "tags", "related", "kind")
+UMLAUTS = {"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}
 
 # Classes *********************************************************************
 
@@ -94,6 +97,58 @@ def is_valid_date_value(value: Any) -> bool:
         ``True`` bei gültigem Format ohne Zeitzonen-Angabe.
     """
     return isinstance(value, str) and bool(DATE_VALUE_RE.match(value))
+
+
+def order_meta(meta: dict[str, Any]) -> dict[str, Any]:
+    """Frontmatter-Felder in die Reihenfolge des Schemas bringen (4.1).
+
+    Args:
+        meta: Felder.
+
+    Returns:
+        Bekannte Felder in der Reihenfolge von ``FIELD_ORDER``, danach alle übrigen in ihrer
+        bisherigen Reihenfolge.
+    """
+    known = {k: meta[k] for k in FIELD_ORDER if k in meta}
+    return {**known, **{k: v for k, v in meta.items() if k not in known}}
+
+
+def field_rank(key: str) -> int | None:
+    """Position eines Felds in der Schema-Reihenfolge.
+
+    Args:
+        key: Feldname.
+
+    Returns:
+        Index in ``FIELD_ORDER`` oder ``None`` bei unbekannten Feldern.
+    """
+    return FIELD_ORDER.index(key) if key in FIELD_ORDER else None
+
+
+def normalize_tag(tag: Any) -> str:
+    """Schlagwort vereinheitlichen: klein, Umlaute ausgeschrieben, Leerraum als Bindestrich.
+
+    Args:
+        tag: Schlagwort (ein führendes ``#`` wird entfernt).
+
+    Returns:
+        Das vereinheitlichte Schlagwort (leer, wenn nichts übrig bleibt).
+    """
+    text = str(tag).strip().lstrip("#").lower()
+    text = "".join(UMLAUTS.get(ch, ch) for ch in text)
+    return re.sub(r"-{2,}", "-", re.sub(r"\s+", "-", text)).strip("-")
+
+
+def normalize_tags(tags: list[Any]) -> list[str]:
+    """Schlagwörter vereinheitlichen und Duplikate entfernen (Reihenfolge bleibt).
+
+    Args:
+        tags: Schlagwörter.
+
+    Returns:
+        Bereinigte Liste ohne leere Einträge.
+    """
+    return list(dict.fromkeys(t for t in (normalize_tag(x) for x in tags) if t))
 
 
 def kind_of(meta: dict[str, Any]) -> str:

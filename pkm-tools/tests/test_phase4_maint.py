@@ -118,13 +118,13 @@ def test_ids_assigns_and_commits_each(m, cfg, isolated_env):
 
 
 def test_ids_keeps_rest_bytes_and_comments(m, cfg):
-    """pkm ids ändert nur id und version."""
+    """pkm ids ändert nur id und version und fügt sie an der Stelle aus dem Schema ein."""
     text = "---\ntitle: X  # Kommentar\ntags: [a]\n---\n\nInhalt  mit  Leerzeichen\n"
     write(cfg, "documents/x.md", text)
     m.ids()
     out = (cfg.root / "documents/x.md").read_text(encoding="utf-8")
-    assert out.startswith("---\ntitle: X  # Kommentar\ntags: [a]\nid: d-")
-    assert out.endswith("version: 1\n---\n\nInhalt  mit  Leerzeichen\n")
+    assert out.startswith("---\ntitle: X  # Kommentar\nid: d-")
+    assert out.endswith("\nversion: 1\ntags: [a]\n---\n\nInhalt  mit  Leerzeichen\n")
 
 
 def test_ids_reports_duplicates_and_skips_invalid(m, cfg):

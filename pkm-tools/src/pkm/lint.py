@@ -401,6 +401,11 @@ class Linter:
             self._citation_status(page, cit, res)
             if cit.markdown:
                 self._citation_content(page, cit, res)
+                sections = res.doc.hashes.sections if res.doc is not None and res.doc.hashes else {}
+                if sections.get(cit.section_key or "") == hashes.EMPTY_HASH:
+                    self.r.add("citation_empty_section", "warning", page.rel,
+                               f"[^{cit.label}] belegt den Abschnitt „{cit.section_key}“ ohne eigenen Text; "
+                               "den Unterabschnitt mit dem Zitat belegen.", footnote=cit.label)
 
     def _citation_status(self, page: Doc, cit: Citation, res: Resolution) -> None:
         """Befunde aus der Auflösung (fehlt, verschoben, neuere Version).

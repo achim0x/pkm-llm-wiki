@@ -34,7 +34,7 @@ from typing import Any
 import yaml
 
 from .parse import load_yaml, split_frontmatter
-from .schema import LEGACY_SHORT_CITATION, SHORT_CITATION
+from .schema import LEGACY_SHORT_CITATION, SHORT_CITATION, field_rank
 
 # Variables *******************************************************************
 
@@ -73,6 +73,25 @@ def _plain_ok(s: str) -> bool:
     return ok
 
 
+def _flow_list(items: list[Any]) -> str:
+    """Liste einzeilig schreiben: ohne Anführungszeichen, wenn eindeutig, sonst als JSON.
+
+    Args:
+        items: Listeneinträge.
+
+    Returns:
+        Z. B. ``[verhandlung, softskills]`` oder ``["a, b", "c"]``.
+    """
+    plain = all(isinstance(i, str) and _plain_ok(i) and not any(c in i for c in ",[]{}") for i in items)
+    rendered = "[" + ", ".join(items) + "]" if plain else json.dumps(items, ensure_ascii=False)
+    if plain:
+        try:
+            plain = load_yaml(f"k: {rendered}") == {"k": items}
+        except yaml.YAMLError:
+            plain = False
+    return rendered if plain else json.dumps(items, ensure_ascii=False)
+
+
 def format_scalar(value: Any) -> str:
     """YAML-Darstellung eines Werts: einfach, wenn eindeutig, sonst JSON (gültiges YAML).
 
@@ -88,7 +107,9 @@ def format_scalar(value: Any) -> str:
         rendered = "null"
     elif isinstance(value, int | float):
         rendered = str(value)
-    elif isinstance(value, list | tuple | dict):
+    elif isinstance(value, list | tuple):
+        rendered = _flow_list(list(value))
+    elif isinstance(value, dict):
         rendered = json.dumps(value, ensure_ascii=False)
     else:
         s = str(value)
@@ -157,6 +178,30 @@ def _value_end(inner: list[str], start: int) -> int:
     return j
 
 
+def _insert_position(inner: list[str], key: str) -> int:
+    """Einfügestelle für ein neues Feld nach der Schema-Reihenfolge (4.1).
+
+    Args:
+        inner: Frontmatter-Zeilen ohne Begrenzer.
+        key: Neues Feld.
+
+    Returns:
+        Index hinter dem letzten vorhandenen Feld, das im Schema vor ``key`` steht; vor dem ersten
+        nachfolgenden Schema-Feld, falls es kein vorangehendes gibt; sonst das Ende.
+    """
+    rank = field_rank(key)
+    at = len(inner)
+    if rank is not None:
+        tops = [(i, m.group(1)) for i, line in enumerate(inner) if (m := TOP_LEVEL_FIELD_RE.match(line))]
+        before = [i for i, k in tops if (r := field_rank(k)) is not None and r < rank]
+        after = [i for i, k in tops if (r := field_rank(k)) is not None and r > rank]
+        if before:
+            at = _value_end(inner, max(before))
+        elif after:
+            at = min(after)
+    return at
+
+
 def _apply_fields(inner: list[str], fields: dict[str, Any], block_lists: bool) -> list[str]:
     """Felder in den Frontmatter-Zeilen ersetzen oder anhängen.
 
@@ -174,7 +219,8 @@ def _apply_fields(inner: list[str], fields: dict[str, Any], block_lists: bool) -
         rx = _field_re(key)
         pos = next((i for i, line in enumerate(lines) if rx.match(line)), None)
         if pos is None:
-            lines.extend(rendered)
+            at = _insert_position(lines, key)
+            lines[at:at] = rendered
         else:
             lines[pos:_value_end(lines, pos)] = rendered
     return lines

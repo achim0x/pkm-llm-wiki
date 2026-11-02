@@ -241,6 +241,14 @@ Abnahmeschritte 1–10 aus 14 auf dem Mac mit echtem Nextcloud-Vault und Windows
 
 Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI bleibt für Einrichtung und Fehlersuche. Offener Punkt: Claude Desktop kann einen Server nicht auf ein Projekt beschränken. `pkm-pflege` wird nur in Pflege-Unterhaltungen eingeschaltet (organisatorische statt technischer Sperre); Spezifikation 7/9/11 entsprechend anpassen.
 
+### Phase 7b – Änderungsauftrag aus den Pflegeläufen (2026-11-02)
+
+- Frontmatter-Vorschläge: `begin_maintenance` liefert `missing_fields` und `known_tags`; neues Tool `set_document_metadata` (Whitelist `title`, `context`, `tags`, `kind`, `short_citation`, kein Überschreiben ohne `overwrite`, Tags vereinheitlicht, neue Version mit `PKM-Source: agent`). Skill `pkm-wiki` mit Abschnitt „Frontmatter-Vorschläge“; `CLAUDE.md`-Vorlage angepasst; `pkm versions` erfasst Änderungen an `CLAUDE.md`.
+- Feldreihenfolge nach Schema bei allen Schreibwegen; einfache Listen ohne Anführungszeichen.
+- Lint ohne Fehlalarme bei Zwischenüberschriften, Fett-, Link-Zeilen und belegten Tabellen; Warnung bei Belegen auf leere Abschnitte.
+- `read` mit `section`, `offset`/`max_chars`, `content: false`; große Inhalte nur auf Anforderung.
+- `fix-citations` schreibt Wikilinks im Text mit um und findet verschobene Dokumente auch bei veraltetem Index; `finish_maintenance` hebt Belege auf unveränderte Abschnitte auf die neue Version.
+
 ### Phase 8 – Automatik (später, 0,5 PT)
 
 Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im Projekt. Voraussetzung: mehrere manuelle Läufe ohne Nacharbeit. Geplante Cowork-Aufgaben laufen in der Cloud und erreichen `pkm-pflege` voraussichtlich nur bei laufendem PKM-Rechner mit geöffneter Desktop-App – vorher testen.

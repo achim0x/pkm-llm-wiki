@@ -44,7 +44,7 @@ from .ids import new_id
 from .normalize import encode, normalize_fragment, normalize_text
 from .parse import PREAMBLE, Parsed, body_lines, normalize_key_input, split_sections, strip_frontmatter
 from .paths import is_platform_safe_name, slugify
-from .schema import DEFAULT_KIND, DEFAULT_TOOLCHAIN, KINDS, stamp
+from .schema import DEFAULT_KIND, DEFAULT_TOOLCHAIN, FIELD_ORDER, KINDS, normalize_tags, order_meta, stamp
 from .vault import SCRATCH, Doc, load_text_doc
 
 if TYPE_CHECKING:
@@ -56,8 +56,6 @@ INBOX = "documents/_inbox"
 CREATE_AREAS = ("documents", SCRATCH)
 DIFF_LINES = 80
 SHORTENING_RATIO = 0.6
-META_ORDER = ("title", "short_citation", "date_document", "date_markdown", "toolchain_markdown", "id", "version",
-              "context", "tags", "related", "kind")
 FILE_MODE_MASK = 0o777
 
 # Classes *********************************************************************
@@ -459,7 +457,7 @@ class Writer:
             "short_citation": " ".join(short_citation.split()) if short_citation else None,
             "date_document": date_document.strip() if date_document else None,
             "context": " ".join(context.split()) if context else None,
-            "tags": [str(t) for t in tags] if tags else None,
+            "tags": normalize_tags(tags) if tags else None,
             "related": [f"[[{self._link_target(r)}]]" for r in related] if related else None,
             "kind": kind,
         }
@@ -709,7 +707,7 @@ class Writer:
 
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
-            meta = _updated_meta(doc.meta, set_fields, add_fields, remove_fields)
+            meta = order_meta(_updated_meta(doc.meta, set_fields, add_fields, remove_fields))
             return dump_meta(meta) + doc.parsed.body
 
         default = f"Metadaten: {', '.join(dict.fromkeys(touched))}"
@@ -773,9 +771,9 @@ def _ordered_meta(values: dict[str, Any]) -> dict[str, Any]:
         values: Feldwerte.
 
     Returns:
-        Die Felder in der Reihenfolge von ``META_ORDER``.
+        Die Felder in der Reihenfolge von ``FIELD_ORDER``.
     """
-    return {k: values[k] for k in META_ORDER if values.get(k) not in (None, "", [])}
+    return {k: values[k] for k in FIELD_ORDER if values.get(k) not in (None, "", [])}
 
 
 def _check_create_args(title: str, area: str, folder: str | None, kind: str | None) -> None:

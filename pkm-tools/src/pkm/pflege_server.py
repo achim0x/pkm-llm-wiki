@@ -1,8 +1,9 @@
 """MCP-Server ``pkm-pflege-mcp`` für die Wiki-Pflege aus Claude Desktop bzw. Cowork.
 
-Läuft wie ``pkm-mcp`` lokal auf dem PKM-Rechner. Neben den lesenden Tools bietet er drei Pflege-Tools:
-``begin_maintenance``, ``write_wiki_page`` und ``finish_maintenance``. Er schreibt nur in ``wiki/`` und
-``.pkm/state.json``; an Dokumenten setzt er nur ``id``/``version`` (wie ``pkm ids``/``pkm versions``).
+Läuft wie ``pkm-mcp`` lokal auf dem PKM-Rechner. Neben den lesenden Tools bietet er die Pflege-Tools
+``begin_maintenance``, ``write_wiki_page``, ``set_document_metadata`` und ``finish_maintenance``. Er schreibt
+in ``wiki/`` und ``.pkm/state.json``; an Dokumenten setzt er nur ``id``/``version`` (wie ``pkm ids``/
+``pkm versions``) und nach Bestätigung des Nutzers ``title``, ``context``, ``tags``, ``kind``, ``short_citation``.
 Nur in Pflege-Unterhaltungen einschalten.
 
     Author: Achim0x
@@ -56,8 +57,10 @@ def _register_maintenance_tools(server: Server) -> None:
     def begin_maintenance(with_lint: bool = False) -> dict:
         """Pflegelauf beginnen: prüft die Umgebung (doctor), committet Handänderungen als Versionen,
         vergibt fehlende IDs, liefert pending (new, changed, meta_changed, moved, deleted, problems) und
-        korrigiert Belege auf verschobene Dokumente. status blocked: Fehler melden und abbrechen.
-        status needs_decision: doppelte IDs, Nutzer fragen. with_lint liefert zusätzlich den Prüfbericht."""
+        korrigiert Belege auf verschobene Dokumente. Neue Dokumente enthalten missing_fields (fehlende title,
+        context, tags, kind); known_tags nennt vorhandene Schlagwörter mit Häufigkeit.
+        status blocked: Fehler melden und abbrechen. status needs_decision: doppelte IDs, Nutzer fragen.
+        with_lint liefert zusätzlich den Prüfbericht."""
         return call("begin_maintenance", maintrun.begin_maintenance, with_lint=with_lint)
 
     @server.tool()
@@ -67,6 +70,23 @@ def _register_maintenance_tools(server: Server) -> None:
         angeben; neue Seiten ohne expected_hash. Kein Commit, den macht finish_maintenance."""
         return call("write_wiki_page", maintrun.write_wiki_page, path=path, content=content,
                     expected_hash=expected_hash)
+
+    @server.tool()
+    def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        target: str,
+        expected_hash: str,
+        set: dict | None = None,  # pylint: disable=redefined-builtin
+        add: dict | None = None,
+        overwrite: bool = False,
+        note: str | None = None,
+    ) -> dict:
+        """Nur nach ausdrücklicher Bestätigung des Nutzers: title, context, tags, kind, short_citation eines
+        Dokuments in documents/ eintragen (neue Version, Commit mit PKM-Source agent). set setzt Felder, add
+        hängt an tags an. Vorhandene Werte nur mit overwrite=true ändern (sonst field_exists). kind: note |
+        standard | regulation | correction. Tags werden vereinheitlicht (klein, Umlaute ausgeschrieben,
+        Bindestriche). expected_hash aus read; bei conflict neu lesen."""
+        return call("set_document_metadata", maintrun.set_document_metadata, target=target,
+                    expected_hash=expected_hash, set=set, add=add, overwrite=overwrite, note=note)
 
     @server.tool()
     def finish_maintenance(  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -90,7 +110,7 @@ def _register_maintenance_tools(server: Server) -> None:
 
 
 def build_server() -> Server:
-    """Pflege-Server mit lesenden Tools und den drei Pflege-Tools aufbauen.
+    """Pflege-Server mit lesenden Tools und den Pflege-Tools aufbauen.
 
     Returns:
         Der Server.

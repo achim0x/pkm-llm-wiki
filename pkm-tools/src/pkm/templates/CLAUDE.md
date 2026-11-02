@@ -8,11 +8,11 @@ nur nach Zustimmung des Nutzers.
 
 | Bereich | Gehört | Wer schreibt |
 |---|---|---|
-| `documents/` (inkl. `_inbox/`, `_attachments/`) | Nutzer | Nutzer (Obsidian), pkm-mcp auf Anweisung des Nutzers; der Agent nur `id`/`version` über `pkm ids`/`pkm versions` |
+| `documents/` (inkl. `_inbox/`, `_attachments/`) | Nutzer | Nutzer (Obsidian), pkm-mcp auf Anweisung des Nutzers; der Agent `id`/`version` über `pkm ids`/`pkm versions` sowie `title`, `context`, `tags`, `kind`, `short_citation` nach Bestätigung des Nutzers |
 | `wiki/` | Pflege-Agent | nur der Agent; aus Chats nur lesbar |
 | `scratch/` | Nutzer | Nutzer (Obsidian), pkm-mcp auf Anweisung; ohne Version und Commit, nie im Wiki, nicht in Git |
 | `.pkm/state.json` | Pflege-Agent | `pkm mark` |
-| `CLAUDE.md` | Nutzer | Agent nur nach Zustimmung |
+| `CLAUDE.md` | Nutzer | Agent nur nach Zustimmung; Änderungen erfasst `pkm versions` als Nutzer-Commit |
 
 Neue Dokumente aus Chats und vom Web Clipper landen in `documents/_inbox/`. Einsortiert wird
 frei in Obsidian; Dokumente werden über ihre ID gefunden, nicht über den Pfad.
@@ -26,6 +26,10 @@ frei in Obsidian; Dokumente werden über ihre ID gefunden, nicht über den Pfad.
   `kind` (`note` | `standard` | `regulation` | `correction`).
 - `id`, `version`, `date_markdown`, `date_updated` setzen nur pkm-mcp bzw. die `pkm`-CLI.
   `status_markdown` wird unverändert übernommen und von keinem Werkzeug geändert.
+- `context`: eine Zeile „<Art>: <Inhalt>“ (Art: Chat, Podcast, Buch, Artikel, Recherche, Notiz).
+  `tags`: 4–8, klein, Bindestriche, Umlaute ausgeschrieben, vorhandene wiederverwenden.
+  Fehlen sie bei neuen Dokumenten, schlägt der Pflege-Agent Werte vor und trägt sie erst nach
+  Bestätigung ein.
 - Datumsfelder `date_markdown`/`date_updated`: `YYYY-MM-DDTHH:MM:SS` in Ortszeit ohne Zeitzone.
 - Feldnamen ohne Leerzeichen. Werte mit `: ` oder führendem YAML-Sonderzeichen in doppelte
   Anführungszeichen setzen. `source` bleibt dem Web Clipper vorbehalten.

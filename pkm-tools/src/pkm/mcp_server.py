@@ -135,10 +135,21 @@ def register_read_tools(server: Server) -> None:
         return call("search", Service.search, query=query, scope=scope, max_results=max_results)
 
     @server.tool()
-    def read(target: str, version: int | None = None) -> dict:
+    def read(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        target: str,
+        version: int | None = None,
+        section: str | None = None,
+        offset: int = 0,
+        max_chars: int | None = None,
+        content: bool = True,
+    ) -> dict:
         """Dokument oder Wiki-Seite lesen. target: Pfad, Wikilink, id:d-… oder Kurzbezeichnung (short_citation).
-        Mit version eine frühere Version aus Git (nur lesend). Liefert hash für expected_hash."""
-        return call("read", Service.read, target=target, version=version)
+        Mit version eine frühere Version aus Git (nur lesend). Liefert hash für expected_hash und sections
+        (key, sha). Große Dokumente: content=false (nur Metadaten, sections, content_length), dann section
+        (ein Abschnitt) oder offset/max_chars (seitenweise, next_offset). Über 40000 Zeichen ohne diese
+        Angaben fehlt content (content_omitted)."""
+        return call("read", Service.read, target=target, version=version, section=section, offset=offset,
+                    max_chars=max_chars, content=content)
 
     @server.tool()
     def history(target: str, diff_from: int | None = None, diff_to: int | None = None) -> dict:

@@ -169,7 +169,7 @@ flowchart LR
 | Komponente | Rolle |
 |---|---|
 | **pkm-mcp** | MCP-Server für Claude Desktop. Zwölf Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für den Verlauf und die Belege. |
-| **pkm-pflege-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `finish_maintenance` plus die lesenden Tools. Schreibt nur in `wiki/` und `.pkm/state.json`; nur in Pflege-Unterhaltungen einschalten. |
+| **pkm-pflege-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `finish_maintenance` plus die lesenden Tools. Schreibt in `wiki/` und `.pkm/state.json`, an Dokumenten nur IDs und – nach deiner Bestätigung – `title`, `context`, `tags`, `kind`, `short_citation`; nur in Pflege-Unterhaltungen einschalten. |
 | **pkm** | Kommandozeile für Einrichtung, Prüfung und Fehlersuche (dieselben Pflege-Befehle, einzeln). |
 | **Skill `pkm-access`** | Sagt Claude in normalen Chats, wann und wie die Tools zu nutzen sind, z. B. „immer erst ein Entwurf“. |
 | **Skill `pkm-wiki`** | Regeln und Abläufe für den Pflege-Agenten im Projekt „PKM-Pflege“. |

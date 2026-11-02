@@ -43,6 +43,9 @@ mit einem Dokument immer die **ID** verwenden – der Ablageort kann sich änder
    neues Thema → nachfragen. Faustregel: gleiche Fragestellung = aktualisieren, neues
    Teilthema = neues Dokument mit `related` auf das alte.
 2. `read(id:…)` – liefert Inhalt, `version` und `hash`.
+   Großes Dokument (`content_omitted`, oder vorab mit `content: false` an `content_length`
+   erkannt): Abschnitte einzeln mit `section` lesen und nur mit `edit_document` bzw.
+   `append_to_document` ändern, **nie** `rewrite_document` mit einem Teil des Inhalts.
 3. Neue Fassung erstellen, die den **aktuellen Gesamtstand** zeigt:
    - „Ergebnis“ neu formulieren.
    - „Entscheidungen“: geänderte ersetzen, neue ergänzen. Kein „überholt“ stehen lassen.

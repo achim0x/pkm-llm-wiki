@@ -34,6 +34,7 @@ from . import hashes
 from .errors import PkmError
 from .frontmatter import set_fields_linewise
 from .ids import is_valid_id
+from .pagetext import DEF_RE, LIST_ITEM_RE, REF_RE, merge_table_refs, section_blocks
 from .parse import PREAMBLE, Section, body_lines, normalize_key_input
 from .vault import Doc, is_markdown, load_text_doc
 from .wikigen import wiki_pages, write_if_changed
@@ -43,12 +44,9 @@ if TYPE_CHECKING:
 
 # Variables *******************************************************************
 
-DEF_RE = re.compile(r"^\[\^([^\]\s]+)\]:[ \t]*(.*)$")
-REF_RE = re.compile(r"\[\^([^\]\s]+)\](?!:)")
 REF_GROUP_RE = re.compile(r"((?:\[\^[^\]\s]+\](?!:))+)")
 LINK_RE = re.compile(r"^!?\[\[([^\]\|#]*)(?:#([^\]\|]*))?(?:\|[^\]]*)?\]\]")
 SEP_RE = re.compile(r"\s+·\s+")
-LIST_ITEM_RE = re.compile(r"^\s*([-*+]|\d+[.)])\s+")
 PAGE_ANCHOR_RE = re.compile(r"page=(\d+)")
 SHA_VALUE_RE = re.compile(r"[0-9a-f]{6,64}")
 QUOTE_PAIRS = (("„", "“"), ("“", "”"), ('"', '"'), ("»", "«"), ("«", "»"))
@@ -537,14 +535,9 @@ def parse_page(doc: Doc) -> PageCitations:
     def_lines = {i for i, ln in enumerate(lines) if DEF_RE.match(ln)}
     statements: list[Statement] = []
     for sec in doc.parsed.sections:
-        block: list[tuple[int, str]] = []
-        for i in range(sec.start + (1 if sec.heading is not None else 0), sec.end):
-            if i in def_lines or not lines[i].strip():
-                statements += _block_statements(block, sec.key)
-                block = []
-            else:
-                block.append((i, lines[i]))
-        statements += _block_statements(block, sec.key)
+        start = sec.start + (1 if sec.heading is not None else 0)
+        blocks = merge_table_refs(section_blocks(lines, range(start, sec.end), def_lines))
+        statements += [st for block in blocks if block for st in _block_statements(block, sec.key)]
     return PageCitations(doc, definitions, references, statements)
 
 
@@ -808,16 +801,46 @@ def _fix_page(svc: Service, rel: str, resolver: Resolver) -> list[dict[str, str]
     changes: list[dict[str, str]] = []
     if doc.parsed is not None and not doc.error:
         lines = body_lines(doc.parsed.body)
-        for cit in parse_page(doc).definitions.values():
+        moved: dict[str, str] = {}
+        definitions = parse_page(doc).definitions.values()
+        for cit in definitions:
             if cit.path:
                 new_path, new_key = _fixed_target(cit, resolver.resolve(cit))
                 new_line = rewrite_definition(cit, new_path or "", new_key)
+                if new_path and cit.link_path and new_path != cit.link_path:
+                    moved[cit.link_path] = new_path
                 if (new_path, new_key) != (cit.link_path, cit.section_key) and new_line != lines[cit.line]:
                     changes.append({"id": cit.label, "old": lines[cit.line], "new": new_line})
                     lines[cit.line] = new_line
+        def_lines = {c.line for c in definitions}
+        changes += _relink_lines(lines, moved, def_lines)
         if changes:
             write_if_changed(svc, rel, doc.parsed.frontmatter_text + "\n".join(lines) + "\n")
             sync_citations(svc, [rel])
+    return changes
+
+
+def _relink_lines(lines: list[str], moved: dict[str, str], skip: set[int]) -> list[dict[str, str]]:
+    """Wikilinks im Seitentext auf verschobene Originale umschreiben.
+
+    Args:
+        lines: Zeilen des Bodys (werden geändert).
+        moved: Alter Pfad ohne ``.md`` → neuer Pfad.
+        skip: Zeilen, die nicht angefasst werden (Fußnotendefinitionen).
+
+    Returns:
+        Änderungen als (id, old, new) mit ``id: link``.
+    """
+    changes: list[dict[str, str]] = []
+    if moved:
+        rx = re.compile(r"(!?\[\[)(" + "|".join(re.escape(p) for p in sorted(moved, key=len, reverse=True))
+                        + r")(\.md)?(?=[\]#|])")
+        for i, line in enumerate(lines):
+            if i not in skip:
+                new = rx.sub(lambda m: m.group(1) + moved[m.group(2)], line)
+                if new != line:
+                    changes.append({"id": "link", "old": line, "new": new})
+                    lines[i] = new
     return changes
 
 
@@ -836,6 +859,55 @@ def fix_citations(svc: Service, pages: list[str] | None = None) -> dict[str, Any
     for rel in _wiki_targets(svc, pages):
         page_changes = _fix_page(svc, rel, resolver)
         if page_changes:
+            changes.append({"page": rel, "changes": page_changes})
+    return {"status": "ok", "pages_changed": len(changes), "changes": changes}
+
+
+def _raised_line(line: str, version: int) -> str:
+    """Beleg-Zeile mit neuer Versionsangabe ``v:``.
+
+    Args:
+        line: Bisherige Zeile.
+        version: Neue Version.
+
+    Returns:
+        Die Zeile mit ersetztem ``v:``-Teil (übrige Teile unverändert).
+    """
+    return re.sub(r"(·\s*)v:\s*\d+", lambda m: f"{m.group(1)}v:{version}", line, count=1)
+
+
+def raise_versions(svc: Service, pages: list[str] | None = None) -> dict[str, Any]:
+    """Belege auf unveränderte Abschnitte auf die aktuelle Version anheben (nur ``v:``, ``sha:`` bleibt).
+
+    Ein Beleg wird angehoben, wenn das Original eine neuere Version hat und der belegte Abschnitt dort
+    denselben Hash hat wie im Beleg. Belege auf geänderte Abschnitte bleiben unverändert.
+
+    Args:
+        svc: Dienst.
+        pages: Wiki-Seiten oder ``None`` für alle.
+
+    Returns:
+        Anzahl geänderter Seiten und die Änderungen.
+    """
+    resolver = Resolver(svc)
+    changes = []
+    for rel in _wiki_targets(svc, pages):
+        doc = svc.vault.load(rel)
+        if doc.parsed is None or doc.error:
+            continue
+        lines = body_lines(doc.parsed.body)
+        page_changes = []
+        for cit in parse_page(doc).definitions.values():
+            res = resolver.resolve(cit) if cit.markdown and cit.version and cit.sha else None
+            current = res.doc.hashes.sections.get(cit.section_key or "") if res and res.doc and res.doc.hashes else None
+            if (res and res.current_version and cit.version is not None and cit.version < res.current_version
+                    and current and cit.sha and hashes.matches(current, cit.sha)):
+                new_line = _raised_line(lines[cit.line], res.current_version)
+                if new_line != lines[cit.line]:
+                    page_changes.append({"id": cit.label, "old": lines[cit.line], "new": new_line})
+                    lines[cit.line] = new_line
+        if page_changes:
+            write_if_changed(svc, rel, doc.parsed.frontmatter_text + "\n".join(lines) + "\n")
             changes.append({"page": rel, "changes": page_changes})
     return {"status": "ok", "pages_changed": len(changes), "changes": changes}
 

@@ -37,6 +37,8 @@ from .schema import LEGACY_SHORT_CITATION, SHORT_CITATION
 META_FIELDS = ("title", "short_citation", "date_document", "tags", "related", "kind")
 SHORT = 6
 
+EMPTY_HASH = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"  # SHA-256 des leeren Texts
+
 # Classes *********************************************************************
 
 

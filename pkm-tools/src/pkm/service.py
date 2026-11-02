@@ -48,6 +48,7 @@ HISTORY_DIFF_LINES = 400
 SCOPES = {"wiki": ("wiki",), "documents": ("documents",), "scratch": (SCRATCH,), "all": AREAS}
 UNPROCESSED_CATEGORIES = ("new", "changed", "meta_changed", "moved", "deleted")
 INDEX_ERRORS = (sqlite3.Error, PkmError, OSError)
+READ_LIMIT = 40_000
 
 # Classes *********************************************************************
 
@@ -119,9 +120,10 @@ class Service:  # pylint: disable=too-many-public-methods
         paths = None
         if self.index_available():
             try:
-                paths = [p for p in self.index.find_id(doc_id) if self.vault.exists(p)]
+                paths = [p for p in self.index.find_id(doc_id) if self.vault.exists(p)] or None
             except INDEX_ERRORS:  # Der Index ist nur ein Cache.
                 paths = None
+        # Leerer Treffer: Der Index kann veraltet sein (z. B. nach einem Verschieben) – dann scannen.
         paths = paths if paths is not None else self.vault.scan_id(doc_id)
         return [p for p in paths if not p.startswith(f"{SCRATCH}/")]
 
@@ -137,7 +139,7 @@ class Service:  # pylint: disable=too-many-public-methods
         paths = None
         if self.index_available():
             try:
-                paths = [p for p in self.index.find_citation(value) if self.vault.exists(p)]
+                paths = [p for p in self.index.find_citation(value) if self.vault.exists(p)] or None
             except INDEX_ERRORS:
                 paths = None
         return paths if paths is not None else self.vault.scan_citation(value)
@@ -333,16 +335,30 @@ class Service:  # pylint: disable=too-many-public-methods
                 item["processed"] = self.processed(doc, state)
         return item
 
-    def read(self, target: str, version: int | None = None) -> dict[str, Any]:
+    def read(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        target: str,
+        version: int | None = None,
+        section: str | None = None,
+        offset: int = 0,
+        max_chars: int | None = None,
+        content: bool = True,
+    ) -> dict[str, Any]:
         """Tool ``read``.
 
         Args:
             target: Pfad, Wikilink oder ``id:``.
             version: Frühere Version aus Git (nur lesend).
+            section: Nur diesen Abschnitt liefern (Schlüssel wie in ``sections``).
+            offset: Startzeichen für seitenweises Lesen.
+            max_chars: Höchstens so viele Zeichen liefern.
+            content: ``False`` liefert nur Frontmatter, ``sections``, ``hash`` und ``content_length``.
 
         Returns:
             Inhalt, Frontmatter, ``hash``, ``editable``, Abschnitte, Links und Rückverweise;
             bei Wiki-Seiten zusätzlich die geparsten Belege; in ``scratch/`` ohne ``id`` und ``version``.
+            Ist der Inhalt größer als ``READ_LIMIT`` und weder ``section`` noch ``max_chars``
+            angegeben, fehlt ``content`` (``content_omitted``).
 
         Raises:
             PkmError: ``not_versioned`` bei ``version`` für Dateien in ``scratch/``.
@@ -350,10 +366,17 @@ class Service:  # pylint: disable=too-many-public-methods
         if version is not None:
             doc_id, rel = self._target_id(target)
             path, text = self.text_at_version(doc_id, int(version))
-            result = self._doc_result(load_text_doc(path, text.encode("utf-8")), with_links=False)
+            doc = load_text_doc(path, text.encode("utf-8"))
+            result = self._doc_result(doc, with_links=False)
             result.update({"editable": False, "current_path": rel, "version": version})
         else:
-            result = self._doc_result(self.load(target), with_links=True)
+            doc = self.load(target)
+            result = self._doc_result(doc, with_links=True)
+        if "content" in result:
+            text = _section_content(doc, section, result) if section is not None else result["content"]
+            result.update(_page_of(text, offset, max_chars, content))
+            if "content" not in result or result["content"] is None:
+                result.pop("content", None)
         return result
 
     def _doc_result(self, doc: Doc, with_links: bool) -> dict[str, Any]:
@@ -591,5 +614,59 @@ class Service:  # pylint: disable=too-many-public-methods
         return self.writer.restore_document(target, version, expected_hash, source)
 
 # Functions *******************************************************************
+
+def _section_content(doc: Doc, section: str, result: dict[str, Any]) -> str:
+    """Text eines Abschnitts für ``read``.
+
+    Args:
+        doc: Dokument.
+        section: Abschnittsschlüssel.
+        result: Ergebnis von ``read`` (erhält ``section``).
+
+    Returns:
+        Überschrift und Inhalt des Abschnitts.
+
+    Raises:
+        PkmError: ``not_found`` mit der Liste der Abschnitte.
+    """
+    key = normalize_key_input(section)
+    text = citations.section_text(doc, key)
+    if text is None:
+        raise PkmError("not_found", f"Abschnitt nicht gefunden: {section}",
+                       sections=[s["key"] for s in result.get("sections", [])])
+    result["section"] = key
+    return text
+
+
+def _page_of(text: str, offset: int, max_chars: int | None, content: bool) -> dict[str, Any]:
+    """Inhalt für ``read`` zuschneiden.
+
+    Args:
+        text: Vollständiger Text (Dokument oder Abschnitt).
+        offset: Startzeichen.
+        max_chars: Höchstzahl Zeichen oder ``None``.
+        content: Inhalt überhaupt liefern.
+
+    Returns:
+        ``content`` (oder ``None``), ``content_length`` und bei Bedarf ``offset``, ``truncated``,
+        ``next_offset`` bzw. ``content_omitted`` mit Hinweis.
+
+    Raises:
+        PkmError: ``invalid_argument`` bei negativen Werten.
+    """
+    if offset < 0 or (max_chars is not None and max_chars <= 0):
+        raise PkmError("invalid_argument", "offset muss ≥ 0 und max_chars > 0 sein.")
+    out: dict[str, Any] = {"content": None, "content_length": len(text)}
+    if content and (max_chars is not None or offset):
+        end = len(text) if max_chars is None else min(len(text), offset + max_chars)
+        out.update(content=text[offset:end], offset=offset, truncated=end < len(text))
+        if end < len(text):
+            out["next_offset"] = end
+    elif content and len(text) > READ_LIMIT:
+        out.update(content_omitted=True, hint=f"Inhalt größer als {READ_LIMIT} Zeichen: mit section oder "
+                   "offset/max_chars lesen.")
+    elif content:
+        out["content"] = text
+    return out
 
 # Main ************************************************************************

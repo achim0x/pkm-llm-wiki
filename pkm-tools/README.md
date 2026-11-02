@@ -22,9 +22,15 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
 `show_citations`.
 
 **MCP-Tools `pkm-pflege-mcp`:** die lesenden Tools sowie `begin_maintenance` (doctor, versions, ids,
-pending, fix-citations), `write_wiki_page` (nur `wiki/topics|entities|summaries|syntheses/`, mit
+pending mit `missing_fields`, `known_tags`, fix-citations), `set_document_metadata` (nur `title`,
+`context`, `tags`, `kind`, `short_citation` nach Bestätigung; neue Version mit `PKM-Source: agent`),
+`write_wiki_page` (nur `wiki/topics|entities|summaries|syntheses/`, mit
 `expected_hash`, ohne Commit) und `finish_maintenance` (fix-/sync-citations, mark mit aus den Belegen
-ermittelten Seiten, Log, index, status, lint, commit-wiki).
+ermittelten Seiten, Belege bei unverändertem Abschnitt auf die neue Version anheben, Log, index,
+status, lint, commit-wiki).
+
+`read` (beide Server) kennt `section`, `offset`/`max_chars` und `content: false`; über 40 000 Zeichen
+ohne diese Angaben fehlt `content` (`content_omitted`).
 
 **CLI:** `pkm init`, `ids`, `versions`, `pending`, `mark <id>… [--pages <page>…] [--remove]`,
 `sha <target> [--section <key>] [--full]`, `index`, `status [--question <text>]…`,
@@ -70,6 +76,19 @@ ermittelten Seiten, Log, index, status, lint, commit-wiki).
   Tools statt über CLI-Aufrufe. `pkm mark` ermittelt dort die Seiten selbst aus den Fußnoten.
   Der Server lässt sich in Claude Desktop nicht auf ein Projekt beschränken; er wird nur in
   Pflege-Unterhaltungen eingeschaltet.
+- **Frontmatter:** Neue Felder werden zeilengenau an der Stelle aus dem Schema eingefügt
+  (`title`, `short_citation`, `date_document`, `status_markdown`, `date_markdown`,
+  `toolchain_markdown`, `id`, `version`, `date_updated`, `context`, `tags`, `related`, `kind`;
+  unbekannte Felder danach); `update_frontmatter` sortiert ebenso. Einfache Listen werden ohne
+  Anführungszeichen geschrieben (`tags: [a, b]`), Tags vereinheitlicht.
+- `pkm versions` erfasst eine von Hand geänderte `CLAUDE.md` als Nutzer-Commit.
+- Lint `statement_without_citation` übergeht Zwischenüberschriften, reine Fett- und Link-Zeilen;
+  eine Tabelle gilt als belegt, wenn eine Fußnote in ihr oder direkt darunter steht. Belege auf
+  Abschnitte ohne eigenen Text meldet `citation_empty_section`; `read` kennzeichnet solche
+  Abschnitte mit `empty: true`.
+- `fix-citations` schreibt bei verschobenen Originalen auch Wikilinks im Seitentext um. Wird in
+  Obsidian verschoben, aktualisiert Obsidian die Links selbst; dann meldet `fix-citations`
+  zu Recht `pages_changed: 0`.
 - **Windows als PKM-Rechner** (Spezifikation 5.5 nennt nur den Mac): Standardordner
   `%APPDATA%\pkm`, Sperre über `msvcrt` statt `fcntl`, `os.replace` mit Wiederholung bei
   gesperrten Dateien, `core.autocrlf=false` im PKM-Repo, Abhängigkeit `tzdata`. Einrichtung in

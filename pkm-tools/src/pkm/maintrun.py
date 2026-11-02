@@ -27,16 +27,19 @@ das LLM; die mechanischen Pflege-Befehle laufen hier gebündelt in fester Reihen
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from .citations import fix_citations, parse_page, sync_citations
+from .citations import fix_citations, parse_page, raise_versions, sync_citations
 from .doctor import doctor
 from .errors import PkmError
+from .frontmatter import set_fields_linewise
 from .ids import is_valid_id
 from .lint import lint, write_report
 from .maint import Maintenance, page_ref
 from .paths import is_platform_safe_name, safe_resolve
+from .schema import KINDS, normalize_tags
 from .vault import Doc
 from .wikigen import build_index, build_status, wiki_pages, write_if_changed
 
@@ -48,6 +51,8 @@ if TYPE_CHECKING:
 WRITABLE_DIRS = ("wiki/topics/", "wiki/entities/", "wiki/summaries/", "wiki/syntheses/")
 LOG_PATH = "wiki/log.md"
 OPERATIONS = ("ingest", "lint", "fix")
+METADATA_FIELDS = ("title", "context", "tags", "kind", "short_citation")
+SUGGESTED_FIELDS = ("title", "context", "tags", "kind")
 
 # Classes *********************************************************************
 
@@ -72,6 +77,7 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
         versions = maint.versions()
         ids = maint.ids()
         pend = maint.pending()
+        add_missing_fields(svc, pend["new"])
         fixed = fix_citations(svc) if pend["moved"] else None
         result = {
             "status": "needs_decision" if ids["duplicates"] else "ok",
@@ -79,10 +85,149 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
             "ids": {k: ids[k] for k in ("assigned", "duplicates", "skipped", "problems")},
             "pending": pend,
             "fixed_citations": fixed,
+            "known_tags": known_tags(svc),
         }
         if with_lint:
             result["lint"] = lint(svc)
     return result
+
+
+def _empty(value: Any) -> bool:
+    """Prüfen, ob ein Frontmatter-Wert fehlt oder leer ist.
+
+    Args:
+        value: Wert.
+
+    Returns:
+        ``True`` bei ``None``, leerem Text oder leerer Liste.
+    """
+    return value is None or (isinstance(value, str | list) and not (value.strip() if isinstance(value, str) else value))
+
+
+def add_missing_fields(svc: Service, new_docs: list[dict[str, Any]]) -> None:
+    """Je neuem Markdown-Dokument die fehlenden Felder ``title``, ``context``, ``tags``, ``kind`` ergänzen.
+
+    Args:
+        svc: Dienst.
+        new_docs: Einträge aus ``pending.new`` (werden um ``missing_fields`` ergänzt).
+    """
+    for entry in new_docs:
+        rel = entry.get("path")
+        if rel and str(rel).lower().endswith(".md") and svc.vault.exists(rel):
+            meta = svc.vault.load(rel).meta
+            entry["missing_fields"] = [f for f in SUGGESTED_FIELDS if _empty(meta.get(f))]
+
+
+def known_tags(svc: Service) -> dict[str, int]:
+    """Vorhandene Schlagwörter aus ``documents/`` und ``wiki/`` mit Häufigkeit.
+
+    Args:
+        svc: Dienst.
+
+    Returns:
+        Schlagwort → Anzahl, häufigste zuerst.
+    """
+    counts: Counter[str] = Counter()
+    for rel in svc.vault.iter_files(("documents", "wiki")):
+        if rel.lower().endswith(".md"):
+            try:
+                tags = svc.vault.load(rel).meta.get("tags")
+            except PkmError:
+                tags = None
+            if isinstance(tags, list):
+                counts.update(normalize_tags(tags))
+            elif isinstance(tags, str) and tags.strip():
+                counts.update(normalize_tags(tags.replace(",", " ").split()))
+    return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+def _metadata_fields(
+    meta: dict[str, Any], set_fields: dict[str, Any], add_fields: dict[str, Any], overwrite: bool
+) -> dict[str, Any]:
+    """Zu schreibende Felder für ``set_document_metadata`` berechnen und prüfen.
+
+    Args:
+        meta: Bisheriges Frontmatter.
+        set_fields: Zu setzende Felder.
+        add_fields: An Listen anzuhängende Werte (nur ``tags``).
+        overwrite: Vorhandene Werte überschreiben.
+
+    Returns:
+        Feld → neuer Wert (nur geänderte Felder).
+
+    Raises:
+        PkmError: ``protected_field`` außerhalb der Whitelist, ``invalid_argument`` bei ungültigen
+            Werten, ``field_exists`` bei vorhandenen Werten ohne ``overwrite``.
+    """
+    bad = [k for k in [*set_fields, *add_fields] if k not in METADATA_FIELDS] + [k for k in add_fields if k != "tags"]
+    if bad:
+        raise PkmError("protected_field", "Erlaubt sind nur " + ", ".join(METADATA_FIELDS)
+                       + " (add nur für tags).", fields=sorted(set(bad)))
+    fields: dict[str, Any] = {}
+    for key, value in set_fields.items():
+        new = normalize_tags(value if isinstance(value, list) else [value]) if key == "tags" else " ".join(
+            str(value).split())
+        if _empty(new) or (key == "kind" and new not in KINDS):
+            raise PkmError("invalid_argument", f"Ungültiger Wert für {key}: {value!r}"
+                           + (f" (erlaubt: {', '.join(KINDS)})" if key == "kind" else ""), field=key)
+        if not _empty(meta.get(key)) and meta.get(key) != new and not overwrite:
+            raise PkmError("field_exists", f"{key} ist schon gesetzt ({meta.get(key)!r}); nur mit overwrite ändern.",
+                           field=key, value=meta.get(key))
+        fields[key] = new
+    if "tags" in add_fields:
+        current = meta.get("tags") if isinstance(meta.get("tags"), list) else []
+        extra = add_fields["tags"] if isinstance(add_fields["tags"], list) else [add_fields["tags"]]
+        fields["tags"] = normalize_tags([*fields.get("tags", current), *extra])
+    return {k: v for k, v in fields.items() if meta.get(k) != v}
+
+
+def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    svc: Service,
+    target: str,
+    expected_hash: str,
+    set: dict[str, Any] | None = None,  # pylint: disable=redefined-builtin
+    add: dict[str, Any] | None = None,
+    overwrite: bool = False,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """Metadaten eines Dokuments nach Bestätigung des Nutzers eintragen (neue Version, ``PKM-Source: agent``).
+
+    Erlaubt sind nur ``title``, ``context``, ``tags``, ``kind`` und ``short_citation``. Felder werden
+    zeilengenau an der Stelle aus dem Schema eingefügt; übrige Zeilen bleiben unverändert.
+
+    Args:
+        svc: Dienst.
+        target: Dokument in ``documents/`` (Pfad, Wikilink oder ``id:``).
+        expected_hash: ``hash`` aus ``read``.
+        set: Zu setzende Felder.
+        add: An ``tags`` anzuhängende Werte.
+        overwrite: Vorhandene Werte überschreiben (nur auf ausdrücklichen Wunsch des Nutzers).
+        note: Änderungsnotiz.
+
+    Returns:
+        Rückgabe von ``finish`` (neue Version, Commit) bzw. ``unchanged``.
+
+    Raises:
+        PkmError: ``invalid_argument`` ohne Felder, sonst wie ``_metadata_fields`` und ``change``.
+    """
+    if not set and not add:
+        raise PkmError("invalid_argument", "Keine Felder angegeben (set oder add).")
+    rel = svc.resolve(target, ("documents",))
+    fields = _metadata_fields(svc.vault.load(rel).meta, dict(set or {}), dict(add or {}), overwrite)
+
+    def transform(doc: Doc) -> str:
+        """Felder zeilengenau setzen.
+
+        Args:
+            doc: Dokument.
+
+        Returns:
+            Neuer Text.
+        """
+        return set_fields_linewise(doc.text or "", fields) if fields else doc.text or ""
+
+    default = "Metadaten nach Bestätigung: " + ", ".join(fields or set or add or {})
+    return svc.writer.change(rel, expected_hash, transform, note or default, source="agent")
 
 
 def _page_path(path: str) -> str:
@@ -227,7 +372,7 @@ def finish_maintenance(  # pylint: disable=too-many-arguments,too-many-positiona
     questions: list[str] | None = None,
     lint_report: bool = False,
 ) -> dict[str, Any]:
-    """Abschluss: Belege, ``mark``, Log, Index, Status, Lint und Agenten-Commit.
+    """Abschluss: Belege (verschoben, umbenannt, Version angehoben), ``mark``, Log, Index, Status, Lint, Commit.
 
     Args:
         svc: Dienst.
@@ -252,6 +397,7 @@ def finish_maintenance(  # pylint: disable=too-many-arguments,too-many-positiona
     result: dict[str, Any] = {
         "status": "ok",
         "fixed_citations": fix_citations(svc),
+        "raised_citations": raise_versions(svc),
         "synced_sources": sync_citations(svc)["pages_changed"],
     }
     marked, warnings = _mark_processed(svc, processed or [])

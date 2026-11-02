@@ -47,6 +47,7 @@ if TYPE_CHECKING:
 # Variables *******************************************************************
 
 WIKI_COMMIT_PATHS = ["wiki", ".pkm/state.json"]
+SCHEMA_FILE = "CLAUDE.md"
 PENDING_CATEGORIES = ("new", "changed", "meta_changed", "moved", "deleted")
 
 # Classes *********************************************************************
@@ -188,7 +189,20 @@ class Maintenance:
                         committed.append(entry)
             committed += self._commit_binaries(dirty - handled, deleted - handled, skipped)
             committed += [self._commit_deleted(rel) for rel in sorted(deleted - handled) if is_markdown(rel)]
+            committed += self._commit_schema()
         return {"status": "ok", "committed": committed, "skipped": skipped}
+
+    def _commit_schema(self) -> list[dict[str, Any]]:
+        """Von Hand geänderte ``CLAUDE.md`` (Schema des Vaults) als Nutzer-Commit erfassen.
+
+        Returns:
+            Ein Eintrag für ``committed`` oder eine leere Liste.
+        """
+        result: list[dict[str, Any]] = []
+        if self.git.has_changes(SCHEMA_FILE):
+            sha = self.git.commit_paths([SCHEMA_FILE], "pkm: CLAUDE.md geändert\n\nPKM-Source: user\n", as_user=True)
+            result = [{"path": SCHEMA_FILE, "commit": sha[:10]}]
+        return result
 
     def _skip_reason(self, rel: str, doc: Doc, dups: dict[str, list[str]]) -> str | None:
         """Grund, ein Markdown-Dokument in ``versions`` zu überspringen.

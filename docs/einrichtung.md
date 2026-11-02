@@ -205,8 +205,8 @@ Windows (in JSON jeden Backslash verdoppeln):
 ```
 
 - **Zwei Server:** `pkm` (Tools für alle Chats: suchen, lesen, ablegen, fortschreiben) und
-  `pkm-pflege` (Wiki-Pflege: `begin_maintenance`, `write_wiki_page`, `finish_maintenance` plus die
-  lesenden Tools). Beide laufen auf diesem Rechner; Claude Desktop und Cowork erreichen sie,
+  `pkm-pflege` (Wiki-Pflege: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`,
+  `finish_maintenance` plus die lesenden Tools). Beide laufen auf diesem Rechner; Claude Desktop und Cowork erreichen sie,
   solange Claude Desktop geöffnet ist.
 - JSON kennt weder `~` noch Umgebungsvariablen (`%APPDATA%`, `$HOME`): alle Pfade absolut.
 - **`PATH` (Mac):** Claude Desktop startet MCP-Server mit minimaler Umgebung, ohne das
@@ -239,7 +239,8 @@ starten. Im Chat sollten unter den Werkzeugen die zwölf `pkm`-Tools erscheinen 
 **`pkm-pflege` nur zur Pflege einschalten.** Claude Desktop gibt Server allen Unterhaltungen frei;
 auf ein Projekt beschränken lässt er sich nicht. Deshalb `pkm-pflege` in normalen Unterhaltungen
 im Werkzeug-Menü der Unterhaltung ausschalten und nur in Pflege-Unterhaltungen einschalten. Der
-Server schreibt ohnehin nur in `wiki/` und `.pkm/state.json`; jeder Pflegelauf ist ein eigener
+Server schreibt nur in `wiki/` und `.pkm/state.json`, an Dokumenten nur `id`/`version` und nach
+deiner Bestätigung `title`, `context`, `tags`, `kind`, `short_citation`; jeder Pflegelauf ist ein eigener
 Agenten-Commit und lässt sich mit `git revert` zurücknehmen.
 
 ## 6. Skills installieren
