@@ -876,6 +876,26 @@ def _raised_line(line: str, version: int) -> str:
     return re.sub(r"(·\s*)v:\s*\d+", lambda m: f"{m.group(1)}v:{version}", line, count=1)
 
 
+def _raise_target(cit: Citation, resolver: Resolver) -> int | None:
+    """Neue Version für einen Beleg, dessen Abschnitt seit der belegten Version unverändert ist.
+
+    Args:
+        cit: Beleg.
+        resolver: Auflöser.
+
+    Returns:
+        Aktuelle Version des Originals oder ``None``, wenn nichts anzuheben ist.
+    """
+    target = None
+    res = resolver.resolve(cit) if cit.markdown and cit.version and cit.sha else None
+    if res is not None and res.doc is not None and res.doc.hashes and res.current_version:
+        current = res.doc.hashes.sections.get(cit.section_key or "")
+        newer = cit.version is not None and cit.version < res.current_version
+        if newer and current and hashes.matches(current, cit.sha or ""):
+            target = res.current_version
+    return target
+
+
 def raise_versions(svc: Service, pages: list[str] | None = None) -> dict[str, Any]:
     """Belege auf unveränderte Abschnitte auf die aktuelle Version anheben (nur ``v:``, ``sha:`` bleibt).
 
@@ -898,11 +918,9 @@ def raise_versions(svc: Service, pages: list[str] | None = None) -> dict[str, An
         lines = body_lines(doc.parsed.body)
         page_changes = []
         for cit in parse_page(doc).definitions.values():
-            res = resolver.resolve(cit) if cit.markdown and cit.version and cit.sha else None
-            current = res.doc.hashes.sections.get(cit.section_key or "") if res and res.doc and res.doc.hashes else None
-            if (res and res.current_version and cit.version is not None and cit.version < res.current_version
-                    and current and cit.sha and hashes.matches(current, cit.sha)):
-                new_line = _raised_line(lines[cit.line], res.current_version)
+            version = _raise_target(cit, resolver)
+            if version is not None:
+                new_line = _raised_line(lines[cit.line], version)
                 if new_line != lines[cit.line]:
                     page_changes.append({"id": cit.label, "old": lines[cit.line], "new": new_line})
                     lines[cit.line] = new_line
