@@ -1,7 +1,17 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.18 (Entwurf zum Review) · **Stand:** 01.11.2026
+**Version:** 0.19 (Entwurf zum Review) · **Stand:** 03.11.2026
 
+> **Änderungen in 0.19** (Befunde aus den ersten Pflegeläufen)
+> - **Dateinamen mit Datum am Ende:** Neue Dokumente aus Chats heißen `<slug>_YYYY-MM-DD.md`. Bei Namensgleichheit steht das Suffix vor dem Datum (`<slug>-2_YYYY-MM-DD.md`) (4.1, 7.2).
+> - **Pflege über einen eigenen MCP-Server `pkm-pflege-mcp` statt über Shell und CLI.** Claude Desktop bzw. Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus, in der `pkm`, Git und das Git-Verzeichnis fehlen. Der neue Server bündelt die Pflegebefehle in den Tools `begin_maintenance`, `write_wiki_page`, `set_document_metadata` und `finish_maintenance`. Er wird nur in Pflege-Unterhaltungen eingeschaltet. Die CLI bleibt für Einrichtung, Prüfung und Fehlersuche (1, 2, 3, 7.7, 8, 9, 11, 12, 15).
+> - **Frontmatter-Vorschläge:** Fehlen bei neuen Dokumenten `title`, `context`, `tags` oder `kind`, schlägt der Pflege-Agent Werte vor. Nach ausdrücklicher Bestätigung trägt er `title`, `context`, `tags`, `kind` und `short_citation` ein (`set_document_metadata`), in unbeaufsichtigten Läufen nie (1, 3, 4.1, 7.7, 9.6).
+> - **Feldreihenfolge:** Werkzeuge fügen fehlende Felder an der Stelle aus dem Schema ein statt am Ende. `update_frontmatter` schreibt in Schema-Reihenfolge. Einfache Listen stehen ohne Anführungszeichen (`tags: [a, b]`) (4.1, 7.2).
+> - **`read` in Teilen:** neue Parameter `section`, `offset`/`max_chars` und `content`. Sehr große Inhalte kommen nur auf Anforderung (7.3).
+> - **Lint ohne Fehlalarme:** Zwischenüberschriften, reine Hervorhebungs- und Link-Zeilen brauchen keinen Beleg, eine Tabelle gilt mit einer Fußnote direkt darunter als belegt. Belege auf Abschnitte ohne eigenen Text werden gemeldet (4.2, 4.8, 8).
+> - **Belege beim Verschieben und bei neuen Versionen:** `fix-citations` schreibt auch Wikilinks im Seitentext um und findet verschobene Dokumente bei veraltetem Index. Belege auf unveränderte Abschnitte hebt der Abschluss des Pflegelaufs selbst auf die neue Version (5.2, 6.4, 8, 9.1).
+> - **`CLAUDE.md`** ändert der Nutzer. `pkm versions` erfasst diese Änderungen als Commit mit `PKM-Source: user` (3, 8, 12).
+>
 > **Änderungen in 0.18**
 > - **Neue Werte für `kind`:** `standard` für Normen und Standards, `regulation` für Gesetze und Verordnungen. Sie werden verarbeitet wie `note`. Lint gibt einen Hinweis bei umgewandelten Dokumenten ohne `kind` (4.1, 7, 8, 16).
 >
@@ -80,14 +90,14 @@ Ein persönliches Wissensmanagement (PKM), das
   1. Ergebnisse einer Diskussion als neues Dokument abzulegen,
   2. bestehende Dokumente zu aktualisieren, etwa wenn eine Diskussion fortgeführt wird, mit Versionsnummer und vollständigem Verlauf in Git,
   3. das kompilierte Wissen abzufragen und auf Nachfrage die Originale zu nennen,
-- die Wiki-Pflege in einem **eigenen Claude-Desktop-Projekt** mit direktem Ordnerzugriff erledigt.
+- die Wiki-Pflege in einem **eigenen Claude-Desktop-Projekt** über einen eigenen, lokalen MCP-Server erledigt.
 
 ### Leitprinzipien
 
 1. **Zwei Bereiche, zwei Besitzer:** `documents/` gehört dem Nutzer (Pflege per Hand oder per MCP auf seine Anweisung). `wiki/` gehört dem Pflege-Agenten.
 2. **Schreibwege aus Chats sind technisch begrenzt:** Der MCP-Server legt neue Dateien nur in `documents/_inbox/` an. Er ändert nur bestehende Markdown-Dateien in `documents/`. Er löscht und verschiebt nichts. Jede Änderung ergibt eine neue Version und einen Git-Commit, ist also jederzeit umkehrbar. `wiki/` ist aus Chats nur lesbar. Ausnahme ist der Bereich `scratch/` für kurzlebige Notizen: Dort darf der Server anlegen und ändern, ohne Version und ohne Commit (3). Diese Grenzen stehen im Code.
 3. **Dokumente bleiben aufgeräumt:** Ein Dokument zeigt immer den aktuellen Stand. Die Geschichte liegt in Git, erreichbar über die Versionsnummer.
-4. **Der Pflege-Agent fasst Dokumente nicht an**, mit zwei Ausnahmen: Er trägt `id` nach und erhöht `version` bei Änderungen, die von Hand gemacht wurden.
+4. **Der Pflege-Agent fasst Dokumente nicht an**, mit zwei Ausnahmen: Er trägt `id` nach und erhöht `version` bei Änderungen, die von Hand gemacht wurden. Außerdem darf er **nach ausdrücklicher Bestätigung** des Nutzers `title`, `context`, `tags`, `kind` und `short_citation` eintragen (9.6).
 5. **Rückverfolgbarkeit:** Jede Aussage im Wiki verweist auf das Originaldokument (Abschnitt bzw. Seite, Zitat, ID, Version). Wiki-Seiten untereinander gelten nicht als Beleg.
 6. **Identität statt Pfad:** Dokumente werden über ihre ID gefunden. Pfade dürfen sich jederzeit ändern.
 7. **Alles ist Markdown plus Git.** Der Suchindex ist ein Wegwerf-Cache.
@@ -101,25 +111,25 @@ Ein persönliches Wissensmanagement (PKM), das
 ```
 ┌──────────────────────────────┐        ┌───────────────────────────────┐
 │  Beliebiger Claude-Chat      │        │  Claude-Projekt „PKM-Pflege“  │
-│  (+ Skill pkm-access)        │        │  (+ Skill pkm-wiki,           │
-│                              │        │   Ordner verbunden)           │
+│  (+ Skill pkm-access)        │        │  (Chat oder Cowork,           │
+│                              │        │   + Skill pkm-wiki)           │
 └──────────┬───────────────────┘        └───────────────┬───────────────┘
-           │ MCP (stdio, lokal)                         │ Dateizugriff + Shell
+           │ MCP (stdio, lokal)                         │ MCP (stdio, lokal)
            ▼                                            ▼
 ┌──────────────────────────────┐        ┌───────────────────────────────┐
-│  pkm-mcp (Python)            │        │  pkm CLI (gleiches Paket)     │
-│  schreiben (nur documents/,  │        │  ids, versions, pending,      │
-│   je Änderung 1 Git-Commit): │        │  …-citations, index, status,  │
-│   create_document            │        │  lint, history, restore, …    │
-│   rewrite_document           │        └───────────────┬───────────────┘
-│   append_to_document         │                        │
-│   edit_document              │                        │
-│   update_frontmatter         │                        │
+│  pkm-mcp (Python)            │        │  pkm-pflege-mcp (gleiches     │
+│  schreiben (nur documents/,  │        │   Paket)                      │
+│   je Änderung 1 Git-Commit): │        │  begin_maintenance            │
+│   create_document            │        │  write_wiki_page              │
+│   rewrite_document           │        │  set_document_metadata        │
+│   append_to_document         │        │  finish_maintenance           │
+│   edit_document              │        │  + lesende Tools              │
+│   update_frontmatter         │        └───────────────┬───────────────┘
 │   restore_document           │                        │
-│  lesen: search, read,        │                        │
-│   history, show_citations,   │                        │
-│   read_index,                │                        │
-│   list_unprocessed           │                        │
+│  lesen: search, read,        │        ┌───────────────┴───────────────┐
+│   history, show_citations,   │        │  pkm CLI (Einrichtung,        │
+│   read_index,                │        │   Prüfung, Fehlersuche)       │
+│   list_unprocessed           │        └───────────────┬───────────────┘
 └──────────┬───────────────────┘                        │
            ▼                                            ▼
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -132,10 +142,11 @@ Ein persönliches Wissensmanagement (PKM), das
 |---|---|---|
 | **Vault** | Ordner mit Git-Repo (Pflicht) | Einzige Datenquelle (Single Source of Truth), Versionsgeschichte |
 | **pkm-mcp** | lokaler MCP-Server (Python, stdio) | Ablegen, Aktualisieren und Versionsverlauf von Dokumenten, Abfragen des Wikis, Belege aus jedem Chat |
-| **pkm CLI** | Kommandozeile, gleiches Python-Paket | Deterministische Helfer für die Pflege |
+| **pkm-pflege-mcp** | lokaler MCP-Server (Python, stdio), gleiches Paket | Wiki-Pflege aus Claude Desktop bzw. Cowork: bündelt die deterministischen Pflegeschritte, schreibt Wiki-Seiten (7.7). Nur in Pflege-Unterhaltungen eingeschaltet |
+| **pkm CLI** | Kommandozeile, gleiches Python-Paket | Einrichtung (`pkm init`), Prüfung (`doctor`, `lint`) und Fehlersuche. Dieselben Pflegebefehle einzeln |
 | **Skill `pkm-wiki`** | Claude-Skill | Regeln und Abläufe der Wiki-Pflege |
 | **Skill `pkm-access`** | Claude-Skill (schlank) | Wann und wie Chats die MCP-Tools nutzen |
-| **Projekt „PKM-Pflege“** | Projekt in Claude Desktop | Ort, an dem die Pflege läuft (Ordner verbunden) |
+| **Projekt „PKM-Pflege“** | Projekt in Claude Desktop (Chat oder Cowork) | Ort, an dem die Pflege läuft (Server `pkm-pflege` eingeschaltet) |
 | **Geplante Aufgabe** (optional) | z. B. täglich | Neue und geänderte Dokumente automatisch verarbeiten |
 
 ---
@@ -177,12 +188,12 @@ Außerhalb der Nextcloud, nur auf dem Mac:
 
 | Bereich | Nutzer (Obsidian) | pkm-mcp (Chat, auf Anweisung des Nutzers) | Pflege-Agent |
 |---|---|---|---|
-| `documents/_inbox/` | alles | neu anlegen, ändern | lesen, `id`/`version` setzen |
-| `documents/**` (übrige) | alles | ändern (nur `.md`) | lesen, `id`/`version` setzen |
+| `documents/_inbox/` | alles | neu anlegen, ändern | lesen, `id`/`version` setzen; nach Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` |
+| `documents/**` (übrige) | alles | ändern (nur `.md`) | lesen, `id`/`version` setzen; nach Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` |
 | `wiki/` | lesen | **nur lesen** | lesen und schreiben |
-| `CLAUDE.md` | lesen und schreiben | – | Änderungen nur nach Zustimmung |
+| `CLAUDE.md` | lesen und schreiben (Änderungen committet `pkm versions`) | – | Änderungen nur nach Zustimmung |
 | `scratch/**` | alles | neu anlegen, ändern (nur `.md`), ohne Version und Commit | **ignoriert** |
-| `.pkm/` | – | `mcp.log` (nur anhängen) | `state.json` |
+| `.pkm/` | – | `mcp.log` (nur anhängen) | `state.json` (über `pkm-pflege-mcp`) |
 
 Ein Dokument ist „unverarbeitet“, solange seine aktuelle Version nicht in `state.json` als verarbeitet steht. Wo es innerhalb von `documents/` liegt, ist dafür egal.
 
@@ -228,9 +239,9 @@ date_document: August 2014
 status_markdown: draft
 date_markdown: 2026-10-25T14:12:00
 toolchain_markdown: Claude Opus 5.5, Docling V 2.96.1
-kind: standard
 id: d-20261101-0915-m3qa
 version: 1
+kind: standard
 ---
 ```
 
@@ -247,19 +258,19 @@ version: 1
 | `id` | Text | **ja** | Server bzw. `pkm ids` | Feste Dokument-ID (5.3) |
 | `version` | Zahl | ja | Server bzw. `pkm ids` | Versionsnummer, beginnt bei 1, steigt mit jeder Änderung um 1. Zu jeder Version gehört genau ein Git-Commit (5.4) |
 | `date_updated` | Datum & Uhrzeit (`YYYY-MM-DDTHH:MM:SS`) | nein | Server bei jeder Version, `pkm versions` bei Änderungen von Hand | Datum und Uhrzeit der letzten Änderung |
-| `context` | Text | nein | Chat | Anlass, z. B. Chat-Titel |
-| `tags` | Tags (Liste) | nein | Chat bzw. Nutzer | Schlagwörter, Kleinbuchstaben mit Bindestrich, ohne Leerzeichen. Obsidian zeigt nur dieses Feld in Tag-Ansicht, Tag-Suche und Graph an |
+| `context` | Text | nein | Chat bzw. Pflege-Agent nach Bestätigung | Anlass in einer Zeile, Form `"<Art>: <Inhalt>"` (Art: Chat, Podcast, Buch, Artikel, Recherche, Notiz), z. B. `"Chat: Füllstandsberechnung Tank 1"` |
+| `tags` | Tags (Liste) | nein | Chat, Nutzer bzw. Pflege-Agent nach Bestätigung | Schlagwörter, Kleinbuchstaben mit Bindestrich, ohne Leerzeichen, Umlaute ausgeschrieben, vorhandene Tags wiederverwenden (4–8 je Dokument empfohlen). Werkzeuge vereinheitlichen beim Schreiben. Obsidian zeigt nur dieses Feld in Tag-Ansicht, Tag-Suche und Graph an |
 | `related` | Liste (Links) | nein | Chat bzw. Nutzer | Verwandte Dokumente |
-| `kind` | Text | nein | Umwandlung bzw. Chat | Art des Dokuments: `note` (Standardwert, wenn das Feld fehlt), `standard` (Normen und Standards), `regulation` (Gesetze und Verordnungen) oder `correction` (Korrekturwunsch für das Wiki, 9.1) |
+| `kind` | Text | nein | Umwandlung, Chat bzw. Pflege-Agent nach Bestätigung | Art des Dokuments: `note` (Standardwert, wenn das Feld fehlt), `standard` (Normen und Standards), `regulation` (Gesetze und Verordnungen) oder `correction` (Korrekturwunsch für das Wiki, 9.1) |
 
 **Regeln:**
 
-- **Reihenfolge:** Die sechs Felder der Umwandlung (`title` bis `toolchain_markdown`) stehen in dieser Reihenfolge am Anfang. Die übrigen Felder folgen. Werkzeuge ergänzen fehlende Felder **am Ende** des Frontmatters (zeilengenau), damit bestehende Dateien ihre Reihenfolge behalten.
-- **Bereits umgewandelte Dokumente** (z. B. Normen mit genau den sechs Feldern der Umwandlung) sind gültig, sofern ihr YAML gültig ist (siehe Anführungszeichen). Beim ersten Pflegelauf kommen nur `id` und `version: 1` hinzu.
+- **Reihenfolge:** Die Felder stehen in der Reihenfolge der Tabelle: die sechs Felder der Umwandlung (`title` bis `toolchain_markdown`), dann `id`, `version`, `date_updated`, `context`, `tags`, `related`, `kind`. Unbekannte Felder (z. B. `source`) folgen danach. Werkzeuge fügen ein fehlendes Feld **zeilengenau an seiner Stelle** ein: hinter dem letzten vorhandenen Feld, das in der Tabelle davor steht, sonst vor dem ersten nachfolgenden. Bestehende Zeilen bleiben, wo sie sind.
+- **Bereits umgewandelte Dokumente** (z. B. Normen mit genau den sechs Feldern der Umwandlung) sind gültig, sofern ihr YAML gültig ist (siehe Anführungszeichen). Beim ersten Pflegelauf kommen nur `id` und `version: 1` hinzu, direkt hinter `toolchain_markdown`.
 - **Feldnamen enthalten keine Leerzeichen.** Ältere umgewandelte Dokumente mit dem Feld `short_citation` (mit Leerzeichen) meldet Lint als Hinweis. `pkm fix-frontmatter` benennt es in `short_citation` um, aber nur auf ausdrückliche Anweisung (8). Bis dahin lesen die Werkzeuge beide Schreibweisen.
 - **Datumsfelder mit Uhrzeit, ohne Zeitzone:** `date_markdown` und `date_updated` haben das Format `YYYY-MM-DDTHH:MM:SS` (Sekunden, keine Bruchteile) in Ortszeit (`PKM_TZ`, Standard `Europe/Berlin`). Das ist das Format, das Obsidian als „Datum & Uhrzeit“ erkennt (sortierbar, Auswahl im Kalender). Eine Zeitzonen-Angabe (`+01:00`, `Z`) wird nicht geschrieben, weil Obsidian sie in Datumsfeldern nicht unterstützt. Die Zeitzone ergibt sich aus der Konfiguration. Ältere Werte nur mit Datum (`YYYY-MM-DD`, z. B. aus früheren Umwandlungen) bleiben gültig und werden nicht ergänzt. `date_markdown` ändert sich ohnehin nie. Gilt auch für `date_updated` auf Wiki-Seiten (4.2), weil Obsidian den Typ vault-weit pro Feldname festlegt.
 - **Vault-weite Typen:** Obsidian legt den Typ einer Property vault-weit pro Namen fest. Jedes Feld hat deshalb überall den Typ aus der Tabelle. `date_document` bleibt Text, weil es wie gedruckt übernommen wird.
-- **Links in Properties** (`related`, `sources`) stehen immer in Anführungszeichen.
+- **Links in Properties** (`related`, `sources`) stehen immer in Anführungszeichen. Andere einfache Listen schreiben die Werkzeuge einzeilig ohne Anführungszeichen (`tags: [zisterne, home-assistant]`), sofern das eindeutig ist.
 - **Nicht verwendet:** `source` bleibt frei für die Quell-URL, die der Obsidian Web Clipper schreibt (13). Die Werkzeuge werten es nicht aus, lassen es aber unverändert. Für die Herkunft dient `toolchain_markdown`.
 - **Anführungszeichen bei `: `:** Enthält ein Wert die Zeichenfolge Doppelpunkt plus Leerzeichen (häufig in Normtiteln, z. B. „Teil 4-6: Prüf- und Messverfahren“) oder beginnt er mit einem YAML-Sonderzeichen (`- [ ] { } # & * ! | > ' " % @` bzw. `` ` ``), muss er in doppelten Anführungszeichen stehen. Sonst ist das YAML ungültig, und Obsidian sowie die Werkzeuge können das Frontmatter nicht lesen (`invalid_frontmatter`, 4.8). Werkzeuge setzen die Anführungszeichen beim Schreiben selbst. Bestehende Dateien meldet Lint als Fehler. `pkm fix-frontmatter` behebt das, aber **nur auf ausdrückliche Anweisung** des Nutzers (8).
 - **Werte von `kind`:**
@@ -271,11 +282,11 @@ version: 1
   | `regulation` | Gesetze und Verordnungen (z. B. Gesetze, EU-Verordnungen, Richtlinien) | normal verarbeitet |
   | `correction` | Korrekturwunsch für das Wiki mit `related` auf die betroffene Seite | Vorrang vor älteren Quellen (9.1) |
 
-  `standard` und `regulation` setzt die Umwandlung. Für bereits umgewandelte Dokumente ohne `kind` (erkennbar an `status_markdown`, `short_citation` oder `date_document`) gibt Lint einen Hinweis. Ergänzt wird `kind` vom Nutzer, nicht von den Werkzeugen, weil sie `standard` und `regulation` nicht sicher unterscheiden können. Andere Werte meldet Lint als Fehler.
-- **Pflicht** für die Verarbeitung sind `id` und `version`. Bei Ablage per MCP setzt der Server `date_markdown`, `toolchain_markdown`, `id` und `version: 1`. Bei eigenen Dokumenten trägt der Agent nur `id` und `version` nach (5.3). Fehlen `date_markdown` oder `toolchain_markdown`, meldet Lint einen Hinweis, ergänzt sie aber nicht. `status_markdown` wird nicht geprüft.
+  `standard` und `regulation` setzt die Umwandlung. Für bereits umgewandelte Dokumente ohne `kind` (erkennbar an `status_markdown`, `short_citation` oder `date_document`) gibt Lint einen Hinweis. Ergänzt wird `kind` vom Nutzer bzw. nach seiner Bestätigung vom Pflege-Agenten (9.6), nicht automatisch von den Werkzeugen, weil sie `standard` und `regulation` nicht sicher unterscheiden können. Andere Werte meldet Lint als Fehler.
+- **Pflicht** für die Verarbeitung sind `id` und `version`. Bei Ablage per MCP setzt der Server `date_markdown`, `toolchain_markdown`, `id` und `version: 1`. Bei eigenen Dokumenten trägt der Agent `id` und `version` nach (5.3). Fehlen `title`, `context`, `tags` oder `kind`, schlägt er Werte vor und trägt sie erst nach Bestätigung ein (9.6). Fehlen `date_markdown` oder `toolchain_markdown`, meldet Lint einen Hinweis, ergänzt sie aber nicht. `status_markdown` wird nicht geprüft.
 - **ID-Format:** `d-YYYYMMDD-HHMM-xxxx`. Das sind Zeitpunkt der Vergabe und vier Zufallszeichen aus `0-9a-z` ohne `0 1 l o`. Kollisionen prüft der Server gegen den Index.
 - **Geschützte Felder:** `id`, `version`, `date_markdown` und `date_updated` werden ausschließlich von Server bzw. CLI gesetzt und sind über `update_frontmatter` nicht änderbar. `status_markdown` wird unverändert übernommen und ist über `update_frontmatter` ebenfalls nicht änderbar. Geändert wird es nur außerhalb der Werkzeuge, z. B. in Obsidian oder bei einer erneuten Umwandlung.
-- **Frontmatter-Erhalt:** Server und CLI setzen Felder **zeilengenau**: Nur die betreffende Zeile wird ersetzt oder ergänzt, Reihenfolge, Formatierung und Kommentare der übrigen Zeilen bleiben erhalten. Nur `update_frontmatter` schreibt das Frontmatter vollständig neu (Feldreihenfolge bleibt, Umlaute bleiben lesbar). Kommentare im Frontmatter gehen dabei verloren.
+- **Frontmatter-Erhalt:** Server und CLI setzen Felder **zeilengenau**: Nur die betreffende Zeile wird ersetzt oder ergänzt, Reihenfolge, Formatierung und Kommentare der übrigen Zeilen bleiben erhalten. Nur `update_frontmatter` schreibt das Frontmatter vollständig neu, in der Reihenfolge der Tabelle (unbekannte Felder in ihrer bisherigen Reihenfolge danach, Umlaute bleiben lesbar). Kommentare im Frontmatter gehen dabei verloren.
 
 **Gliederung von Chat-Ergebnissen** (Empfehlung des Skills, nicht erzwungen):
 
@@ -288,7 +299,7 @@ version: 1
 
 Bei einer fortgeführten Diskussion werden diese Abschnitte **aktualisiert**, nicht ergänzt (Abschnitt 6). Das Dokument zeigt immer den aktuellen Stand.
 
-**Dateinamen** in `_inbox/`: `YYYY-MM-DD_<slug>.md`. Beim Einsortieren darfst du sie frei umbenennen.
+**Dateinamen** in `_inbox/`: `<slug>_YYYY-MM-DD.md`, das Datum (Tag der Anlage) steht am Ende. Bei Namensgleichheit kommt ein Suffix vor das Datum: `<slug>-2_YYYY-MM-DD.md`. Beim Einsortieren darfst du sie frei umbenennen.
 
 **Nicht-Markdown-Dateien** (PDF, Bilder) haben kein Frontmatter und keine Versionsnummer. Sie werden über ihren Inhalts-Hash identifiziert. Eine neue Fassung eines PDFs gilt als neues Dokument (Abschnitt 5).
 
@@ -302,9 +313,9 @@ type: topic            # topic | entity | summary | synthesis
 title: Regenwasser-Ertrag
 aliases: [Regenertrag, L/mm]
 tags: [zisterne, wasser]
-sources:              # aus den Belegen erzeugt (pkm sync-citations), als Wikilinks
+sources:              # aus den Belegen erzeugt (finish_maintenance bzw. pkm sync-citations), als Wikilinks
   - "[[documents/haus/zisterne]]"
-  - "[[documents/haus/2026-10-31_zisterne-ueberlaufsensor]]"
+  - "[[documents/haus/zisterne-ueberlaufsensor_2026-10-31]]"
   - "[[documents/haus/datenblatt-tank.pdf]]"
 date_updated: 2026-11-02T21:10:00
 confidence: high      # high | medium | low
@@ -325,8 +336,8 @@ Der Tank fasst 6.500 L.[^b4]
 
 ## Belege
 [^b1]: [[documents/haus/zisterne#Dach]] · „Dachfläche laut Plan 92 m²“ · id:d-20261012-0915-x7mp · v:2 · sha:3f9a1c
-[^b2]: [[documents/haus/2026-10-31_zisterne-ueberlaufsensor#Entscheidungen]] · „Schwimmerschalter statt Ultraschall“ · id:d-20261031-2340-k7q2 · v:3 · sha:8b21e0
-[^b3]: [[documents/haus/2026-10-31_zisterne-ueberlaufsensor#Entscheidungen]] · „Ultraschallsensor am Deckel“ · id:d-20261031-2340-k7q2 · v:2 · sha:a1b2c3
+[^b2]: [[documents/haus/zisterne-ueberlaufsensor_2026-10-31#Entscheidungen]] · „Schwimmerschalter statt Ultraschall“ · id:d-20261031-2340-k7q2 · v:3 · sha:8b21e0
+[^b3]: [[documents/haus/zisterne-ueberlaufsensor_2026-10-31#Entscheidungen]] · „Ultraschallsensor am Deckel“ · id:d-20261031-2340-k7q2 · v:2 · sha:a1b2c3
 [^b4]: [[documents/haus/datenblatt-tank.pdf#page=2]] · „Nutzvolumen 6500 l“ · sha:c07d44
 [^b5]: [[documents/alt/haus-2023#Dach]] · „ca. 85 qm“ · id:d-20261101-0700-q4rt · v:1 · sha:51aa02
 ```
@@ -349,17 +360,20 @@ Der Tank fasst 6.500 L.[^b4]
 
 **Regeln:**
 - Jede Sachaussage in „Inhalt“ und „Widersprüche“ endet mit mindestens einer Fußnote. Fasst ein Absatz mehrere Aussagen aus derselben Stelle zusammen, genügt eine Fußnote am Absatzende.
+- **Keine Sachaussagen** und damit ohne Beleg erlaubt: Zwischenüberschriften (`###` …), Zeilen nur aus Hervorhebung (`**Die drei Rollen**`) und Zeilen nur aus Links, ggf. mit kurzer Beschriftung (`Details: [[wiki/…]]`).
+- **Tabellen** gelten als ein Absatz. Belegt ist eine Tabelle durch Fußnoten in ihren Zellen oder durch eine Zeile direkt darunter, die nur aus Fußnoten besteht (`[^b3]` oder `Quelle: [^b3]`).
+- Abschnitte ohne eigenen Text (z. B. eine H1 direkt vor dem ersten `##`) werden nicht belegt, sondern der Unterabschnitt mit dem Zitat (4.8).
 - Fußnoten zeigen immer auf Dokumente in `documents/`, nie auf Wiki-Seiten.
 - **Überholte Aussagen** behalten ihren Beleg auf die *alte* Version (`v:2` im Beispiel). Der Beleg bleibt gültig, weil Git den damaligen Wortlaut hält.
 - Eigene Schlussfolgerungen des Agenten werden gekennzeichnet: „(abgeleitet aus [^b1] und [^b4])“.
 - Seiten unter `wiki/summaries/` fassen genau ein Dokument in seiner aktuellen Version zusammen und belegen ihre Aussagen genauso.
-- `sources` im Frontmatter wird nicht von Hand gepflegt, sondern von `pkm sync-citations` erzeugt.
+- `sources` im Frontmatter wird nicht von Hand gepflegt, sondern beim Abschluss des Pflegelaufs (`finish_maintenance`, 7.7) bzw. von `pkm sync-citations` erzeugt.
 - `confidence: low`, wenn Quellen sich widersprechen oder nur eine unsichere Quelle vorliegt.
 - Überschriften („Inhalt“, „Belege“ …) und die Markierung „Kurzfassung“ sind Inhalt und bleiben deutsch. Die Werkzeuge hängen nicht davon ab: Belege werden am Fußnotenformat erkannt, die Kurzfassung als erstes Zitat (`>`) nach dem Frontmatter.
 
 ### 4.3 `wiki/index.md`
 
-Wird von `pkm index` erzeugt. Gruppiert nach `type`, eine Zeile je Seite:
+Wird beim Abschluss des Pflegelaufs (`finish_maintenance`) bzw. von `pkm index` erzeugt. Gruppiert nach `type`, eine Zeile je Seite:
 
 ```markdown
 ## Themen
@@ -368,22 +382,22 @@ Wird von `pkm index` erzeugt. Gruppiert nach `type`, eine Zeile je Seite:
 
 ### 4.4 `wiki/_status.md`
 
-Wird von `pkm status` nach jedem Pflegelauf erzeugt:
+Wird nach jedem Pflegelauf von `finish_maintenance` bzw. `pkm status` erzeugt, Rückfragen aus dem Lauf inklusive:
 
 ```markdown
 ## Noch nicht verarbeitet (2)
-- [[documents/_inbox/2026-11-02_bewaesserung-zeitplan]] – neu (v1)
-- [[documents/haus/2026-10-31_zisterne-ueberlaufsensor]] – v2 → v3, geändert: „Entscheidungen“, „Offene Punkte“
+- [[documents/_inbox/bewaesserung-zeitplan_2026-11-02]] – neu (v1)
+- [[documents/haus/zisterne-ueberlaufsensor_2026-10-31]] – v2 → v3, geändert: „Entscheidungen“, „Offene Punkte“
 
 ## Noch im Eingang, bereits verarbeitet (1)
-- [[documents/_inbox/2026-10-30_regenmesser]] → Vorschlag: documents/haus/
+- [[documents/_inbox/regenmesser_2026-10-30]] → Vorschlag: documents/haus/
 
 ## Probleme (0)
 ```
 
 ### 4.5 `wiki/log.md`
 
-Nur anhängen:
+Nur anhängen. `finish_maintenance` setzt die Überschrift mit Zeitstempel, Vorgang und Kurzangabe; der Agent liefert die Liste:
 
 ```markdown
 ## [2026-11-02 21:10] ingest | 1 neu, 1 geändert
@@ -401,7 +415,7 @@ Schlüssel ist die Dokument-ID (Markdown) bzw. `sha:<voller hash>` (PDF/Bild):
   "version": 3,
   "documents": {
     "d-20261031-2340-k7q2": {
-      "path": "documents/haus/2026-10-31_zisterne-ueberlaufsensor.md",
+      "path": "documents/haus/zisterne-ueberlaufsensor_2026-10-31.md",
       "processed_version": 3,
       "file_hash": "…",
       "body_hash": "…",
@@ -438,9 +452,11 @@ Alle Hashes werden voll (64 Hex-Zeichen) gespeichert, im Beispiel gekürzt. Was 
 | Abschnitte | Schlüssel nach 4.8, reserviert `_preamble`, Duplikate `Text#2` |
 | `pending`-Kategorien | `new`, `changed`, `meta_changed`, `moved`, `deleted`; je Abschnitt `added`, `removed`, `changed`, `renamed` |
 | Bereiche (`area`, `scope`) | `documents`, `scratch`; zusätzlich `wiki` und `all` (= `wiki` + `documents`) bei `search` |
-| MCP-Tools | `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`, `search`, `read`, `history`, `show_citations`, `read_index`, `list_unprocessed` |
-| Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding`, `not_versioned` |
-| CLI | `pkm init`, `ids`, `versions`, `pending`, `history`, `show`, `fix-citations`, `sync-citations`, `sha`, `mark`, `index`, `status`, `lint`, `restore`, `reindex`, `commit-wiki`, `doctor` |
+| MCP-Tools `pkm-mcp` | `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`, `search`, `read`, `history`, `show_citations`, `read_index`, `list_unprocessed` |
+| MCP-Tools `pkm-pflege-mcp` | `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `finish_maintenance` sowie die lesenden Tools von `pkm-mcp` |
+| Pflege-Rückgaben | `missing_fields`, `known_tags`, `operation` (`ingest` \| `lint` \| `fix`), `processed`, `removed`, `questions` |
+| Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `unchanged`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding`, `not_versioned`, `forbidden`, `protected_field`, `field_exists`, `blocked`, `needs_decision` |
+| CLI | `pkm init`, `ids`, `versions`, `pending`, `history`, `show`, `fix-citations`, `sync-citations`, `sha`, `mark`, `index`, `status`, `lint`, `restore`, `reindex`, `commit-wiki`, `fix-frontmatter`, `doctor` |
 | Skills | `pkm-wiki`, `pkm-access` |
 
 Deutsch bleiben: Texte in Dokumenten und Wiki-Seiten, Überschriften, Änderungsnotizen (`note`), `wiki/log.md`, `wiki/_status.md` und Lint-Berichte.
@@ -487,7 +503,7 @@ Der Server **schreibt** Dateien immer in dieser Form: UTF-8 ohne BOM, LF, NFC, e
 | Hash | Eingabe | Zweck |
 |---|---|---|
 | **`hash`** (Rückgabe von `read` und Schreib-Tools, verlangt als `expected_hash`; in `state.json` als `file_hash`) | die **gesamte** normalisierte Datei einschließlich Frontmatter | Konfliktschutz. Jede Änderung, auch an `tags` oder an `date_updated`, ändert ihn |
-| **Abschnitts-Hash** (`sections.<schlüssel>` in `state.json`, Präfix als `sha:` im Beleg) | der Abschnitt **ohne** seine Überschriftenzeile, normalisiert: jede Zeile rechts von Leerraum befreit, führende und abschließende Leerzeilen entfernt, Folgen von Leerzeilen zu einer einzigen zusammengefasst, Zeilen mit LF verbunden | Inhaltliche Änderungen je Abschnitt. Reine Leerraum-Änderungen lösen nichts aus. Ein leerer Abschnitt hat den Hash des leeren Strings |
+| **Abschnitts-Hash** (`sections.<schlüssel>` in `state.json`, Präfix als `sha:` im Beleg) | der Abschnitt **ohne** seine Überschriftenzeile, normalisiert: jede Zeile rechts von Leerraum befreit, führende und abschließende Leerzeilen entfernt, Folgen von Leerzeilen zu einer einzigen zusammengefasst, Zeilen mit LF verbunden | Inhaltliche Änderungen je Abschnitt. Reine Leerraum-Änderungen lösen nichts aus. Ein leerer Abschnitt (etwa eine H1 direkt vor dem ersten `##`) hat den Hash des leeren Strings (`e3b0c4…`). `read` kennzeichnet ihn in `sections` mit `empty: true`, Lint warnt bei Belegen darauf (`citation_empty_section`) |
 | **`body_hash`** | die Folge aller Abschnitte in Dokumentreihenfolge, je Abschnitt eine Zeile `<schlüssel>\t<abschnitts-hash>\n` | Schneller Test, ob sich am Inhalt überhaupt etwas geändert hat, Reihenfolge inklusive |
 | **`meta_hash`** | kanonisches JSON (sortierte Schlüssel, UTF-8, ohne Leerraum) der Felder `title`, `short_citation`, `date_document`, `tags`, `related`, `kind`. Fehlende Felder fehlen auch im JSON. Werte gehen als Zeichenketten in ihrer Schreibweise im Frontmatter ein (ein Datum also als `2026-10-25`, nicht als Datumsobjekt), Listen als Listen solcher Zeichenketten | Inhaltlich relevante Metadaten. `id`, `version`, `status_markdown`, `date_markdown`, `date_updated`, `toolchain_markdown` und `context` sind bewusst ausgenommen. Eine Statusänderung von `draft` löst also keine Neuverarbeitung aus |
 | **Datei-Hash binär** | die Rohbytes ohne Normalisierung | PDFs und Bilder |
@@ -499,7 +515,7 @@ Der Server **schreibt** Dateien immer in dieser Form: UTF-8 ohne BOM, LF, NFC, e
 - Nur `meta_hash` geändert: **`meta_changed`**. Dann werden nur Zusammenfassungsseite und Index angepasst.
 - `body_hash` geändert: **`changed`**, mit dem Abschnittsvergleich:
   - Schlüssel neu: `added`. Schlüssel weg: `removed`. Gleicher Schlüssel, anderer Hash: `changed`.
-  - Ein `removed` und ein `added` mit **gleichem Hash** werden zu **`renamed`** (alter → neuer Schlüssel) zusammengefasst. `pkm fix-citations` passt die Anker in den Belegen an. So werden auch Verschiebungen in der Duplikat-Nummerierung erkannt (`Notizen#2` → `Notizen`).
+  - Ein `removed` und ein `added` mit **gleichem Hash** werden zu **`renamed`** (alter → neuer Schlüssel) zusammengefasst. Der Pflegelauf (`fix-citations`) passt die Anker in den Belegen an. So werden auch Verschiebungen in der Duplikat-Nummerierung erkannt (`Notizen#2` → `Notizen`).
   - Nur die Reihenfolge geändert, alle Abschnitts-Hashes gleich: `changed` ohne betroffene Abschnitte. Es wird nur der Stand vermerkt, eine inhaltliche Verarbeitung findet nicht statt.
 
 `edit_document` sucht `old` im **normalisierten Body** (Schritt 1). Auch `old` und `new` werden vorher normalisiert (LF, NFC), damit CRLF oder abweichende Unicode-Formen aus dem Chat nicht zu `not_found` führen. Die Kürzungsprüfung von `rewrite_document` (`large_shortening`) zählt Zeichen des normalisierten Bodys und vergleicht Abschnittsschlüssel nach Schritt 3.
@@ -520,9 +536,9 @@ Drei Mechanismen greifen nacheinander. Jeder deckt die Fälle ab, die der vorher
 
 ### 5.2 Auflösung eines Belegs
 
-(in `show_citations` und `pkm fix-citations`)
+(in `show_citations` und `fix-citations`)
 1. Der Link-Pfad existiert und die ID stimmt (Markdown) bzw. der Hash stimmt (PDF/Bild): Das Dokument ist gefunden.
-2. Sonst bei Markdown: Die ID im Index nachschlagen. Gefunden heißt **verschoben**.
+2. Sonst bei Markdown: Die ID im Index nachschlagen. Liefert der Index keinen vorhandenen Pfad (etwa weil er nach einem Verschieben außerhalb von Obsidian veraltet ist), wird der Vault durchsucht. Gefunden heißt **verschoben**.
 3. Sonst bei PDF/Bild: Den Hash im Dateibestand nachschlagen. Gefunden heißt ebenfalls **verschoben**.
 4. Sonst: **fehlt**.
 
@@ -549,7 +565,7 @@ PKM-Version: 3
 PKM-Source: chat
 ```
 
-`PKM-Source` ist `chat` (MCP), `user` (Änderung von Hand) oder `agent` (`pkm ids`, Duplikat-Auflösung). Über `git log --grep "PKM-Id: d-…"` findet man alle Versionen eines Dokuments, **unabhängig davon, wo es gerade liegt**.
+`PKM-Source` ist `chat` (MCP), `user` (Änderung von Hand) oder `agent` (`pkm ids`, Duplikat-Auflösung, Metadaten nach Bestätigung über `set_document_metadata`). Über `git log --grep "PKM-Id: d-…"` findet man alle Versionen eines Dokuments, **unabhängig davon, wo es gerade liegt**.
 
 **Wer erhöht die Version?**
 
@@ -557,7 +573,7 @@ PKM-Source: chat
 |---|---|---|
 | MCP (Chat) | sofort bei jeder Änderung | Der Server erhöht `version`, setzt `date_updated`, schreibt die Datei und committet mit `--only` genau diese Datei (mit `--git-dir`/`--work-tree`, 5.5). Andere offene Änderungen im Vault bleiben unberührt |
 | Nutzer (Obsidian, Dateimanager) | nachgezogen | (a) Ändert danach der MCP-Server dieselbe Datei, committet er **vorher** den Stand des Nutzers als eigene Version (`PKM-Source: user`). (b) Spätestens zu Beginn des nächsten Pflegelaufs zieht `pkm versions` alle von Hand geänderten Dokumente nach, je Dokument eine Version |
-| Agent | beim Pflegelauf | Nur `pkm ids` und die Duplikat-Auflösung, je Dokument ein Commit |
+| Agent | beim Pflegelauf | `pkm ids` (über `begin_maintenance`), Duplikat-Auflösung und nach Bestätigung `set_document_metadata`, je Dokument und Änderung ein Commit |
 
 Mehrere Änderungen von Hand zwischen zwei Commits werden also zu **einer** Version zusammengefasst. Das ist gewollt, weil Obsidian Zwischenstände beim Tippen speichert.
 
@@ -639,11 +655,11 @@ Diese Form ist nie Standard. Der Skill schlägt sie auch nicht von sich aus vor.
 
 ### 6.4 Was im Wiki passiert
 
-1. `pkm pending` meldet das Dokument mit `processed_version` → `version` und den geänderten Abschnitten.
-2. Der Agent verarbeitet nur diese Abschnitte und vergleicht dazu die verarbeitete mit der aktuellen Version (`pkm history --diff`).
+1. `pending` (über `begin_maintenance`) meldet das Dokument mit `processed_version` → `version` und den geänderten Abschnitten.
+2. Der Agent verarbeitet nur diese Abschnitte und vergleicht dazu die verarbeitete mit der aktuellen Version (`history` mit `diff_from`).
 3. Betroffene Wiki-Aussagen werden auf den neuen Stand gebracht und mit Belegen auf die **neue Version** versehen.
 4. Wo der frühere Stand für die Nachvollziehbarkeit wichtig ist, etwa bei einer geänderten Entscheidung, bleibt er als kurze Zeile „Bis Version n: …“ mit Beleg auf die **alte Version** stehen. Andernfalls wird er nur im Log vermerkt.
-5. Belege auf unveränderte Abschnitte bleiben gültig. Ihre Version wird beim nächsten Durchgang auf die aktuelle angehoben.
+5. Belege auf unveränderte Abschnitte bleiben gültig. `finish_maintenance` hebt ihre Version am Ende des Laufs auf die aktuelle an (nur `v:`, `sha:` bleibt, weil der Abschnitt gleich ist). Das gilt auch für `meta_changed`.
 
 ---
 
@@ -685,7 +701,7 @@ Gemeinsame Regeln:
 |---|---|---|---|
 | `title` | string | ja | Wird zu `title`. Daraus wird auch der Dateiname gebildet |
 | `content` | string (Markdown) | ja | Ohne Frontmatter. Ein mitgeliefertes Frontmatter wird entfernt |
-| `tags` | list[string] | nein | Schlagwörter (Kleinbuchstaben, Bindestrich) |
+| `tags` | list[string] | nein | Schlagwörter (Kleinbuchstaben, Bindestrich). Werden vereinheitlicht (4.1) |
 | `short_citation` | string | nein | Kurzbezeichnung, z. B. `EN 61000-4-6:2014` |
 | `date_document` | string | nein | Ausgabedatum wie gedruckt |
 | `context` | string | nein | z. B. Chat-Titel |
@@ -695,7 +711,7 @@ Gemeinsame Regeln:
 | `area` | enum `documents` \| `scratch` | nein | Standard `documents` |
 | `folder` | string | nein | Nur bei `area: "scratch"`: Unterordner in `scratch/` (wird angelegt, falls nötig). Standard ist die Wurzel von `scratch/` |
 
-Ergebnis bei `documents`: Frontmatter nach 4.1 mit `date_markdown` = jetzt, `toolchain_markdown`, `id`, `version: 1`. Commit `doc: <title> v1`. Bei Namensgleichheit wird ein Suffix angehängt, nie überschrieben.
+Ergebnis bei `documents`: Datei `documents/_inbox/<slug>_YYYY-MM-DD.md` (4.1) mit Frontmatter nach 4.1: `date_markdown` = jetzt, `toolchain_markdown`, `id`, `version: 1`. Commit `doc: <title> v1`. Bei Namensgleichheit kommt ein Suffix vor das Datum (`<slug>-2_YYYY-MM-DD.md`), es wird nie überschrieben.
 
 Ergebnis bei `scratch`: Datei `scratch/[<folder>/]<slug>.md` mit kleinem Frontmatter (`title`, `date_markdown`, später `date_updated`), ohne `id`, `version` und Commit. `tags`, `related` und `kind` werden übernommen, falls angegeben. Bei Namensgleichheit wird ein Suffix angehängt.
 
@@ -740,7 +756,7 @@ Schutz gegen versehentlichen Verlust: Ist der neue Inhalt kürzer als 60 % des a
 | `expected_hash` | string | ja | |
 | `note` | string | nein | |
 
-Geschützt: `id`, `version`, `date_markdown`, `date_updated`, `status_markdown`. Beim Schreiben werden Werte mit `: ` automatisch in Anführungszeichen gesetzt (4.1). Das Frontmatter wird vollständig neu geschrieben, Kommentare darin gehen verloren (4.1).
+Geschützt: `id`, `version`, `date_markdown`, `date_updated`, `status_markdown`. Beim Schreiben werden Werte mit `: ` automatisch in Anführungszeichen gesetzt (4.1). Das Frontmatter wird vollständig neu geschrieben, in der Reihenfolge aus 4.1. Kommentare darin gehen verloren (4.1). Der Pflege-Agent benutzt dieses Tool nicht, sondern `set_document_metadata` (7.7).
 
 #### `restore_document`
 Holt den Inhalt einer früheren Version zurück, und zwar als **neue** Version. Die Geschichte wird nicht umgeschrieben. Für Dateien in `scratch/` kommt `not_versioned`.
@@ -773,8 +789,11 @@ Rückgabe je Treffer: `id`, `version` (bei Dokumenten), `path`, `title`, `type`,
 |---|---|---|
 | `target` | string | Pfad, Wikilink oder ID |
 | `version` | int | optional. Liest eine frühere Version aus Git (nur lesend) |
+| `section` | string | optional. Nur dieser Abschnitt (Schlüssel nach 4.8) als `content`. Unbekannter Schlüssel: `not_found` mit der Liste der Abschnitte |
+| `offset`, `max_chars` | int | optional. Seitenweises Lesen: `content` ab Zeichen `offset`, höchstens `max_chars` Zeichen. Rückgabe zusätzlich `truncated` und `next_offset` |
+| `content` | bool | Standard `true`. Mit `false` nur Metadaten, `sections`, `hash` und `content_length` |
 
-Rückgabe: `id`, `version`, `path`, `frontmatter`, `content`, `hash`, `editable`, `sections`, `backlinks`, `links`. Bei Wiki-Seiten zusätzlich `citations` (geparst, ohne Prüfung). Bei PDFs und Bildern nur Metadaten und Pfad. Lesbar sind `documents/`, `scratch/` und `wiki/`. In `scratch/` fehlen `id` und `version`, `editable` ist `true`.
+Rückgabe: `id`, `version`, `path`, `frontmatter`, `content`, `content_length`, `hash`, `editable`, `sections` (je Abschnitt `key`, `level`, `sha`, bei leeren Abschnitten `empty: true`), `backlinks`, `links`. Ist der Inhalt größer als 40.000 Zeichen und weder `section` noch `offset`/`max_chars` angegeben, fehlt `content`, und die Rückgabe enthält `content_omitted: true` mit Hinweis. So wird nie stillschweigend nur ein Teil geliefert. Große Dokumente werden abschnittsweise gelesen und nur mit `edit_document` oder `append_to_document` geändert, nie mit `rewrite_document` aus einem Teilinhalt. Bei Wiki-Seiten zusätzlich `citations` (geparst, ohne Prüfung). Bei PDFs und Bildern nur Metadaten und Pfad. Lesbar sind `documents/`, `scratch/` und `wiki/`. In `scratch/` fehlen `id` und `version`, `editable` ist `true`.
 
 #### `history`
 Für Dateien in `scratch/` kommt `not_versioned`.
@@ -821,7 +840,8 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 ### 7.5 Sicherheit
 
 - Pfadprüfung mit `resolve()`. Kein `..`, keine absoluten Pfade, keine Symlinks nach außen
-- Schreiben nur wie in 7.2 beschrieben. **Nie änderbar:** `wiki/`, `CLAUDE.md`, Nicht-Markdown-Dateien, alles außerhalb von `PKM_ROOT`
+- `pkm-mcp` schreibt nur wie in 7.2 beschrieben. **Nie änderbar:** `wiki/`, `CLAUDE.md`, Nicht-Markdown-Dateien, alles außerhalb von `PKM_ROOT`
+- `pkm-pflege-mcp` schreibt nur wie in 7.7 beschrieben: Wiki-Seiten in den vier Seitenordnern, die generierten Dateien über `finish_maintenance`, `.pkm/state.json` und in Dokumenten nur `id`/`version` sowie die freigegebenen Metadaten. Löschen kann auch er nicht
 - Git-Aufrufe nur mit fest vorgegebenen Argumenten (kein Durchreichen von Eingaben als Optionen). Pfade werden nach `--` übergeben
 - Es gibt keine Git-Operation, die Geschichte umschreibt (`reset`, `rebase`, `push --force` usw.)
 - Rückgaben enthalten nur relative Pfade
@@ -841,34 +861,104 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
         "PKM_VAULT_NAME": "<VAULT>",
         "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
       }
+    },
+    "pkm-pflege": {
+      "command": "<HOME>/.local/bin/uvx",
+      "args": ["--from", "<PFAD_ZUM_PAKET>/pkm-tools", "pkm-pflege-mcp"],
+      "env": {
+        "PKM_ROOT": "<HOME>/Nextcloud/<VAULT>",
+        "PKM_GIT_DIR": "<HOME>/Library/Application Support/pkm/git",
+        "PKM_VAULT_NAME": "<VAULT>",
+        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     }
   }
 }
 ```
 
-Die Datei liegt auf dem Mac unter `~/Library/Application Support/Claude/claude_desktop_config.json`. Platzhalter in spitzen Klammern sind durch absolute Pfade zu ersetzen (`<HOME>` = Home-Verzeichnis auf dem Mac, `<VAULT>` = Ordner- bzw. Vault-Name). JSON kennt weder `~` noch Umgebungsvariablen. `uvx` steht mit absolutem Pfad und `git` muss über `PATH` erreichbar sein, weil Claude Desktop MCP-Server mit minimaler Umgebung startet. Der Server ist erreichbar, solange die Desktop-App auf dem Mac läuft.
+Die Datei liegt auf dem Mac unter `~/Library/Application Support/Claude/claude_desktop_config.json`. Platzhalter in spitzen Klammern sind durch absolute Pfade zu ersetzen (`<HOME>` = Home-Verzeichnis auf dem Mac, `<VAULT>` = Ordner- bzw. Vault-Name). JSON kennt weder `~` noch Umgebungsvariablen. `uvx` steht mit absolutem Pfad und `git` muss über `PATH` erreichbar sein, weil Claude Desktop MCP-Server mit minimaler Umgebung startet. Die Server sind erreichbar, solange die Desktop-App auf dem Mac läuft, auch aus Cowork. Im `PATH` genügt der Ordner, in dem `git` liegt, plus `/usr/bin:/bin`.
+
+**`pkm-pflege` nur zur Pflege einschalten.** Claude Desktop gibt einen MCP-Server allen Unterhaltungen frei und kann ihn nicht auf ein Projekt beschränken. `pkm-pflege` wird deshalb in normalen Unterhaltungen ausgeschaltet und nur in Pflege-Unterhaltungen eingeschaltet. Die Regel „Wiki aus Chats nur lesbar“ ist damit für `pkm-pflege` organisatorisch abgesichert, nicht technisch. Zusätzlich schreibt der Server nur in den Grenzen aus 7.7, und jeder Pflegelauf ist ein eigener Agenten-Commit, der sich mit `git revert` zurücknehmen lässt.
+
+### 7.7 MCP-Server `pkm-pflege-mcp`
+
+Zweiter lokaler Server aus demselben Paket für die Wiki-Pflege aus Claude Desktop bzw. Cowork. Grund: Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus (lokale VM bzw. Cloud), in der `pkm`, Git und das Git-Verzeichnis fehlen. MCP-Server dagegen laufen auf dem Mac und sind über die Desktop-App erreichbar. Technik, Konfiguration, Sicherheit und Protokoll wie 7.1, 7.5 und 7.2. Keine LLM-Aufrufe: Der Server bündelt nur die deterministischen Schritte. Inhaltliche Arbeit (Seiten formulieren, Belege wählen) macht der Agent.
+
+Der Server bietet die lesenden Tools aus 7.3 und vier Pflege-Tools:
+
+#### `begin_maintenance`
+| Parameter | Typ | Standard | Beschreibung |
+|---|---|---|---|
+| `with_lint` | bool | `false` | Zusätzlich den Prüfbericht liefern (Ablauf „Lint“) |
+
+Führt nacheinander aus: `doctor --short`, `versions`, `ids`, `pending` und bei Verschiebungen `fix-citations` (8). Rückgabe: `status`, `versions`, `ids`, `pending`, `fixed_citations`, `known_tags` und optional `lint`.
+- `status: blocked`: Die Umgebung hat Fehler (z. B. Konfliktkopien, `.git` im Vault). Es wurde nichts geändert, `doctor` nennt die Fehler.
+- `status: needs_decision`: Es gibt doppelte IDs. Der Agent fragt nach.
+- `pending.new` enthält je Markdown-Dokument `missing_fields`: welche von `title`, `context`, `tags`, `kind` fehlen oder leer sind.
+- `known_tags`: alle Tags aus `documents/` und `wiki/` mit Häufigkeit, häufigste zuerst.
+
+#### `write_wiki_page`
+| Parameter | Typ | Pflicht | Beschreibung |
+|---|---|---|---|
+| `path` | string | ja | Seite unter `wiki/topics/`, `wiki/entities/`, `wiki/summaries/` oder `wiki/syntheses/`, mit oder ohne `.md` |
+| `content` | string | ja | Vollständiger Inhalt mit Frontmatter (4.2) |
+| `expected_hash` | string | bei bestehenden Seiten | `hash` aus `read`. Bei neuen Seiten weglassen |
+
+Legt die Seite an oder ersetzt sie vollständig, ohne Commit (den macht `finish_maintenance`). `wiki/index.md`, `wiki/_status.md`, `wiki/log.md`, `wiki/_lint/` und alles außerhalb der vier Seitenordner ergeben `forbidden`. Bestehende Seite ohne oder mit falschem `expected_hash` bzw. neue Seite mit `expected_hash` ergibt `conflict`. Rückgabe: `status` (`created`, `changed`, `unchanged`), `path`, neuer `hash`.
+
+#### `set_document_metadata`
+Nur nach **ausdrücklicher Bestätigung** des Nutzers (9.6).
+
+| Parameter | Typ | Pflicht | Beschreibung |
+|---|---|---|---|
+| `target` | string | ja | Dokument in `documents/` (Pfad, Wikilink, `id:` oder Kurzbezeichnung) |
+| `expected_hash` | string | ja | `hash` aus `read` |
+| `set` | object | nein | Felder setzen |
+| `add` | object | nein | Nur `tags`: Werte anhängen |
+| `overwrite` | bool | nein | Standard `false`. Vorhandene Werte nur auf ausdrücklichen Wunsch überschreiben |
+| `note` | string | nein | Änderungsnotiz |
+
+- **Whitelist:** `title`, `context`, `tags`, `kind`, `short_citation`. Andere Felder ergeben `protected_field`.
+- Vorhandene, nicht leere Werte werden ohne `overwrite: true` nicht geändert (`field_exists` mit dem vorhandenen Wert). Entfernen ist nicht möglich.
+- `kind` muss einer der Werte aus 4.1 sein. Tags werden vereinheitlicht (klein, Umlaute ausgeschrieben, Leerraum zu Bindestrich) und ohne Duplikate gespeichert. Leere Werte ergeben `invalid_argument`.
+- Felder werden zeilengenau an ihrer Stelle nach 4.1 gesetzt. Das Ergebnis ist eine neue Version mit Commit und `PKM-Source: agent` (5.4), ohne Änderung `unchanged`.
+
+#### `finish_maintenance`
+| Parameter | Typ | Pflicht | Beschreibung |
+|---|---|---|---|
+| `log_entry` | string | ja | Inhalt des Log-Eintrags (Markdown-Liste, 4.5) |
+| `operation` | enum `ingest` \| `lint` \| `fix` | nein | Standard `ingest` |
+| `log_title` | string | nein | Kurzangabe in der Log-Überschrift, z. B. `1 neu, 1 geändert` |
+| `processed` | list[string] | nein | Verarbeitete Dokumente (IDs bzw. Pfade bei PDF/Bild) |
+| `removed` | list[string] | nein | Schlüssel verarbeiteter gelöschter Dokumente |
+| `questions` | list[string] | nein | Rückfragen für `wiki/_status.md` |
+| `lint_report` | bool | nein | Prüfbericht nach `wiki/_lint/YYYY-MM-DD.md` schreiben |
+
+Führt nacheinander aus: `fix-citations` (inkl. Wikilinks im Text), Anheben von Belegen auf unveränderte Abschnitte (6.4), `sync-citations`, `mark` für `processed` mit den belegenden Seiten (aus den Fußnoten ermittelt, Warnung bei Dokumenten ohne Beleg), Austragen von `removed`, Log-Eintrag, `index`, `status` mit `questions`, `lint` und `commit-wiki` (`pkm: <operation> <n> documents`). Rückgabe: Ergebnisse der Schritte, Lint-Bericht, Commit und Warnungen. Meldet Lint Fehler in den eigenen Seiten, behebt der Agent sie mit `write_wiki_page` und ruft `finish_maintenance` erneut mit `operation: fix` auf.
 
 ---
 
 ## 8. CLI `pkm`
 
+Die CLI dient der Einrichtung, Prüfung und Fehlersuche. Der Pflege-Agent ruft sie nicht direkt auf, sondern nutzt `pkm-pflege-mcp` (7.7), das dieselben Funktionen bündelt.
+
 Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft nur, dass `scratch/` in `.gitignore` steht.
 
 | Befehl | Funktion |
 |---|---|
-| `pkm init` | Legt Struktur, `CLAUDE.md`, `wiki/index.md`, `log.md`, `_status.md`, `state.json` und `.gitignore` an, initialisiert das Git-Verzeichnis außerhalb des Vaults, falls nötig (idempotent) |
+| `pkm init` | Legt Struktur, `CLAUDE.md`, `wiki/index.md`, `log.md`, `_status.md`, `state.json`, `.gitignore` und `.obsidian/types.json` (Property-Typen, 13) an, initialisiert das Git-Verzeichnis außerhalb des Vaults, falls nötig (idempotent) |
 | `pkm ids` | Trägt fehlende `id`/`version` in Markdown-Dokumente ein und committet **je Dokument einzeln** (`doc: <title> v1`, `PKM-Source: agent`). Meldet doppelte IDs |
-| `pkm versions` | Committet alle von Hand geänderten Dokumente als neue Version (je Dokument eine, `PKM-Source: user`). Erkennt auch Verschiebungen (Markdown über die ID, PDF/Bild über den Hash) und committet sie mit: ein Commit enthält dann alten und neuen Pfad. Eine neue Version entsteht nur, wenn sich `body_hash` oder `meta_hash` geändert hat (4.8). Reines Verschieben ergibt den Commit `doc: <title> moved` ohne Versionssprung |
+| `pkm versions` | Committet alle von Hand geänderten Dokumente als neue Version (je Dokument eine, `PKM-Source: user`). Erkennt auch Verschiebungen (Markdown über die ID, PDF/Bild über den Hash) und committet sie mit: ein Commit enthält dann alten und neuen Pfad. Eine neue Version entsteht nur, wenn sich `body_hash` oder `meta_hash` geändert hat (4.8). Reines Verschieben ergibt den Commit `doc: <title> moved` ohne Versionssprung. Eine von Hand geänderte `CLAUDE.md` wird als eigener Commit `pkm: CLAUDE.md geändert` mit `PKM-Source: user` erfasst |
 | `pkm pending` | JSON-Liste der zu verarbeitenden Dokumente: `new`, `changed` (mit `processed_version` → `version` und geänderten Abschnitten), `moved` (alt → neu), `deleted` (mit betroffenen Wiki-Seiten) |
 | `pkm history <target> [--diff <von> [<bis>]]` | Wie das MCP-Tool `history` |
 | `pkm show <target> --version <n> [--section <name>]` | Inhalt einer früheren Version |
-| `pkm fix-citations` | Korrigiert Links in Belegen und `sources`, deren Ziel verschoben wurde |
+| `pkm fix-citations` | Korrigiert Links in Belegen, Anker umbenannter Abschnitte und `sources`, deren Ziel verschoben wurde, außerdem Wikilinks auf verschobene Originale im Seitentext. Wurde in Obsidian verschoben, hat Obsidian die Links schon aktualisiert; dann ändert sich nichts (`pages_changed: 0`) |
 | `pkm sync-citations [<page>…]` | Erzeugt `sources` aus den Fußnoten neu |
 | `pkm sha <target> [--section <key>] [--full]` | Abschnitts- oder Datei-Hash nach 4.8 (Standard: 6 Zeichen für Belege). Ohne `--section` werden alle Schlüssel mit Hash, `body_hash`, `meta_hash` und `file_hash` aufgelistet. Hilft bei der Fehlersuche |
 | `pkm mark <id>… --pages <page>…` | Trägt verarbeitete Dokumente mit Version und Abschnitts-Hashes in `state.json` ein |
 | `pkm index` | Erzeugt `wiki/index.md` neu |
 | `pkm status` | Erzeugt `wiki/_status.md` neu, inklusive Einsortier-Vorschlägen für verarbeitete Dokumente im Eingang |
-| `pkm lint` | JSON-Bericht. **Struktur:** kaputte Links, verwaiste Wiki-Seiten, fehlende Kurzfassung, fehlerhaftes Frontmatter, häufige Begriffe ohne Seite. **Belege:** Ziel fehlt oder verschoben, Anker fehlt, Zitat nicht in der belegten Version, Status `newer_version`, Beleg zeigt auf Wiki-Seite, Absatz ohne Fußnote, Fußnote ohne Definition, `sources` nicht synchron. **Dokumente:** ohne ID oder Version, doppelte IDs, ungültiges YAML durch fehlende Anführungszeichen (Fehler, mit Hinweis auf `pkm fix-frontmatter`), fehlende Felder `date_markdown`/`toolchain_markdown` (Hinweis), Feld `short citation` mit Leerzeichen (Hinweis), umgewandeltes Dokument ohne `kind` (Hinweis), unbekannter Wert in `kind` (Fehler), Datumsfelder weder im Format `YYYY-MM-DDTHH:MM:SS` noch `YYYY-MM-DD` oder mit Zeitzonen-Angabe, `tags` mit Leerzeichen, `version` passt nicht zum Commit-Verlauf. **Plattform:** Nextcloud-Konfliktkopien, nicht plattformfeste Dateinamen, Namen, die sich nur in Groß- und Kleinschreibung unterscheiden. **Überschriften (4.8):** Duplikate, Zeichen, die Anker brechen, Text auf `#` plus Ziffern (`heading_suffix_like` als Warnung, `heading_suffix_collision` als Fehler) |
+| `pkm lint` | JSON-Bericht. **Struktur:** kaputte Links, verwaiste Wiki-Seiten, fehlende Kurzfassung, fehlerhaftes Frontmatter, häufige Begriffe ohne Seite. **Belege:** Ziel fehlt oder verschoben, Anker fehlt, Zitat nicht in der belegten Version, Status `newer_version`, Beleg zeigt auf Wiki-Seite, Absatz ohne Fußnote (`statement_without_citation`, nicht für Zwischenüberschriften, reine Hervorhebungs- und Link-Zeilen und für Tabellen mit Fußnote direkt darunter, 4.2), Beleg auf einen Abschnitt ohne eigenen Text (`citation_empty_section`), Fußnote ohne Definition, `sources` nicht synchron. **Dokumente:** ohne ID oder Version, doppelte IDs, ungültiges YAML durch fehlende Anführungszeichen (Fehler, mit Hinweis auf `pkm fix-frontmatter`), fehlende Felder `date_markdown`/`toolchain_markdown` (Hinweis), Feld `short citation` mit Leerzeichen (Hinweis), umgewandeltes Dokument ohne `kind` (Hinweis), unbekannter Wert in `kind` (Fehler), Datumsfelder weder im Format `YYYY-MM-DDTHH:MM:SS` noch `YYYY-MM-DD` oder mit Zeitzonen-Angabe, `tags` mit Leerzeichen, `version` passt nicht zum Commit-Verlauf. **Plattform:** Nextcloud-Konfliktkopien, nicht plattformfeste Dateinamen, Namen, die sich nur in Groß- und Kleinschreibung unterscheiden. **Überschriften (4.8):** Duplikate, Zeichen, die Anker brechen, Text auf `#` plus Ziffern (`heading_suffix_like` als Warnung, `heading_suffix_collision` als Fehler) |
 | `pkm restore <target> --version <n>` | Wie `restore_document` |
 | `pkm reindex` | Baut den Suchindex neu auf |
 | `pkm fix-frontmatter <target>… [--all]` | Repariert das Frontmatter zeilengenau, sonst ändert sich nichts: setzt Werte mit `: ` oder führenden YAML-Sonderzeichen in doppelte Anführungszeichen und benennt `short citation` in `short_citation` um. **Nur auf ausdrückliche Anweisung des Nutzers.** Ohne Ziel listet der Befehl nur die betroffenen Dateien auf. Jede geänderte Datei wird als neue Version committet (`PKM-Source: user`, weil der Nutzer es veranlasst hat) |
@@ -879,56 +969,68 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 
 ## 9. Skill `pkm-wiki` (Pflege, im Projekt)
 
-**Beschreibung (Trigger):** Pflege des PKM-Wikis: neue und geänderte Dokumente verarbeiten, Lint, Wiki-Fragen im Pflegeprojekt.
+**Beschreibung (Trigger):** Pflege des PKM-Wikis über den MCP-Server `pkm-pflege`: neue und geänderte Dokumente verarbeiten, Lint, Wiki-Fragen im Pflegeprojekt.
+
+Der Agent arbeitet ausschließlich über die Tools von `pkm-pflege-mcp` (7.7). Eine Shell oder die CLI braucht er nicht.
 
 ### 9.1 Ablauf „Ingest“
 
-1. `pkm doctor --short`. Bei Fehlern, etwa Konfliktkopien, wird abgebrochen und das Problem gemeldet. Danach `pkm versions`, damit Änderungen von Hand, auch die vom Windows-Rechner, als Versionen committet sind.
-2. `pkm ids`, um fehlende IDs nachzutragen.
-3. `pkm pending`.
-4. `pkm fix-citations` für alle als `moved` gemeldeten Dokumente.
-5. **Neue Dokumente:** vollständig lesen.
-   1. Seite `wiki/summaries/<name>.md` anlegen, mit Belegen.
-   2. Über `wiki/index.md` (und bei Bedarf über die Suche) betroffene Seiten bestimmen. Höchstens 10–15 Themen-, Entitäts- und Syntheseseiten aktualisieren oder anlegen. Jede neue oder geänderte Aussage bekommt eine Fußnote nach 4.2.
+1. `begin_maintenance`. Bei `blocked` wird abgebrochen und das Problem gemeldet. Bei `needs_decision` (doppelte IDs) fragt der Agent nach. Änderungen von Hand, auch die vom Windows-Rechner, sind danach als Versionen committet, fehlende IDs vergeben und Belege auf verschobene Dokumente korrigiert.
+2. **Neue Dokumente:** mit `read` vollständig lesen (große Dokumente abschnittsweise, 7.3).
+   1. Seite `wiki/summaries/<name>.md` mit `write_wiki_page` anlegen, mit Belegen.
+   2. Über `read_index` (und bei Bedarf `search`) betroffene Seiten bestimmen. Höchstens 10–15 Themen-, Entitäts- und Syntheseseiten aktualisieren oder anlegen. Jede neue oder geänderte Aussage bekommt eine Fußnote nach 4.2. Werte für `id`, `v:` und `sha:` liefert `read` (`id`, `version`, `sections`).
    3. Querverweise in beide Richtungen setzen.
-6. **Geänderte Dokumente:** `pkm history --diff <processed_version>` lesen und nur die geänderten Abschnitte verarbeiten (Abschnitt 6.4).
+   4. Frontmatter prüfen (`missing_fields`) und Vorschläge erarbeiten (9.6). Noch nichts eintragen.
+   5. Bestehende Seiten vor dem Ändern mit `read` lesen und deren `hash` als `expected_hash` an `write_wiki_page` geben.
+3. **Geänderte Dokumente:** `history` mit `diff_from: <processed_version>` lesen und nur die geänderten Abschnitte verarbeiten (Abschnitt 6.4).
    1. Betroffene Wiki-Aussagen auf den neuen Stand bringen, mit Belegen auf die neue Version.
    2. Bei geänderten Entscheidungen oder Fakten den früheren Stand als „Bis Version n: …“ mit Beleg auf die alte Version behalten, sofern er für die Nachvollziehbarkeit wichtig ist.
-   3. Belege auf unveränderte Abschnitte auf die neue Version anheben (nur `v:` und `sha:`).
+   3. Belege auf unveränderte Abschnitte hebt `finish_maintenance` selbst an.
    4. Die Zusammenfassungsseite des Dokuments aktualisieren.
-7. **Gelöschte Dokumente:** Betroffene Aussagen werden nicht gelöscht. Sie kommen unter „Widersprüche / offene Fragen“ mit dem Vermerk „Original nicht mehr vorhanden (letzter Stand in Git, v<n>)“, `confidence: low`, und im Bericht steht eine Rückfrage.
-8. **Korrektur-Dokumente** (`kind: correction`): Die Korrektur des Nutzers hat Vorrang vor älteren Quellen und gilt selbst als Beleg. Die betroffene Wiki-Seite wird angepasst und die alte Aussage im Log als ersetzt vermerkt. Widerspricht die Korrektur einer Quelle, die neuer ist als sie selbst, fragt der Agent nach.
-9. `pkm sync-citations`, `pkm mark …`, `pkm index`, `pkm status`.
-10. Eintrag in `wiki/log.md`.
-11. Commit des Agenten mit `pkm commit-wiki` (Abschnitt 12).
-12. Kurzer Bericht im Chat: neue und geänderte Seiten, überholte Aussagen, Beleg-Probleme, Einsortier-Vorschläge, Rückfragen.
+4. **Nur Metadaten geändert** (`meta_changed`): Zusammenfassungsseite anpassen. Die Belege hebt `finish_maintenance` an.
+5. **Gelöschte Dokumente:** Betroffene Aussagen werden nicht gelöscht. Sie kommen unter „Widersprüche / offene Fragen“ mit dem Vermerk „Original nicht mehr vorhanden (letzter Stand in Git, v<n>)“, `confidence: low`, und im Bericht steht eine Rückfrage. Der Schlüssel geht an `finish_maintenance` als `removed`.
+6. **Korrektur-Dokumente** (`kind: correction`): Die Korrektur des Nutzers hat Vorrang vor älteren Quellen und gilt selbst als Beleg. Die betroffene Wiki-Seite wird angepasst und die alte Aussage im Log als ersetzt vermerkt. Widerspricht die Korrektur einer Quelle, die neuer ist als sie selbst, fragt der Agent nach.
+7. **PDF und Bilder:** `read` liefert nur Metadaten und `hash`. Den Inhalt liest der Agent, wenn der Vault-Ordner in der Unterhaltung verbunden ist. Sonst wird das Dokument nicht als verarbeitet gemeldet und im Bericht genannt.
+8. `finish_maintenance` mit `processed`, `removed`, `log_entry`, `log_title` und gegebenenfalls `questions` (7.7). Meldet Lint Fehler in den eigenen Seiten, werden sie behoben und `finish_maintenance` mit `operation: fix` erneut aufgerufen.
+9. Kurzer Bericht im Chat: neue und geänderte Seiten, überholte Aussagen, Beleg-Probleme, Einsortier-Vorschläge, Rückfragen und je neuem Dokument mit fehlenden Feldern ein YAML-Block mit Vorschlägen und der Frage, ob er eingetragen werden soll (9.6).
 
-**Grenzen:** Mehr als 10 Dokumente pro Lauf werden in Etappen verarbeitet. Bei unklarer Einordnung fragt der Agent nach. Im unbeaufsichtigten Lauf entscheidet er konservativ und vermerkt die Frage im Log.
+**Grenzen:** Mehr als 10 Dokumente pro Lauf werden in Etappen verarbeitet. Nicht verarbeitete Dokumente werden nicht als `processed` gemeldet. Bei unklarer Einordnung fragt der Agent nach. Im unbeaufsichtigten Lauf entscheidet er konservativ und gibt Fragen über `questions` nach `wiki/_status.md` und ins Log.
 
 ### 9.2 Ablauf „Lint“
 
-1. `pkm lint`.
-2. **Selbst beheben:** verschobene Belege, kaputte Links mit eindeutigem Ziel, fehlende Kurzfassungen, `sources`-Synchronisation, Index.
-3. **Vorschlagen statt ausführen:** inhaltliche Widersprüche, Zusammenlegen von Seiten, neue Seiten, doppelte IDs, Belege mit `newer_version`, die nicht automatisch angehoben werden konnten.
-4. Bericht nach `wiki/_lint/YYYY-MM-DD.md` und Eintrag im Log.
+1. `begin_maintenance` mit `with_lint: true`.
+2. **Selbst beheben** (mit `write_wiki_page`): kaputte Links mit eindeutigem Ziel, fehlende Kurzfassungen. Verschobene Belege, `sources` und Index erledigt `finish_maintenance`.
+3. **Vorschlagen statt ausführen:** fehlende Frontmatter-Felder von Dokumenten (9.6), inhaltliche Widersprüche, Zusammenlegen von Seiten, neue Seiten, doppelte IDs, Belege mit `newer_version`, die nicht automatisch angehoben werden konnten.
+4. `finish_maintenance` mit `operation: lint` und `lint_report: true` (Bericht nach `wiki/_lint/YYYY-MM-DD.md`) und einem Log-Eintrag.
 
 ### 9.3 Ablauf „Abfrage“ (im Projekt)
 
-Erst den Index, dann die relevanten Seiten, dann die Antwort mit Verweisen auf die Wiki-Seiten. Auf Nachfrage nennt der Agent die Belege. Gute Antworten bietet er als Seite unter `syntheses/` an.
+Erst den Index, dann die relevanten Seiten, dann die Antwort mit Verweisen auf die Wiki-Seiten. Auf Nachfrage nennt der Agent die Belege. Gute Antworten bietet er als Seite unter `syntheses/` an und legt sie nach Zustimmung mit `write_wiki_page` an (Abschluss mit `finish_maintenance`, `operation: fix`).
 
 ### 9.4 Ablauf „Schema anpassen“
 
-Änderungen an `CLAUDE.md` schlägt der Agent vor und schreibt sie erst nach Zustimmung.
+Änderungen an `CLAUDE.md` schlägt der Agent als Diff vor. Geschrieben werden sie erst nach Zustimmung, und nur wenn der Vault-Ordner verbunden ist; sonst übernimmt der Nutzer die Änderung. `pkm versions` erfasst sie beim nächsten Lauf als Commit mit `PKM-Source: user`.
 
 ### 9.5 Feste Regeln
 
 - Sprache: Deutsch.
 - `scratch/` wird weder gelesen noch verarbeitet. Kein Beleg zeigt auf eine Datei dort.
 - `status_markdown` unverändert lassen. Der Wert spielt für die Verarbeitung keine Rolle.
-- In `documents/` ausschließlich `id` und `version` setzen, und zwar nur über `pkm ids` und `pkm versions`. Sonst nichts ändern, verschieben oder löschen.
+- In `documents/` setzt der Agent `id` und `version` (über `begin_maintenance`) und nach ausdrücklicher Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` (über `set_document_metadata`, 9.6). Sonst ändert, verschiebt oder löscht er dort nichts. Die schreibenden Tools von `pkm-mcp` benutzt er in der Pflege nicht.
 - Im Wiki nichts löschen. Aussagen und Belege werden ergänzt, aktualisiert oder als überholt gekennzeichnet.
 - Keine Aussage ohne Beleg auf ein Dokument. Zitate in Belegen sind wörtlich aus der genannten Version kopiert. Nichts erfinden, Lücken als offene Frage markieren.
 - Formate wie in Abschnitt 4.
+
+### 9.6 Frontmatter-Vorschläge
+
+Bei jedem **neuen** Dokument prüft der Agent das Frontmatter (`missing_fields` aus `begin_maintenance`, auch dünne Werte). Fehlen `title`, `context`, `tags` oder `kind`, schlägt er Werte als YAML-Block im Bericht vor:
+
+- `title`: kurzer, sprechender Titel.
+- `context`: eine Zeile `"<Art>: <Inhalt>"` (Art: Chat, Podcast, Buch, Artikel, Recherche, Notiz), wegen `: ` in doppelten Anführungszeichen.
+- `tags`: 4–8 Stück, klein, Bindestriche, Umlaute ausgeschrieben. Vorhandene Tags (`known_tags`) werden wiederverwendet.
+- `kind`: `note` (Standard), `standard` bzw. `regulation` (dann auch `short_citation` vorschlagen) oder `correction`.
+
+Eingetragen wird erst nach **ausdrücklicher Bestätigung** des Nutzers im Chat: `read` → `hash` → `set_document_metadata`. Vorhandene Werte werden nicht überschrieben, außer der Nutzer will das ausdrücklich (`overwrite: true`). Bei `conflict` liest der Agent neu und meldet es. Jede Eintragung ist eine neue Version. Beim nächsten Lauf erscheint das Dokument als `meta_changed`. **In unbeaufsichtigten Läufen wird nie eingetragen;** die Vorschläge gehen als Frage nach `wiki/_status.md`.
 
 ---
 
@@ -946,6 +1048,8 @@ Erst den Index, dann die relevanten Seiten, dann die Antwort mit Verweisen auf d
 **Grundregel:** Jeder schreibende Aufruf (ablegen, neufassen, ergänzen, bearbeiten, Frontmatter, wiederherstellen) erfolgt erst, nachdem ein Entwurf gezeigt und bestätigt wurde. Es gibt keine Ausnahme.
 
 **Fortgeführte Diskussion:** Standard ist 6.2, also das Dokument aktualisieren, mit Vorher/Nachher pro Abschnitt, Änderungsnotiz und Bestätigung. 6.3 (datierter Abschnitt) **nur auf ausdrückliche Anweisung** und nie von sich aus vorschlagen.
+
+**Große Dokumente:** Liefert `read` kein `content` (`content_omitted`), liest der Chat abschnittsweise (`section`) und ändert nur mit `edit_document` bzw. `append_to_document`, nie mit `rewrite_document` aus einem Teilinhalt (7.3).
 
 **Kleine Änderungen:** `read` → `edit_document`/`append_to_document`/`update_frontmatter` → Vorher/Nachher zeigen → bestätigen lassen → ausführen → Version und Diff nennen. Bei `conflict` neu lesen, nie blind wiederholen. Bei `large_shortening` die betroffenen Abschnitte nennen und ausdrücklich bestätigen lassen.
 
@@ -972,10 +1076,11 @@ Erst den Index, dann die relevanten Seiten, dann die Antwort mit Verweisen auf d
 
 ## 11. Projekt „PKM-Pflege“ und Automatisierung
 
-- **Projekt** in Claude Desktop mit der Anweisung: „Dies ist das Pflegeprojekt für das PKM unter `<PKM_ROOT>`. Nutze den Skill `pkm-wiki`.“
-- **Ordnerzugriff:** Der Vault wird im Chat über „+“ → „Add folder“ verbunden. Der Agent arbeitet über die Shell auf deinem Rechner und ruft dort die `pkm`-CLI auf.
+- **Projekt** in Claude Desktop (Chat oder Cowork) mit der Anweisung: „Dies ist das Pflegeprojekt für das PKM. Nutze den Skill `pkm-wiki` und die Tools des Servers `pkm-pflege`. Dokumente in `documents/` änderst du nicht.“
+- **Server:** In Pflege-Unterhaltungen ist `pkm-pflege` eingeschaltet, in allen anderen ausgeschaltet (7.6). Der Agent arbeitet nur über dessen Tools (7.7). Die Shell in Cowork ist abgeschottet; dort gibt es weder `pkm` noch Git.
+- **Ordnerzugriff (optional):** Wird der Vault im Chat über „+“ → „Ordner hinzufügen“ verbunden, kann der Agent auch PDFs und Bilder lesen. Für Markdown ist das nicht nötig.
 - **Start: manuell.** Pflegeläufe werden im Projekt angestoßen („Verarbeite neue Dokumente“, „Lint“).
-- **Automatik (vorbereitet, später):** eine geplante Aufgabe, z. B. täglich „Ingest, danach Lint“. Sie läuft auf dem Mac, der dafür wach sein muss, und die Claude-Desktop-App muss laufen. Der Skill ist schon dafür ausgelegt: Im unbeaufsichtigten Lauf entscheidet er konservativ und schreibt Rückfragen in `wiki/_status.md` und ins Log, statt zu warten. Eingeschaltet wird die Automatik nur auf Anweisung des Nutzers.
+- **Automatik (vorbereitet, später):** eine geplante Aufgabe, z. B. täglich „Ingest, danach Lint“. Geplante Cowork-Aufgaben laufen in der Cloud und erreichen `pkm-pflege` nur über die Desktop-App. Der Mac muss dafür wach sein und die Claude-Desktop-App laufen; das ist vor dem Einschalten zu testen. Der Skill ist schon dafür ausgelegt: Im unbeaufsichtigten Lauf entscheidet er konservativ und schreibt Rückfragen in `wiki/_status.md` und ins Log, statt zu warten. Eingeschaltet wird die Automatik nur auf Anweisung des Nutzers.
 
 ---
 
@@ -989,8 +1094,10 @@ Git ist Pflicht und übernimmt zwei Aufgaben: die **Versionsgeschichte jedes Dok
 |---|---|---|---|
 | `doc: <title> v<n>` | pkm-mcp | bei jeder Änderung aus einem Chat | genau ein Dokument |
 | `doc: <title> v<n>` (Quelle `user`) | pkm-mcp bzw. `pkm versions` | vor einer MCP-Änderung bzw. zu Beginn eines Pflegelaufs | genau ein von Hand geändertes Dokument |
-| `doc: <title> v1` (Quelle `agent`) | `pkm ids` | im Pflegelauf, falls nötig | genau ein Dokument, nur Frontmatter-Felder `id`/`version` |
-| `pkm: ingest <n> documents` / `pkm: lint` | Pflege-Agent über `pkm commit-wiki` | am Ende eines Laufs | nur `wiki/` und `.pkm/state.json` |
+| `doc: <title> v1` (Quelle `agent`) | `pkm ids` (über `begin_maintenance`) | im Pflegelauf, falls nötig | genau ein Dokument, nur Frontmatter-Felder `id`/`version` |
+| `doc: <title> v<n>` (Quelle `agent`) | `set_document_metadata` | nach Bestätigung des Nutzers | genau ein Dokument, nur `title`, `context`, `tags`, `kind`, `short_citation` |
+| `pkm: CLAUDE.md geändert` (Quelle `user`) | `pkm versions` | zu Beginn eines Pflegelaufs | nur `CLAUDE.md` |
+| `pkm: ingest <n> documents` / `pkm: lint` / `pkm: fix` | Pflege-Agent über `finish_maintenance` (intern `commit-wiki`) | am Ende eines Laufs | nur `wiki/` und `.pkm/state.json` |
 
 So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. Ein `git revert` auf einen Agenten-Commit trifft nur das Wiki.
 
@@ -1010,7 +1117,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
   - Anhang-Ordner: `documents/_attachments/`
 - **Ausgeschlossene Dateien:** `.pkm/`
 - **Web Clipper:** Zielordner `documents/_inbox/`. Die Vorlage des Clippers wird an 4.1 angepasst: `title` (Seitentitel), `source` (URL, wird von den Werkzeugen nicht ausgewertet), `date_document` (Veröffentlichungsdatum der Seite, falls vorhanden), `date_markdown` (Zeitpunkt des Clippens im Format `YYYY-MM-DDTHH:MM:SS`), `toolchain_markdown: Obsidian Web Clipper`, `tags`. Die Standardvorlage des Clippers verwendet teils andere Namen. Maßgeblich ist, was in den Einstellungen des Clippers eingestellt ist.
-- **Property-Typen** einmalig in Obsidian festlegen (Einstellungen → Eigenschaften): `date_markdown` und `date_updated` als **Datum & Uhrzeit**, `version` als **Zahl**, `related` und `sources` als **Liste**, alle übrigen eigenen Felder als **Text**. `tags` und `aliases` sind Obsidian-Standard.
+- **Property-Typen:** `pkm init` legt sie in `.obsidian/types.json` an bzw. ergänzt fehlende, ohne vom Nutzer gesetzte Typen zu ändern; `pkm doctor` meldet Abweichungen. Von Hand in Obsidian über das Symbol neben dem Feldnamen im Eigenschaften-Bereich einer Notiz: `date_markdown` und `date_updated` als **Datum & Uhrzeit**, `version` als **Zahl**, `related` und `sources` als **Liste**, alle übrigen eigenen Felder als **Text**. `tags` und `aliases` sind Obsidian-Standard.
 - Optional: Dataview für Abfragen über das Frontmatter, Graph View (eingebaut)
 - **Mac und Windows** nutzen denselben Vault über Nextcloud. Die Einstellungen in `.obsidian/` werden mitsynchronisiert und gelten auf beiden Rechnern.
 - Auf **Windows** wird nur in Obsidian gelesen und bearbeitet. Änderungen von dort werden beim nächsten MCP-Zugriff auf die Datei bzw. beim nächsten Pflegelauf als Version mit `PKM-Source: user` übernommen.
@@ -1032,14 +1139,19 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 - Belege: Parser (inkl. `v:` und `#page=`), alle Status von `show_citations`, Auszug aus alter und aktueller Version, `fix-citations`, `sync-citations`, alle Lint-Prüfungen positiv und negativ
 - Suche: Umlaut-Toleranz, Gewichtung, inkrementelle Aktualisierung, Neuaufbau. `PKM_CACHE_DIR` innerhalb von `PKM_ROOT` wird abgelehnt
 - Ohne Git: schreibende Tools verweigert, lesende funktionieren
-- Frontmatter (4.1): die Norm aus dem Beispiel mit unquotiertem `: ` im Titel ergibt `invalid_frontmatter`, `pkm fix-frontmatter` macht sie gültig und ändert nur diese Zeile. Ein Dokument mit genau den sechs Umwandlungsfeldern bekommt durch `pkm ids` nur `id` und `version` am Ende angehängt. `short_citation` wird gelesen, geschrieben und als Ziel aufgelöst. Die alte Schreibweise `short citation` wird gelesen und von `pkm fix-frontmatter` umbenannt. `meta_hash` ändert sich nicht bei Änderung von `status_markdown`. Kein Werkzeug schreibt `status_markdown`. Datumswerte gehen als Zeichenkette in `meta_hash` ein. `date_markdown` und `date_updated` werden mit Uhrzeit ohne Zeitzone geschrieben, in Ortszeit nach `PKM_TZ`
+- Frontmatter (4.1): die Norm aus dem Beispiel mit unquotiertem `: ` im Titel ergibt `invalid_frontmatter`, `pkm fix-frontmatter` macht sie gültig und ändert nur diese Zeile. Ein Dokument mit genau den sechs Umwandlungsfeldern bekommt durch `pkm ids` nur `id` und `version`, eingefügt hinter `toolchain_markdown`. Neue Felder landen an ihrer Stelle nach 4.1, `update_frontmatter` schreibt in dieser Reihenfolge. `short_citation` wird gelesen, geschrieben und als Ziel aufgelöst. Die alte Schreibweise `short citation` wird gelesen und von `pkm fix-frontmatter` umbenannt. `meta_hash` ändert sich nicht bei Änderung von `status_markdown`. Kein Werkzeug schreibt `status_markdown`. Datumswerte gehen als Zeichenkette in `meta_hash` ein. `date_markdown` und `date_updated` werden mit Uhrzeit ohne Zeitzone geschrieben, in Ortszeit nach `PKM_TZ`
 - `scratch/`: Anlegen mit `area: "scratch"` und `folder`, Ändern ohne Version und Commit, `history`/`restore_document` liefern `not_versioned`, `search` findet `scratch/` nur mit `scope: "scratch"`, `pending`, `ids`, `versions` und `lint` ignorieren den Bereich, Lint meldet einen Beleg im Wiki, der auf `scratch/` zeigt, Verschieben von `scratch/` nach `documents/` ergibt beim nächsten Lauf `version: 1` und einen Commit
 - Getrenntes Git-Verzeichnis: alle Git-Operationen mit `--git-dir`/`--work-tree`, im Vault entsteht nie ein `.git`
+- Dateinamen: `create_document` erzeugt `<slug>_YYYY-MM-DD.md`, bei Namensgleichheit `<slug>-2_YYYY-MM-DD.md`
+- `pkm-pflege-mcp`: vollständiger Lauf (ID vergeben, Seite schreiben, abschließen, danach nichts offen), `blocked` bei Fehlern der Umgebung, `write_wiki_page` lehnt generierte Dateien, Bereiche außerhalb der Seitenordner und `..` ab und prüft `expected_hash`, `finish_maintenance` ermittelt die Seiten aus den Fußnoten und trägt `removed` aus. `set_document_metadata`: Whitelist, `field_exists` ohne `overwrite`, ungültiges `kind`, Tag-Vereinheitlichung, Commit mit `PKM-Source: agent`. `begin_maintenance` liefert `missing_fields` und `known_tags`. `pkm versions` committet eine geänderte `CLAUDE.md`
+- `read` mit `section`, `offset`/`max_chars`, `content: false` und `content_omitted` bei großen Inhalten. Leere Abschnitte mit `empty: true`
+- Lint: keine Warnung für Zwischenüberschriften, Hervorhebungs- und Link-Zeilen und belegte Tabellen, weiterhin Warnung für unbelegte Tabellen und Sätze, `citation_empty_section`
+- Verschieben außerhalb von Obsidian bei veraltetem Index: `fix-citations` schreibt Beleg und Wikilink im Text um. Belege auf unveränderte Abschnitte werden angehoben, Belege auf geänderte nicht
 - Plattform: NFC/NFD-Pfade, CRLF-Datei ergibt denselben Hash wie LF, Windows-ungültige Zeichen und reservierte Namen im Slug ersetzt, Konfliktkopien erkannt und nicht verarbeitet, Groß-/Kleinschreibungs-Kollisionen gemeldet
 
 **Abnahme (manuell):**
-1. Aus einem Chat: „Leg das Ergebnis ins PKM.“ → Die Datei erscheint in `documents/_inbox/` mit ID und `version: 1`, und es gibt einen Commit.
-2. Im Pflegeprojekt: „Verarbeite neue Dokumente.“ → Zusammenfassung, Themenseiten mit Belegen (`v:1`), Index, Status, Log, Agenten-Commit.
+1. Aus einem Chat: „Leg das Ergebnis ins PKM.“ → Die Datei erscheint als `documents/_inbox/<slug>_YYYY-MM-DD.md` mit ID und `version: 1`, und es gibt einen Commit.
+2. Im Pflegeprojekt (Server `pkm-pflege` eingeschaltet): „Verarbeite neue Dokumente.“ → Zusammenfassung, Themenseiten mit Belegen (`v:1`), Index, Status, Log, Agenten-Commit, Vorschläge für fehlende Frontmatter-Felder. Nach Bestätigung werden sie eingetragen (neue Version mit `PKM-Source: agent`).
 3. In Obsidian das Dokument einsortieren → Die Belege zeigen sofort auf den neuen Ort.
 4. In einem neuen Chat: „Führ die Diskussion zum Überlaufsensor weiter …“ → Der Chat findet das Dokument, zeigt die Änderungen pro Abschnitt und eine Notiz und schreibt nach Bestätigung `version: 2`. Das Dokument enthält keinen Fortsetzungsabschnitt.
 5. „Was hat sich geändert?“ → Verlauf v1 → v2 mit Notiz und Diff.
@@ -1062,6 +1174,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 4 | CLI: `ids`, `versions`, `pending`, `mark`, `sha`, `index`, `status` | Pflege-Grundlage |
 | 5 | Belege: `show_citations`, `fix-citations`, `sync-citations`, `lint` | Rückverfolgbarkeit |
 | 6 | Skills `pkm-access` und `pkm-wiki`, Projekt | Erster echter Ingest-Lauf |
+| 6a | MCP-Server `pkm-pflege-mcp` (7.7), Skill `pkm-wiki` darauf umgestellt | Pflege aus Claude Desktop bzw. Cowork ohne Shell |
 | 7 | Später: geplante Aufgabe | Automatische Verarbeitung, erst auf Anweisung des Nutzers |
 
 ---
@@ -1103,6 +1216,18 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 24 | Feldnamen und `status_markdown` | Keine Leerzeichen in Feldnamen (`short_citation`). `status_markdown` nur bei Normen und Standards, unverändert übernommen, von keinem Werkzeug gesetzt oder geändert | 4.1, 7.2, 8 |
 | 25 | Zeitangaben | `date_markdown` und `date_updated` mit Uhrzeit (`YYYY-MM-DDTHH:MM:SS`), Ortszeit ohne Zeitzone, Obsidian-Typ „Datum & Uhrzeit“. Datum-only-Werte bleiben gültig | 4.1, 13 |
 | 26 | Werte von `kind` | `note`, `standard` (Normen und Standards), `regulation` (Gesetze und Verordnungen), `correction`. Verarbeitung von `standard` und `regulation` wie `note` | 4.1, 7.2, 8 |
+
+### Getroffen (Pflegeläufe, 02.–03.11.2026)
+
+| # | Thema | Entscheidung | Umgesetzt in |
+|---|---|---|---|
+| 27 | Pflege ohne Shell | Eigener lokaler MCP-Server `pkm-pflege-mcp` mit `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `finish_maintenance`. Nur in Pflege-Unterhaltungen eingeschaltet (organisatorische statt technischer Grenze). CLI nur noch für Einrichtung, Prüfung, Fehlersuche | 2, 7.6, 7.7, 8, 9, 11 |
+| 28 | Frontmatter-Vorschläge | Agent schlägt `title`, `context`, `tags`, `kind` vor und trägt sie mit `short_citation` nur nach ausdrücklicher Bestätigung ein, nie unbeaufsichtigt, kein Überschreiben ohne ausdrücklichen Wunsch | 1, 3, 4.1, 7.7, 9.6 |
+| 29 | Feldreihenfolge | Neue Felder an ihrer Stelle nach 4.1 statt am Ende, `update_frontmatter` in Schema-Reihenfolge, einfache Listen ohne Anführungszeichen | 4.1, 7.2 |
+| 30 | Dateinamen aus Chats | `<slug>_YYYY-MM-DD.md`, Suffix bei Namensgleichheit vor dem Datum | 4.1, 7.2 |
+| 31 | Große Dokumente | `read` mit `section`, `offset`/`max_chars`, `content: false`; über 40.000 Zeichen Inhalt nur auf Anforderung | 7.3, 10 |
+| 32 | Belege | Strukturzeilen und belegte Tabellen ohne Lint-Warnung, Warnung bei Belegen auf leere Abschnitte, Anheben von `v:` bei unverändertem Abschnitt im Abschluss des Laufs, Wikilinks im Text werden beim Verschieben mit korrigiert | 4.2, 4.8, 5.2, 6.4, 8 |
+| 33 | `CLAUDE.md` in Git | Änderungen des Nutzers erfasst `pkm versions` als Commit mit `PKM-Source: user` | 3, 8, 12 |
 
 ### Noch offen
 

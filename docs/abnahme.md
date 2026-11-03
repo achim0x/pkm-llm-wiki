@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Abnahmeprotokoll
 
-**Bezug:** Spezifikation 0.18, Abschnitt 14 („Abnahme (manuell)“) · Umsetzungsplan Phase 7
+**Bezug:** Spezifikation 0.19, Abschnitt 14 („Abnahme (manuell)“) · Umsetzungsplan Phase 7
 
 Die Abnahme läuft auf dem **Mac** mit echtem Nextcloud-Vault, Claude Desktop und Obsidian sowie
 für Schritt 9 auf dem **Windows-Rechner**. Voraussetzung ist die Einrichtung nach
