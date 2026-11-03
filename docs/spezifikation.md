@@ -1,7 +1,11 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.22 (Entwurf zum Review) · **Stand:** 03.11.2026
+**Version:** 0.23 (Entwurf zum Review) · **Stand:** 03.11.2026
 
+> **Änderungen in 0.23**
+> - **Importordner im Vault:** Standard für `PKM_IMPORT_DIR` ist der Ordner `pkm_img_import/` im Vault (statt `Downloads/pkm-import`). `pkm init` legt ihn an und trägt ihn in `.gitignore` ein. Wie `scratch/` ist er von Pflegelauf, Lint, Suche und Belegen ausgenommen und nicht in Git. Ein Ordner außerhalb des Vaults bleibt möglich, andere Ordner im Vault nicht (3, 4.9, 7.1, 7.2, 8, 10, 12, 13, 14, 16).
+> - **JPEG wird übernommen:** `.jpg`/`.jpeg` aus dem Importordner werden wie PNG behandelt (eingebettet als `data:image/jpeg;base64` bzw. Datei `.jpg`). Metadaten (EXIF/XMP, IPTC, Kommentare) werden entfernt, die Ausrichtung bleibt erhalten (4.9, 7.2, 14).
+>
 > **Änderungen in 0.22**
 > - **Windows als PKM-Rechner:** Der Rechner mit MCP-Servern, Git und Suchindex (PKM-Rechner) kann ein Mac **oder** ein Windows-PC sein, gleichwertig. Je Vault gibt es genau einen PKM-Rechner, alle anderen nutzen nur Obsidian. Standardordner unter Windows `%APPDATA%\pkm`, Git von git-scm.com, Konfiguration von Claude Desktop unter `%APPDATA%\Claude`, Datensicherung des Git-Verzeichnisses ausdrücklich einrichten (3, 5.5, 7.1, 7.6, 7.7, 11, 12, 13, 14, 16).
 > - Tabellenzeilen `sha:` (4.2) sowie `pkm versions`, `pkm status`, `pkm lint` und `pkm doctor` (8) wieder vollständig, die Ergänzungen aus 0.21 sind angehängt.
@@ -174,6 +178,7 @@ Ein persönliches Wissensmanagement (PKM), das
 │   │   └── datenblatt-tank.pdf
 │   └── …                     # beliebige Unterordner
 ├── scratch/                  # kurzlebige Notizen, Todo-Listen: nicht in Git, nie ins Wiki
+├── pkm_img_import/           # Übergabe von Bildern aus dem Chat (import_path): nicht in Git, nie ins Wiki
 │   └── …                     # beliebige Unterordner
 ├── wiki/
 │   ├── index.md              # Katalog: jede Seite mit Kurzfassung (generiert)
@@ -205,6 +210,7 @@ Außerhalb der Nextcloud, nur auf dem PKM-Rechner (5.5):
 | `wiki/` | lesen | **nur lesen** | lesen und schreiben |
 | `CLAUDE.md` | lesen und schreiben (Änderungen committet `pkm versions`) | – | Änderungen nur nach Zustimmung |
 | `scratch/**` | alles | neu anlegen, ändern (nur `.md`, Bilder immer eingebettet), ohne Version und Commit | **ignoriert** |
+| `pkm_img_import/` | Bilder hineinlegen, aufräumen | nur lesen (`import_path`), kopiert ins Dokument | **ignoriert** |
 | `.pkm/` | – | `mcp.log` (nur anhängen) | `state.json` (über `pkm-pflege-mcp`) |
 
 Ein Dokument ist „unverarbeitet“, solange seine aktuelle Version nicht in `state.json` als verarbeitet steht. Wo es innerhalb von `documents/` liegt, ist dafür egal.
@@ -535,12 +541,12 @@ Der Server **schreibt** Dateien immer in dieser Form: UTF-8 ohne BOM, LF, NFC, e
 
 ### 4.9 Bilder
 
-**Formate:** PNG und SVG. Andere Rasterformate (JPEG, GIF, WebP) bleiben als Datei gültig, werden aber von den Werkzeugen nicht erzeugt oder eingebettet.
+**Formate:** PNG, SVG und JPEG. JPEG übernehmen die Werkzeuge nur aus dem Importordner (`import_path`, Fotos) und behandeln es wie PNG. Andere Rasterformate (GIF, WebP) bleiben als Datei gültig, werden aber von den Werkzeugen nicht erzeugt oder eingebettet.
 
 #### Grundsätze
 1. **Ein Bild gehört zu dem Dokument, das es zeigt.** Ein eingebettetes oder verlinktes Bild ist Teil seines Dokuments und wird mit ihm versioniert und verarbeitet. Als eigenständiges Dokument gilt ein Bild nur, wenn kein Markdown-Dokument in `documents/` darauf verweist.
-2. **SVG vor PNG**, sofern das Bild es zulässt: Diagramme, Ablauf- und Schaltpläne, Skizzen, Diagramme aus Messwerten, Symbole und alle vom Modell selbst erzeugten Grafiken werden SVG. Fotos, Screenshots, Scans und Bilder mit Farbverläufen oder vielen Details bleiben PNG. Fotos werden nie vektorisiert. Ein SVG ist **zu komplex** (`svg_too_complex`), wenn es nach der Bereinigung größer als `PKM_SVG_MAX_KB` (Standard 200 KB) ist oder eingebettete Rastergrafiken enthält. Dann ist PNG das passende Format.
-3. **Klein wird eingebettet, groß wird Datei:** Kodierte Größe ≤ `PKM_INLINE_MAX_KB` (Standard **24 KB**) → eingebettet als Data-URI. Darüber oder mit `mode: file` → Datei `documents/_attachments/<bild-slug>_YYYY-MM-DD.png` bzw. `.svg`. Obergrenze je Bild `PKM_IMAGE_MAX_MB` (Standard 5 MB).
+2. **SVG vor PNG**, sofern das Bild es zulässt: Diagramme, Ablauf- und Schaltpläne, Skizzen, Diagramme aus Messwerten, Symbole und alle vom Modell selbst erzeugten Grafiken werden SVG. Fotos, Screenshots, Scans und Bilder mit Farbverläufen oder vielen Details bleiben PNG bzw. JPEG (Fotos aus der Kamera). Fotos werden nie vektorisiert. Ein SVG ist **zu komplex** (`svg_too_complex`), wenn es nach der Bereinigung größer als `PKM_SVG_MAX_KB` (Standard 200 KB) ist oder eingebettete Rastergrafiken enthält. Dann ist PNG das passende Format.
+3. **Klein wird eingebettet, groß wird Datei:** Kodierte Größe ≤ `PKM_INLINE_MAX_KB` (Standard **24 KB**) → eingebettet als Data-URI. Darüber oder mit `mode: file` → Datei `documents/_attachments/<bild-slug>_YYYY-MM-DD.png` bzw. `.svg` oder `.jpg`. Obergrenze je Bild `PKM_IMAGE_MAX_MB` (Standard 5 MB).
 - **`scratch/`:** Bilder in Notizen werden **immer eingebettet**, unabhängig von der Größe (bis zur Obergrenze von `PKM_IMAGE_MAX_MB`). Dateien legt der Server dort nicht an, weil `scratch/` nicht versioniert ist.
 4. **Bestehende eingebettete PNG bleiben unverändert.** Ein PNG, das schon als Base64-Data-URI in einem Dokument steht, wird von keinem Werkzeug angefasst: nicht ausgelagert, nicht neu kodiert, nicht bereinigt, auch wenn es die Grenze überschreitet. Fehlt ihm ein Bildname (`pkm:<name>`), wird keiner eingetragen. Die Werkzeuge leiten dann einen Namen ab (aus dem Alternativtext, sonst `bild-<n>` nach Reihenfolge im Dokument), ohne ihn in die Datei zu schreiben.
 5. **Base64 kommt nicht in den Kontext des Modells.** `read` ersetzt eingebettete Bilder durch Platzhalter. Angesehen wird ein Bild über `read_image`.
@@ -589,6 +595,7 @@ Lint prüft, dass `[img:<name>]` im Dokument der belegten Version existiert.
 #### Sicherheit
 - **SVG wird vor dem Speichern bereinigt:** entfernt bzw. abgelehnt werden `<script>`, Ereignis-Attribute (`on…`), `<foreignObject>`, externe Verweise (`href`/`xlink:href` auf `http(s):`, `file:` usw.), `<?xml-stylesheet?>`, DOCTYPE und Entities (Schutz vor XXE) sowie eingebettete Rastergrafiken. Erlaubt sind nur interne Verweise (`#id`).
 - **Neue PNG** werden an der Signatur geprüft (höchstens 8.000 × 8.000 Pixel). Textblöcke in den Metadaten (`tEXt`, `iTXt`, `zTXt`) werden entfernt. Bestehende eingebettete PNG bleiben unangetastet (Grundsatz 4).
+- **Neue JPEG** werden an der Struktur geprüft (höchstens 8.000 × 8.000 Pixel). Metadaten werden entfernt: EXIF und XMP (darin z. B. GPS-Position, Kamera, Aufnahmezeit), IPTC und Kommentare. Die EXIF-Ausrichtung bleibt als minimaler EXIF-Block erhalten, damit Fotos nicht gedreht erscheinen. Farbprofile (ICC) bleiben.
 - Bild- und Dateinamen sind plattformfest.
 
 ---
@@ -760,7 +767,7 @@ Diese Form ist nie Standard. Der Skill schlägt sie auch nicht von sich aus vor.
   - `PKM_SVG_MAX_KB` (Standard 200): Komplexitätsgrenze für SVG
   - `PKM_IMAGE_MAX_MB` (Standard 5): Obergrenze je Bild
   - `PKM_IMAGE_PARAM_MAX_KB` (Standard 512): Obergrenze für `png_base64` in einem Aufruf
-  - `PKM_IMPORT_DIR` (Standard `<HOME>/Downloads/pkm-import`, unter Windows `%USERPROFILE%\Downloads\pkm-import`): einziger Ordner, aus dem der Server Bilddateien übernimmt (`import_path`). Liegt außerhalb des Vaults. Nur `.png` und `.svg`, die Quelle wird kopiert, nicht gelöscht
+  - `PKM_IMPORT_DIR` (Standard `<PKM_ROOT>/pkm_img_import`): einziger Ordner, aus dem der Server Bilddateien übernimmt (`import_path`). Im Vault ist nur `pkm_img_import/` erlaubt (in `.gitignore`, von allen Pflegebefehlen ausgenommen wie `scratch/`); alternativ ein Ordner außerhalb des Vaults. Nur `.png`, `.svg`, `.jpg` und `.jpeg`, die Quelle wird kopiert, nicht gelöscht. Über Nextcloud lassen sich Bilder so auch von anderen Geräten (z. B. dem Smartphone) übergeben
   - `PKM_SVG_RASTER` (Standard `false`): SVG für `read_image` mit `as: image` rastern (zusätzliche Bibliothek, z. B. `resvg`)
   - `PKM_GIT_AUTHOR` (Standard `pkm-mcp <pkm@localhost>`): Autor der MCP-Commits, damit sie sich im Verlauf von denen des Nutzers unterscheiden
 - Kein Netzwerk, keine LLM-Aufrufe, keine Hintergrundprozesse
@@ -787,7 +794,7 @@ Gemeinsame Regeln:
   | `alt` | string | ja | Alternativtext, eine Zeile |
   | `svg` | string | eins von drei | SVG als Text |
   | `png_base64` | string | eins von drei | PNG als Base64, höchstens `PKM_IMAGE_PARAM_MAX_KB` |
-  | `import_path` | string | eins von drei | PNG- oder SVG-Datei in `PKM_IMPORT_DIR`, sonst `forbidden` |
+  | `import_path` | string | eins von drei | PNG-, JPEG- oder SVG-Datei in `PKM_IMPORT_DIR` (Dateiname genügt), sonst `forbidden` |
   | `mode` | enum `auto` \| `inline` \| `file` | nein | Standard `auto` (4.9). `inline` über der Grenze ergibt `too_large_for_inline`. In `scratch/` immer `inline` |
 
   Die Rückgabe nennt je Bild Format, Modus, Größe und Hash.
@@ -1093,7 +1100,7 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 
 | Befehl | Funktion |
 |---|---|
-| `pkm init` | Legt Struktur, `CLAUDE.md`, `wiki/index.md`, `log.md`, `_status.md`, `state.json`, `.gitignore` und `.obsidian/types.json` (Property-Typen, 13) an, initialisiert das Git-Verzeichnis außerhalb des Vaults, falls nötig (idempotent) |
+| `pkm init` | Legt Struktur, `CLAUDE.md`, `wiki/index.md`, `log.md`, `_status.md`, `state.json`, `.gitignore`, den Importordner `pkm_img_import/` und `.obsidian/types.json` (Property-Typen, 13) an, initialisiert das Git-Verzeichnis außerhalb des Vaults, falls nötig (idempotent) |
 | `pkm ids` | Trägt fehlende `id`/`version` in Markdown-Dokumente ein und committet **je Dokument einzeln** (`doc: <title> v1`, `PKM-Source: agent`). Meldet doppelte IDs |
 | `pkm versions` | Committet alle von Hand geänderten Dokumente als neue Version (je Dokument eine, `PKM-Source: user`). Erkennt auch Verschiebungen (Markdown über die ID, PDF/Bild über den Hash) und committet sie mit: ein Commit enthält dann alten und neuen Pfad. Eine neue Version entsteht nur, wenn sich `body_hash` oder `meta_hash` geändert hat (4.8). Reines Verschieben ergibt den Commit `doc: <title> moved` ohne Versionssprung. Eine von Hand geänderte `CLAUDE.md` wird als eigener Commit `pkm: CLAUDE.md geändert` mit `PKM-Source: user` erfasst Ändert sich eine verlinkte Bilddatei, erhält jedes Dokument, das sie verwendet, eine neue Version im selben Commit wie das Bild (4.9). Zugehörige Bilddateien werden nicht als eigenständige Dokumente geführt. |
 | `pkm pending` | JSON-Liste der zu verarbeitenden Dokumente: `new`, `changed` (mit `processed_version` → `version` und geänderten Abschnitten), `moved` (alt → neu), `deleted` (mit betroffenen Wiki-Seiten) |
@@ -1110,7 +1117,7 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 | `pkm reindex` | Baut den Suchindex neu auf |
 | `pkm fix-frontmatter <target>… [--all]` | Repariert das Frontmatter zeilengenau, sonst ändert sich nichts: setzt Werte mit `: ` oder führenden YAML-Sonderzeichen in doppelte Anführungszeichen und benennt `short citation` in `short_citation` um. **Nur auf ausdrückliche Anweisung des Nutzers.** Ohne Ziel listet der Befehl nur die betroffenen Dateien auf. Jede geänderte Datei wird als neue Version committet (`PKM-Source: user`, weil der Nutzer es veranlasst hat) |
 | `pkm commit-wiki --message "<text>"` | Agenten-Commit am Ende eines Pflegelaufs (12). Committet ausschließlich `wiki/` und `.pkm/state.json`. Offene Änderungen in `documents/` bleiben unberührt |
-| `pkm doctor` | Prüft die Umgebung: Git-Verzeichnis außerhalb des Vaults und erreichbar, `PKM_CACHE_DIR` außerhalb des Vaults und des Nextcloud-Ordners, kein `.git` im Vault, `user.name`/`user.email`, Schreibrechte, Nextcloud-Konfliktkopien, Obsidian-Einstellungen aus Abschnitt 13 (soweit in `.obsidian/app.json` lesbar). Mit `--short` nur Fehler Prüft außerdem, dass `PKM_IMPORT_DIR` außerhalb des Vaults liegt. |
+| `pkm doctor` | Prüft die Umgebung: Git-Verzeichnis außerhalb des Vaults und erreichbar, `PKM_CACHE_DIR` außerhalb des Vaults und des Nextcloud-Ordners, kein `.git` im Vault, `user.name`/`user.email`, Schreibrechte, Nextcloud-Konfliktkopien, Obsidian-Einstellungen aus Abschnitt 13 (soweit in `.obsidian/app.json` lesbar). Mit `--short` nur Fehler Prüft außerdem, dass `PKM_IMPORT_DIR` entweder `pkm_img_import/` im Vault (dann in `.gitignore`) oder ein Ordner außerhalb des Vaults ist. |
 
 ---
 
@@ -1199,7 +1206,7 @@ Eingetragen wird erst nach **ausdrücklicher Bestätigung** des Nutzers im Chat:
 **Bilder (4.9):**
 - Diagramme, Skizzen und Schaltpläne zeichnet der Chat als **SVG**. Fotos und Screenshots bleiben PNG.
 - Neue Bilder werden über `images` bzw. `add_image` abgelegt, immer mit Alternativtext und erst nach Entwurf und Bestätigung. Im Entwurf zeigt der Chat das Bild mit.
-- **Im Chat hochgeladene Fotos oder Screenshots** kann der Chat nicht byte-genau weitergeben. Er bittet, die Datei in `PKM_IMPORT_DIR` zu legen, und übernimmt sie mit `import_path`. Bei einfachen Grafiken bietet er alternativ eine SVG-Nachzeichnung an, gekennzeichnet als „nachgezeichnet“.
+- **Im Chat hochgeladene Fotos oder Screenshots** kann der Chat nicht byte-genau weitergeben. Er bittet, die Datei in den Importordner `pkm_img_import/` im Vault zu legen (z. B. per Finder bzw. Explorer oder über die Nextcloud-App), und übernimmt sie mit `import_path`. Bei einfachen Grafiken bietet er alternativ eine SVG-Nachzeichnung an, gekennzeichnet als „nachgezeichnet“.
 - Zum Ansehen eines Bildes dient `read_image`. Base64 wird nie in den Text übernommen.
 - Bestehende eingebettete PNG bleiben unverändert.
 
@@ -1256,7 +1263,7 @@ Git ist Pflicht und übernimmt zwei Aufgaben: die **Versionsgeschichte jedes Dok
 So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. Ein `git revert` auf einen Agenten-Commit trifft nur das Wiki.
 
 - Das Git-Verzeichnis liegt außerhalb der Nextcloud (5.5). Die Versionsgeschichte existiert damit **nur auf dem PKM-Rechner** und muss dort gesichert werden. **macOS:** Time Machine, denn `~/Library/Application Support/pkm/` ist darin enthalten. **Windows:** Der Dateiversionsverlauf sichert `%APPDATA%` standardmäßig nicht. `%APPDATA%\pkm\git` wird deshalb ausdrücklich in die Datensicherung aufgenommen, oder `PKM_GIT_DIR` zeigt von Anfang an auf einen gesicherten Ordner außerhalb der Nextcloud (und außerhalb von OneDrive). Der Suchindex ist ein Cache und muss nicht gesichert werden.
-- `.gitignore`: `scratch/`, `.obsidian/workspace*`, `.pkm/mcp.log`, Nextcloud-Hilfsdateien (`.sync_*`, `.owncloudsync.log`, `*.part`)
+- `.gitignore`: `scratch/`, `pkm_img_import/`, `.obsidian/workspace*`, `.pkm/mcp.log`, Nextcloud-Hilfsdateien (`.sync_*`, `.owncloudsync.log`, `*.part`)
 - Obsidian Git wird nicht verwendet. Das Plugin fände das Repo auch gar nicht, weil kein `.git` im Vault liegt.
 - Kein Remote. Ein Push auf ein privates Remote (z. B. Gitea auf dem Homeserver) lässt sich später ohne Änderung am Konzept nachrüsten.
 
@@ -1269,7 +1276,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
   - „Neues Link-Format“: **Absoluter Pfad im Vault**, damit Belege eindeutig sind
   - „Wikilinks verwenden“: an
   - Anhang-Ordner: `documents/_attachments/`
-- **Ausgeschlossene Dateien:** `.pkm/`
+- **Ausgeschlossene Dateien:** `.pkm/`, optional `pkm_img_import/` (dann tauchen Übergabebilder nicht in Suche und Graph auf)
 - **Bilder:** Anhang-Ordner `documents/_attachments/` (siehe oben). Eingebettete Bilder (Data-URIs, 4.9) zeigt Obsidian im Lese- und Live-Vorschau-Modus an. Das ist vor der Umsetzung mit PNG und SVG, auch mit `|breite`, zu testen.
 - **Web Clipper:** Zielordner `documents/_inbox/`. Die Vorlage des Clippers wird an 4.1 angepasst: `title` (Seitentitel), `source` (URL, wird von den Werkzeugen nicht ausgewertet), `date_document` (Veröffentlichungsdatum der Seite, falls vorhanden), `date_markdown` (Zeitpunkt des Clippens im Format `YYYY-MM-DDTHH:MM:SS`), `toolchain_markdown: Obsidian Web Clipper`, `tags`. Die Standardvorlage des Clippers verwendet teils andere Namen. Maßgeblich ist, was in den Einstellungen des Clippers eingestellt ist.
 - **Property-Typen:** `pkm init` legt sie in `.obsidian/types.json` an bzw. ergänzt fehlende, ohne vom Nutzer gesetzte Typen zu ändern; `pkm doctor` meldet Abweichungen. Von Hand in Obsidian über das Symbol neben dem Feldnamen im Eigenschaften-Bereich einer Notiz: `date_markdown` und `date_updated` als **Datum & Uhrzeit**, `version` als **Zahl**, `related` und `sources` als **Liste**, alle übrigen eigenen Felder als **Text**. `tags` und `aliases` sind Obsidian-Standard.
@@ -1282,7 +1289,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 ## 14. Tests und Abnahme
 
 **Automatisiert (pytest, mit temporärem Git-Repo):**
-- Bilder (4.9): Einbetten bis 24 KB, Datei darüber, `scratch/` immer eingebettet, bestehende Base64-PNG byte-genau unverändert (auch über der Grenze und ohne Bildnamen), SVG-Bereinigung (Script, Ereignis-Attribute, externe Verweise, XXE), URL-Kodierung bricht keine Markdown-Syntax, Platzhalter in `read` und byte-genaue Rückübersetzung bei `rewrite_document`/`edit_document`, entfernte Bilder als `large_shortening`, `read_image` für PNG und SVG, `import_path` nur aus `PKM_IMPORT_DIR`, zugehörige Bilder nicht als `new`, geänderte Bilddatei ergibt neue Version des Dokuments, verwaiste Anhänge, Index ohne Base64
+- Bilder (4.9): Einbetten bis 24 KB, Datei darüber, `scratch/` immer eingebettet, bestehende Base64-PNG byte-genau unverändert (auch über der Grenze und ohne Bildnamen), SVG-Bereinigung (Script, Ereignis-Attribute, externe Verweise, XXE), URL-Kodierung bricht keine Markdown-Syntax, Platzhalter in `read` und byte-genaue Rückübersetzung bei `rewrite_document`/`edit_document`, entfernte Bilder als `large_shortening`, `read_image` für PNG, JPEG und SVG, `import_path` nur aus `PKM_IMPORT_DIR`, JPEG ohne Metadaten mit erhaltener Ausrichtung, `pkm_img_import/` von `init` angelegt, in `.gitignore` und von Pflegelauf, Lint und Suche ausgenommen, zugehörige Bilder nicht als `new`, geänderte Bilddatei ergibt neue Version des Dokuments, verwaiste Anhänge, Index ohne Base64
 - Pfadprüfung, Neuanlage nur in `_inbox/`, Änderungen nur in `documents/**/*.md`, `wiki/` immer abgelehnt
 - Adressierung über Pfad, Wikilink, Kurzname (auch in anderer Groß-/Kleinschreibung) und ID, einschließlich `ambiguous`
 - ID-Vergabe: Format, Kollisionsprüfung, `pkm ids` bei Datei mit und ohne Frontmatter (Inhalt byte-genau erhalten, Kommentare im Frontmatter erhalten), je Dokument ein Commit, doppelte IDs
@@ -1387,6 +1394,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 34 | Lange Dateinamen | Nur der Slug wird gekürzt, nie Datum oder Suffix | 4.1, 14 |
 | 35 | Bilder | PNG und SVG, SVG bevorzugt, bis 24 KB eingebettet (PNG Base64, SVG URL-kodiert), sonst Datei. `scratch/` immer eingebettet. Bestehende Base64-PNG unverändert. Bilder gehören zum Dokument. `add_image`, `read_image`, Importordner. Kein Befehl zum nachträglichen Einbetten bestehender Anhänge | 4.9, 7, 8, 9.1, 10 |
 | 36 | Windows als PKM-Rechner | Gleichwertig zum Mac, genau ein PKM-Rechner je Vault. Git von git-scm.com, Standardordner `%APPDATA%\pkm`, Datensicherung des Git-Verzeichnisses ausdrücklich einrichten | 5.5, 7.1, 7.6, 12, 13 |
+| 37 | Importordner und JPEG | Importordner `pkm_img_import/` im Vault (nicht in Git, von der Pflege ausgenommen), Ordner außerhalb weiter möglich. JPEG wird übernommen, Metadaten entfernt, Ausrichtung erhalten | 3, 4.9, 7.1, 8, 10, 12 |
 
 ### Noch offen
 

@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Abnahmeprotokoll
 
-**Bezug:** Spezifikation 0.22, Abschnitt 14 („Abnahme (manuell)“) · Umsetzungsplan Phase 7
+**Bezug:** Spezifikation 0.23, Abschnitt 14 („Abnahme (manuell)“) · Umsetzungsplan Phase 7
 
 Die Abnahme läuft auf dem **Mac** mit echtem Nextcloud-Vault, Claude Desktop und Obsidian sowie
 für Schritt 9 auf dem **Windows-Rechner**. Voraussetzung ist die Einrichtung nach
@@ -267,7 +267,7 @@ pkm lint --report
 | Kurzbezeichnung | Im Chat „Was steht in EN 61000-4-6:2014 zum Anwendungsbereich?“ | Das Dokument wird über `short_citation` gefunden | ☐ |
 | Obsidian-Typen | Eigenschaften eines neuen Chat-Dokuments in Obsidian ansehen | `date_markdown`/`date_updated` als Datum & Uhrzeit, `tags` als Tags | ☐ |
 | SVG-Diagramm | Im Chat „Zeichne den Aufbau als Diagramm in das Dokument“ | Entwurf mit Bild, nach Bestätigung eingebettetes SVG (`pkm:<name>`), in Obsidian im Lese- und Live-Vorschau-Modus sichtbar (auch mit `|400`) | ☐ |
-| Foto aus dem Importordner | Foto nach `Downloads/pkm-import` legen, im Chat „nimm foto.png mit ins Dokument“ | über 24 KB: Datei in `documents/_attachments/`, im selben Commit wie das Dokument; in Obsidian sichtbar | ☐ |
+| Foto aus dem Importordner | Foto (JPEG vom Smartphone) über Nextcloud nach `pkm_img_import/` legen, im Chat „nimm foto.png mit ins Dokument“ | über 24 KB: Datei in `documents/_attachments/`, im selben Commit wie das Dokument; in Obsidian sichtbar und richtig gedreht; keine GPS-Daten in der Datei | ☐ |
 | Bild im Pflegelauf | Nächster Pflegelauf nach den beiden Bildern | `read_image` wird genutzt, Inhalt in Worten mit Beleg `[img:<name>]`, Bilddatei nicht als eigenes Dokument | ☐ |
 | Bild ändern | Die Bilddatei in `_attachments/` ersetzen, Pflegelauf | Dokument bekommt eine neue Version mit `PKM-Source: user`, `pending` meldet den Abschnitt mit dem Bild | ☐ |
 

@@ -35,7 +35,8 @@ frei in Obsidian; Dokumente werden über ihre ID gefunden, nicht über den Pfad.
   Anführungszeichen setzen. `source` bleibt dem Web Clipper vorbehalten.
 - Jede Version ist genau ein Git-Commit mit den Zeilen `PKM-Id`, `PKM-Version`,
   `PKM-Source` (`chat` | `user` | `agent`). Der Verlauf liegt in Git, nicht im Dokument.
-- Bilder (4.9): PNG und SVG (Diagramme als SVG). Bis 24 KB eingebettet als Data-URI mit Titel
+- Bilder (4.9): PNG, JPEG und SVG (Diagramme als SVG). Übergabe aus dem Chat über `pkm_img_import/`
+  (nicht in Git, nie im Wiki). Bis 24 KB eingebettet als Data-URI mit Titel
   `"pkm:<name>"`, größere als Datei in `documents/_attachments/`. Jedes neue Bild hat einen
   Alternativtext. Bestehende eingebettete PNG bleiben unverändert. Belege auf Bilder zitieren
   `[img:<name>]`.

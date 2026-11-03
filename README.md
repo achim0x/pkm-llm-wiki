@@ -99,7 +99,8 @@ Voraussetzung.
   (Data-URI), größere Bilder landen in `documents/_attachments/`. In `scratch/` wird immer
   eingebettet.
 - **Fotos aus dem Chat:** Claude kann hochgeladene Bilder nicht byte-genau weitergeben. Du legst die
-  Datei in den Importordner (`Downloads/pkm-import`), Claude übernimmt sie von dort.
+  Datei (PNG oder JPEG) in den Ordner `pkm_img_import/` im Vault, auch vom Smartphone per Nextcloud;
+  Claude übernimmt sie von dort. Bei JPEG entfernt der Server GPS- und Kameradaten.
 - Bilder gehören zu ihrem Dokument und werden mit ihm versioniert. Claude sieht sie sich mit
   `read_image` an; Base64 landet nie im Chat. Im Wiki werden Bilder in Worten übernommen und mit
   `[img:<name>]` belegt.
@@ -202,6 +203,7 @@ solange dort Claude Desktop läuft. Weitere Rechner nutzen den Vault nur über O
 │   ├── _attachments/       ← Bilder aus Web-Clips
 │   └── …                   ← beliebige eigene Ordner, z. B. haus/, garten/
 ├── scratch/                ← Notizen und Todo-Listen: nicht in Git, nie im Wiki
+├── pkm_img_import/         ← Bilder aus dem Chat übergeben: nicht in Git, nie im Wiki
 ├── wiki/                   ← gehört dem Pflege-Agenten
 │   ├── index.md            ← Katalog aller Seiten mit Kurzfassung (generiert)
 │   ├── _status.md          ← Offenes, Einsortier-Vorschläge, Probleme, Rückfragen (generiert)
@@ -305,7 +307,7 @@ lösen die passenden Abläufe aus:
 | „Notier mir kurz …“ / „Setz … auf meine Todo-Liste“ | Notiz in `scratch/` (nach Entwurf), ohne Version und Commit, nie im Wiki. |
 | „Hak … ab“ / „Was steht auf meiner Liste?“ | Ändert bzw. liest die Liste in `scratch/` (Suche mit `scope: "scratch"`). |
 | „Zeichne das als Diagramm ins Dokument.“ | SVG-Diagramm als Entwurf, nach Bestätigung im Dokument (`images` bzw. `add_image`). |
-| „Nimm das Foto `foto.png` aus dem Importordner mit auf.“ | Übernimmt die Datei aus `Downloads/pkm-import` (`import_path`). |
+| „Nimm das Foto `foto.png` aus dem Importordner mit auf.“ | Übernimmt die Datei aus `pkm_img_import/` im Vault (`import_path`). |
 | „Korrigier im Wiki: …“ | Legt ein **Korrektur-Dokument** an. Das Wiki selbst ändert nur der Pflege-Agent. |
 | „Dokumentiere das als Fortsetzung.“ | Nur auf diese ausdrückliche Anweisung entsteht ein datierter Abschnitt `## Fortsetzung YYYY-MM-DD`. |
 

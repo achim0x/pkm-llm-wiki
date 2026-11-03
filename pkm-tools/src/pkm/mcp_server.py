@@ -48,8 +48,8 @@ except ImportError:  # mcp 1.x
 
 IMAGES_DOC = (
     "images: Liste von Bildern {name, alt, svg | png_base64 | import_path, mode auto|inline|file}; im Text steht "
-    "an der Stelle {{image:<name>}}. Diagramme als SVG, Fotos/Screenshots als PNG (Datei in PKM_IMPORT_DIR, "
-    "import_path). Bis 24 KB eingebettet, sonst Datei; in scratch/ immer eingebettet."
+    "an der Stelle {{image:<name>}}. Diagramme als SVG, Fotos/Screenshots als PNG/JPEG (Datei im Vault-Ordner "
+    "pkm_img_import/, import_path). Bis 24 KB eingebettet, sonst Datei; in scratch/ immer eingebettet."
 )
 
 INSTRUCTIONS = (

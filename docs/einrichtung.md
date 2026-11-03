@@ -236,10 +236,12 @@ starten. Im Chat sollten unter den Werkzeugen die 14 `pkm`-Tools erscheinen (`se
 `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `add_image`,
 `restore_document`) sowie der Server `pkm-pflege`.
 
-**Importordner für Bilder:** Fotos und Screenshots aus einem Chat übernimmt der Server nur aus
-`PKM_IMPORT_DIR` (Standard `<HOME>/Downloads/pkm-import`, unter Windows
-`%USERPROFILE%\Downloads\pkm-import`). Den Ordner einmal anlegen. Er muss außerhalb des Vaults
-liegen (`pkm doctor` prüft das). Weitere Einstellungen für Bilder (alle optional, in `env` der
+**Importordner für Bilder:** Fotos und Screenshots aus einem Chat übernimmt der Server nur aus dem
+Importordner `pkm_img_import/` im Vault (PNG, JPEG, SVG). `pkm init` legt ihn an und trägt ihn in
+`.gitignore` ein; wie `scratch/` ist er von Pflegelauf, Lint und Suche ausgenommen. Weil er in der
+Nextcloud liegt, kannst du Bilder auch vom Smartphone hineinlegen. Der Server kopiert die Datei,
+danach darfst du sie löschen. Wer einen anderen Ordner will, setzt `PKM_IMPORT_DIR` auf einen Ordner
+außerhalb des Vaults (`pkm doctor` prüft das). Weitere Einstellungen für Bilder (alle optional, in `env` der
 Config): `PKM_INLINE_MAX_KB` (24), `PKM_SVG_MAX_KB` (200), `PKM_IMAGE_MAX_MB` (5),
 `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER` (`false`; zum Rastern von SVG zusätzlich das Paket
 `cairosvg` installieren).

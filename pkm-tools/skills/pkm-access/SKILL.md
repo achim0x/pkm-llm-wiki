@@ -124,8 +124,8 @@ Original per `edit_document` markieren:
   eingebettet, sonst Datei in `_attachments/`; in `scratch/` immer eingebettet).
 - **Erst Entwurf, dann schreiben:** Im Entwurf das Bild mit zeigen (SVG direkt darstellen).
 - **Im Chat hochgeladene Fotos oder Screenshots** kannst du nicht byte-genau weitergeben. Bitte den
-  Nutzer, die Datei in den Importordner zu legen (`PKM_IMPORT_DIR`, Standard
-  `Downloads/pkm-import`), und übernimm sie mit `import_path` (Dateiname genügt). Bei einfachen
+  Nutzer, die Datei (PNG oder JPEG) in den Ordner `pkm_img_import/` im Vault zu legen (Finder,
+  Explorer oder Nextcloud-App), und übernimm sie mit `import_path` (Dateiname genügt). Bei einfachen
   Grafiken alternativ eine SVG-Nachzeichnung anbieten, im Alternativtext als „nachgezeichnet“
   gekennzeichnet.
 - **Lesen:** `read` zeigt eingebettete Bilder als Platzhalter `![…](pkm-image:<name> "…")` und

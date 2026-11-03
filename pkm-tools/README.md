@@ -95,6 +95,9 @@ ohne diese Angaben fehlt `content` (`content_omitted`).
 - `fix-citations` schreibt bei verschobenen Originalen auch Wikilinks im Seitentext um. Wird in
   Obsidian verschoben, aktualisiert Obsidian die Links selbst; dann meldet `fix-citations`
   zu Recht `pages_changed: 0`.
+- **Importordner:** Standard ist `pkm_img_import/` im Vault (in `.gitignore`, von allen Pflegebefehlen
+  ausgenommen, weil `iter_files` nur `documents/`, `wiki/` und `scratch/` durchläuft). JPEG wird übernommen,
+  EXIF/XMP, IPTC und Kommentare entfernt, die Ausrichtung als minimaler EXIF-Block behalten.
 - **Bilder:** `edit_document` hat zusätzlich `confirm_shortening`, weil das Entfernen eines Bildes
   wie eine Kürzung bestätigt werden muss. Als verwaist gelten auch Bilddateien in
   `documents/_attachments/` ohne Verweis (nicht nur früher zugehörige). Verwendet eine geänderte
