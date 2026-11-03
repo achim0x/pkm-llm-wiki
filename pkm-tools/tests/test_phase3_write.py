@@ -106,7 +106,7 @@ def fixture_doc(svc):
 def test_create(doc, svc, isolated_env, cfg):
     """create_document legt v1 im Eingang an und committet nur diese Datei."""
     assert doc["status"] == "created" and doc["version"] == 1
-    assert re.fullmatch(r"documents/_inbox/\d{4}-\d{2}-\d{2}_zisterne-ueberlaufsensor\.md", doc["path"])
+    assert re.fullmatch(r"documents/_inbox/zisterne-ueberlaufsensor_\d{4}-\d{2}-\d{2}\.md", doc["path"])
     r = svc.read(doc["path"])
     assert r["id"] == doc["id"] and r["version"] == 1 and r["hash"] == doc["new_hash"]
     fm = r["frontmatter"]
@@ -126,7 +126,7 @@ def test_create_strips_frontmatter_and_suffixes(svc):
     """Mitgeliefertes Frontmatter wird entfernt, gleiche Namen bekommen ein Suffix."""
     a = svc.create_document(title="Gleich", content="---\nid: fremd\n---\nText\n")
     b = svc.create_document(title="Gleich", content="Text 2")
-    assert a["path"] != b["path"] and b["path"].endswith("_gleich-2.md")
+    assert a["path"] != b["path"] and re.search(r"/gleich-2_\d{4}-\d{2}-\d{2}\.md$", b["path"])
     assert svc.read(a["path"])["frontmatter"]["id"] == a["id"] != "fremd"
 
 
@@ -163,7 +163,7 @@ def test_create_platform_safe_name(svc):
 
 def test_slug_windows_reserved(svc):
     """Reservierte Windows-Namen werden umgangen."""
-    assert svc.create_document(title="NUL", content="x")["path"].endswith("_nul-doc.md")
+    assert svc.create_document(title="NUL", content="x")["path"].startswith("documents/_inbox/nul-doc_")
 
 
 # Grundregeln *****************************************************************
@@ -495,7 +495,7 @@ def test_mcp_call_create_and_conflict(cfg):
     server = mcp_server.build_server()
     out = asyncio.run(server.call_tool("create_document", {"title": "Per MCP", "content": "Hallo"}))
     assert "created" in str(out)
-    path = next(p for p in mcp_server.get_service().vault.iter_files() if p.endswith("_per-mcp.md"))
+    path = next(p for p in mcp_server.get_service().vault.iter_files() if "/per-mcp_" in p)
     res = mcp_server.call("edit_document", lambda s, **k: s.edit_document(**k), target=path, old="Hallo",
                           new="Servus", expected_hash="falsch")
     assert res["status"] == "conflict" and len(res["current_hash"]) == 64

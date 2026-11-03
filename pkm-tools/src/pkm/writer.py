@@ -529,23 +529,24 @@ class Writer:
         return {"path": rel, "status": "created", "new_hash": doc.hashes.file_hash if doc.hashes else None,
                 "diff": unified_diff("", text, "/dev/null", rel, DIFF_LINES)}
 
-    def _free_name(self, base_dir: str, stem: str) -> str:
-        """Freien Dateinamen ``<stem>.md`` in einem Ordner finden (nie überschreiben).
+    def _free_name(self, base_dir: str, stem: str, tail: str = "") -> str:
+        """Freien Dateinamen ``<stem><tail>.md`` in einem Ordner finden (nie überschreiben).
 
         Args:
             base_dir: Ordner relativ zum Vault.
             stem: Gewünschter Dateiname ohne Endung.
+            tail: Fester Schluss des Namens (z. B. ``_2026-11-03``); das Suffix steht davor.
 
         Returns:
-            Relativer Pfad; bei Namensgleichheit mit Suffix ``-2``, ``-3`` …
+            Relativer Pfad; bei Namensgleichheit mit Suffix ``-2``, ``-3`` … vor ``tail``.
         """
         area = base_dir.split("/", 1)[0]
         existing = {r.casefold() for r in self.vault.iter_files((area,))}
         n = 1
-        rel = f"{base_dir}/{stem}.md"
+        rel = f"{base_dir}/{stem}{tail}.md"
         while rel.casefold() in existing or self.vault.path(rel).exists():
             n += 1
-            rel = f"{base_dir}/{stem}-{n}.md"
+            rel = f"{base_dir}/{stem}-{n}{tail}.md"
         return rel
 
     def _link_target(self, target: str) -> str:
@@ -561,16 +562,16 @@ class Writer:
         return rel[:-3] if rel.lower().endswith(".md") else rel
 
     def _free_inbox_name(self, date: str, title: str) -> str:
-        """Freien Dateinamen ``YYYY-MM-DD_<slug>.md`` im Eingang finden (nie überschreiben).
+        """Freien Dateinamen ``<slug>_YYYY-MM-DD.md`` im Eingang finden (nie überschreiben).
 
         Args:
             date: Datum ``YYYY-MM-DD``.
             title: Titel.
 
         Returns:
-            Relativer Pfad; bei Namensgleichheit mit Suffix ``-2``, ``-3`` …
+            Relativer Pfad; bei Namensgleichheit mit Suffix vor dem Datum (``<slug>-2_YYYY-MM-DD.md``).
         """
-        return self._free_name(INBOX, f"{date}_{slugify(title)}")
+        return self._free_name(INBOX, slugify(title), f"_{date}")
 
     def rewrite_document(
         self, target: str, content: str, expected_hash: str | None, note: str | None = None,

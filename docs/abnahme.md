@@ -55,7 +55,7 @@ dann die Eingaben sinngemäß anpassen.
 - [ ] Der Chat zeigt **erst einen Entwurf** (Titel, Themen, Abschnitte) und schreibt erst nach
       Bestätigung.
 - [ ] Danach nennt er ID, Pfad und `version: 1`.
-- [ ] Datei liegt in `documents/_inbox/YYYY-MM-DD_<slug>.md` mit `id` und `version: 1`.
+- [ ] Datei liegt in `documents/_inbox/<slug>_YYYY-MM-DD.md` mit `id` und `version: 1`.
 - [ ] Es gibt genau einen Commit:
 
 ```bash

@@ -174,7 +174,7 @@ Kern ist `writer.apply_change(target, transform, note, source="chat")`, über de
 
 | Tool | Besonderheiten |
 |---|---|
-| `create_document` | Frontmatter im `content` entfernen, Slug + `YYYY-MM-DD_`, Suffix `-2`, `-3` bei Namensgleichheit, `related` auflösen und als Wikilinks speichern, `version: 1`, Commit `doc: <title> v1` |
+| `create_document` | Frontmatter im `content` entfernen, Slug + `_YYYY-MM-DD` (Datum am Ende), Suffix `-2`, `-3` bei Namensgleichheit, `related` auflösen und als Wikilinks speichern, `version: 1`, Commit `doc: <title> v1` |
 | `rewrite_document` | `large_shortening` bei < 60 % Zeichen des normalisierten Bodys oder fehlenden Schlüsseln (4.8); Liste betroffener Abschnitte; `confirm_shortening` |
 | `append_to_document` | Einfügen am Ende eines Abschnitts, `_preamble` = vor der ersten Überschrift, neuen `##`-Abschnitt anlegen, Dateiende; Schlüssel ohne Suffix bei Duplikat → `ambiguous` mit Kandidaten |
 | `edit_document` | `old`/`new` vorher normalisieren (LF, NFC); `old` genau einmal im normalisierten Body, sonst `not_found` bzw. `ambiguous` mit Anzahl |
