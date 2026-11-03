@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Abnahmeprotokoll
 
-**Bezug:** Spezifikation 0.23, Abschnitt 14 („Abnahme (manuell)“) · Umsetzungsplan Phase 7
+**Bezug:** Spezifikation 0.24, Abschnitt 14 („Abnahme (manuell)“) · Umsetzungsplan Phase 7
 
 Die Abnahme läuft auf dem **Mac** mit echtem Nextcloud-Vault, Claude Desktop und Obsidian sowie
 für Schritt 9 auf dem **Windows-Rechner**. Voraussetzung ist die Einrichtung nach
@@ -234,7 +234,38 @@ grep -ri "zisternenpumpe" "$PKM_ROOT/wiki" || echo "nicht im Wiki"
 
 ---
 
-## Schritt 11 – Doctor und Lint
+## Schritt 11 – Abweichende Data-URI korrigieren
+
+**Aktion:** In Obsidian in ein Dokument unter `documents/` ein SVG im Referenzstil mit `;utf8` und nicht
+kodierten Zeichen einfügen, z. B.:
+
+```markdown
+Der Aufbau: ![Plan][plan] siehe oben.
+
+[plan]: <data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='20'><rect fill='#f00' width='40' height='20'/></svg>>
+```
+
+Dann im Pflegeprojekt „Verarbeite neue Dokumente.“
+
+**Erwartet**
+- [ ] Der Bericht nennt das Bild mit Fundstelle und Befunden (`reference_style`, `svg_parameters`,
+      `unencoded_chars`, `not_own_line`, `missing_name`), zeigt den Vorschlag und fragt nach.
+- [ ] Ohne Bestätigung ändert sich nichts am Dokument.
+- [ ] Nach Bestätigung (`fix_images` mit `apply: true`) gibt es eine neue Version, der Commit trägt
+      `PKM-Fix: images`; das Bild steht in einer eigenen Zeile, die Definition ist entfernt.
+- [ ] Obsidian zeigt das Bild an.
+- [ ] Nächster Pflegelauf: das Dokument hat `image_notation_only: true`; Belege mit `[img:plan]`
+      bleiben `ok` (auf die neue Version angehoben).
+
+```bash
+pkmgit log -1 --format='%B' | grep PKM-Fix
+```
+
+**Ergebnis:** ☐  **Notiz:**
+
+---
+
+## Schritt 12 – Doctor und Lint
 
 ```bash
 pkm doctor

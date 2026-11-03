@@ -254,6 +254,7 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - 0.20: Bei Namen über 120 Zeichen wird nur der Slug gekürzt (`paths.fit_stem`).
 - 0.21 Bilder: `images.py`, `docimages.py`, `assets.py`, `imagelint.py`; Parameter `images`, Tools `add_image` und `read_image`; Platzhalter in `read`; Assets in `state.json`; geänderte Bilddateien als neue Version der Dokumente; verwaiste Anhänge in `_status.md`; Lint und Doctor erweitert; Index nur mit Alternativtext.
 - 0.22: Windows als gleichwertiger PKM-Rechner in der Spezifikation.
+- 0.24: Prüfung von Bild-Data-URIs bei der Übernahme in jeder Schreibweise (`imagescan.py`, `imagefix.py`, `citeraise.py`): Befunde mit Vorschlag, Korrektur nur nach Bestätigung (`fix_images` in Tools und als eigenes Tool, `pkm fix-images`), `image_issues`/`image_notation_only` im Pflegelauf, Anheben der Belege, Lint `nonconforming_image`.
 - 0.23: Importordner `pkm_img_import/` im Vault (von `init` angelegt, in `.gitignore`, von der Pflege ausgenommen) und JPEG-Übernahme ohne Metadaten. CI testet nur noch Python 3.12.
 - Offen: Anzeige eingebetteter PNG/SVG in Obsidian (auch mit `|breite`) am echten Vault testen.
 

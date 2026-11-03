@@ -27,6 +27,10 @@ SVG-Bereinigung, PNG-Prüfung, Kodierung, Platzhalter), `docimages.py` (Einsetze
 `read_image`), `assets.py` (zugehörige Bilddateien, `state.json`-`assets`, verwaiste Anhänge),
 `imagelint.py`.
 
+**Data-URIs (0.24):** `imagescan.py` (Erkennen in jeder Schreibweise), `imagefix.py` (Befundcodes,
+Vorschlag, Korrektur, Vergleich „nur Bildschreibweise“), `citeraise.py` (Belege anheben). Schreibende
+Tools mit `fix_images`/`image_alt`, Tool `fix_images` in beiden Servern, CLI `pkm fix-images`.
+
 **MCP-Tools `pkm-pflege-mcp`:** die lesenden Tools sowie `begin_maintenance` (doctor, versions, ids,
 pending mit `missing_fields`, `known_tags`, fix-citations), `set_document_metadata` (nur `title`,
 `context`, `tags`, `kind`, `short_citation` nach Bestätigung; neue Version mit `PKM-Source: agent`),
@@ -98,6 +102,13 @@ ohne diese Angaben fehlt `content` (`content_omitted`).
 - **Importordner:** Standard ist `pkm_img_import/` im Vault (in `.gitignore`, von allen Pflegebefehlen
   ausgenommen, weil `iter_files` nur `documents/`, `wiki/` und `scratch/` durchläuft). JPEG wird übernommen,
   EXIF/XMP, IPTC und Kommentare entfernt, die Ausrichtung als minimaler EXIF-Block behalten.
+- **Data-URIs (0.24):** Bei `fix_images: true` bzw. `apply: true` ohne `image_alt` wird für fehlende
+  Alternativtexte der Vorschlag aus `image_issues` übernommen (er wurde vorher gezeigt). Eine mehrfach
+  verwendete Referenzdefinition ergibt bei der Korrektur `ambiguous` mit den Zeilen; eine Auswahl der
+  Stelle gibt es nicht, der Nutzer passt die Stelle in Obsidian an. In Wiki-Seiten gilt keine
+  Größengrenze für eingebettete SVG und es werden keine Dateien angelegt. „Nur Bildschreibweise“
+  wird je Abschnitt und für den ganzen Body geprüft (Referenzdefinitionen in anderen Abschnitten);
+  angehobene Belege bekommen neue `v:` und `sha:`.
 - **Bilder:** `edit_document` hat zusätzlich `confirm_shortening`, weil das Entfernen eines Bildes
   wie eine Kürzung bestätigt werden muss. Als verwaist gelten auch Bilddateien in
   `documents/_attachments/` ohne Verweis (nicht nur früher zugehörige). Verwendet eine geänderte

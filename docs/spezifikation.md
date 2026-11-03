@@ -1,7 +1,15 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.23 (Entwurf zum Review) · **Stand:** 03.11.2026
+**Version:** 0.24 (Entwurf zum Review) · **Stand:** 03.11.2026
 
+> **Änderungen in 0.24**
+> - **Prüfung von Data-URIs bei der Übernahme** (neuer Teil in 4.9): Jede Bild-Data-URI, die über ein Werkzeug, von Hand oder aus einer Wiki-Seite ins PKM kommt, wird auf Schreibweise, Kodierung, Bildnamen, Alternativtext, Größe und Sicherheit geprüft. Abweichungen werden mit Befundcodes und einem Korrekturvorschlag gemeldet. **Korrigiert wird nur nach Rückfrage**, nie automatisch und nie in unbeaufsichtigten Läufen. Anlass: SVG im Referenzstil mit nicht kodierten Zeichen (`[ref]: <data:image/svg+xml;utf8,<svg …>>`) zeigte Obsidian nicht an (4.9).
+> - Schreibende Werkzeuge melden eine abweichende Data-URI im übergebenen Text mit dem neuen Status `nonconforming_image` und schreiben nichts. Nach Bestätigung korrigiert der Server mit `fix_images: true`. Abweichende Bilder, die schon im Dokument stehen, nennt die Rückgabe unter `image_warnings` (7.2).
+> - Neues Werkzeug `fix_images` in `pkm-mcp` und `pkm-pflege-mcp` für bestehende Dokumente: ohne `apply` nur Vorschlag mit Diff (Status `proposal`), mit `apply: true` neue Version, in der sich nur die Bildschreibweise ändert. Neuer CLI-Befehl `pkm fix-images`, nur auf Anweisung (3, 7.2, 7.7, 8).
+> - `read` erkennt Data-URIs in jeder Schreibweise (auch Referenzstil, HTML, spitze Klammern) und ersetzt sie durch Platzhalter. `images` nennt je Bild `conforming` und `problems` (7.3).
+> - `begin_maintenance` liefert Befunde je Dokument, der Pflege-Agent schlägt Korrekturen vor wie bei fehlenden Frontmatter-Feldern (9.1, 9.7). Belege auf Abschnitte, in denen sich nur die Bildschreibweise geändert hat, hebt `finish_maintenance` selbst an (4.9, 7.7). Lint meldet `nonconforming_image` (8).
+> - Bestehende eingebettete PNG bleiben unverändert (Grundsatz 4). Bei ihnen wird nach Rückfrage nur eine Schreibweise korrigiert, die die Darstellung verhindert; die Bilddaten bleiben byte-gleich, ein Name wird nicht eingetragen (4.9).
+>
 > **Änderungen in 0.23**
 > - **Importordner im Vault:** Standard für `PKM_IMPORT_DIR` ist der Ordner `pkm_img_import/` im Vault (statt `Downloads/pkm-import`). `pkm init` legt ihn an und trägt ihn in `.gitignore` ein. Wie `scratch/` ist er von Pflegelauf, Lint, Suche und Belegen ausgenommen und nicht in Git. Ein Ordner außerhalb des Vaults bleibt möglich, andere Ordner im Vault nicht (3, 4.9, 7.1, 7.2, 8, 10, 12, 13, 14, 16).
 > - **JPEG wird übernommen:** `.jpg`/`.jpeg` aus dem Importordner werden wie PNG behandelt (eingebettet als `data:image/jpeg;base64` bzw. Datei `.jpg`). Metadaten (EXIF/XMP, IPTC, Kommentare) werden entfernt, die Ausrichtung bleibt erhalten (4.9, 7.2, 14).
@@ -205,8 +213,8 @@ Außerhalb der Nextcloud, nur auf dem PKM-Rechner (5.5):
 
 | Bereich | Nutzer (Obsidian) | pkm-mcp (Chat, auf Anweisung des Nutzers) | Pflege-Agent |
 |---|---|---|---|
-| `documents/_inbox/` | alles | neu anlegen, ändern | lesen, `id`/`version` setzen; nach Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` |
-| `documents/**` (übrige) | alles | ändern (nur `.md`) | lesen, `id`/`version` setzen; nach Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` |
+| `documents/_inbox/` | alles | neu anlegen, ändern | lesen, `id`/`version` setzen; nach Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` und Bildschreibweise (`fix_images`, 4.9) |
+| `documents/**` (übrige) | alles | ändern (nur `.md`) | lesen, `id`/`version` setzen; nach Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` und Bildschreibweise (`fix_images`, 4.9) |
 | `wiki/` | lesen | **nur lesen** | lesen und schreiben |
 | `CLAUDE.md` | lesen und schreiben (Änderungen committet `pkm versions`) | – | Änderungen nur nach Zustimmung |
 | `scratch/**` | alles | neu anlegen, ändern (nur `.md`, Bilder immer eingebettet), ohne Version und Commit | **ignoriert** |
@@ -466,16 +474,17 @@ Alle Hashes werden voll (64 Hex-Zeichen) gespeichert, im Beispiel gekürzt. Was 
 | Dokument-Frontmatter | `title`, `short_citation`, `date_document`, `status_markdown`, `date_markdown`, `toolchain_markdown`, `id`, `version`, `date_updated`, `context`, `tags`, `related`, `kind` (`note` \| `standard` \| `regulation` \| `correction`). Details in 4.1 |
 | Wiki-Frontmatter | `type` (`topic` \| `entity` \| `summary` \| `synthesis`), `title`, `aliases`, `tags`, `sources`, `date_updated`, `confidence` (`high` \| `medium` \| `low`) |
 | Beleg-Zeile | `§:` (nur bei Duplikaten), `id:`, `v:`, `sha:` |
-| Commit-Zeilen | `PKM-Id`, `PKM-Version`, `PKM-Source` (`chat` \| `user` \| `agent`) |
+| Commit-Zeilen | `PKM-Id`, `PKM-Version`, `PKM-Source` (`chat` \| `user` \| `agent`), `PKM-Fix` (`images`) |
 | `state.json` | `documents`, `path`, `processed_version`, `file_hash`, `body_hash`, `meta_hash`, `sections`, `processed_at`, `wiki_pages` |
 | Abschnitte | Schlüssel nach 4.8, reserviert `_preamble`, Duplikate `Text#2` |
 | `pending`-Kategorien | `new`, `changed`, `meta_changed`, `moved`, `deleted`; je Abschnitt `added`, `removed`, `changed`, `renamed` |
 | Bereiche (`area`, `scope`) | `documents`, `scratch`; zusätzlich `wiki` und `all` (= `wiki` + `documents`) bei `search` |
-| MCP-Tools `pkm-mcp` | `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `add_image`, `restore_document`, `search`, `read`, `read_image`, `history`, `show_citations`, `read_index`, `list_unprocessed` |
-| MCP-Tools `pkm-pflege-mcp` | `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `finish_maintenance` sowie die lesenden Tools von `pkm-mcp` |
-| Pflege-Rückgaben | `missing_fields`, `known_tags`, `operation` (`ingest` \| `lint` \| `fix`), `processed`, `removed`, `questions` |
-| Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `unchanged`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding`, `not_versioned`, `svg_too_complex`, `too_large_for_inline`, `unknown_image`, `invalid_image`, `forbidden`, `protected_field`, `field_exists`, `blocked`, `needs_decision` |
-| CLI | `pkm init`, `ids`, `versions`, `pending`, `history`, `show`, `fix-citations`, `sync-citations`, `sha`, `mark`, `index`, `status`, `lint`, `restore`, `reindex`, `commit-wiki`, `fix-frontmatter`, `doctor` |
+| MCP-Tools `pkm-mcp` | `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `add_image`, `fix_images`, `restore_document`, `search`, `read`, `read_image`, `history`, `show_citations`, `read_index`, `list_unprocessed` |
+| MCP-Tools `pkm-pflege-mcp` | `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` sowie die lesenden Tools von `pkm-mcp` |
+| Pflege-Rückgaben | `missing_fields`, `image_issues`, `known_tags`, `operation` (`ingest` \| `lint` \| `fix`), `processed`, `removed`, `questions` |
+| Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `unchanged`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding`, `not_versioned`, `svg_too_complex`, `too_large_for_inline`, `unknown_image`, `invalid_image`, `nonconforming_image`, `proposal`, `forbidden`, `protected_field`, `field_exists`, `blocked`, `needs_decision` |
+| CLI | `pkm init`, `ids`, `versions`, `pending`, `history`, `show`, `fix-citations`, `sync-citations`, `sha`, `mark`, `index`, `status`, `lint`, `restore`, `reindex`, `commit-wiki`, `fix-frontmatter`, `fix-images`, `doctor` |
+| Bild-Befunde (4.9) | `reference_style`, `html_img`, `angle_brackets`, `not_own_line`, `unencoded_chars`, `svg_parameters`, `svg_base64`, `base64_whitespace`, `media_type_mismatch`, `missing_name`, `invalid_name`, `duplicate_name`, `missing_alt`, `svg_unsafe`, `too_large_for_inline`, `unsupported_type`, `invalid_data`, `unused_definition`; Felder `image_issues`, `image_warnings`, `conforming`, `problems`, `proposal`, `fixable` |
 | Skills | `pkm-wiki`, `pkm-access` |
 
 Deutsch bleiben: Texte in Dokumenten und Wiki-Seiten, Überschriften, Änderungsnotizen (`note`), `wiki/log.md`, `wiki/_status.md` und Lint-Berichte.
@@ -548,7 +557,7 @@ Der Server **schreibt** Dateien immer in dieser Form: UTF-8 ohne BOM, LF, NFC, e
 2. **SVG vor PNG**, sofern das Bild es zulässt: Diagramme, Ablauf- und Schaltpläne, Skizzen, Diagramme aus Messwerten, Symbole und alle vom Modell selbst erzeugten Grafiken werden SVG. Fotos, Screenshots, Scans und Bilder mit Farbverläufen oder vielen Details bleiben PNG bzw. JPEG (Fotos aus der Kamera). Fotos werden nie vektorisiert. Ein SVG ist **zu komplex** (`svg_too_complex`), wenn es nach der Bereinigung größer als `PKM_SVG_MAX_KB` (Standard 200 KB) ist oder eingebettete Rastergrafiken enthält. Dann ist PNG das passende Format.
 3. **Klein wird eingebettet, groß wird Datei:** Kodierte Größe ≤ `PKM_INLINE_MAX_KB` (Standard **24 KB**) → eingebettet als Data-URI. Darüber oder mit `mode: file` → Datei `documents/_attachments/<bild-slug>_YYYY-MM-DD.png` bzw. `.svg` oder `.jpg`. Obergrenze je Bild `PKM_IMAGE_MAX_MB` (Standard 5 MB).
 - **`scratch/`:** Bilder in Notizen werden **immer eingebettet**, unabhängig von der Größe (bis zur Obergrenze von `PKM_IMAGE_MAX_MB`). Dateien legt der Server dort nicht an, weil `scratch/` nicht versioniert ist.
-4. **Bestehende eingebettete PNG bleiben unverändert.** Ein PNG, das schon als Base64-Data-URI in einem Dokument steht, wird von keinem Werkzeug angefasst: nicht ausgelagert, nicht neu kodiert, nicht bereinigt, auch wenn es die Grenze überschreitet. Fehlt ihm ein Bildname (`pkm:<name>`), wird keiner eingetragen. Die Werkzeuge leiten dann einen Namen ab (aus dem Alternativtext, sonst `bild-<n>` nach Reihenfolge im Dokument), ohne ihn in die Datei zu schreiben.
+4. **Bestehende eingebettete PNG bleiben unverändert.** Ein PNG, das schon als Base64-Data-URI in einem Dokument steht, wird von keinem Werkzeug angefasst: nicht ausgelagert, nicht neu kodiert, nicht bereinigt, auch wenn es die Grenze überschreitet. Fehlt ihm ein Bildname (`pkm:<name>`), wird keiner eingetragen. Die Werkzeuge leiten dann einen Namen ab, ohne ihn in die Datei zu schreiben (**abgeleiteter Name:** Alternativtext klein, Umlaute ausgeschrieben, alles außer Buchstaben und Ziffern zu Bindestrichen, höchstens 40 Zeichen; ohne Alternativtext `bild-<n>` nach Reihenfolge im Dokument; bei Gleichheit `-2`, `-3`). Dieselbe Regel gilt für jedes Bild ohne gültigen Bildnamen.
 5. **Base64 kommt nicht in den Kontext des Modells.** `read` ersetzt eingebettete Bilder durch Platzhalter. Angesehen wird ein Bild über `read_image`.
 6. **Jedes neue Bild hat einen Alternativtext.** Er dient als Beschreibung in Suche, Index und Belegen und als Ersatz, wo das Bild nicht dargestellt wird.
 
@@ -565,6 +574,57 @@ Eingebettet und verlinkt wird mit der **Markdown-Bildsyntax**, weil Obsidians `!
 - **SVG eingebettet:** `data:image/svg+xml,<URL-kodiertes SVG>`. Vor dem Kodieren wird das SVG bereinigt (Sicherheit, unten) und verkleinert (Kommentare und Metadaten entfernt, Leerraum zusammengefasst), doppelte Anführungszeichen in Attributen werden zu einfachen. Prozent-kodiert werden `%`, `#`, `<`, `>`, `"`, Leerzeichen, Zeilenumbrüche, `(`, `)`, `[`, `]`, `{`, `}`, `|`, `\`, `^` und `` ` ``.
 - **Größe in Obsidian** optional im Alternativtext: `![Schaltplan|400](…)`.
 - Von Hand eingefügte Obsidian-Einbettungen (`![[Pasted image ….png]]`) bleiben gültig und zählen als verlinktes Bild.
+
+#### Prüfung bei der Übernahme
+
+Jede **Bild-Data-URI** (`data:image/…`), die ins PKM kommt, wird geprüft. Anlass: Ein SVG im Referenzstil mit nicht kodierten Zeichen ist gültiges CommonMark, wird von Obsidian aber nicht angezeigt.
+
+**Wo geprüft wird:**
+
+| Übernahme | Prüfung durch | Bei Abweichung |
+|---|---|---|
+| Text, den ein schreibendes Werkzeug von `pkm-mcp` erhält (`content`, `text`, `new`), also Data-URIs, die der Chat direkt in den Text schreibt statt über `images` | Server beim Aufruf | `nonconforming_image`, nichts wird geschrieben (7.2) |
+| Bilder, die schon im Dokument stehen und von der Änderung nicht berührt werden | Server beim Aufruf | Schreiben erfolgt, Rückgabe nennt sie unter `image_warnings` |
+| Dokumente, die von Hand (Obsidian, Web Clipper, Kopie) nach `documents/` kommen oder dort geändert werden | `begin_maintenance` (`pending`) und `pkm lint` | Befunde mit Vorschlag im Bericht (9.7) |
+| Wiki-Seiten des Pflege-Agenten | `write_wiki_page` | `nonconforming_image`; der Agent korrigiert seine Seite ohne Rückfrage (7.7) |
+
+Data-URIs in Codeblöcken und Inline-Code sind Beispiele und werden nicht geprüft. `scratch/` wird von den Werkzeugen geprüft, aber nicht von Pflegelauf und Lint (3). Andere Data-URIs (z. B. `data:text/html` in Links) meldet Lint als `unsupported_type`; sie werden nie korrigiert und nie dargestellt.
+
+**Befunde** (je Bild eine Liste `problems`):
+
+| Code | Befund | Korrektur nach Rückfrage |
+|---|---|---|
+| `reference_style` | Bild im Referenzstil `![alt][ref]` mit Definition `[ref]: <data:…>` bzw. `[ref]: data:…` | Data-URI an die Stelle des Bildverweises, Definition entfernen. Wird dieselbe Definition mehrfach verwendet, kommt `ambiguous` mit den Fundstellen; der Nutzer wählt, welche Stelle das Bild behält (Bildnamen sind eindeutig) |
+| `html_img` | `<img src="data:…">` | Markdown-Bildsyntax, Alternativtext aus `alt`, Breite aus `width` als `\|<breite>` im Alternativtext |
+| `angle_brackets` | URI in spitzen Klammern `(<data:…>)` | Klammern entfernen, Inhalt nach 4.9 kodieren |
+| `not_own_line` | Bild mitten im Text oder mehrere Bilder in einer Zeile | Bild in eine eigene Zeile, der umgebende Text bleibt unverändert |
+| `unencoded_chars` | SVG mit nicht kodierten Zeichen aus der Liste unter „Schreibweise“ (z. B. Leerzeichen, `#`, `<`, `>`, `"`, `{`, `}`) | dekodieren und nach 4.9 neu kodieren |
+| `svg_parameters` | Zusätze im Medientyp wie `;utf8` oder `;charset=utf-8` | entfernen |
+| `svg_base64` | SVG als Base64 (`data:image/svg+xml;base64,`) | dekodieren, URL-kodiert neu schreiben |
+| `base64_whitespace` | Zeilenumbrüche oder Leerzeichen im Base64 (PNG, JPEG) | entfernen; die dekodierten Bytes bleiben gleich |
+| `media_type_mismatch` | angegebener Typ passt nicht zur Signatur (z. B. JPEG als `image/png`) | Typ nach der Signatur; die Bytes bleiben gleich |
+| `missing_name` | kein Titel `pkm:<name>` | abgeleiteten Namen eintragen (Grundsatz 4) |
+| `invalid_name`, `duplicate_name` | Name mit unzulässigen Zeichen bzw. doppelt im Dokument | gültiger, eindeutiger Name (Suffix `-2`, `-3`) |
+| `missing_alt` | kein Alternativtext | Vorschlag aus Referenzname, Bildunterschrift, SVG-`<title>` oder umgebender Überschrift; der Nutzer bestätigt oder ändert ihn |
+| `svg_unsafe` | SVG mit Inhalten, die die Bereinigung entfernt („Sicherheit“) | bereinigen; der Vorschlag nennt die entfernten Teile (`removed`) |
+| `too_large_for_inline` | eingebettet über `PKM_INLINE_MAX_KB` | als Datei nach `documents/_attachments/` und verlinken (nicht in `scratch/`, dort bleibt es eingebettet) |
+| `unsupported_type` | anderes Format (z. B. GIF, WebP) oder kein Bild | Bilder als Datei nach `documents/_attachments/`, Bytes unverändert, verlinken; andere Typen keine Korrektur |
+| `invalid_data` | nicht dekodierbar oder kein gültiges Bild | keine Korrektur, nur Meldung |
+| `unused_definition` | Referenzdefinition mit Data-URI, die nirgends verwendet wird | entfernen; das ist eine Kürzung und wird als solche bestätigt |
+
+**Bestehende eingebettete PNG** (Grundsatz 4): Die Bilddaten werden nie neu kodiert, ausgelagert oder bereinigt, und es wird kein Name eingetragen. Gemeldet und nach Rückfrage korrigiert wird bei ihnen nur die Schreibweise (`reference_style`, `html_img`, `angle_brackets`, `base64_whitespace`, `media_type_mismatch`); die dekodierten Bytes bleiben gleich. `missing_name`, `missing_alt`, `not_own_line` und `too_large_for_inline` werden bei ihnen nicht gemeldet. Für JPEG gilt dasselbe.
+
+**Vorschlag:** Jeder Befund kommt als Eintrag in `image_issues`: `ref` (Bildname bzw. abgeleiteter Name), `line`, `section`, `format`, `size`, `problems`, `fixable` und `proposal` (`name`, `alt`, `mode`, `removed`). Bei SVG wird das Bild im Vorschlag nach der Bereinigung gezeigt. Ist ein Befund nicht korrigierbar (`invalid_data`, andere Typen), ist `fixable: false`.
+
+**Korrektur nur nach Rückfrage:**
+1. Werkzeuge und Pflegelauf **melden und schlagen vor**, ändern aber nichts von sich aus.
+2. Der Chat bzw. Agent zeigt Befunde und Vorschlag und fragt nach. Fehlt ein Alternativtext, wird er mit erfragt.
+3. Erst nach ausdrücklicher Bestätigung korrigiert der Server: beim Schreiben mit `fix_images: true` (7.2), in bestehenden Dokumenten mit `fix_images` (`apply: true`), von Hand mit `pkm fix-images`. Geändert wird nur die Bildschreibweise, der übrige Text bleibt byte-genau erhalten.
+4. Die Korrektur verwendet den **Namen, den `read` und die Belege schon kennen** (abgeleiteter Name), damit `[img:<name>]` gültig bleibt.
+5. Ergebnis ist eine neue Version mit eigenem Commit (Notiz `Bilder nach 4.9 korrigiert`, Zeile `PKM-Fix: images`). In `scratch/` ohne Version und Commit.
+6. **In unbeaufsichtigten Läufen wird nie korrigiert**; die Vorschläge gehen als Frage nach `wiki/_status.md`.
+
+**Belege nach einer Korrektur:** Ein Abschnitt gilt als „nur in der Bildschreibweise geändert“, wenn er mit Platzhaltern `![<alt>](pkm-image:<name>)` (ohne Größe und Hash) gleich geblieben ist und die dekodierten Bilder gleich sind. SVG werden dafür nach der Bereinigung verglichen; hat die Bereinigung etwas entfernt (`svg_unsafe`), gilt das Bild als geändert. Belege auf solche Abschnitte hebt `finish_maintenance` selbst auf die neue Version (wie bei unveränderten Abschnitten, 6.4). `pending` meldet ein Dokument, das sich nur so geändert hat, als `changed` mit `image_notation_only: true`; der Agent muss es nicht neu verarbeiten.
 
 #### Zugehörige und eigenständige Bilder
 - **Eingebettete Bilder** sind Teil des Abschnitts, in dem sie stehen. Eine Änderung ändert den Abschnitts-Hash (4.8).
@@ -587,7 +647,7 @@ Lint prüft, dass `[img:<name>]` im Dokument der belegten Version existiert.
 - Der Pflege-Agent darf eigene **SVG-Diagramme** eingebettet in Wiki-Seiten setzen. Sie gelten als Schlussfolgerung („abgeleitet aus [^b1], [^b3]“) und brauchen Belege für die dargestellten Werte.
 
 #### Lesen und Suche
-- `read` ersetzt eingebettete Bilder durch Platzhalter, z. B. `![Schaltplan Überlaufsensor](pkm-image:schaltplan-ueberlauf "svg, 3,2 KB, sha:ab12cd")`, und liefert die Liste `images` (Name, Alternativtext, Format, `inline`/`file`, Größe, Hash, Abschnitt). Die 40.000-Zeichen-Grenze (7.3) zählt den Text mit Platzhaltern.
+- `read` ersetzt eingebettete Bilder durch Platzhalter, z. B. `![Schaltplan Überlaufsensor](pkm-image:schaltplan-ueberlauf "svg, 3,2 KB, sha:ab12cd")`, und liefert die Liste `images` (Name, Alternativtext, Format, `inline`/`file`, Größe, Hash, Abschnitt, `conforming`, bei Abweichung `problems`). Das gilt für **jede** Schreibweise einer Data-URI: Im Referenzstil, in HTML oder in spitzen Klammern ersetzt `read` nur die URI selbst durch `pkm-image:<name>` und lässt die übrige Schreibweise stehen, damit Base64 und SVG-Inhalt nie in den Kontext kommen. Die 40.000-Zeichen-Grenze (7.3) zählt den Text mit Platzhaltern.
 - Suche und Index nehmen nur den Alternativtext auf, nie Base64 oder SVG-Inhalt.
 - `read_image` liefert ein Bild: PNG als Bild, SVG als Text (das Modell liest SVG direkt). Optional rastert der Server SVG (`PKM_SVG_RASTER`, zusätzliche Bibliothek).
 - **Platzhalter beim Schreiben:** `rewrite_document` und `edit_document` arbeiten auf dem Text mit Platzhaltern. Der Server setzt jeden Platzhalter vor dem Speichern wieder durch das Original bzw. den Dateilink ein, byte-genau. Ein vorher vorhandenes Bild, das in der neuen Fassung fehlt, gilt als entfernt und wird wie eine Kürzung gemeldet (`large_shortening` mit Bildliste). Unbekannte Platzhalter ergeben `unknown_image`.
@@ -643,7 +703,7 @@ PKM-Version: 3
 PKM-Source: chat
 ```
 
-`PKM-Source` ist `chat` (MCP), `user` (Änderung von Hand) oder `agent` (`pkm ids`, Duplikat-Auflösung, Metadaten nach Bestätigung über `set_document_metadata`). Über `git log --grep "PKM-Id: d-…"` findet man alle Versionen eines Dokuments, **unabhängig davon, wo es gerade liegt**.
+`PKM-Source` ist `chat` (MCP), `user` (Änderung von Hand) oder `agent` (`pkm ids`, Duplikat-Auflösung, Metadaten nach Bestätigung über `set_document_metadata`, Bildschreibweise nach Bestätigung über `fix_images`). Korrekturen der Bildschreibweise tragen zusätzlich `PKM-Fix: images` (4.9). Über `git log --grep "PKM-Id: d-…"` findet man alle Versionen eines Dokuments, **unabhängig davon, wo es gerade liegt**.
 
 **Wer erhöht die Version?**
 
@@ -798,6 +858,12 @@ Gemeinsame Regeln:
   | `mode` | enum `auto` \| `inline` \| `file` | nein | Standard `auto` (4.9). `inline` über der Grenze ergibt `too_large_for_inline`. In `scratch/` immer `inline` |
 
   Die Rückgabe nennt je Bild Format, Modus, Größe und Hash.
+- **Data-URIs im Text** (4.9, „Prüfung bei der Übernahme“): Enthält `content`, `text` oder `new` eine Bild-Data-URI, prüft der Server sie, auch wenn sie formal richtig aussieht (Bereinigung, Größe, Name, Alternativtext). Weicht sie ab, kommt `nonconforming_image` mit `image_issues`, und es wird nichts geschrieben. Nach Bestätigung durch den Nutzer wiederholt der Chat den Aufruf mit `fix_images: true`; der Server schreibt die Bilder dann in der Form nach 4.9, Alternativtexte aus `image_alt` (Objekt Name → Text) gehen vor. Abweichende Bilder, die schon im Dokument stehen, blockieren nicht; die Rückgabe nennt sie unter `image_warnings`.
+
+  | Parameter (alle schreibenden Tools außer `update_frontmatter` und `restore_document`) | Typ | Standard | Beschreibung |
+  |---|---|---|---|
+  | `fix_images` | bool | `false` | Abweichende Data-URIs im übergebenen Text nach 4.9 korrigieren. Nur nach Bestätigung |
+  | `image_alt` | object | – | Alternativtexte für Bilder mit `missing_alt`, Schlüssel ist der Name aus `image_issues` |
 - **Nicht angeboten:** Löschen, Umbenennen, Verschieben, jede Änderung in `wiki/`.
 
 #### `create_document`
@@ -878,6 +944,23 @@ Fügt ein Bild in ein bestehendes Dokument ein.
 
 Ergebnis wie bei `append_to_document`: neue Version mit Commit. In `scratch/` ohne Version und Commit, Bild immer eingebettet.
 
+#### `fix_images`
+Korrigiert die Schreibweise abweichender Bild-Data-URIs in einem bestehenden Dokument (4.9). Nur nach **ausdrücklicher Bestätigung** des Nutzers mit `apply: true`.
+
+| Parameter | Typ | Pflicht | Beschreibung |
+|---|---|---|---|
+| `target` | string | ja | Dokument in `documents/` oder `scratch/`. `wiki/` ergibt `forbidden` |
+| `expected_hash` | string | ja | |
+| `images` | list[string] | nein | Nur diese Bilder (Namen aus `image_issues`). Standard: alle korrigierbaren |
+| `image_alt` | object | nein | Alternativtexte für Bilder mit `missing_alt` (Name → Text) |
+| `apply` | bool | nein | Standard `false`: nur Vorschlag. `true`: schreiben |
+| `confirm_shortening` | bool | nein | Bestätigt das Entfernen von `unused_definition` |
+| `note` | string | nein | Standard `Bilder nach 4.9 korrigiert` |
+
+- Ohne `apply`: Status `proposal` mit `image_issues` und einem Diff in Platzhalter-Schreibweise. Es wird nichts geschrieben.
+- Mit `apply: true`: neue Version mit Commit (`PKM-Source: chat`, `PKM-Fix: images`), Rückgabe wie bei den anderen schreibenden Tools. Ohne Befunde `unchanged`. Nicht korrigierbare Befunde (`fixable: false`) bleiben stehen und werden genannt.
+- Fehlt ein Alternativtext und ist keiner in `image_alt` angegeben, wird der Vorschlag aus `image_issues` übernommen, sofern der Nutzer ihn bestätigt hat; der Chat übergibt ihn dann ausdrücklich in `image_alt`.
+
 #### `restore_document`
 Holt den Inhalt einer früheren Version zurück, und zwar als **neue** Version. Die Geschichte wird nicht umgeschrieben. Für Dateien in `scratch/` kommt `not_versioned`.
 
@@ -913,7 +996,7 @@ Rückgabe je Treffer: `id`, `version` (bei Dokumenten), `path`, `title`, `type`,
 | `offset`, `max_chars` | int | optional. Seitenweises Lesen: `content` ab Zeichen `offset`, höchstens `max_chars` Zeichen. Rückgabe zusätzlich `truncated` und `next_offset` |
 | `content` | bool | Standard `true`. Mit `false` nur Metadaten, `sections`, `hash` und `content_length` |
 
-Rückgabe: `id`, `version`, `path`, `frontmatter`, `content`, `content_length`, `hash`, `editable`, `sections` (je Abschnitt `key`, `level`, `sha`, bei leeren Abschnitten `empty: true`), `backlinks`, `links`. Ist der Inhalt größer als 40.000 Zeichen und weder `section` noch `offset`/`max_chars` angegeben, fehlt `content`, und die Rückgabe enthält `content_omitted: true` mit Hinweis. So wird nie stillschweigend nur ein Teil geliefert. Große Dokumente werden abschnittsweise gelesen und nur mit `edit_document` oder `append_to_document` geändert, nie mit `rewrite_document` aus einem Teilinhalt. Bei Wiki-Seiten zusätzlich `citations` (geparst, ohne Prüfung). Bei PDFs und Bildern nur Metadaten und Pfad. Lesbar sind `documents/`, `scratch/` und `wiki/`. In `scratch/` fehlen `id` und `version`, `editable` ist `true`.
+Rückgabe: `id`, `version`, `path`, `frontmatter`, `content`, `content_length`, `hash`, `editable`, `images` (4.9, mit `conforming` und `problems`), `sections` (je Abschnitt `key`, `level`, `sha`, bei leeren Abschnitten `empty: true`), `backlinks`, `links`. Ist der Inhalt größer als 40.000 Zeichen und weder `section` noch `offset`/`max_chars` angegeben, fehlt `content`, und die Rückgabe enthält `content_omitted: true` mit Hinweis. So wird nie stillschweigend nur ein Teil geliefert. Große Dokumente werden abschnittsweise gelesen und nur mit `edit_document` oder `append_to_document` geändert, nie mit `rewrite_document` aus einem Teilinhalt. Bei Wiki-Seiten zusätzlich `citations` (geparst, ohne Prüfung). Bei PDFs und Bildern nur Metadaten und Pfad. Lesbar sind `documents/`, `scratch/` und `wiki/`. In `scratch/` fehlen `id` und `version`, `editable` ist `true`.
 
 #### `read_image`
 | Parameter | Typ | Beschreibung |
@@ -1038,7 +1121,7 @@ Die Datei liegt unter macOS in `~/Library/Application Support/Claude/claude_desk
 
 Zweiter lokaler Server aus demselben Paket für die Wiki-Pflege aus Claude Desktop bzw. Cowork. Grund: Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus (lokale VM bzw. Cloud), in der `pkm`, Git und das Git-Verzeichnis fehlen. MCP-Server dagegen laufen auf dem PKM-Rechner und sind über die Desktop-App erreichbar. Technik, Konfiguration, Sicherheit und Protokoll wie 7.1, 7.5 und 7.2. Keine LLM-Aufrufe: Der Server bündelt nur die deterministischen Schritte. Inhaltliche Arbeit (Seiten formulieren, Belege wählen) macht der Agent.
 
-Der Server bietet die lesenden Tools aus 7.3 und vier Pflege-Tools:
+Der Server bietet die lesenden Tools aus 7.3 und fünf Pflege-Tools:
 
 #### `begin_maintenance`
 | Parameter | Typ | Standard | Beschreibung |
@@ -1049,6 +1132,7 @@ Führt nacheinander aus: `doctor --short`, `versions`, `ids`, `pending` und bei 
 - `status: blocked`: Die Umgebung hat Fehler (z. B. Konfliktkopien, `.git` im Vault). Es wurde nichts geändert, `doctor` nennt die Fehler.
 - `status: needs_decision`: Es gibt doppelte IDs. Der Agent fragt nach.
 - `pending.new` enthält je Markdown-Dokument `missing_fields`: welche von `title`, `context`, `tags`, `kind` fehlen oder leer sind.
+- `pending.new` und `pending.changed` enthalten je Markdown-Dokument mit abweichenden Data-URIs `image_issues` (4.9). Dokumente, die sich nur in der Bildschreibweise geändert haben, tragen `image_notation_only: true`.
 - `known_tags`: alle Tags aus `documents/` und `wiki/` mit Häufigkeit, häufigste zuerst.
 
 #### `write_wiki_page`
@@ -1058,7 +1142,7 @@ Führt nacheinander aus: `doctor --short`, `versions`, `ids`, `pending` und bei 
 | `content` | string | ja | Vollständiger Inhalt mit Frontmatter (4.2) |
 | `expected_hash` | string | bei bestehenden Seiten | `hash` aus `read`. Bei neuen Seiten weglassen |
 
-Legt die Seite an oder ersetzt sie vollständig, ohne Commit (den macht `finish_maintenance`). `wiki/index.md`, `wiki/_status.md`, `wiki/log.md`, `wiki/_lint/` und alles außerhalb der vier Seitenordner ergeben `forbidden`. Bestehende Seite ohne oder mit falschem `expected_hash` bzw. neue Seite mit `expected_hash` ergibt `conflict`. Rückgabe: `status` (`created`, `changed`, `unchanged`), `path`, neuer `hash`.
+Legt die Seite an oder ersetzt sie vollständig, ohne Commit (den macht `finish_maintenance`). `wiki/index.md`, `wiki/_status.md`, `wiki/log.md`, `wiki/_lint/` und alles außerhalb der vier Seitenordner ergeben `forbidden`. Bestehende Seite ohne oder mit falschem `expected_hash` bzw. neue Seite mit `expected_hash` ergibt `conflict`. Abweichende Data-URIs (4.9) ergeben `nonconforming_image` mit `image_issues`; mit dem Parameter `fix_images: true` korrigiert der Server sie ohne Rückfrage, weil die Seite dem Agenten gehört. Rückgabe: `status` (`created`, `changed`, `unchanged`), `path`, neuer `hash`.
 
 #### `set_document_metadata`
 Nur nach **ausdrücklicher Bestätigung** des Nutzers (9.6).
@@ -1077,6 +1161,9 @@ Nur nach **ausdrücklicher Bestätigung** des Nutzers (9.6).
 - `kind` muss einer der Werte aus 4.1 sein. Tags werden vereinheitlicht (klein, Umlaute ausgeschrieben, Leerraum zu Bindestrich) und ohne Duplikate gespeichert. Leere Werte ergeben `invalid_argument`.
 - Felder werden zeilengenau an ihrer Stelle nach 4.1 gesetzt. Das Ergebnis ist eine neue Version mit Commit und `PKM-Source: agent` (5.4), ohne Änderung `unchanged`.
 
+#### `fix_images`
+Wie `fix_images` in `pkm-mcp` (7.2), für Dokumente in `documents/`. Nur nach **ausdrücklicher Bestätigung** des Nutzers (9.7), nie in unbeaufsichtigten Läufen. Commit mit `PKM-Source: agent` und `PKM-Fix: images`. `scratch/` und `wiki/` ergeben `forbidden`.
+
 #### `finish_maintenance`
 | Parameter | Typ | Pflicht | Beschreibung |
 |---|---|---|---|
@@ -1088,7 +1175,7 @@ Nur nach **ausdrücklicher Bestätigung** des Nutzers (9.6).
 | `questions` | list[string] | nein | Rückfragen für `wiki/_status.md` |
 | `lint_report` | bool | nein | Prüfbericht nach `wiki/_lint/YYYY-MM-DD.md` schreiben |
 
-Führt nacheinander aus: `fix-citations` (inkl. Wikilinks im Text), Anheben von Belegen auf unveränderte Abschnitte (6.4), `sync-citations`, `mark` für `processed` mit den belegenden Seiten (aus den Fußnoten ermittelt, Warnung bei Dokumenten ohne Beleg), Austragen von `removed`, Log-Eintrag, `index`, `status` mit `questions`, `lint` und `commit-wiki` (`pkm: <operation> <n> documents`). Rückgabe: Ergebnisse der Schritte, Lint-Bericht, Commit und Warnungen. Meldet Lint Fehler in den eigenen Seiten, behebt der Agent sie mit `write_wiki_page` und ruft `finish_maintenance` erneut mit `operation: fix` auf.
+Führt nacheinander aus: `fix-citations` (inkl. Wikilinks im Text), Anheben von Belegen auf unveränderte Abschnitte und auf Abschnitte, in denen sich nur die Bildschreibweise geändert hat (6.4, 4.9), `sync-citations`, `mark` für `processed` mit den belegenden Seiten (aus den Fußnoten ermittelt, Warnung bei Dokumenten ohne Beleg), Austragen von `removed`, Log-Eintrag, `index`, `status` mit `questions`, `lint` und `commit-wiki` (`pkm: <operation> <n> documents`). Rückgabe: Ergebnisse der Schritte, Lint-Bericht, Commit und Warnungen. Meldet Lint Fehler in den eigenen Seiten, behebt der Agent sie mit `write_wiki_page` und ruft `finish_maintenance` erneut mit `operation: fix` auf.
 
 ---
 
@@ -1112,10 +1199,11 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 | `pkm mark <id>… --pages <page>…` | Trägt verarbeitete Dokumente mit Version und Abschnitts-Hashes in `state.json` ein |
 | `pkm index` | Erzeugt `wiki/index.md` neu |
 | `pkm status` | Erzeugt `wiki/_status.md` neu, inklusive Einsortier-Vorschlägen für verarbeitete Dokumente im Eingang Meldet außerdem verwaiste Anhänge (Bilddateien ohne Verweis, 4.9). |
-| `pkm lint` | JSON-Bericht. **Struktur:** kaputte Links, verwaiste Wiki-Seiten, fehlende Kurzfassung, fehlerhaftes Frontmatter, häufige Begriffe ohne Seite. **Belege:** Ziel fehlt oder verschoben, Anker fehlt, Zitat nicht in der belegten Version, Status `newer_version`, Beleg zeigt auf Wiki-Seite, Absatz ohne Fußnote (`statement_without_citation`, nicht für Zwischenüberschriften, reine Hervorhebungs- und Link-Zeilen und für Tabellen mit Fußnote direkt darunter, 4.2), Beleg auf einen Abschnitt ohne eigenen Text (`citation_empty_section`), Fußnote ohne Definition, `sources` nicht synchron. **Dokumente:** ohne ID oder Version, doppelte IDs, ungültiges YAML durch fehlende Anführungszeichen (Fehler, mit Hinweis auf `pkm fix-frontmatter`), fehlende Felder `date_markdown`/`toolchain_markdown` (Hinweis), Feld `short citation` mit Leerzeichen (Hinweis), umgewandeltes Dokument ohne `kind` (Hinweis), unbekannter Wert in `kind` (Fehler), Datumsfelder weder im Format `YYYY-MM-DDTHH:MM:SS` noch `YYYY-MM-DD` oder mit Zeitzonen-Angabe, `tags` mit Leerzeichen, `version` passt nicht zum Commit-Verlauf. **Plattform:** Nextcloud-Konfliktkopien, nicht plattformfeste Dateinamen, Namen, die sich nur in Groß- und Kleinschreibung unterscheiden. **Überschriften (4.8):** Duplikate, Zeichen, die Anker brechen, Text auf `#` plus Ziffern (`heading_suffix_like` als Warnung, `heading_suffix_collision` als Fehler) **Bilder (4.9):** `[img:<name>]` in Belegen ohne Bild in der belegten Version, Bilder ohne Alternativtext (Hinweis, nicht bei bestehenden Base64-PNG), doppelte Bildnamen im Dokument, unbereinigtes SVG (Fehler), verwaiste Anhänge (Hinweis). |
+| `pkm lint` | JSON-Bericht. **Struktur:** kaputte Links, verwaiste Wiki-Seiten, fehlende Kurzfassung, fehlerhaftes Frontmatter, häufige Begriffe ohne Seite. **Belege:** Ziel fehlt oder verschoben, Anker fehlt, Zitat nicht in der belegten Version, Status `newer_version`, Beleg zeigt auf Wiki-Seite, Absatz ohne Fußnote (`statement_without_citation`, nicht für Zwischenüberschriften, reine Hervorhebungs- und Link-Zeilen und für Tabellen mit Fußnote direkt darunter, 4.2), Beleg auf einen Abschnitt ohne eigenen Text (`citation_empty_section`), Fußnote ohne Definition, `sources` nicht synchron. **Dokumente:** ohne ID oder Version, doppelte IDs, ungültiges YAML durch fehlende Anführungszeichen (Fehler, mit Hinweis auf `pkm fix-frontmatter`), fehlende Felder `date_markdown`/`toolchain_markdown` (Hinweis), Feld `short citation` mit Leerzeichen (Hinweis), umgewandeltes Dokument ohne `kind` (Hinweis), unbekannter Wert in `kind` (Fehler), Datumsfelder weder im Format `YYYY-MM-DDTHH:MM:SS` noch `YYYY-MM-DD` oder mit Zeitzonen-Angabe, `tags` mit Leerzeichen, `version` passt nicht zum Commit-Verlauf. **Plattform:** Nextcloud-Konfliktkopien, nicht plattformfeste Dateinamen, Namen, die sich nur in Groß- und Kleinschreibung unterscheiden. **Überschriften (4.8):** Duplikate, Zeichen, die Anker brechen, Text auf `#` plus Ziffern (`heading_suffix_like` als Warnung, `heading_suffix_collision` als Fehler) **Bilder (4.9):** `[img:<name>]` in Belegen ohne Bild in der belegten Version, Bilder ohne Alternativtext (Hinweis, nicht bei bestehenden Base64-PNG), doppelte Bildnamen im Dokument, unbereinigtes SVG (Fehler), verwaiste Anhänge (Hinweis), abweichende Data-URIs `nonconforming_image` mit den Befundcodes (Warnung; Fehler bei `svg_unsafe` und `invalid_data`; mit Hinweis auf `pkm fix-images`). |
 | `pkm restore <target> --version <n>` | Wie `restore_document` |
 | `pkm reindex` | Baut den Suchindex neu auf |
 | `pkm fix-frontmatter <target>… [--all]` | Repariert das Frontmatter zeilengenau, sonst ändert sich nichts: setzt Werte mit `: ` oder führenden YAML-Sonderzeichen in doppelte Anführungszeichen und benennt `short citation` in `short_citation` um. **Nur auf ausdrückliche Anweisung des Nutzers.** Ohne Ziel listet der Befehl nur die betroffenen Dateien auf. Jede geänderte Datei wird als neue Version committet (`PKM-Source: user`, weil der Nutzer es veranlasst hat) |
+| `pkm fix-images <target>… [--all] [--apply] [--alt <name>=<text>]` | Korrigiert die Schreibweise abweichender Bild-Data-URIs nach 4.9, sonst ändert sich nichts. **Nur auf ausdrückliche Anweisung des Nutzers.** Ohne `--apply` zeigt der Befehl Befunde, Vorschläge und Diff, ohne Ziel listet er nur die betroffenen Dateien. Mit `--apply` wird jede geänderte Datei als neue Version committet (`PKM-Source: user`, `PKM-Fix: images`) |
 | `pkm commit-wiki --message "<text>"` | Agenten-Commit am Ende eines Pflegelaufs (12). Committet ausschließlich `wiki/` und `.pkm/state.json`. Offene Änderungen in `documents/` bleiben unberührt |
 | `pkm doctor` | Prüft die Umgebung: Git-Verzeichnis außerhalb des Vaults und erreichbar, `PKM_CACHE_DIR` außerhalb des Vaults und des Nextcloud-Ordners, kein `.git` im Vault, `user.name`/`user.email`, Schreibrechte, Nextcloud-Konfliktkopien, Obsidian-Einstellungen aus Abschnitt 13 (soweit in `.obsidian/app.json` lesbar). Mit `--short` nur Fehler Prüft außerdem, dass `PKM_IMPORT_DIR` entweder `pkm_img_import/` im Vault (dann in `.gitignore`) oder ein Ordner außerhalb des Vaults ist. |
 
@@ -1135,18 +1223,19 @@ Der Agent arbeitet ausschließlich über die Tools von `pkm-pflege-mcp` (7.7). E
    2. Über `read_index` (und bei Bedarf `search`) betroffene Seiten bestimmen. Höchstens 10–15 Themen-, Entitäts- und Syntheseseiten aktualisieren oder anlegen. Jede neue oder geänderte Aussage bekommt eine Fußnote nach 4.2. Werte für `id`, `v:` und `sha:` liefert `read` (`id`, `version`, `sections`).
    3. Querverweise in beide Richtungen setzen.
    4. Frontmatter prüfen (`missing_fields`) und Vorschläge erarbeiten (9.6). Noch nichts eintragen.
-   5. Bestehende Seiten vor dem Ändern mit `read` lesen und deren `hash` als `expected_hash` an `write_wiki_page` geben.
+   5. Befunde zu Data-URIs (`image_issues`) für den Bericht übernehmen (9.7). Noch nichts korrigieren.
+   6. Bestehende Seiten vor dem Ändern mit `read` lesen und deren `hash` als `expected_hash` an `write_wiki_page` geben.
 3. **Geänderte Dokumente:** `history` mit `diff_from: <processed_version>` lesen und nur die geänderten Abschnitte verarbeiten (Abschnitt 6.4).
    1. Betroffene Wiki-Aussagen auf den neuen Stand bringen, mit Belegen auf die neue Version.
    2. Bei geänderten Entscheidungen oder Fakten den früheren Stand als „Bis Version n: …“ mit Beleg auf die alte Version behalten, sofern er für die Nachvollziehbarkeit wichtig ist.
    3. Belege auf unveränderte Abschnitte hebt `finish_maintenance` selbst an.
    4. Die Zusammenfassungsseite des Dokuments aktualisieren.
-4. **Nur Metadaten geändert** (`meta_changed`): Zusammenfassungsseite anpassen. Die Belege hebt `finish_maintenance` an.
+4. **Nur Metadaten geändert** (`meta_changed`): Zusammenfassungsseite anpassen. Die Belege hebt `finish_maintenance` an. **Nur Bildschreibweise geändert** (`image_notation_only`): nichts zu verarbeiten, das Dokument wird als `processed` gemeldet, die Belege hebt `finish_maintenance` an.
 5. **Gelöschte Dokumente:** Betroffene Aussagen werden nicht gelöscht. Sie kommen unter „Widersprüche / offene Fragen“ mit dem Vermerk „Original nicht mehr vorhanden (letzter Stand in Git, v<n>)“, `confidence: low`, und im Bericht steht eine Rückfrage. Der Schlüssel geht an `finish_maintenance` als `removed`.
 6. **Korrektur-Dokumente** (`kind: correction`): Die Korrektur des Nutzers hat Vorrang vor älteren Quellen und gilt selbst als Beleg. Die betroffene Wiki-Seite wird angepasst und die alte Aussage im Log als ersetzt vermerkt. Widerspricht die Korrektur einer Quelle, die neuer ist als sie selbst, fragt der Agent nach.
 7. **Bilder:** Jedes neue oder geänderte Bild, eingebettet oder verlinkt, sieht sich der Agent mit `read_image` an. Er übernimmt den Inhalt in Worten und belegt ihn mit `[img:<name>]` (4.9). Zugehörige Bilder bekommen keine eigene Zusammenfassung, eigenständige wie bisher. **PDF:** `read` liefert nur Metadaten und `hash`. Den Inhalt liest der Agent, wenn der Vault-Ordner in der Unterhaltung verbunden ist. Sonst wird das PDF nicht als verarbeitet gemeldet und im Bericht genannt.
 8. `finish_maintenance` mit `processed`, `removed`, `log_entry`, `log_title` und gegebenenfalls `questions` (7.7). Meldet Lint Fehler in den eigenen Seiten, werden sie behoben und `finish_maintenance` mit `operation: fix` erneut aufgerufen.
-9. Kurzer Bericht im Chat: neue und geänderte Seiten, überholte Aussagen, Beleg-Probleme, Einsortier-Vorschläge, Rückfragen und je neuem Dokument mit fehlenden Feldern ein YAML-Block mit Vorschlägen und der Frage, ob er eingetragen werden soll (9.6).
+9. Kurzer Bericht im Chat: neue und geänderte Seiten, überholte Aussagen, Beleg-Probleme, Einsortier-Vorschläge, Rückfragen und je neuem Dokument mit fehlenden Feldern ein YAML-Block mit Vorschlägen und der Frage, ob er eingetragen werden soll (9.6), sowie je Dokument mit abweichenden Data-URIs die Befunde mit Korrekturvorschlag und der Frage, ob korrigiert werden soll (9.7).
 
 **Grenzen:** Mehr als 10 Dokumente pro Lauf werden in Etappen verarbeitet. Nicht verarbeitete Dokumente werden nicht als `processed` gemeldet. Bei unklarer Einordnung fragt der Agent nach. Im unbeaufsichtigten Lauf entscheidet er konservativ und gibt Fragen über `questions` nach `wiki/_status.md` und ins Log.
 
@@ -1154,7 +1243,7 @@ Der Agent arbeitet ausschließlich über die Tools von `pkm-pflege-mcp` (7.7). E
 
 1. `begin_maintenance` mit `with_lint: true`.
 2. **Selbst beheben** (mit `write_wiki_page`): kaputte Links mit eindeutigem Ziel, fehlende Kurzfassungen. Verschobene Belege, `sources` und Index erledigt `finish_maintenance`.
-3. **Vorschlagen statt ausführen:** fehlende Frontmatter-Felder von Dokumenten (9.6), inhaltliche Widersprüche, Zusammenlegen von Seiten, neue Seiten, doppelte IDs, Belege mit `newer_version`, die nicht automatisch angehoben werden konnten.
+3. **Vorschlagen statt ausführen:** fehlende Frontmatter-Felder von Dokumenten (9.6), abweichende Data-URIs in Dokumenten (9.7), inhaltliche Widersprüche, Zusammenlegen von Seiten, neue Seiten, doppelte IDs, Belege mit `newer_version`, die nicht automatisch angehoben werden konnten.
 4. `finish_maintenance` mit `operation: lint` und `lint_report: true` (Bericht nach `wiki/_lint/YYYY-MM-DD.md`) und einem Log-Eintrag.
 
 ### 9.3 Ablauf „Abfrage“ (im Projekt)
@@ -1170,7 +1259,7 @@ Erst den Index, dann die relevanten Seiten, dann die Antwort mit Verweisen auf d
 - Sprache: Deutsch.
 - `scratch/` wird weder gelesen noch verarbeitet. Kein Beleg zeigt auf eine Datei dort.
 - `status_markdown` unverändert lassen. Der Wert spielt für die Verarbeitung keine Rolle.
-- In `documents/` setzt der Agent `id` und `version` (über `begin_maintenance`) und nach ausdrücklicher Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` (über `set_document_metadata`, 9.6). Sonst ändert, verschiebt oder löscht er dort nichts. Die schreibenden Tools von `pkm-mcp` benutzt er in der Pflege nicht.
+- In `documents/` setzt der Agent `id` und `version` (über `begin_maintenance`) und nach ausdrücklicher Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` (über `set_document_metadata`, 9.6) sowie die Bildschreibweise (über `fix_images`, 9.7). Sonst ändert, verschiebt oder löscht er dort nichts. Die schreibenden Tools von `pkm-mcp` benutzt er in der Pflege nicht.
 - Im Wiki nichts löschen. Aussagen und Belege werden ergänzt, aktualisiert oder als überholt gekennzeichnet.
 - Keine Aussage ohne Beleg auf ein Dokument. Zitate in Belegen sind wörtlich aus der genannten Version kopiert. Nichts erfinden, Lücken als offene Frage markieren.
 - Formate wie in Abschnitt 4.
@@ -1186,6 +1275,12 @@ Bei jedem **neuen** Dokument prüft der Agent das Frontmatter (`missing_fields` 
 
 Eingetragen wird erst nach **ausdrücklicher Bestätigung** des Nutzers im Chat: `read` → `hash` → `set_document_metadata`. Vorhandene Werte werden nicht überschrieben, außer der Nutzer will das ausdrücklich (`overwrite: true`). Bei `conflict` liest der Agent neu und meldet es. Jede Eintragung ist eine neue Version. Beim nächsten Lauf erscheint das Dokument als `meta_changed`. **In unbeaufsichtigten Läufen wird nie eingetragen;** die Vorschläge gehen als Frage nach `wiki/_status.md`.
 
+### 9.7 Korrektur von Data-URIs
+
+Meldet `begin_maintenance` oder Lint `image_issues` für ein Dokument, zeigt der Agent im Bericht je Bild Fundstelle (Abschnitt, Zeile), Befunde in Worten, den Vorschlag (Name, Alternativtext, eingebettet oder Datei, bei SVG das bereinigte Bild und entfernte Teile) und fragt, ob korrigiert werden soll. Fehlt ein Alternativtext, schlägt er einen vor und lässt ihn bestätigen oder ändern.
+
+Korrigiert wird erst nach **ausdrücklicher Bestätigung**: `read` → `hash` → `fix_images` ohne `apply` (Vorschlag und Diff prüfen) → `fix_images` mit `apply: true` und `image_alt`. Bei `conflict` liest der Agent neu und meldet es. Nicht korrigierbare Befunde nennt er als offene Frage. Die Korrektur ist eine neue Version; beim nächsten Lauf erscheint das Dokument mit `image_notation_only` und braucht keine Neuverarbeitung. **In unbeaufsichtigten Läufen wird nie korrigiert;** die Vorschläge gehen als Frage nach `wiki/_status.md`. Bestehende eingebettete PNG behandelt der Agent nach 4.9 (nur Schreibweise, Bytes gleich, kein Name).
+
 ---
 
 ## 10. Skill `pkm-access` (für normale Chats)
@@ -1199,7 +1294,7 @@ Eingetragen wird erst nach **ausdrücklicher Bestätigung** des Nutzers im Chat:
 4. Den Entwurf zeigen und erst nach Bestätigung `create_document` aufrufen. Das gilt **ohne Ausnahme**, auch wenn der Nutzer „direkt“ sagt.
 5. ID, Pfad und Version nennen.
 
-**Grundregel:** Jeder schreibende Aufruf (ablegen, neufassen, ergänzen, bearbeiten, Frontmatter, wiederherstellen) erfolgt erst, nachdem ein Entwurf gezeigt und bestätigt wurde. Es gibt keine Ausnahme.
+**Grundregel:** Jeder schreibende Aufruf (ablegen, neufassen, ergänzen, bearbeiten, Frontmatter, Bilder korrigieren, wiederherstellen) erfolgt erst, nachdem ein Entwurf gezeigt und bestätigt wurde. Es gibt keine Ausnahme.
 
 **Fortgeführte Diskussion:** Standard ist 6.2, also das Dokument aktualisieren, mit Vorher/Nachher pro Abschnitt, Änderungsnotiz und Bestätigung. 6.3 (datierter Abschnitt) **nur auf ausdrückliche Anweisung** und nie von sich aus vorschlagen.
 
@@ -1208,7 +1303,10 @@ Eingetragen wird erst nach **ausdrücklicher Bestätigung** des Nutzers im Chat:
 - Neue Bilder werden über `images` bzw. `add_image` abgelegt, immer mit Alternativtext und erst nach Entwurf und Bestätigung. Im Entwurf zeigt der Chat das Bild mit.
 - **Im Chat hochgeladene Fotos oder Screenshots** kann der Chat nicht byte-genau weitergeben. Er bittet, die Datei in den Importordner `pkm_img_import/` im Vault zu legen (z. B. per Finder bzw. Explorer oder über die Nextcloud-App), und übernimmt sie mit `import_path`. Bei einfachen Grafiken bietet er alternativ eine SVG-Nachzeichnung an, gekennzeichnet als „nachgezeichnet“.
 - Zum Ansehen eines Bildes dient `read_image`. Base64 wird nie in den Text übernommen.
-- Bestehende eingebettete PNG bleiben unverändert.
+- **Keine Data-URIs von Hand in den Text schreiben**, Bilder immer über `images` bzw. `add_image`.
+- **`nonconforming_image`:** Befunde und Vorschlag aus `image_issues` dem Nutzer zeigen (bei SVG das Bild), fehlende Alternativtexte erfragen und erst nach Bestätigung den Aufruf mit `fix_images: true` (und `image_alt`) wiederholen, oder die Fassung mit `images` neu aufbauen.
+- **Abweichende Bilder im Bestand** (`image_warnings` beim Schreiben, `conforming: false` in `read`): dem Nutzer nennen und die Korrektur anbieten. Nach Bestätigung `fix_images` ohne `apply` (Vorschlag zeigen), dann mit `apply: true`. Nie von sich aus korrigieren.
+- Bestehende eingebettete PNG bleiben unverändert; bei ihnen wird nach Bestätigung höchstens die Schreibweise korrigiert (4.9).
 
 **Große Dokumente:** Liefert `read` kein `content` (`content_omitted`), liest der Chat abschnittsweise (`section`) und ändert nur mit `edit_document` bzw. `append_to_document`, nie mit `rewrite_document` aus einem Teilinhalt (7.3).
 
@@ -1290,6 +1388,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 
 **Automatisiert (pytest, mit temporärem Git-Repo):**
 - Bilder (4.9): Einbetten bis 24 KB, Datei darüber, `scratch/` immer eingebettet, bestehende Base64-PNG byte-genau unverändert (auch über der Grenze und ohne Bildnamen), SVG-Bereinigung (Script, Ereignis-Attribute, externe Verweise, XXE), URL-Kodierung bricht keine Markdown-Syntax, Platzhalter in `read` und byte-genaue Rückübersetzung bei `rewrite_document`/`edit_document`, entfernte Bilder als `large_shortening`, `read_image` für PNG, JPEG und SVG, `import_path` nur aus `PKM_IMPORT_DIR`, JPEG ohne Metadaten mit erhaltener Ausrichtung, `pkm_img_import/` von `init` angelegt, in `.gitignore` und von Pflegelauf, Lint und Suche ausgenommen, zugehörige Bilder nicht als `new`, geänderte Bilddatei ergibt neue Version des Dokuments, verwaiste Anhänge, Index ohne Base64
+- Data-URIs bei der Übernahme (4.9): jeder Befundcode positiv und negativ, darunter der Referenzstil mit `;utf8` und nicht kodierten Leerzeichen und `{}` (Testvektor aus der Praxis), HTML-`<img>`, spitze Klammern, Base64-SVG, Base64 mit Zeilenumbrüchen, falscher Medientyp, fehlender und doppelter Name, fehlender Alternativtext, unsicheres SVG, Data-URI in Codeblöcken und Inline-Code ignoriert. Schreibende Tools liefern `nonconforming_image` und schreiben nichts, mit `fix_images: true` entsteht die Form nach 4.9, übriger Text byte-genau. `image_warnings` blockieren nicht. `fix_images` ohne `apply` schreibt nichts (`proposal`), mit `apply` genau eine Version mit `PKM-Fix: images`, abgeleiteter Name bleibt erhalten, `[img:<name>]`-Belege bleiben gültig. Mehrfach verwendete Referenzdefinition ergibt `ambiguous`, `unused_definition` nur mit `confirm_shortening`. Bestehende Base64-PNG: nur Schreibweise, dekodierte Bytes gleich, kein Name eingetragen. `read` zeigt in jeder Schreibweise Platzhalter statt Base64 bzw. SVG und stellt sie beim Schreiben byte-genau wieder her. `pending` meldet `image_notation_only`, `finish_maintenance` hebt die Belege an, nicht aber bei entfernten SVG-Teilen. `write_wiki_page` lehnt abweichende Data-URIs ab, mit `fix_images: true` korrigiert. `pkm fix-images` ohne `--apply` ändert nichts
 - Pfadprüfung, Neuanlage nur in `_inbox/`, Änderungen nur in `documents/**/*.md`, `wiki/` immer abgelehnt
 - Adressierung über Pfad, Wikilink, Kurzname (auch in anderer Groß-/Kleinschreibung) und ID, einschließlich `ambiguous`
 - ID-Vergabe: Format, Kollisionsprüfung, `pkm ids` bei Datei mit und ohne Frontmatter (Inhalt byte-genau erhalten, Kommentare im Frontmatter erhalten), je Dokument ein Commit, doppelte IDs
@@ -1323,7 +1422,8 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 8. „Dokumentiere das als Fortsetzung“ → Erst jetzt entsteht ein datierter Abschnitt.
 9. Auf einem anderen Rechner (z. B. Windows, wenn der PKM-Rechner ein Mac ist) ein Dokument in Obsidian ändern → Nach dem Sync und einem Pflegelauf gibt es eine neue Version mit `PKM-Source: user`, und das Wiki ist aktualisiert.
 10. Aus einem Chat: „Setz ‚Filter der Zisternenpumpe reinigen‘ auf meine Todo-Liste“ → Entwurf, dann ein Eintrag in `scratch/`. Es gibt keinen Commit, und nach einem Pflegelauf taucht der Eintrag nicht im Wiki auf.
-11. `pkm doctor` und `pkm lint` melden null Fehler.
+11. In Obsidian ein SVG im Referenzstil mit `;utf8` und nicht kodierten Zeichen einfügen → Der Pflegelauf meldet die Befunde mit Vorschlag. Nach Bestätigung entsteht eine neue Version, Obsidian zeigt das Bild, Belege bleiben `ok`.
+12. `pkm doctor` und `pkm lint` melden null Fehler.
 
 ---
 
@@ -1395,6 +1495,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 35 | Bilder | PNG und SVG, SVG bevorzugt, bis 24 KB eingebettet (PNG Base64, SVG URL-kodiert), sonst Datei. `scratch/` immer eingebettet. Bestehende Base64-PNG unverändert. Bilder gehören zum Dokument. `add_image`, `read_image`, Importordner. Kein Befehl zum nachträglichen Einbetten bestehender Anhänge | 4.9, 7, 8, 9.1, 10 |
 | 36 | Windows als PKM-Rechner | Gleichwertig zum Mac, genau ein PKM-Rechner je Vault. Git von git-scm.com, Standardordner `%APPDATA%\pkm`, Datensicherung des Git-Verzeichnisses ausdrücklich einrichten | 5.5, 7.1, 7.6, 12, 13 |
 | 37 | Importordner und JPEG | Importordner `pkm_img_import/` im Vault (nicht in Git, von der Pflege ausgenommen), Ordner außerhalb weiter möglich. JPEG wird übernommen, Metadaten entfernt, Ausrichtung erhalten | 3, 4.9, 7.1, 8, 10, 12 |
+| 38 | Data-URIs bei der Übernahme | Jede Bild-Data-URI wird geprüft (Werkzeuge, Pflegelauf, Lint, Wiki-Seiten). Abweichungen werden mit Befund und Vorschlag gemeldet und **nur nach Rückfrage** korrigiert (`fix_images: true`, Tool `fix_images`, `pkm fix-images`), nie unbeaufsichtigt. Nur die Bildschreibweise ändert sich, abgeleitete Namen bleiben, Belege werden angehoben. Bestehende Base64-PNG: nur Schreibweise, Bytes gleich, kein Name | 3, 4.7, 4.9, 5.4, 7.2, 7.3, 7.7, 8, 9.1, 9.2, 9.7, 10, 14 |
 
 ### Noch offen
 

@@ -105,6 +105,9 @@ Voraussetzung.
   `read_image` an; Base64 landet nie im Chat. Im Wiki werden Bilder in Worten übernommen und mit
   `[img:<name>]` belegt.
 - SVG wird vor dem Speichern bereinigt (keine Skripte, keine externen Verweise), PNG geprüft.
+- **Abweichende Data-URIs** (z. B. SVG im Referenzstil mit nicht kodierten Zeichen, das Obsidian nicht
+  anzeigt) werden erkannt, egal wie sie ins PKM kommen. Claude zeigt Befunde und Korrekturvorschlag;
+  **korrigiert wird nur nach deiner Bestätigung** (`fix_images`, `pkm fix-images`), nie automatisch.
 
 ### Fragen und Quellen
 - „Was weiß mein Wiki über …?“ beantwortet Claude aus dem Wiki, mit Verweisen auf die Seiten.
@@ -182,7 +185,7 @@ flowchart LR
 
 | Komponente | Rolle |
 |---|---|
-| **pkm-mcp** | MCP-Server für Claude Desktop. 14 Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für Bilder, den Verlauf und die Belege. |
+| **pkm-mcp** | MCP-Server für Claude Desktop. 15 Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für Bilder, den Verlauf und die Belege. |
 | **pkm-pflege-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `finish_maintenance` plus die lesenden Tools. Schreibt in `wiki/` und `.pkm/state.json`, an Dokumenten nur IDs und – nach deiner Bestätigung – `title`, `context`, `tags`, `kind`, `short_citation`; nur in Pflege-Unterhaltungen einschalten. |
 | **pkm** | Kommandozeile für Einrichtung, Prüfung und Fehlersuche (dieselben Pflege-Befehle, einzeln). |
 | **Skill `pkm-access`** | Sagt Claude in normalen Chats, wann und wie die Tools zu nutzen sind, z. B. „immer erst ein Entwurf“. |
@@ -493,7 +496,7 @@ Status, den Claude bei „Woher stammt das?“ nennt:
 ## CLI-Referenz
 
 Der Pflege-Agent braucht die CLI nicht; er nutzt `pkm-pflege-mcp`, das dieselben Befehle bündelt.
-Für dich sind `init`, `doctor`, `lint`, `history`, `show` und `fix-frontmatter` nützlich.
+Für dich sind `init`, `doctor`, `lint`, `history`, `show`, `fix-frontmatter` und `fix-images` nützlich.
 Ausgabe ist immer JSON. Im Vault-Ordner findet die CLI den Vault selbst, sonst
 `PKM_ROOT` setzen.
 
@@ -510,6 +513,7 @@ Ausgabe ist immer JSON. Im Vault-Ordner findet die CLI den Vault selbst, sonst
 | `pkm restore <ziel> --version <n>` | frühere Version als neue Version zurückholen |
 | `pkm sha <ziel> [--section <abschnitt>] [--full]` | Hashes (für Belege und Fehlersuche) |
 | `pkm fix-frontmatter [<ziel>…] [--all]` | Frontmatter reparieren (Anführungszeichen, `short citation` → `short_citation`); ohne Ziel nur auflisten. Nur auf deine Anweisung |
+| `pkm fix-images [<ziel>…] [--all] [--apply] [--alt <name>=<text>]` | Bild-Data-URIs nach 4.9 korrigieren; ohne Ziel nur auflisten, ohne `--apply` nur Vorschlag mit Diff. Nur auf deine Anweisung |
 | `pkm mark`, `index`, `status`, `fix-citations`, `sync-citations`, `commit-wiki` | Bausteine des Pflegelaufs |
 | `pkm reindex` | Suchindex neu aufbauen |
 

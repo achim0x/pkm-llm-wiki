@@ -231,10 +231,10 @@ Windows (in JSON jeden Backslash verdoppeln):
   `"args": ["--from", "<REPO>/pkm-tools", "pkm-mcp"]`.
 
 Claude Desktop vollständig beenden (unter Windows auch im Infobereich der Taskleiste) und neu
-starten. Im Chat sollten unter den Werkzeugen die 14 `pkm`-Tools erscheinen (`search`, `read`,
+starten. Im Chat sollten unter den Werkzeugen die 15 `pkm`-Tools erscheinen (`search`, `read`,
 `read_image`, `history`, `show_citations`, `read_index`, `list_unprocessed`, `create_document`,
 `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `add_image`,
-`restore_document`) sowie der Server `pkm-pflege`.
+`fix_images`, `restore_document`) sowie der Server `pkm-pflege`.
 
 **Importordner für Bilder:** Fotos und Screenshots aus einem Chat übernimmt der Server nur aus dem
 Importordner `pkm_img_import/` im Vault (PNG, JPEG, SVG). `pkm init` legt ihn an und trägt ihn in
