@@ -12,6 +12,7 @@ Nutzers; eine Shell oder die CLI `pkm` brauchst du nicht (in Cowork gibt es dort
 |---|---|
 | `begin_maintenance` | Vorlauf: Umgebung prüfen, Handänderungen als Versionen, fehlende IDs, `pending` (neue Dokumente mit `missing_fields`), `known_tags`, Belege auf verschobene Dokumente korrigieren |
 | `read`, `history`, `search`, `read_index`, `show_citations`, `list_unprocessed` | Dokumente, Versionen, Diffs und Wiki-Seiten lesen |
+| `read_image` | Bilder ansehen (PNG als Bild, SVG als Text) |
 | `write_wiki_page` | Wiki-Seite anlegen oder vollständig ersetzen (ohne Commit) |
 | `set_document_metadata` | Nur nach Bestätigung: `title`, `context`, `tags`, `kind`, `short_citation` eines Dokuments eintragen |
 | `finish_maintenance` | Abschluss: Belege (verschoben, umbenannt, `v:` bei unveränderten Abschnitten angehoben), `sources`, Verarbeitungsstand, Log, Index, Status, Lint, Agenten-Commit |
@@ -110,6 +111,12 @@ Tabelle oder in einer Zeile direkt darunter (z. B. `[^b3]` oder `Quelle: [^b3]`)
 - `id`, `v` und `sha` stehen in der Antwort von **`read`**: `id`, `version` und unter `sections`
   je Abschnitt `key` und `sha`. Für eine ältere Version `read` mit `version`. Für PDF/Bild: die
   ersten 6 Zeichen von `hash` aus `read`.
+- **Belege auf Bilder:** eingebettetes oder zugehöriges Bild → Abschnitt des Dokuments, als Zitat
+  der Bildverweis: `[[documents/…/notiz#Aufbau]] · „[img:schaltplan]“ · id:… · v:3 · sha:…`.
+  Eigenständiges Bild → Link auf die Datei und Datei-Hash.
+- **Bilder in Wiki-Seiten:** Bilder aus Dokumenten nur als Link auf die Bilddatei zeigen, mit
+  Fußnote auf das Dokument; eingebettete Bilder nicht kopieren. Eigene SVG-Diagramme darfst du
+  eingebettet setzen; sie gelten als Schlussfolgerung („abgeleitet aus [^b1], [^b3]“).
 - Abschnitte mit `empty: true` (z. B. die H1 direkt vor dem ersten `##`) haben keinen eigenen
   Text: nicht belegen, sondern den Unterabschnitt mit dem Zitat.
 - Große Dokumente: `read` mit `content: false` (nur Metadaten, `sections`, `content_length`),
@@ -177,9 +184,12 @@ nur die Liste als `log_entry`:
    älteren Quellen und gilt selbst als Beleg. Betroffene Seite (siehe `related`) anpassen, die
    alte Aussage im Log als ersetzt vermerken. Widerspricht die Korrektur einer **neueren** Quelle
    → nachfragen.
-7. **PDF/Bild**: `read` liefert nur Größe und `hash`. Den Inhalt liest du, wenn der Vault-Ordner
-   in der Unterhaltung verbunden ist; sonst das Dokument nicht in `processed` angeben und im
-   Bericht nennen.
+7. **Bilder**: Jedes neue oder geänderte Bild (eingebettet oder verlinkt, siehe `images` in
+   `read`) mit `read_image` ansehen. Den Inhalt in Worten übernehmen und mit `[img:<name>]` als
+   Zitat belegen. Zugehörige Bilder bekommen keine eigene Zusammenfassung; eigenständige Bilder
+   (ohne Dokument, das darauf verweist) wie bisher. **PDF**: `read` liefert nur Größe und `hash`.
+   Den Inhalt liest du, wenn der Vault-Ordner in der Unterhaltung verbunden ist; sonst das PDF
+   nicht in `processed` angeben und im Bericht nennen.
 8. Abschließen mit `finish_maintenance`:
    - `processed`: IDs (bzw. Pfade bei PDF/Bild) aller in diesem Lauf verarbeiteten Dokumente –
      auch der verschobenen und nur in den Metadaten geänderten. Die belegenden Seiten ermittelt
