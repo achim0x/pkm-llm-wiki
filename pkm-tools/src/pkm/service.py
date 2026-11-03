@@ -28,7 +28,7 @@ import sqlite3
 from datetime import datetime
 from typing import Any
 
-from . import citations
+from . import citations, docimages
 from .config import Config
 from .diffs import unified_diff
 from .errors import PkmError
@@ -374,6 +374,7 @@ class Service:  # pylint: disable=too-many-public-methods
             result = self._doc_result(doc, with_links=True)
         if "content" in result:
             text = _section_content(doc, section, result) if section is not None else result["content"]
+            text, result["images"] = docimages.read_view(doc, text, result.get("section"))
             result.update(_page_of(text, offset, max_chars, content))
             if "content" not in result or result["content"] is None:
                 result.pop("content", None)
@@ -403,6 +404,7 @@ class Service:  # pylint: disable=too-many-public-methods
                 "title": doc.title,
                 "frontmatter": doc.meta,
                 "content": doc.body if doc.error in (None, "invalid_frontmatter") else "",
+                "images": [],
                 "hash": doc.hashes.file_hash if doc.hashes else None,
                 "editable": doc.editable,
                 "sections": section_summary(doc),
@@ -585,6 +587,30 @@ class Service:  # pylint: disable=too-many-public-methods
             Rückgabe des Writers.
         """
         return self.writer.edit_document(**kwargs)
+
+    def add_image(self, **kwargs: Any) -> dict[str, Any]:
+        """Tool ``add_image`` (4.9).
+
+        Args:
+            **kwargs: Parameter von ``Writer.add_image``.
+
+        Returns:
+            Rückgabe des Writers.
+        """
+        return self.writer.add_image(**kwargs)
+
+    def read_image(self, target: str, image: str | None = None, as_: str = "auto") -> dict[str, Any]:
+        """Tool ``read_image`` (4.9).
+
+        Args:
+            target: Dokument bzw. eigenständige Bilddatei.
+            image: Bildname.
+            as_: ``auto``, ``image`` oder ``svg_text``.
+
+        Returns:
+            Metadaten und Bild (``svg`` als Text bzw. ``data`` als Bytes).
+        """
+        return docimages.image_payload(self, target, image, as_)
 
     def update_frontmatter(self, **kwargs: Any) -> dict[str, Any]:
         """Tool ``update_frontmatter``.

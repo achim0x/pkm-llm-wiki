@@ -13,7 +13,7 @@ mit Git-Commit.
 ## Grundregel – ohne Ausnahme
 
 **Jeder schreibende Aufruf** (`create_document`, `rewrite_document`, `append_to_document`,
-`edit_document`, `update_frontmatter`, `restore_document`) erfolgt erst, **nachdem ein Entwurf
+`edit_document`, `update_frontmatter`, `add_image`, `restore_document`) erfolgt erst, **nachdem ein Entwurf
 gezeigt und vom Nutzer bestätigt wurde**. Das gilt auch, wenn der Nutzer „direkt“, „einfach
 speichern“ o. Ä. sagt: Dann den Entwurf knapp zeigen und kurz bestätigen lassen.
 
@@ -111,6 +111,33 @@ Original per `edit_document` markieren:
    Original nicht mehr da ist (Wortlaut stammt aus dem Verlauf).
 5. Ohne Nachfrage genügen die Wiki-Seiten. Die Originale anbieten, wenn die Antwort für eine
    Entscheidung gebraucht wird.
+
+## Bilder
+
+- **Format:** Diagramme, Skizzen, Ablauf- und Schaltpläne, Messwert-Diagramme und eigene Grafiken
+  zeichnest du als **SVG**. Fotos, Screenshots und Scans bleiben **PNG**. Fotos nie vektorisieren.
+- **Ablegen:** beim Anlegen oder Ändern über den Parameter `images` (`create_document`,
+  `rewrite_document`, `append_to_document`, `edit_document`), in ein bestehendes Dokument auch mit
+  `add_image`. Im Text steht an der Stelle `{{image:<name>}}`. Je Bild: `name` (klein,
+  Bindestriche, eindeutig), `alt` (Alternativtext, eine Zeile, **immer**) und genau eine Quelle:
+  `svg` (Text), `png_base64` oder `import_path`. `mode` meist weglassen (`auto`: bis 24 KB
+  eingebettet, sonst Datei in `_attachments/`; in `scratch/` immer eingebettet).
+- **Erst Entwurf, dann schreiben:** Im Entwurf das Bild mit zeigen (SVG direkt darstellen).
+- **Im Chat hochgeladene Fotos oder Screenshots** kannst du nicht byte-genau weitergeben. Bitte den
+  Nutzer, die Datei in den Importordner zu legen (`PKM_IMPORT_DIR`, Standard
+  `Downloads/pkm-import`), und übernimm sie mit `import_path` (Dateiname genügt). Bei einfachen
+  Grafiken alternativ eine SVG-Nachzeichnung anbieten, im Alternativtext als „nachgezeichnet“
+  gekennzeichnet.
+- **Lesen:** `read` zeigt eingebettete Bilder als Platzhalter `![…](pkm-image:<name> "…")` und
+  listet sie unter `images`. Ansehen mit `read_image` (`target`, `image`). Base64 oder SVG-Inhalt
+  nie in einen Text übernehmen.
+- **Ändern:** Platzhalter in `rewrite_document`/`edit_document` unverändert stehen lassen, der
+  Server setzt die Originale wieder ein. Fehlt ein Bild in der neuen Fassung, kommt
+  `large_shortening` mit `removed_images` – nur nach Bestätigung mit `confirm_shortening`
+  entfernen. `unknown_image`: Platzhaltername stimmt nicht.
+- Bestehende eingebettete PNG bleiben unverändert. Fehler: `svg_too_complex` (dann PNG),
+  `too_large_for_inline` (dann `mode: auto`), `invalid_image`, `forbidden` (`import_path`
+  außerhalb des Importordners).
 
 ## Notizen und Todo-Listen (`scratch/`)
 

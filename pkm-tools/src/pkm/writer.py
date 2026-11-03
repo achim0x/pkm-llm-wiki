@@ -35,6 +35,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from . import docimages
+from .appendtext import append_lines
 from .diffs import unified_diff
 from .errors import PkmError
 from .frontmatter import PROTECTED, dump_meta, set_fields_linewise
@@ -42,7 +44,7 @@ from .fsutil import file_lock, replace_file
 from .gitlayer import Commit, build_message
 from .ids import new_id
 from .normalize import encode, normalize_fragment, normalize_text
-from .parse import PREAMBLE, Parsed, body_lines, normalize_key_input, split_sections, strip_frontmatter
+from .parse import split_sections, strip_frontmatter
 from .paths import MAX_NAME, fit_stem, is_platform_safe_name, slugify
 from .schema import DEFAULT_KIND, DEFAULT_TOOLCHAIN, FIELD_ORDER, KINDS, normalize_tags, order_meta, stamp
 from .vault import SCRATCH, Doc, load_text_doc
@@ -306,7 +308,9 @@ class Writer:
 
     # Abschluss ****************************************************************
 
-    def finish(self, doc: Doc, new_text: str, note: str, source: str = "chat") -> dict[str, Any]:
+    def finish(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self, doc: Doc, new_text: str, note: str, source: str = "chat", extra_paths: list[str] | None = None
+    ) -> dict[str, Any]:
         """Neue Fassung als neue Version schreiben und committen.
 
         Args:
@@ -314,6 +318,7 @@ class Writer:
             new_text: Neuer Gesamttext (Serverfelder werden hier gesetzt).
             note: Änderungsnotiz.
             source: ``chat``, ``user`` oder ``agent``.
+            extra_paths: Weitere Dateien im selben Commit (z. B. neue Bilddateien).
 
         Returns:
             ``{id, path, status, version, new_hash, commit, diff}``; ``status`` ist ``changed``
@@ -337,7 +342,7 @@ class Writer:
             if new_doc.error:
                 raise PkmError(new_doc.error, new_doc.error_message or "Ergebnis ungültig.")
             msg = build_message(new_doc.title, f"v{version}", note, doc.id or "", version, source)
-            sha = self.write_and_commit(doc.rel, new_text, msg)
+            sha = self.write_and_commit(doc.rel, new_text, msg, extra_paths)
             result = {
                 "id": doc.id, "path": doc.rel, "status": "changed", "version": version,
                 "new_hash": new_doc.hashes.file_hash if new_doc.hashes else None, "commit": sha[:10],
@@ -345,8 +350,9 @@ class Writer:
             }
         return result
 
-    def change(
-        self, target: str, expected_hash: str | None, transform: Callable[[Doc], str], note: str, source: str = "chat"
+    def change(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self, target: str, expected_hash: str | None, transform: Callable[[Doc], str], note: str, source: str = "chat",
+        images: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Gemeinsamer Ablauf aller Änderungs-Tools.
 
@@ -356,9 +362,10 @@ class Writer:
             transform: Erzeugt aus dem Dokument den neuen Gesamttext.
             note: Änderungsnotiz.
             source: ``chat`` oder ``user``.
+            images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` im Text (4.9).
 
         Returns:
-            Rückgabe von ``finish``.
+            Rückgabe von ``finish``, bei neuen Bildern mit ``images``.
         """
         with self.lock():
             doc = self.editable_doc(target)
@@ -367,9 +374,15 @@ class Writer:
             self.check_hash(doc, expected_hash)
             if doc.versioned:
                 doc = self.commit_user_state(doc)
-                result = self.finish(doc, transform(doc), note, source)
-            else:
-                result = self.finish_scratch(doc, transform(doc))
+            text, files, infos = docimages.place_images(self, doc, transform(doc), images)
+            try:
+                result = (self.finish(doc, text, note, source, files) if doc.versioned
+                          else self.finish_scratch(doc, text))
+            except PkmError:
+                docimages.remove_files(self, files)
+                raise
+        if infos:
+            result["images"] = infos
         return result
 
     def finish_scratch(self, doc: Doc, new_text: str) -> dict[str, Any]:
@@ -409,7 +422,7 @@ class Writer:
 
     # Tools ********************************************************************
 
-    def create_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def create_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
         self,
         title: str,
         content: str,
@@ -423,6 +436,7 @@ class Writer:
         note: str | None = None,
         area: str = "documents",
         folder: str | None = None,
+        images: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Tool ``create_document``: neues Dokument in ``documents/_inbox/`` (Version 1) oder Notiz in ``scratch/``.
 
@@ -439,6 +453,7 @@ class Writer:
             note: Änderungsnotiz für den Commit.
             area: ``documents`` (Standard) oder ``scratch``.
             folder: Nur bei ``scratch``: Unterordner in ``scratch/``.
+            images: Bilder zu Platzhaltern ``{{image:<name>}}`` im Inhalt (4.9).
 
         Returns:
             ``{id, path, status: created, version: 1, new_hash, commit, diff}``; bei ``scratch``
@@ -464,16 +479,19 @@ class Writer:
         if area != SCRATCH:
             values["kind"] = kind or DEFAULT_KIND
             values["toolchain_markdown"] = " ".join(toolchain.split()) if toolchain else DEFAULT_TOOLCHAIN
-        return (self._write_scratch(body, _scratch_folder(folder), values) if area == SCRATCH
-                else self._write_new(body, note or "neu angelegt", values))
+        return (self._write_scratch(body, _scratch_folder(folder), values, images) if area == SCRATCH
+                else self._write_new(body, note or "neu angelegt", values, images))
 
-    def _write_new(self, body: str, note: str, values: dict[str, Any]) -> dict[str, Any]:
+    def _write_new(
+        self, body: str, note: str, values: dict[str, Any], images: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         """Neues Dokument mit ``date_markdown``, ID und Version 1 schreiben und committen.
 
         Args:
             body: Inhalt ohne Frontmatter.
             note: Änderungsnotiz.
             values: Frontmatter-Felder aus dem Aufruf (``title`` … ``kind``).
+            images: Neue Bilder (4.9).
 
         Returns:
             Rückgabe von ``_created_result``.
@@ -486,8 +504,16 @@ class Writer:
             meta = _ordered_meta({**values, "date_markdown": stamp(now), "id": doc_id, "version": 1})
             text = normalize_text(dump_meta(meta) + "\n" + body.lstrip("\n"))
             rel = self._free_inbox_name(now.date().isoformat(), title)
-            sha = self.write_and_commit(rel, text, build_message(title, "v1", note, doc_id, 1, "chat"))
-        return self._created_result(doc_id, rel, text, sha)
+            text, files, infos = docimages.place_images(self, load_text_doc(rel, b""), text, images)
+            try:
+                sha = self.write_and_commit(rel, text, build_message(title, "v1", note, doc_id, 1, "chat"), files)
+            except PkmError:
+                docimages.remove_files(self, files)
+                raise
+        result = self._created_result(doc_id, rel, text, sha)
+        if infos:
+            result["images"] = infos
+        return result
 
     def _created_result(self, doc_id: str, rel: str, text: str, sha: str) -> dict[str, Any]:
         """Rückgabe von ``create_document`` bilden.
@@ -508,13 +534,16 @@ class Writer:
             "diff": unified_diff("", text, "/dev/null", rel, DIFF_LINES),
         }
 
-    def _write_scratch(self, body: str, folder: str, values: dict[str, Any]) -> dict[str, Any]:
+    def _write_scratch(
+        self, body: str, folder: str, values: dict[str, Any], images: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         """Notiz in ``scratch/`` anlegen: kleines Frontmatter, ohne ID, Version und Commit.
 
         Args:
             body: Inhalt ohne Frontmatter.
             folder: Geprüfter Unterordner (relativ zu ``scratch/``, ggf. leer).
             values: Frontmatter-Felder aus dem Aufruf (leere Werte entfallen).
+            images: Neue Bilder (in ``scratch/`` immer eingebettet).
 
         Returns:
             ``{path, status: created, new_hash, diff}``.
@@ -523,13 +552,17 @@ class Writer:
             meta = _ordered_meta({**values, "date_markdown": self.now_stamp()})
             text = normalize_text(dump_meta(meta) + "\n" + body.lstrip("\n"))
             base = "/".join(p for p in (SCRATCH, folder) if p)
-            rel = self._free_name(base, slugify(values["title"], MAX_NAME))
+            rel = self.free_name(base, slugify(values["title"], MAX_NAME))
+            text, _, infos = docimages.place_images(self, load_text_doc(rel, b""), text, images)
             self.write_atomic(rel, text)
         doc = self.vault.load(rel)
-        return {"path": rel, "status": "created", "new_hash": doc.hashes.file_hash if doc.hashes else None,
-                "diff": unified_diff("", text, "/dev/null", rel, DIFF_LINES)}
+        result = {"path": rel, "status": "created", "new_hash": doc.hashes.file_hash if doc.hashes else None,
+                  "diff": unified_diff("", text, "/dev/null", rel, DIFF_LINES)}
+        if infos:
+            result["images"] = infos
+        return result
 
-    def _free_name(self, base_dir: str, stem: str, tail: str = "", ext: str = ".md") -> str:
+    def free_name(self, base_dir: str, stem: str, tail: str = "", ext: str = ".md") -> str:
         """Freien Dateinamen ``<stem><tail>.md`` in einem Ordner finden (nie überschreiben).
 
         Args:
@@ -573,11 +606,11 @@ class Writer:
         Returns:
             Relativer Pfad; bei Namensgleichheit mit Suffix vor dem Datum (``<slug>-2_YYYY-MM-DD.md``).
         """
-        return self._free_name(INBOX, slugify(title, MAX_NAME), f"_{date}")
+        return self.free_name(INBOX, slugify(title, MAX_NAME), f"_{date}")
 
-    def rewrite_document(
+    def rewrite_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, target: str, content: str, expected_hash: str | None, note: str | None = None,
-        confirm_shortening: bool = False,
+        confirm_shortening: bool = False, images: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Tool ``rewrite_document``: gesamten Inhalt unterhalb des Frontmatters ersetzen.
 
@@ -586,28 +619,32 @@ class Writer:
             content: Neuer Inhalt ohne Frontmatter.
             expected_hash: Hash aus ``read``.
             note: Änderungsnotiz.
-            confirm_shortening: Deutliche Kürzung bzw. fehlende Abschnitte bestätigen.
+            confirm_shortening: Deutliche Kürzung, fehlende Abschnitte bzw. entfernte Bilder bestätigen.
+            images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` (4.9).
 
         Returns:
             Rückgabe von ``finish``.
 
         Raises:
-            PkmError: ``large_shortening`` mit ``missing_sections``, wenn der Inhalt kürzer als 60 %
-                ist oder Abschnitte fehlen und nicht bestätigt wurde.
+            PkmError: ``large_shortening`` mit ``missing_sections`` bzw. ``removed_images``, wenn der Inhalt
+                kürzer als 60 % ist, Abschnitte oder Bilder fehlen und nicht bestätigt wurde;
+                ``unknown_image`` bei unbekannten Platzhaltern.
         """
         new_body = normalize_text(strip_frontmatter(normalize_fragment(content or "")))
         self.check_size(new_body, "Der Inhalt")
 
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
-            _check_shortening(doc, new_body, confirm_shortening)
+            body = docimages.restore_body(doc.parsed.body, new_body)
+            _check_shortening(doc, body, confirm_shortening)
             fm = doc.parsed.frontmatter_text
-            return fm + ("\n" if fm else "") + new_body.lstrip("\n")
+            return fm + ("\n" if fm else "") + body.lstrip("\n")
 
-        return self.change(target, expected_hash, transform, note or "neu gefasst")
+        return self.change(target, expected_hash, transform, note or "neu gefasst", images=images)
 
-    def append_to_document(
-        self, target: str, text: str, expected_hash: str | None, section: str | None = None, note: str | None = None
+    def append_to_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self, target: str, text: str, expected_hash: str | None, section: str | None = None, note: str | None = None,
+        images: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Tool ``append_to_document``.
 
@@ -618,6 +655,7 @@ class Writer:
             section: Abschnittsschlüssel (auch ``_preamble`` oder mit Suffix); fehlt der Abschnitt,
                 wird er als Ebene 2 angelegt; ohne Angabe wird am Dateiende angehängt.
             note: Änderungsnotiz.
+            images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` (4.9).
 
         Returns:
             Rückgabe von ``finish``.
@@ -632,13 +670,14 @@ class Writer:
 
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
-            return doc.parsed.frontmatter_text + "\n".join(_append_lines(doc.parsed, block, section)) + "\n"
+            return doc.parsed.frontmatter_text + "\n".join(append_lines(doc.parsed, block, section)) + "\n"
 
         default = f"ergänzt: {section}" if section else "ergänzt am Ende"
-        return self.change(target, expected_hash, transform, note or default)
+        return self.change(target, expected_hash, transform, note or default, images=images)
 
-    def edit_document(
-        self, target: str, old: str, new: str, expected_hash: str | None, note: str | None = None
+    def edit_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self, target: str, old: str, new: str, expected_hash: str | None, note: str | None = None,
+        images: list[dict[str, Any]] | None = None, confirm_shortening: bool = False,
     ) -> dict[str, Any]:
         """Tool ``edit_document``: Textstelle ersetzen.
 
@@ -648,12 +687,15 @@ class Writer:
             new: Ersatz (darf leer sein).
             expected_hash: Hash aus ``read``.
             note: Änderungsnotiz.
+            images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` (4.9).
+            confirm_shortening: Entfernen von Bildern bestätigen.
 
         Returns:
             Rückgabe von ``finish``.
 
         Raises:
-            PkmError: ``invalid_argument`` bei leerem ``old``, ``not_found`` oder ``ambiguous``.
+            PkmError: ``invalid_argument`` bei leerem ``old``, ``not_found`` oder ``ambiguous``,
+                ``large_shortening`` bei entfernten Bildern ohne Bestätigung.
         """
         old_n = normalize_fragment(old or "")
         new_n = normalize_fragment(new or "")
@@ -664,14 +706,36 @@ class Writer:
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
             body = doc.parsed.body
-            n = _count(body, old_n)
-            if n == 0:
-                raise PkmError("not_found", "Die Textstelle `old` kommt im Dokument nicht vor.", path=doc.rel)
-            if n > 1:
-                raise PkmError("ambiguous", f"Die Textstelle `old` kommt {n}-mal vor.", count=n, path=doc.rel)
-            return doc.parsed.frontmatter_text + body.replace(old_n, new_n, 1)
+            new_body = docimages.edit_view(body, old_n, new_n)
+            removed = docimages.removed_images(body, new_body)
+            if removed and not confirm_shortening:
+                raise PkmError("large_shortening", "Die Änderung entfernt Bilder. Bitte vom Nutzer bestätigen lassen "
+                               "und mit confirm_shortening=true erneut aufrufen.", removed_images=removed, path=doc.rel)
+            return doc.parsed.frontmatter_text + new_body
 
-        return self.change(target, expected_hash, transform, note or "Textstelle geändert")
+        return self.change(target, expected_hash, transform, note or "Textstelle geändert", images=images)
+
+    def add_image(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self, target: str, expected_hash: str | None, image: dict[str, Any], section: str | None = None,
+        caption: str | None = None, note: str | None = None,
+    ) -> dict[str, Any]:
+        """Tool ``add_image``: ein Bild am Ende eines Abschnitts bzw. des Dokuments einfügen (4.9).
+
+        Args:
+            target: Ziel.
+            expected_hash: Hash aus ``read``.
+            image: Bildangabe wie bei ``images``.
+            section: Abschnitt, an dessen Ende eingefügt wird; ohne Angabe am Dateiende.
+            caption: Bildunterschrift (eine Zeile unter dem Bild).
+            note: Änderungsnotiz.
+
+        Returns:
+            Wie ``append_to_document``, mit ``images``.
+        """
+        name = str((image or {}).get("name") or "")
+        block = f"{{{{image:{name}}}}}" + (f"\n{' '.join(caption.split())}" if caption and caption.strip() else "")
+        return self.append_to_document(target, block, expected_hash, section, note or f"Bild ergänzt: {name}",
+                                       images=[image])
 
     def update_frontmatter(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
@@ -801,111 +865,6 @@ def _check_create_args(title: str, area: str, folder: str | None, kind: str | No
         raise PkmError("invalid_argument", f"kind muss einer der Werte {', '.join(KINDS)} sein.")
 
 
-def _count(haystack: str, needle: str) -> int:
-    """Vorkommen zählen, auch überlappende.
-
-    Args:
-        haystack: Text.
-        needle: Gesuchte Stelle (nicht leer).
-
-    Returns:
-        Anzahl der Vorkommen.
-    """
-    n, start = 0, haystack.find(needle)
-    while start >= 0:
-        n += 1
-        start = haystack.find(needle, start + 1)
-    return n
-
-
-def _insert_block(lines: list[str], after: int, block: list[str]) -> list[str]:
-    """Block nach einer Zeile einfügen, mit Leerzeile davor und ggf. danach.
-
-    Args:
-        lines: Body-Zeilen.
-        after: Index der Zeile, nach der eingefügt wird.
-        block: Einzufügende Zeilen.
-
-    Returns:
-        Neue Zeilenliste.
-    """
-    head, tail = lines[: after + 1], lines[after + 1 :]
-    out = head + ([""] if head and head[-1].strip() else []) + block
-    if tail and tail[0].strip():
-        out.append("")
-    return out + tail
-
-
-def _last_nonblank(lines: list[str], start: int, end: int) -> int:
-    """Letzte nicht leere Zeile in einem Bereich.
-
-    Args:
-        lines: Zeilen.
-        start: Erster Index.
-        end: Index nach dem Bereich.
-
-    Returns:
-        Index der letzten nicht leeren Zeile, sonst ``start``.
-    """
-    return next((i for i in range(end - 1, start - 1, -1) if lines[i].strip()), start)
-
-
-def _append_to_preamble(lines: list[str], parsed: Parsed, block: list[str]) -> list[str]:
-    """Text am Ende des Vorspanns (vor der ersten Überschrift) einfügen.
-
-    Args:
-        lines: Body-Zeilen.
-        parsed: Zerlegtes Dokument.
-        block: Einzufügende Zeilen.
-
-    Returns:
-        Neue Zeilenliste.
-    """
-    sec = parsed.section(PREAMBLE)
-    if sec is not None:
-        out = _insert_block(lines, _last_nonblank(lines, sec.start, sec.end), block)
-    else:
-        first = parsed.sections[0].start if parsed.sections else len(lines)
-        lead = next((i for i in range(first) if lines[i].strip()), first)
-        out = lines[:lead] + block + ([""] if first < len(lines) else []) + lines[lead:]
-    return out
-
-
-def _append_lines(parsed: Parsed, block: list[str], section: str | None) -> list[str]:
-    """Body-Zeilen nach ``append_to_document`` berechnen.
-
-    Args:
-        parsed: Zerlegtes Dokument.
-        block: Einzufügende Zeilen.
-        section: Abschnittsschlüssel oder ``None`` (Dateiende).
-
-    Returns:
-        Neue Body-Zeilen.
-
-    Raises:
-        PkmError: ``ambiguous``, wenn der Schlüssel ohne Suffix auf doppelte Überschriften zeigt.
-    """
-    lines = body_lines(parsed.body)
-    key = normalize_key_input(section) if section is not None else None
-    sec = parsed.section(key) if key is not None else None
-    if key is None:
-        out = _insert_block(lines, len(lines) - 1, block) if lines else block
-    elif key == PREAMBLE:
-        out = _append_to_preamble(lines, parsed, block)
-    elif sec is None:
-        new_section = [f"## {key}", "", *block]
-        out = _insert_block(lines, len(lines) - 1, new_section) if lines else new_section
-    else:
-        dups = [s.key for s in parsed.sections if s.level and s.base == key and s.key != key]
-        if "#" not in key and dups:
-            raise PkmError(
-                "ambiguous", f"Abschnitt „{key}“ kommt mehrfach vor. Bitte mit Suffix angeben.",
-                candidates=[key, *dups],
-            )
-        out = _insert_block(lines, _last_nonblank(lines, sec.start, sec.end), block)
-    return out
-
-
 def _check_shortening(doc: Doc, new_body: str, confirmed: bool) -> None:
     """Kürzungsschutz von ``rewrite_document`` (weniger als 60 % oder fehlende Abschnitte).
 
@@ -921,13 +880,14 @@ def _check_shortening(doc: Doc, new_body: str, confirmed: bool) -> None:
     old_body = normalize_text(doc.parsed.body)
     new_keys = {s.key for s in split_sections(new_body)}
     missing = [k for k in doc.parsed.section_keys() if k not in new_keys]
+    removed = docimages.removed_images(old_body, new_body)
     ratio = len(new_body) / len(old_body) if old_body else 1.0
-    if not confirmed and (ratio < SHORTENING_RATIO or missing):
+    if not confirmed and (ratio < SHORTENING_RATIO or missing or removed):
         raise PkmError(
             "large_shortening",
             "Der neue Inhalt ist deutlich kürzer oder es fehlen Abschnitte. "
             "Bitte vom Nutzer bestätigen lassen und mit confirm_shortening=true erneut aufrufen.",
-            missing_sections=missing, old_chars=len(old_body), new_chars=len(new_body),
+            missing_sections=missing, removed_images=removed, old_chars=len(old_body), new_chars=len(new_body),
             ratio=round(ratio, 2), path=doc.rel,
         )
 
