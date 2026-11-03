@@ -33,6 +33,7 @@ from . import hashes
 from .citations import CONTENT_SECTIONS, Citation, Resolution, Resolver, expected_sources, norm_ws, parse_page
 from .errors import PkmError
 from .frontmatter import fix_frontmatter_text
+from .imagelint import check_images, has_image, image_quote
 from .parse import Section, body_lines, find_setext
 from .parse import parse as parse_text
 from .paths import case_collisions, is_conflict_copy, is_platform_safe_name
@@ -133,6 +134,7 @@ class Linter:
         """
         self.platform()
         self.documents()
+        check_images(self.r.add, self.svc, self.docs, self.pages)
         self.structure()
         self.citations()
         return self.r.result()
@@ -446,7 +448,12 @@ class Linter:
         elif cit.sha and not hashes.matches(res.cited_sections[key], cit.sha):
             self.r.add("sha_mismatch", "error", page.rel,
                        f"[^{cit.label}] sha passt nicht zum Abschnitt in v{cit.version}.", footnote=cit.label)
-        if (res.cited_sections is not None and cit.quote and res.cited_text is not None
+        image = image_quote(cit.quote)
+        if image and res.cited_sections is not None and not has_image(res.cited_text, image):
+            self.r.add("citation_image_missing", "error", page.rel,
+                       f"[^{cit.label}] Bild „{image}“ steht nicht in v{cit.version}, Abschnitt „{key}“.",
+                       footnote=cit.label)
+        if (not image and res.cited_sections is not None and cit.quote and res.cited_text is not None
                 and norm_ws(cit.quote) not in norm_ws(res.cited_text)):
             self.r.add("quote_not_found", "error", page.rel,
                        f"[^{cit.label}] Zitat steht nicht in v{cit.version}, Abschnitt „{key}“.", footnote=cit.label)

@@ -264,6 +264,22 @@ def relative_link(doc_rel: str, file_rel: str) -> str:
     return quote(rel, safe="/._-~")
 
 
+def strip_images(text: str) -> str:
+    """Bilder durch ihren Alternativtext ersetzen (für Suche und Index; nie Base64 oder SVG-Inhalt).
+
+    Args:
+        text: Markdown.
+
+    Returns:
+        Text, in dem jedes Bild nur noch als Alternativtext steht.
+    """
+    out, pos = [], 0
+    for ref in find_images(text):
+        out += [text[pos:ref.start], ref.alt]
+        pos = ref.end
+    return "".join(out) + text[pos:]
+
+
 # Platzhalter *****************************************************************
 def human_size(size: int) -> str:
     """Größe für Platzhalter.

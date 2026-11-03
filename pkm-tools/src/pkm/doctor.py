@@ -152,6 +152,9 @@ def _path_checks(svc: Service) -> list[dict[str, Any]]:
         checks.append(_check(label, ok, f"{path} beschreibbar.", f"{path} fehlt oder ist nicht beschreibbar."))
     checks.append(_check("conflict_copies", not conflicts, "Keine Nextcloud-Konfliktkopien.",
                          f"Konfliktkopien: {', '.join(conflicts)}"))
+    import_problem = cfg.import_dir_problem()
+    checks.append(_check("import_dir_outside", import_problem is None, "PKM_IMPORT_DIR liegt außerhalb des Vaults.",
+                         import_problem or ""))
     gitignore = cfg.root / ".gitignore"
     ignored = gitignore.is_file() and scratch_ignored(gitignore.read_text(encoding="utf-8"))
     checks.append(_check("scratch_ignored", ignored, "scratch/ steht in .gitignore.",

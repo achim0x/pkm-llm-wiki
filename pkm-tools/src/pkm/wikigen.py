@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 
 from .errors import PkmError
 from .fsutil import write_bytes_atomic
+from .images import strip_images
 from .maint import Maintenance
 from .normalize import encode
 from .state import load_state
@@ -131,7 +132,7 @@ def _index_line(doc: Doc) -> str:
     Returns:
         ``- [[pfad]] – Kurzfassung _(n Quellen, Datum)_`` (Datum ohne Uhrzeit).
     """
-    summary = summary_of(doc) or "_(keine Kurzfassung)_"
+    summary = strip_images(summary_of(doc)) or "_(keine Kurzfassung)_"
     n = source_count(doc)
     updated = str(doc.meta.get("date_updated") or "")[:10]
     info = f"{n} {'Quelle' if n == 1 else 'Quellen'}" + (f", {updated}" if updated else "")
@@ -306,6 +307,9 @@ def build_status(svc: Service, questions: list[str] | None = None) -> dict[str, 
     lines = ["# Status", "", f"## Noch nicht verarbeitet ({len(unprocessed)})", *unprocessed, "",
              f"## Noch im Eingang, bereits verarbeitet ({len(inbox_done)})", *inbox_done, "",
              f"## Probleme ({len(problems)})", *problems, ""]
+    orphans = pend.get("orphaned_attachments") or []
+    if orphans:
+        lines += [f"## Verwaiste Anhänge ({len(orphans)})", *[f"- {_link(rel)}" for rel in orphans], ""]
     if questions:
         lines += [f"## Rückfragen ({len(questions)})", *[f"- {q}" for q in questions], ""]
     changed = write_if_changed(svc, "wiki/_status.md", "\n".join(lines))

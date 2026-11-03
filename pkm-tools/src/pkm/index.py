@@ -33,6 +33,7 @@ from typing import Any, TypeVar
 
 from .config import Config
 from .errors import PkmError
+from .images import strip_images
 from .paths import transliterate
 from .schema import citation_key
 from .vault import ALL_AREAS, Doc, Vault, extract_links, link_key, summary_of
@@ -178,7 +179,7 @@ class SearchIndex:
         """
         self._forget(con, doc.rel)
         meta = doc.meta
-        summary = summary_of(doc) if doc.kind == "md" else ""
+        summary = strip_images(summary_of(doc)) if doc.kind == "md" else ""
         file_hash = doc.hashes.file_hash if doc.hashes else doc.bin_hash
         cit = doc.short_citation if doc.kind == "md" else None
         con.execute(
@@ -193,7 +194,7 @@ class SearchIndex:
         body = doc.body if doc.kind == "md" else ""
         con.execute(
             "INSERT INTO fts(path, title, meta, summary, body) VALUES(?,?,?,?,?)",
-            (doc.rel, fold(doc.title), fold(tags), fold(summary), fold(body)),
+            (doc.rel, fold(doc.title), fold(tags), fold(summary), fold(strip_images(body))),
         )
         if doc.kind == "md":
             con.executemany("INSERT INTO links VALUES(?,?)", [(doc.rel, link_key(t)) for t in extract_links(body)])

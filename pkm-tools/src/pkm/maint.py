@@ -30,6 +30,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from . import hashes
+from .assets import AssetMap, asset_changes, known_assets
 from .errors import PkmError
 from .frontmatter import fix_frontmatter_text, set_fields_linewise
 from .fsutil import write_bytes_atomic
@@ -187,10 +188,42 @@ class Maintenance:
                         handled.add(rel)
                         handled.update(p for p in entry.pop("prev_paths") if p in deleted)
                         committed.append(entry)
-            committed += self._commit_binaries(dirty - handled, deleted - handled, skipped)
+            modified = {path for xy, path in entries if "M" in xy and not is_markdown(path)}
+            image_commits, image_paths = self._commit_changed_images(modified - handled - deleted)
+            committed += image_commits
+            committed += self._commit_binaries(dirty - handled - image_paths, deleted - handled, skipped)
             committed += [self._commit_deleted(rel) for rel in sorted(deleted - handled) if is_markdown(rel)]
             committed += self._commit_schema()
         return {"status": "ok", "committed": committed, "skipped": skipped}
+
+    def _commit_changed_images(self, modified: set[str]) -> tuple[list[dict[str, Any]], set[str]]:
+        """Geänderte zugehörige Bilddateien als neue Version der Dokumente committen, die sie verwenden (4.9).
+
+        Das erste Dokument bekommt die Bilddatei in seinen Commit, weitere Dokumente je einen eigenen.
+
+        Args:
+            modified: Geänderte, bereits versionierte Anhänge.
+
+        Returns:
+            Tupel aus (Einträge für ``committed``, so behandelte Bilddateien).
+        """
+        out: list[dict[str, Any]] = []
+        handled: set[str] = set()
+        referenced = AssetMap(self.svc, self.documents()[0]).referenced() if modified else {}
+        for image in sorted(p for p in modified if p in referenced):
+            for rel in referenced[image]:
+                doc = self.vault.load(rel)
+                if doc.id and doc.version is not None and not doc.error:
+                    version = doc.version + 1
+                    text = set_fields_linewise(doc.text or "", {"version": version,
+                                                                "date_updated": self.writer.now_stamp()})
+                    msg = build_message(doc.title, f"v{version}", f"Bild geändert: {PurePosixPath(image).name}",
+                                        doc.id, version, "user")
+                    extra = [] if image in handled else [image]
+                    sha = self.writer.write_and_commit(rel, text, msg, extra, as_user=True)
+                    handled.add(image)
+                    out.append({"path": rel, "id": doc.id, "version": version, "image": image, "commit": sha[:10]})
+        return out, handled
 
     def _commit_schema(self) -> list[dict[str, Any]]:
         """Von Hand geänderte ``CLAUDE.md`` (Schema des Vaults) als Nutzer-Commit erfassen.
@@ -338,17 +371,23 @@ class Maintenance:
         """
         docs, problems = self.documents()
         entries: dict[str, dict[str, Any]] = load_state(self.cfg)["documents"]
+        amap = AssetMap(self.svc, docs)
+        referenced = amap.referenced()
+        orphans = amap.orphans(known_assets(entries))
         dups = self.duplicate_ids(docs)
         problems.extend({"problem": "duplicate_id", "id": i, "paths": paths} for i, paths in dups.items())
         result: dict[str, list[dict[str, Any]]] = {c: [] for c in PENDING_CATEGORIES}
         present: set[str] = set()
         for doc in docs:
-            if not (doc.kind == "md" and doc.error):
+            if doc.kind == "bin" and (doc.rel in referenced or doc.rel in orphans):
+                present.add(state_key(doc) or "")  # zugehörige bzw. verwaiste Bilder sind keine Dokumente
+            elif not (doc.kind == "md" and doc.error):
                 self._pending_doc(doc, entries, dups, result, present)
+        _asset_pending(docs, entries, amap, result)
         result["deleted"] = _deleted_entries(entries, present)
         result.pop("invalid", None)
         counts = {k: len(v) for k, v in result.items()}
-        return {"status": "ok", **result, "problems": problems, "counts": counts}
+        return {"status": "ok", **result, "orphaned_attachments": orphans, "problems": problems, "counts": counts}
 
     @staticmethod
     def _pending_doc(
@@ -403,19 +442,25 @@ class Maintenance:
             state = load_state(self.cfg)
             docs_state: dict[str, Any] = state["documents"]
             page_refs = [page_ref(self.svc.resolve(p, ("wiki",))) for p in (pages or [])]
+            amap = None if remove else AssetMap(self.svc, self.documents()[0])
             marked = [
-                _remove_entry(docs_state, t) if remove else self._mark_entry(docs_state, t, page_refs) for t in targets
+                _remove_entry(docs_state, t) if remove or amap is None else self._mark_entry(docs_state, t, page_refs,
+                                                                                           amap)
+                for t in targets
             ]
             self.save_state(state)
         return {"status": "ok", "marked": marked}
 
-    def _mark_entry(self, docs_state: dict[str, Any], target: str, page_refs: list[str]) -> dict[str, Any]:
+    def _mark_entry(
+        self, docs_state: dict[str, Any], target: str, page_refs: list[str], amap: AssetMap
+    ) -> dict[str, Any]:
         """Ein Dokument mit Version und Hashes eintragen.
 
         Args:
             docs_state: ``documents`` aus ``state.json`` (wird geändert).
             target: ID oder Pfad.
             page_refs: Wiki-Seiten (werden mit vorhandenen zusammengeführt).
+            amap: Verweise auf Bilddateien (für ``assets``).
 
         Returns:
             Schlüssel, Pfad und verarbeitete Version.
@@ -441,6 +486,7 @@ class Maintenance:
                 "sections": dict(doc.hashes.sections),
                 "processed_at": now,
                 "wiki_pages": wiki_pages,
+                "assets": amap.assets(doc.rel),
             }
         docs_state[key] = entry
         return {"key": key, "path": doc.rel, "version": entry.get("processed_version")}
@@ -579,6 +625,34 @@ class Maintenance:
         return result
 
 # Functions *******************************************************************
+
+
+def _asset_pending(
+    docs: list[Doc], entries: dict[str, dict[str, Any]], amap: AssetMap, result: dict[str, list[dict[str, Any]]]
+) -> None:
+    """Dokumente mit geänderten zugehörigen Bilddateien als ``changed`` melden (4.9).
+
+    Args:
+        docs: Dokumente.
+        entries: Einträge aus ``state.json``.
+        amap: Verweise auf Bilddateien.
+        result: Ergebnislisten von ``pending`` (werden ergänzt).
+    """
+    listed = {item.get("path"): item for cat in ("changed", "meta_changed") for item in result.get(cat, [])}
+    for doc in docs:
+        entry = entries.get(doc.id or "") if doc.kind == "md" else None
+        changed = asset_changes(entry.get("assets"), amap.assets(doc.rel)) if entry else set()
+        if changed:
+            sections = [{"key": k, "change": "changed"} for k in amap.sections_for(doc.rel, changed)]
+            item = listed.get(doc.rel)
+            if item is None:
+                item = {"id": doc.id, "path": doc.rel, "title": doc.title,
+                        "processed_version": entry.get("processed_version") if entry else None,
+                        "version": doc.version, "sections": []}
+                result["changed"].append(item)
+            known = {s["key"] for s in item.get("sections", [])}
+            item["sections"] = item.get("sections", []) + [s for s in sections if s["key"] not in known]
+            item["assets_changed"] = sorted(changed)
 
 
 def page_ref(rel: str) -> str:

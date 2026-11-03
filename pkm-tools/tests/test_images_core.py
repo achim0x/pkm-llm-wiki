@@ -109,7 +109,7 @@ def test_sanitize_svg_removes_unsafe_parts(bad):
 def test_sanitize_svg_rejects_xxe_raster_and_size():
     """DOCTYPE/Entities, eingebettete Rastergrafiken und zu große SVG werden abgelehnt."""
     xxe = '<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg">&x;</svg>'
-    raster = ('<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,AAAA"/></svg>')
+    raster = '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,AAAA"/></svg>'
     big = '<svg xmlns="http://www.w3.org/2000/svg">' + "<rect/>" * 400 + "</svg>"
     for svg, status in ((xxe, "invalid_image"), (raster, "svg_too_complex"), (big, "svg_too_complex"),
                         ("kein xml", "invalid_image")):
@@ -124,7 +124,9 @@ def test_svg_data_uri_is_markdown_safe():
     uri = images.svg_data_uri(svg)
     assert not any(ch in uri for ch in ' ()[]"#<>')
     line = f'![Diagramm]({uri} "pkm:diagramm")'
-    (ref,) = images.find_images(line)
+    refs = images.find_images(line)
+    assert len(refs) == 1
+    ref = refs[0]
     assert ref.name == "diagramm" and ref.inline and ref.fmt == "svg"
     assert b"a (b) [c]" in ref.data()
 
