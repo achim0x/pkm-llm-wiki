@@ -503,4 +503,15 @@ def test_mcp_call_create_and_conflict(cfg):
     assert '"tool": "create_document"' in log and '"status": "conflict"' in log
     mcp_server.reset_service()
 
+def test_long_title_shortens_only_slug(svc):
+    """Lange Titel: nur der Slug wird gekürzt, Suffix und Datum bleiben, höchstens 120 Zeichen."""
+    title = "Sehr langer Titel " * 20
+    a = svc.create_document(title=title, content="A")
+    b = svc.create_document(title=title, content="B")
+    for res, pattern in ((a, r"sehr-langer-titel[a-z-]*[a-z]_\d{4}-\d{2}-\d{2}\.md"),
+                         (b, r"sehr-langer-titel[a-z-]*-2_\d{4}-\d{2}-\d{2}\.md")):
+        name = res["path"].rsplit("/", 1)[1]
+        assert len(name) <= 120 and re.fullmatch(pattern, name), name
+    assert len(a["path"].rsplit("/", 1)[1]) == 120
+
 # Main ************************************************************************

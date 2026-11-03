@@ -124,6 +124,20 @@ def slugify(title: str, max_len: int = 80) -> str:
     return s
 
 
+def fit_stem(stem: str, rest: str) -> str:
+    """Namensstamm so kürzen, dass ``stem + rest`` höchstens ``MAX_NAME`` Zeichen hat.
+
+    Args:
+        stem: Slug.
+        rest: Fester Rest des Namens (Suffix, Datum, Endung), wird nie gekürzt.
+
+    Returns:
+        Gekürzter Slug ohne Bindestrich am Ende (mindestens ein Zeichen).
+    """
+    room = max(1, MAX_NAME - len(rest))
+    return stem[:room].rstrip("-") or stem[:1]
+
+
 def is_platform_safe_name(name: str) -> bool:
     """Prüfen, ob ein Datei- oder Ordnername auf macOS und Windows gültig ist (5.5).
 

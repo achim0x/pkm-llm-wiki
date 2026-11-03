@@ -43,7 +43,7 @@ from .gitlayer import Commit, build_message
 from .ids import new_id
 from .normalize import encode, normalize_fragment, normalize_text
 from .parse import PREAMBLE, Parsed, body_lines, normalize_key_input, split_sections, strip_frontmatter
-from .paths import is_platform_safe_name, slugify
+from .paths import MAX_NAME, fit_stem, is_platform_safe_name, slugify
 from .schema import DEFAULT_KIND, DEFAULT_TOOLCHAIN, FIELD_ORDER, KINDS, normalize_tags, order_meta, stamp
 from .vault import SCRATCH, Doc, load_text_doc
 
@@ -523,30 +523,32 @@ class Writer:
             meta = _ordered_meta({**values, "date_markdown": self.now_stamp()})
             text = normalize_text(dump_meta(meta) + "\n" + body.lstrip("\n"))
             base = "/".join(p for p in (SCRATCH, folder) if p)
-            rel = self._free_name(base, slugify(values["title"]))
+            rel = self._free_name(base, slugify(values["title"], MAX_NAME))
             self.write_atomic(rel, text)
         doc = self.vault.load(rel)
         return {"path": rel, "status": "created", "new_hash": doc.hashes.file_hash if doc.hashes else None,
                 "diff": unified_diff("", text, "/dev/null", rel, DIFF_LINES)}
 
-    def _free_name(self, base_dir: str, stem: str, tail: str = "") -> str:
+    def _free_name(self, base_dir: str, stem: str, tail: str = "", ext: str = ".md") -> str:
         """Freien Dateinamen ``<stem><tail>.md`` in einem Ordner finden (nie überschreiben).
 
         Args:
             base_dir: Ordner relativ zum Vault.
             stem: Gewünschter Dateiname ohne Endung.
             tail: Fester Schluss des Namens (z. B. ``_2026-11-03``); das Suffix steht davor.
+            ext: Dateiendung.
 
         Returns:
-            Relativer Pfad; bei Namensgleichheit mit Suffix ``-2``, ``-3`` … vor ``tail``.
+            Relativer Pfad; bei Namensgleichheit mit Suffix ``-2``, ``-3`` … vor ``tail``. Der Name hat
+            höchstens ``MAX_NAME`` Zeichen; gekürzt wird nur ``stem``, nie Suffix, ``tail`` oder Endung.
         """
         area = base_dir.split("/", 1)[0]
         existing = {r.casefold() for r in self.vault.iter_files((area,))}
         n = 1
-        rel = f"{base_dir}/{stem}{tail}.md"
+        rel = f"{base_dir}/{fit_stem(stem, tail + ext)}{tail}{ext}"
         while rel.casefold() in existing or self.vault.path(rel).exists():
             n += 1
-            rel = f"{base_dir}/{stem}-{n}{tail}.md"
+            rel = f"{base_dir}/{fit_stem(stem, f'-{n}{tail}{ext}')}-{n}{tail}{ext}"
         return rel
 
     def _link_target(self, target: str) -> str:
@@ -571,7 +573,7 @@ class Writer:
         Returns:
             Relativer Pfad; bei Namensgleichheit mit Suffix vor dem Datum (``<slug>-2_YYYY-MM-DD.md``).
         """
-        return self._free_name(INBOX, slugify(title), f"_{date}")
+        return self._free_name(INBOX, slugify(title, MAX_NAME), f"_{date}")
 
     def rewrite_document(
         self, target: str, content: str, expected_hash: str | None, note: str | None = None,
