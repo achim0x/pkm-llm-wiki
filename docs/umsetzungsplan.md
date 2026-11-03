@@ -249,6 +249,13 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - `read` mit `section`, `offset`/`max_chars`, `content: false`; große Inhalte nur auf Anforderung.
 - `fix-citations` schreibt Wikilinks im Text mit um und findet verschobene Dokumente auch bei veraltetem Index; `finish_maintenance` hebt Belege auf unveränderte Abschnitte auf die neue Version.
 
+### Phase 7c – Spezifikation 0.20–0.22: lange Dateinamen, Bilder, Windows
+
+- 0.20: Bei Namen über 120 Zeichen wird nur der Slug gekürzt (`paths.fit_stem`).
+- 0.21 Bilder: `images.py`, `docimages.py`, `assets.py`, `imagelint.py`; Parameter `images`, Tools `add_image` und `read_image`; Platzhalter in `read`; Assets in `state.json`; geänderte Bilddateien als neue Version der Dokumente; verwaiste Anhänge in `_status.md`; Lint und Doctor erweitert; Index nur mit Alternativtext.
+- 0.22: Windows als gleichwertiger PKM-Rechner in der Spezifikation.
+- Offen: Anzeige eingebetteter PNG/SVG in Obsidian (auch mit `|breite`) am echten Vault testen.
+
 ### Phase 8 – Automatik (später, 0,5 PT)
 
 Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im Projekt. Voraussetzung: mehrere manuelle Läufe ohne Nacharbeit. Geplante Cowork-Aufgaben laufen in der Cloud und erreichen `pkm-pflege` voraussichtlich nur bei laufendem PKM-Rechner mit geöffneter Desktop-App – vorher testen.

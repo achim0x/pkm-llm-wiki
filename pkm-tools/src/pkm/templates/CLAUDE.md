@@ -35,6 +35,10 @@ frei in Obsidian; Dokumente werden über ihre ID gefunden, nicht über den Pfad.
   Anführungszeichen setzen. `source` bleibt dem Web Clipper vorbehalten.
 - Jede Version ist genau ein Git-Commit mit den Zeilen `PKM-Id`, `PKM-Version`,
   `PKM-Source` (`chat` | `user` | `agent`). Der Verlauf liegt in Git, nicht im Dokument.
+- Bilder (4.9): PNG und SVG (Diagramme als SVG). Bis 24 KB eingebettet als Data-URI mit Titel
+  `"pkm:<name>"`, größere als Datei in `documents/_attachments/`. Jedes neue Bild hat einen
+  Alternativtext. Bestehende eingebettete PNG bleiben unverändert. Belege auf Bilder zitieren
+  `[img:<name>]`.
 - Empfohlene Gliederung für Chat-Ergebnisse: `## Ergebnis`, `## Entscheidungen`,
   `## Offene Punkte`, `## Kontext / Begründung`. Fortsetzungen aktualisieren diese Abschnitte.
 - Abschnitte sind Überschriften der Ebene 1 und 2 (`#`, `##`). Doppelte Überschriften, die

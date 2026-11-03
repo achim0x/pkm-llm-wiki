@@ -92,6 +92,19 @@ Voraussetzung.
 - Wird eine Notiz dauerhaft wichtig, verschiebst du sie in Obsidian nach `documents/`. Beim nächsten
   Pflegelauf ist sie ein ganz normales Dokument mit ID und Version 1.
 
+### Bilder in Dokumenten
+- Diagramme, Skizzen und Schaltpläne zeichnet Claude als **SVG**, Fotos und Screenshots bleiben
+  **PNG**. Bilder legt Claude beim Ablegen oder Ändern mit ab, wieder erst nach einem Entwurf.
+- **Klein wird eingebettet, groß wird Datei:** bis 24 KB steht das Bild direkt im Dokument
+  (Data-URI), größere Bilder landen in `documents/_attachments/`. In `scratch/` wird immer
+  eingebettet.
+- **Fotos aus dem Chat:** Claude kann hochgeladene Bilder nicht byte-genau weitergeben. Du legst die
+  Datei in den Importordner (`Downloads/pkm-import`), Claude übernimmt sie von dort.
+- Bilder gehören zu ihrem Dokument und werden mit ihm versioniert. Claude sieht sie sich mit
+  `read_image` an; Base64 landet nie im Chat. Im Wiki werden Bilder in Worten übernommen und mit
+  `[img:<name>]` belegt.
+- SVG wird vor dem Speichern bereinigt (keine Skripte, keine externen Verweise), PNG geprüft.
+
 ### Fragen und Quellen
 - „Was weiß mein Wiki über …?“ beantwortet Claude aus dem Wiki, mit Verweisen auf die Seiten.
 - „Woher stammt das?“ liefert zu jeder Aussage das Original, den Abschnitt, das Zitat, die
@@ -168,7 +181,7 @@ flowchart LR
 
 | Komponente | Rolle |
 |---|---|
-| **pkm-mcp** | MCP-Server für Claude Desktop. Zwölf Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für den Verlauf und die Belege. |
+| **pkm-mcp** | MCP-Server für Claude Desktop. 14 Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für Bilder, den Verlauf und die Belege. |
 | **pkm-pflege-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `finish_maintenance` plus die lesenden Tools. Schreibt in `wiki/` und `.pkm/state.json`, an Dokumenten nur IDs und – nach deiner Bestätigung – `title`, `context`, `tags`, `kind`, `short_citation`; nur in Pflege-Unterhaltungen einschalten. |
 | **pkm** | Kommandozeile für Einrichtung, Prüfung und Fehlersuche (dieselben Pflege-Befehle, einzeln). |
 | **Skill `pkm-access`** | Sagt Claude in normalen Chats, wann und wie die Tools zu nutzen sind, z. B. „immer erst ein Entwurf“. |
@@ -291,6 +304,8 @@ lösen die passenden Abläufe aus:
 | „Woher stammt das?“ | Original, Abschnitt, Zitat, Versionen und Status je Aussage. |
 | „Notier mir kurz …“ / „Setz … auf meine Todo-Liste“ | Notiz in `scratch/` (nach Entwurf), ohne Version und Commit, nie im Wiki. |
 | „Hak … ab“ / „Was steht auf meiner Liste?“ | Ändert bzw. liest die Liste in `scratch/` (Suche mit `scope: "scratch"`). |
+| „Zeichne das als Diagramm ins Dokument.“ | SVG-Diagramm als Entwurf, nach Bestätigung im Dokument (`images` bzw. `add_image`). |
+| „Nimm das Foto `foto.png` aus dem Importordner mit auf.“ | Übernimmt die Datei aus `Downloads/pkm-import` (`import_path`). |
 | „Korrigier im Wiki: …“ | Legt ein **Korrektur-Dokument** an. Das Wiki selbst ändert nur der Pflege-Agent. |
 | „Dokumentiere das als Fortsetzung.“ | Nur auf diese ausdrückliche Anweisung entsteht ein datierter Abschnitt `## Fortsetzung YYYY-MM-DD`. |
 

@@ -231,10 +231,18 @@ Windows (in JSON jeden Backslash verdoppeln):
   `"args": ["--from", "<REPO>/pkm-tools", "pkm-mcp"]`.
 
 Claude Desktop vollständig beenden (unter Windows auch im Infobereich der Taskleiste) und neu
-starten. Im Chat sollten unter den Werkzeugen die zwölf `pkm`-Tools erscheinen (`search`, `read`,
-`history`, `show_citations`, `read_index`, `list_unprocessed`, `create_document`,
-`rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`,
+starten. Im Chat sollten unter den Werkzeugen die 14 `pkm`-Tools erscheinen (`search`, `read`,
+`read_image`, `history`, `show_citations`, `read_index`, `list_unprocessed`, `create_document`,
+`rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `add_image`,
 `restore_document`) sowie der Server `pkm-pflege`.
+
+**Importordner für Bilder:** Fotos und Screenshots aus einem Chat übernimmt der Server nur aus
+`PKM_IMPORT_DIR` (Standard `<HOME>/Downloads/pkm-import`, unter Windows
+`%USERPROFILE%\Downloads\pkm-import`). Den Ordner einmal anlegen. Er muss außerhalb des Vaults
+liegen (`pkm doctor` prüft das). Weitere Einstellungen für Bilder (alle optional, in `env` der
+Config): `PKM_INLINE_MAX_KB` (24), `PKM_SVG_MAX_KB` (200), `PKM_IMAGE_MAX_MB` (5),
+`PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER` (`false`; zum Rastern von SVG zusätzlich das Paket
+`cairosvg` installieren).
 
 **`pkm-pflege` nur zur Pflege einschalten.** Claude Desktop gibt Server allen Unterhaltungen frei;
 auf ein Projekt beschränken lässt er sich nicht. Deshalb `pkm-pflege` in normalen Unterhaltungen
@@ -363,6 +371,10 @@ im Format `YYYY-MM-DDTHH:MM:SS`), `toolchain_markdown: Obsidian Web Clipper`, `t
 **Bereits umgewandelte Normen** in den Vault legen: Normtitel enthalten oft `: ` und müssen dann in
 Anführungszeichen stehen. `pkm lint` zeigt betroffene Dateien, `pkm fix-frontmatter` listet sie
 auf, mit Ziel oder `--all` repariert er sie.
+
+**Bilder testen:** Eingebettete Bilder (Data-URIs) zeigt Obsidian im Lese- und Live-Vorschau-Modus.
+Nach der Einrichtung einmal ein Dokument mit einem eingebetteten PNG und SVG (auch mit `|400`
+im Alternativtext) aus einem Chat anlegen lassen und in Obsidian prüfen.
 
 Optional: Dataview, Graph View. Die Einstellungen in `.obsidian/` werden über Nextcloud auch
 auf die anderen Rechner übertragen. Kein Obsidian-Git-Plugin verwenden.

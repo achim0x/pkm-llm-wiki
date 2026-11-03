@@ -5,6 +5,7 @@
 > **Änderungen in 0.22**
 > - **Windows als PKM-Rechner:** Der Rechner mit MCP-Servern, Git und Suchindex (PKM-Rechner) kann ein Mac **oder** ein Windows-PC sein, gleichwertig. Je Vault gibt es genau einen PKM-Rechner, alle anderen nutzen nur Obsidian. Standardordner unter Windows `%APPDATA%\pkm`, Git von git-scm.com, Konfiguration von Claude Desktop unter `%APPDATA%\Claude`, Datensicherung des Git-Verzeichnisses ausdrücklich einrichten (3, 5.5, 7.1, 7.6, 7.7, 11, 12, 13, 14, 16).
 > - Tabellenzeilen `sha:` (4.2) sowie `pkm versions`, `pkm status`, `pkm lint` und `pkm doctor` (8) wieder vollständig, die Ergänzungen aus 0.21 sind angehängt.
+> - Präzisierungen aus der Umsetzung der Bilder: `edit_document` hat `confirm_shortening` (Entfernen von Bildern), verwaist sind auch Bilddateien in `_attachments/` ohne Verweis, bei mehreren Dokumenten je Bilddatei enthält der Commit des ersten Dokuments das Bild (4.9, 7.2, 8).
 >
 > **Änderungen in 0.21**
 > - **Bilder** (neuer Abschnitt 4.9): PNG und SVG, SVG bevorzugt. Bis 24 KB werden Bilder eingebettet (PNG als Base64-, SVG als URL-kodierte Data-URI), größere als Datei in `_attachments/` abgelegt, in `scratch/` immer eingebettet. Bestehende eingebettete PNG bleiben unverändert. Bilder gehören zu dem Dokument, das sie zeigt, und werden mit ihm versioniert und verarbeitet. Neue Werkzeuge `add_image` und `read_image`, neuer Parameter `images` für die schreibenden Werkzeuge, Importordner `PKM_IMPORT_DIR` für Bilder aus dem Chat (3, 4.2, 4.6, 4.7, 4.9, 7, 8, 9.1, 10, 13, 14).
@@ -561,9 +562,9 @@ Eingebettet und verlinkt wird mit der **Markdown-Bildsyntax**, weil Obsidians `!
 
 #### Zugehörige und eigenständige Bilder
 - **Eingebettete Bilder** sind Teil des Abschnitts, in dem sie stehen. Eine Änderung ändert den Abschnitts-Hash (4.8).
-- **Verlinkte Bilddateien** führt `state.json` je Dokument unter `assets` (Pfad und Hash). Ändert sich eine Bilddatei, erzeugt `pkm versions` für jedes Dokument, das sie verwendet, eine neue Version (Commit mit Bild und Dokument, `PKM-Source: user`), und `pending` meldet das Dokument als `changed` mit den Abschnitten, die das Bild enthalten.
+- **Verlinkte Bilddateien** führt `state.json` je Dokument unter `assets` (Pfad und Hash). Ändert sich eine Bilddatei, erzeugt `pkm versions` für jedes Dokument, das sie verwendet, eine neue Version (Commit mit Bild und Dokument, `PKM-Source: user`; bei mehreren Dokumenten enthält der Commit des ersten das Bild, die übrigen bekommen je einen eigenen Commit), und `pending` meldet das Dokument als `changed` mit den Abschnitten, die das Bild enthalten.
 - **Zugehörige Bilddateien sind keine eigenständigen Dokumente:** kein `new`, keine eigene Zusammenfassung.
-- **Verwaiste Bilder** (letzter Verweis entfernt) werden nicht automatisch eigenständig, sondern in `wiki/_status.md` unter „Verwaiste Anhänge“ gemeldet.
+- **Verwaiste Bilder** (letzter Verweis entfernt, sowie Bilddateien in `documents/_attachments/` ohne Verweis) werden nicht automatisch eigenständig, sondern in `wiki/_status.md` unter „Verwaiste Anhänge“ gemeldet.
 - **Eigenständige Bilder** (ohne Verweis, z. B. ein Foto allein in `_inbox/`) werden wie bisher über den Datei-Hash als eigenes Dokument verarbeitet.
 
 #### Belege auf Bilder
@@ -840,6 +841,7 @@ Schutz gegen versehentlichen Verlust: Ist der neue Inhalt kürzer als 60 % des a
 | `target` | string | ja | |
 | `old` | string | ja | Muss genau einmal im Text vorkommen (außerhalb des Frontmatters). Sonst kommt `not_found` oder `ambiguous` mit Anzahl zurück |
 | `new` | string | ja | Darf leer sein |
+| `confirm_shortening` | bool | nein | Standard `false`. Bestätigt, dass die Änderung ein Bild entfernt (4.9) |
 | `expected_hash` | string | ja | |
 | `note` | string | nein | |
 

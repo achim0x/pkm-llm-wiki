@@ -21,6 +21,12 @@ Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/u
 `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`,
 `show_citations`.
 
+**Bilder (4.9):** `create_document`, `rewrite_document`, `append_to_document`, `edit_document` mit
+`images`, dazu `add_image` und `read_image` (auch in `pkm-pflege-mcp`). Module `images.py` (Erkennen,
+SVG-Bereinigung, PNG-Prüfung, Kodierung, Platzhalter), `docimages.py` (Einsetzen, Dateien, `read`,
+`read_image`), `assets.py` (zugehörige Bilddateien, `state.json`-`assets`, verwaiste Anhänge),
+`imagelint.py`.
+
 **MCP-Tools `pkm-pflege-mcp`:** die lesenden Tools sowie `begin_maintenance` (doctor, versions, ids,
 pending mit `missing_fields`, `known_tags`, fix-citations), `set_document_metadata` (nur `title`,
 `context`, `tags`, `kind`, `short_citation` nach Bestätigung; neue Version mit `PKM-Source: agent`),
@@ -89,6 +95,13 @@ ohne diese Angaben fehlt `content` (`content_omitted`).
 - `fix-citations` schreibt bei verschobenen Originalen auch Wikilinks im Seitentext um. Wird in
   Obsidian verschoben, aktualisiert Obsidian die Links selbst; dann meldet `fix-citations`
   zu Recht `pages_changed: 0`.
+- **Bilder:** `edit_document` hat zusätzlich `confirm_shortening`, weil das Entfernen eines Bildes
+  wie eine Kürzung bestätigt werden muss. Als verwaist gelten auch Bilddateien in
+  `documents/_attachments/` ohne Verweis (nicht nur früher zugehörige). Verwendet eine geänderte
+  Bilddatei mehrere Dokumente, enthält der Commit des ersten Dokuments das Bild, die übrigen
+  bekommen je einen eigenen Commit (eine Datei je Versions-Commit, 5.4). SVG-Rasterung über
+  `cairosvg` statt `resvg`. Bereits verarbeitete Dokumente ohne `assets` in `state.json` werden
+  erst nach dem nächsten Vermerk auf geänderte Bilddateien überwacht.
 - **Windows als PKM-Rechner** (Spezifikation 5.5 nennt nur den Mac): Standardordner
   `%APPDATA%\pkm`, Sperre über `msvcrt` statt `fcntl`, `os.replace` mit Wiederholung bei
   gesperrten Dateien, `core.autocrlf=false` im PKM-Repo, Abhängigkeit `tzdata`. Einrichtung in

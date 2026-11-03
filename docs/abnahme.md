@@ -266,6 +266,10 @@ pkm lint --report
 | Umgewandelte Norm | Norm mit unquotiertem `: ` im Titel und `short citation` nach `documents/` legen, `pkm lint`, dann `pkm fix-frontmatter` (erst ohne, dann mit Ziel) | Lint: `invalid_frontmatter` mit Hinweis; ohne Ziel nur Liste; mit Ziel nur Titelzeile und Feldname geändert. Nächster Pflegelauf hängt nur `id`/`version` an | ☐ |
 | Kurzbezeichnung | Im Chat „Was steht in EN 61000-4-6:2014 zum Anwendungsbereich?“ | Das Dokument wird über `short_citation` gefunden | ☐ |
 | Obsidian-Typen | Eigenschaften eines neuen Chat-Dokuments in Obsidian ansehen | `date_markdown`/`date_updated` als Datum & Uhrzeit, `tags` als Tags | ☐ |
+| SVG-Diagramm | Im Chat „Zeichne den Aufbau als Diagramm in das Dokument“ | Entwurf mit Bild, nach Bestätigung eingebettetes SVG (`pkm:<name>`), in Obsidian im Lese- und Live-Vorschau-Modus sichtbar (auch mit `|400`) | ☐ |
+| Foto aus dem Importordner | Foto nach `Downloads/pkm-import` legen, im Chat „nimm foto.png mit ins Dokument“ | über 24 KB: Datei in `documents/_attachments/`, im selben Commit wie das Dokument; in Obsidian sichtbar | ☐ |
+| Bild im Pflegelauf | Nächster Pflegelauf nach den beiden Bildern | `read_image` wird genutzt, Inhalt in Worten mit Beleg `[img:<name>]`, Bilddatei nicht als eigenes Dokument | ☐ |
+| Bild ändern | Die Bilddatei in `_attachments/` ersetzen, Pflegelauf | Dokument bekommt eine neue Version mit `PKM-Source: user`, `pending` meldet den Abschnitt mit dem Bild | ☐ |
 
 ---
 
