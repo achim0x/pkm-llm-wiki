@@ -1,7 +1,17 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.19 (Entwurf zum Review) · **Stand:** 03.11.2026
+**Version:** 0.22 (Entwurf zum Review) · **Stand:** 03.11.2026
 
+> **Änderungen in 0.22**
+> - **Windows als PKM-Rechner:** Der Rechner mit MCP-Servern, Git und Suchindex (PKM-Rechner) kann ein Mac **oder** ein Windows-PC sein, gleichwertig. Je Vault gibt es genau einen PKM-Rechner, alle anderen nutzen nur Obsidian. Standardordner unter Windows `%APPDATA%\pkm`, Git von git-scm.com, Konfiguration von Claude Desktop unter `%APPDATA%\Claude`, Datensicherung des Git-Verzeichnisses ausdrücklich einrichten (3, 5.5, 7.1, 7.6, 7.7, 11, 12, 13, 14, 16).
+> - Tabellenzeilen `sha:` (4.2) sowie `pkm versions`, `pkm status`, `pkm lint` und `pkm doctor` (8) wieder vollständig, die Ergänzungen aus 0.21 sind angehängt.
+>
+> **Änderungen in 0.21**
+> - **Bilder** (neuer Abschnitt 4.9): PNG und SVG, SVG bevorzugt. Bis 24 KB werden Bilder eingebettet (PNG als Base64-, SVG als URL-kodierte Data-URI), größere als Datei in `_attachments/` abgelegt, in `scratch/` immer eingebettet. Bestehende eingebettete PNG bleiben unverändert. Bilder gehören zu dem Dokument, das sie zeigt, und werden mit ihm versioniert und verarbeitet. Neue Werkzeuge `add_image` und `read_image`, neuer Parameter `images` für die schreibenden Werkzeuge, Importordner `PKM_IMPORT_DIR` für Bilder aus dem Chat (3, 4.2, 4.6, 4.7, 4.9, 7, 8, 9.1, 10, 13, 14).
+>
+> **Änderungen in 0.20**
+> - **Lange Dateinamen:** Überschreitet ein erzeugter Dateiname die Grenze von 120 Zeichen (5.5), wird nur der Slug gekürzt, nie das Datum oder das Suffix bei Namensgleichheit (4.1, 7.2, 14).
+>
 > **Änderungen in 0.19** (Befunde aus den ersten Pflegeläufen)
 > - **Dateinamen mit Datum am Ende:** Neue Dokumente aus Chats heißen `<slug>_YYYY-MM-DD.md`. Bei Namensgleichheit steht das Suffix vor dem Datum (`<slug>-2_YYYY-MM-DD.md`) (4.1, 7.2).
 > - **Pflege über einen eigenen MCP-Server `pkm-pflege-mcp` statt über Shell und CLI.** Claude Desktop bzw. Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus, in der `pkm`, Git und das Git-Verzeichnis fehlen. Der neue Server bündelt die Pflegebefehle in den Tools `begin_maintenance`, `write_wiki_page`, `set_document_metadata` und `finish_maintenance`. Er wird nur in Pflege-Unterhaltungen eingeschaltet. Die CLI bleibt für Einrichtung, Prüfung und Fehlersuche (1, 2, 3, 7.7, 8, 9, 11, 12, 15).
@@ -157,7 +167,7 @@ Ein persönliches Wissensmanagement (PKM), das
 <PKM_ROOT>/
 ├── documents/                # Ablage des Nutzers, frei sortierbar
 │   ├── _inbox/             # Standardziel für pkm-mcp und den Web Clipper
-│   ├── _attachments/            # Bilder aus Web-Clips (Obsidian-Anhangordner)
+│   ├── _attachments/            # Bilddateien (über 24 KB, Web-Clips, von Obsidian eingefügt)
 │   ├── haus/
 │   │   ├── zisterne.md
 │   │   └── datenblatt-tank.pdf
@@ -180,8 +190,9 @@ Ein persönliches Wissensmanagement (PKM), das
 ├── .obsidian/
 └── .gitignore                # kein .git im Vault, siehe 5.5
 
-Außerhalb der Nextcloud, nur auf dem Mac:
-~/Library/Application Support/pkm/
+Außerhalb der Nextcloud, nur auf dem PKM-Rechner (5.5):
+~/Library/Application Support/pkm/      (Mac)
+%APPDATA%\pkm\                          (Windows)
 ├── git/                      # Git-Verzeichnis des Vaults (PKM_GIT_DIR)
 └── index.db                  # Suchindex, Cache (PKM_CACHE_DIR)
 ```
@@ -192,7 +203,7 @@ Außerhalb der Nextcloud, nur auf dem Mac:
 | `documents/**` (übrige) | alles | ändern (nur `.md`) | lesen, `id`/`version` setzen; nach Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` |
 | `wiki/` | lesen | **nur lesen** | lesen und schreiben |
 | `CLAUDE.md` | lesen und schreiben (Änderungen committet `pkm versions`) | – | Änderungen nur nach Zustimmung |
-| `scratch/**` | alles | neu anlegen, ändern (nur `.md`), ohne Version und Commit | **ignoriert** |
+| `scratch/**` | alles | neu anlegen, ändern (nur `.md`, Bilder immer eingebettet), ohne Version und Commit | **ignoriert** |
 | `.pkm/` | – | `mcp.log` (nur anhängen) | `state.json` (über `pkm-pflege-mcp`) |
 
 Ein Dokument ist „unverarbeitet“, solange seine aktuelle Version nicht in `state.json` als verarbeitet steht. Wo es innerhalb von `documents/` liegt, ist dafür egal.
@@ -299,7 +310,7 @@ kind: standard
 
 Bei einer fortgeführten Diskussion werden diese Abschnitte **aktualisiert**, nicht ergänzt (Abschnitt 6). Das Dokument zeigt immer den aktuellen Stand.
 
-**Dateinamen** in `_inbox/`: `<slug>_YYYY-MM-DD.md`, das Datum (Tag der Anlage) steht am Ende. Bei Namensgleichheit kommt ein Suffix vor das Datum: `<slug>-2_YYYY-MM-DD.md`. Beim Einsortieren darfst du sie frei umbenennen.
+**Dateinamen** in `_inbox/`: `<slug>_YYYY-MM-DD.md`, das Datum (Tag der Anlage) steht am Ende. Bei Namensgleichheit kommt ein Suffix vor das Datum: `<slug>-2_YYYY-MM-DD.md`. Ist der Name länger als 120 Zeichen (5.5), wird nur der Slug gekürzt, nie das Datum oder das Suffix. Beim Einsortieren darfst du sie frei umbenennen.
 
 **Nicht-Markdown-Dateien** (PDF, Bilder) haben kein Frontmatter und keine Versionsnummer. Sie werden über ihren Inhalts-Hash identifiziert. Eine neue Fassung eines PDFs gilt als neues Dokument (Abschnitt 5).
 
@@ -356,7 +367,7 @@ Der Tank fasst 6.500 L.[^b4]
 | `„<quote>“` | ja bei Text | Wörtliche Stelle aus dem Original in der genannten Version, höchstens 200 Zeichen |
 | `id:` | bei Markdown | Feste Dokument-ID |
 | `v:` | bei Markdown | Version des Dokuments, aus der die Aussage stammt. Über ID und Version ist der damalige Wortlaut in Git jederzeit abrufbar |
-| `sha:` | ja | Die ersten 6 Zeichen des Abschnitts-Hashes (Markdown) bzw. des Datei-Hashes (PDF/Bild) in dieser Version, nach 4.8 |
+| `sha:` | ja | Die ersten 6 Zeichen des Abschnitts-Hashes (Markdown) bzw. des Datei-Hashes (PDF/Bild) in dieser Version, nach 4.8. Bei Bildern siehe 4.9 |
 
 **Regeln:**
 - Jede Sachaussage in „Inhalt“ und „Widersprüche“ endet mit mindestens einer Fußnote. Fasst ein Absatz mehrere Aussagen aus derselben Stelle zusammen, genügt eine Fußnote am Absatzende.
@@ -427,6 +438,7 @@ Schlüssel ist die Dokument-ID (Markdown) bzw. `sha:<voller hash>` (PDF/Bild):
         "Offene Punkte": "d4e5f6…"
       },
       "processed_at": "2026-11-02T21:10:00+01:00",
+      "assets": {"documents/_attachments/foto-einstieg_2026-11-03.png": "5d1f…"},
       "wiki_pages": ["wiki/topics/regenwasser-ertrag", "wiki/entities/tank-1"]
     },
     "sha:c07d44…": {
@@ -452,10 +464,10 @@ Alle Hashes werden voll (64 Hex-Zeichen) gespeichert, im Beispiel gekürzt. Was 
 | Abschnitte | Schlüssel nach 4.8, reserviert `_preamble`, Duplikate `Text#2` |
 | `pending`-Kategorien | `new`, `changed`, `meta_changed`, `moved`, `deleted`; je Abschnitt `added`, `removed`, `changed`, `renamed` |
 | Bereiche (`area`, `scope`) | `documents`, `scratch`; zusätzlich `wiki` und `all` (= `wiki` + `documents`) bei `search` |
-| MCP-Tools `pkm-mcp` | `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`, `search`, `read`, `history`, `show_citations`, `read_index`, `list_unprocessed` |
+| MCP-Tools `pkm-mcp` | `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `add_image`, `restore_document`, `search`, `read`, `read_image`, `history`, `show_citations`, `read_index`, `list_unprocessed` |
 | MCP-Tools `pkm-pflege-mcp` | `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `finish_maintenance` sowie die lesenden Tools von `pkm-mcp` |
 | Pflege-Rückgaben | `missing_fields`, `known_tags`, `operation` (`ingest` \| `lint` \| `fix`), `processed`, `removed`, `questions` |
-| Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `unchanged`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding`, `not_versioned`, `forbidden`, `protected_field`, `field_exists`, `blocked`, `needs_decision` |
+| Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `unchanged`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding`, `not_versioned`, `svg_too_complex`, `too_large_for_inline`, `unknown_image`, `invalid_image`, `forbidden`, `protected_field`, `field_exists`, `blocked`, `needs_decision` |
 | CLI | `pkm init`, `ids`, `versions`, `pending`, `history`, `show`, `fix-citations`, `sync-citations`, `sha`, `mark`, `index`, `status`, `lint`, `restore`, `reindex`, `commit-wiki`, `fix-frontmatter`, `doctor` |
 | Skills | `pkm-wiki`, `pkm-access` |
 
@@ -520,6 +532,64 @@ Der Server **schreibt** Dateien immer in dieser Form: UTF-8 ohne BOM, LF, NFC, e
 
 `edit_document` sucht `old` im **normalisierten Body** (Schritt 1). Auch `old` und `new` werden vorher normalisiert (LF, NFC), damit CRLF oder abweichende Unicode-Formen aus dem Chat nicht zu `not_found` führen. Die Kürzungsprüfung von `rewrite_document` (`large_shortening`) zählt Zeichen des normalisierten Bodys und vergleicht Abschnittsschlüssel nach Schritt 3.
 
+### 4.9 Bilder
+
+**Formate:** PNG und SVG. Andere Rasterformate (JPEG, GIF, WebP) bleiben als Datei gültig, werden aber von den Werkzeugen nicht erzeugt oder eingebettet.
+
+#### Grundsätze
+1. **Ein Bild gehört zu dem Dokument, das es zeigt.** Ein eingebettetes oder verlinktes Bild ist Teil seines Dokuments und wird mit ihm versioniert und verarbeitet. Als eigenständiges Dokument gilt ein Bild nur, wenn kein Markdown-Dokument in `documents/` darauf verweist.
+2. **SVG vor PNG**, sofern das Bild es zulässt: Diagramme, Ablauf- und Schaltpläne, Skizzen, Diagramme aus Messwerten, Symbole und alle vom Modell selbst erzeugten Grafiken werden SVG. Fotos, Screenshots, Scans und Bilder mit Farbverläufen oder vielen Details bleiben PNG. Fotos werden nie vektorisiert. Ein SVG ist **zu komplex** (`svg_too_complex`), wenn es nach der Bereinigung größer als `PKM_SVG_MAX_KB` (Standard 200 KB) ist oder eingebettete Rastergrafiken enthält. Dann ist PNG das passende Format.
+3. **Klein wird eingebettet, groß wird Datei:** Kodierte Größe ≤ `PKM_INLINE_MAX_KB` (Standard **24 KB**) → eingebettet als Data-URI. Darüber oder mit `mode: file` → Datei `documents/_attachments/<bild-slug>_YYYY-MM-DD.png` bzw. `.svg`. Obergrenze je Bild `PKM_IMAGE_MAX_MB` (Standard 5 MB).
+- **`scratch/`:** Bilder in Notizen werden **immer eingebettet**, unabhängig von der Größe (bis zur Obergrenze von `PKM_IMAGE_MAX_MB`). Dateien legt der Server dort nicht an, weil `scratch/` nicht versioniert ist.
+4. **Bestehende eingebettete PNG bleiben unverändert.** Ein PNG, das schon als Base64-Data-URI in einem Dokument steht, wird von keinem Werkzeug angefasst: nicht ausgelagert, nicht neu kodiert, nicht bereinigt, auch wenn es die Grenze überschreitet. Fehlt ihm ein Bildname (`pkm:<name>`), wird keiner eingetragen. Die Werkzeuge leiten dann einen Namen ab (aus dem Alternativtext, sonst `bild-<n>` nach Reihenfolge im Dokument), ohne ihn in die Datei zu schreiben.
+5. **Base64 kommt nicht in den Kontext des Modells.** `read` ersetzt eingebettete Bilder durch Platzhalter. Angesehen wird ein Bild über `read_image`.
+6. **Jedes neue Bild hat einen Alternativtext.** Er dient als Beschreibung in Suche, Index und Belegen und als Ersatz, wo das Bild nicht dargestellt wird.
+
+#### Schreibweise
+Eingebettet und verlinkt wird mit der **Markdown-Bildsyntax**, weil Obsidians `![[…]]` keine Data-URIs kennt. Der Titel trägt den festen Bildnamen `pkm:<name>` (Kleinbuchstaben, Ziffern, Bindestriche, eindeutig im Dokument). Jedes Bild steht in einer eigenen Zeile.
+
+```markdown
+![Schaltplan Überlaufsensor](data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20…%3C%2Fsvg%3E "pkm:schaltplan-ueberlauf")
+![Display der Pumpensteuerung](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA… "pkm:display-pumpe")
+![Foto Einstieg](../_attachments/foto-einstieg_2026-11-03.png "pkm:foto-einstieg")
+```
+
+- **PNG eingebettet:** `data:image/png;base64,<Base64 ohne Zeilenumbrüche>`.
+- **SVG eingebettet:** `data:image/svg+xml,<URL-kodiertes SVG>`. Vor dem Kodieren wird das SVG bereinigt (Sicherheit, unten) und verkleinert (Kommentare und Metadaten entfernt, Leerraum zusammengefasst), doppelte Anführungszeichen in Attributen werden zu einfachen. Prozent-kodiert werden `%`, `#`, `<`, `>`, `"`, Leerzeichen, Zeilenumbrüche, `(`, `)`, `[`, `]`, `{`, `}`, `|`, `\`, `^` und `` ` ``.
+- **Größe in Obsidian** optional im Alternativtext: `![Schaltplan|400](…)`.
+- Von Hand eingefügte Obsidian-Einbettungen (`![[Pasted image ….png]]`) bleiben gültig und zählen als verlinktes Bild.
+
+#### Zugehörige und eigenständige Bilder
+- **Eingebettete Bilder** sind Teil des Abschnitts, in dem sie stehen. Eine Änderung ändert den Abschnitts-Hash (4.8).
+- **Verlinkte Bilddateien** führt `state.json` je Dokument unter `assets` (Pfad und Hash). Ändert sich eine Bilddatei, erzeugt `pkm versions` für jedes Dokument, das sie verwendet, eine neue Version (Commit mit Bild und Dokument, `PKM-Source: user`), und `pending` meldet das Dokument als `changed` mit den Abschnitten, die das Bild enthalten.
+- **Zugehörige Bilddateien sind keine eigenständigen Dokumente:** kein `new`, keine eigene Zusammenfassung.
+- **Verwaiste Bilder** (letzter Verweis entfernt) werden nicht automatisch eigenständig, sondern in `wiki/_status.md` unter „Verwaiste Anhänge“ gemeldet.
+- **Eigenständige Bilder** (ohne Verweis, z. B. ein Foto allein in `_inbox/`) werden wie bisher über den Datei-Hash als eigenes Dokument verarbeitet.
+
+#### Belege auf Bilder
+| Bild | Beleg |
+|---|---|
+| eingebettet | Abschnitt des Dokuments, als Zitat der Bildverweis `[img:<name>]`, z. B. `[[documents/…/notiz#Aufbau]] · „[img:schaltplan-ueberlauf]“ · id:… · v:3 · sha:…` |
+| zugehörige Datei | Abschnitt des einbettenden Dokuments mit `[img:<name>]`. Bei der Prüfung zählt zusätzlich der Bild-Hash aus `assets` |
+| eigenständiges Bild | Link auf die Datei und Datei-Hash, wie bisher |
+
+Lint prüft, dass `[img:<name>]` im Dokument der belegten Version existiert.
+
+#### Bilder in Wiki-Seiten
+- Wiki-Seiten dürfen Bilder aus Dokumenten zeigen, als Link auf die Bilddatei. Eingebettete Bilder werden nicht kopiert, sondern es wird auf das Dokument verwiesen. Jedes gezeigte Bild braucht eine Fußnote auf sein Dokument.
+- Der Pflege-Agent darf eigene **SVG-Diagramme** eingebettet in Wiki-Seiten setzen. Sie gelten als Schlussfolgerung („abgeleitet aus [^b1], [^b3]“) und brauchen Belege für die dargestellten Werte.
+
+#### Lesen und Suche
+- `read` ersetzt eingebettete Bilder durch Platzhalter, z. B. `![Schaltplan Überlaufsensor](pkm-image:schaltplan-ueberlauf "svg, 3,2 KB, sha:ab12cd")`, und liefert die Liste `images` (Name, Alternativtext, Format, `inline`/`file`, Größe, Hash, Abschnitt). Die 40.000-Zeichen-Grenze (7.3) zählt den Text mit Platzhaltern.
+- Suche und Index nehmen nur den Alternativtext auf, nie Base64 oder SVG-Inhalt.
+- `read_image` liefert ein Bild: PNG als Bild, SVG als Text (das Modell liest SVG direkt). Optional rastert der Server SVG (`PKM_SVG_RASTER`, zusätzliche Bibliothek).
+- **Platzhalter beim Schreiben:** `rewrite_document` und `edit_document` arbeiten auf dem Text mit Platzhaltern. Der Server setzt jeden Platzhalter vor dem Speichern wieder durch das Original bzw. den Dateilink ein, byte-genau. Ein vorher vorhandenes Bild, das in der neuen Fassung fehlt, gilt als entfernt und wird wie eine Kürzung gemeldet (`large_shortening` mit Bildliste). Unbekannte Platzhalter ergeben `unknown_image`.
+
+#### Sicherheit
+- **SVG wird vor dem Speichern bereinigt:** entfernt bzw. abgelehnt werden `<script>`, Ereignis-Attribute (`on…`), `<foreignObject>`, externe Verweise (`href`/`xlink:href` auf `http(s):`, `file:` usw.), `<?xml-stylesheet?>`, DOCTYPE und Entities (Schutz vor XXE) sowie eingebettete Rastergrafiken. Erlaubt sind nur interne Verweise (`#id`).
+- **Neue PNG** werden an der Signatur geprüft (höchstens 8.000 × 8.000 Pixel). Textblöcke in den Metadaten (`tEXt`, `iTXt`, `zTXt`) werden entfernt. Bestehende eingebettete PNG bleiben unangetastet (Grundsatz 4).
+- Bild- und Dateinamen sind plattformfest.
+
 ---
 
 ## 5. Identität, Versionen und Git
@@ -581,10 +651,12 @@ Mehrere Änderungen von Hand zwischen zwei Commits werden also zu **einer** Vers
 
 ### 5.5 Nextcloud, Mac und Windows
 
+**PKM-Rechner:** Genau **ein** Rechner je Vault führt MCP-Server, Pflege-Agent, Git und Suchindex. Das kann ein Mac oder ein Windows-PC sein, beide Varianten sind gleichwertig. Alle anderen Rechner lesen und bearbeiten den Vault nur in Obsidian.
+
 | Rechner | Obsidian | MCP-Server, Pflege-Agent, Git |
 |---|---|---|
-| Mac | lesen, bearbeiten | **ja** (einziger Ort) |
-| Windows | lesen, bearbeiten | nein |
+| PKM-Rechner (Mac **oder** Windows) | lesen, bearbeiten | **ja** (einziger Ort) |
+| weitere Rechner (Mac oder Windows) | lesen, bearbeiten | nein |
 
 **Git-Verzeichnis außerhalb der Nextcloud.** Ein `.git`-Ordner im synchronisierten Vault ist riskant. Nextcloud überträgt die vielen kleinen Git-Dateien einzeln und nicht atomar. Halbe Stände, Sperrdateien oder Konfliktkopien können das Repo beschädigen. Deshalb arbeitet Git mit getrenntem Verzeichnis:
 
@@ -592,12 +664,12 @@ Mehrere Änderungen von Hand zwischen zwei Commits werden also zu **einer** Vers
 git --git-dir="$PKM_GIT_DIR" --work-tree="$PKM_ROOT" …
 ```
 
-Im Vault gibt es kein `.git`, und der Windows-Rechner sieht davon nichts. Aus demselben Grund liegt der Suchindex (SQLite) in `PKM_CACHE_DIR`. SQLite-Dateien eignen sich nicht für Dateisynchronisation. `PKM_CACHE_DIR` darf deshalb weder im Vault noch sonst im Nextcloud-Ordner liegen (7.1). Im Vault liegen nur zwei Dateien unter `.pkm/`: `state.json` ist klein, wird nur auf dem Mac geschrieben und ist so in der Versionsgeschichte enthalten. `mcp.log` ist eine reine Textdatei, an die nur der Mac anhängt. Sie wird mit synchronisiert, steht aber nicht in Git.
+Im Vault gibt es kein `.git`, und die anderen Rechner sehen davon nichts. Aus demselben Grund liegt der Suchindex (SQLite) in `PKM_CACHE_DIR`. SQLite-Dateien eignen sich nicht für Dateisynchronisation. `PKM_CACHE_DIR` darf deshalb weder im Vault noch sonst im Nextcloud-Ordner liegen (7.1). Im Vault liegen nur zwei Dateien unter `.pkm/`: `state.json` ist klein, wird nur auf dem PKM-Rechner geschrieben und ist so in der Versionsgeschichte enthalten. `mcp.log` ist eine reine Textdatei, an die nur der PKM-Rechner anhängt. Sie wird mit synchronisiert, steht aber nicht in Git.
 
 **Sync-Verzögerung und Konflikte**
-- Änderungen vom Windows-Rechner erreichen den Mac erst nach dem Sync. Sobald sie angekommen sind, verhindert der Hash-Schutz, dass ein Chat einen veralteten Stand überschreibt.
-- Schreibt ein Chat, *während* eine Windows-Änderung derselben Datei noch unterwegs ist, legt Nextcloud eine Konfliktkopie an. `pkm lint` erkennt sie am Dateinamen und an der doppelten ID und meldet sie (5.3). Der Nutzer führt die Fassungen in Obsidian zusammen.
-- Empfehlung: dasselbe Dokument nicht gleichzeitig auf Windows bearbeiten und per Chat ändern lassen.
+- Änderungen von anderen Rechnern erreichen den PKM-Rechner erst nach dem Sync. Sobald sie angekommen sind, verhindert der Hash-Schutz, dass ein Chat einen veralteten Stand überschreibt.
+- Schreibt ein Chat, *während* eine Änderung derselben Datei von einem anderen Rechner noch unterwegs ist, legt Nextcloud eine Konfliktkopie an. `pkm lint` erkennt sie am Dateinamen und an der doppelten ID und meldet sie (5.3). Der Nutzer führt die Fassungen in Obsidian zusammen.
+- Empfehlung: dasselbe Dokument nicht gleichzeitig auf einem anderen Rechner bearbeiten und per Chat ändern lassen.
 
 **Plattformfeste Dateien**
 - Vom Server erzeugte Dateinamen sind auf allen Systemen gültig: keine `\ / : * ? " < > |`, keine reservierten Windows-Namen (`CON`, `NUL`, `COM1` …), kein Punkt oder Leerzeichen am Ende, höchstens 120 Zeichen.
@@ -605,7 +677,13 @@ Im Vault gibt es kein `.git`, und der Windows-Rechner sieht davon nichts. Aus de
 - Hashes werden über normalisierten Text berechnet (4.8: UTF-8 ohne BOM, LF, NFC). Eine Datei, die auf Windows mit CRLF gespeichert wird, gilt dadurch nicht als geändert.
 - Zwei Dateien, die sich nur in Groß- und Kleinschreibung unterscheiden, meldet Lint als Fehler, weil sie unter macOS und Windows nicht unterscheidbar sind.
 
-**Chats und MCP:** Der MCP-Server läuft nur auf dem Mac und ist erreichbar, solange dort die Claude-Desktop-App läuft. Ein zweiter Server auf Windows ist bewusst nicht vorgesehen, sonst würden zwei Rechner in dieselbe Versionsgeschichte schreiben.
+**Chats und MCP:** Die MCP-Server laufen nur auf dem PKM-Rechner und sind erreichbar, solange dort die Claude-Desktop-App läuft. Ein zweiter PKM-Rechner für denselben Vault ist bewusst nicht vorgesehen, sonst würden zwei Rechner eigene, abweichende Versionsgeschichten anlegen.
+
+**Windows als PKM-Rechner:**
+- Git wird nach <https://git-scm.com/install/> installiert (Option „Git from the command line and also from 3rd-party software“, dann steht Git im System-`PATH`). `pkm init` schaltet `core.autocrlf` für das PKM-Repo ab, damit Git Zeilenenden nie umwandelt.
+- Schreibsperre über `msvcrt` statt `fcntl`. Atomares Ersetzen wiederholt `os.replace`, wenn eine Datei kurz gesperrt ist (Virenscanner, Nextcloud-Client, Indexdienst).
+- Die Zeitzonendaten kommen aus dem Paket `tzdata`, weil Windows keine IANA-Datenbank mitbringt.
+- Die automatischen Tests laufen auch unter Windows.
 
 **Nextcloud-Einstellungen:** Es sind keine Ausnahmen nötig, weil Git und Cache außerhalb liegen. Optional lassen sich `.obsidian/workspace*.json` ausschließen, da diese Dateien geräteabhängig sind.
 
@@ -669,14 +747,20 @@ Diese Form ist nie Standard. Der Skill schlägt sie auch nicht von sich aus vor.
 
 - Python ≥ 3.11, offizielles `mcp`-SDK (FastMCP), Transport stdio
 - Abhängigkeiten: `mcp`, `pyyaml`. Sonst Standardbibliothek (`sqlite3` mit FTS5, `subprocess` für `git`)
-- Plattform: **macOS**, denn der Server läuft nur auf dem Mac (5.5). Voraussetzung ist `git` (Xcode Command Line Tools oder Homebrew). Die Standardpfade richten sich nach dem Betriebssystem; alle Pfade sind per Umgebungsvariable überschreibbar, damit die automatischen Tests auch unter Linux laufen
+- Plattform: **macOS oder Windows**, je nach PKM-Rechner (5.5). Voraussetzung ist `git` (macOS: Xcode Command Line Tools, Homebrew oder git-scm.com; Windows: git-scm.com). Die Standardpfade richten sich nach dem Betriebssystem; alle Pfade sind per Umgebungsvariable überschreibbar, damit die automatischen Tests auch unter Linux laufen
 - Konfiguration über Umgebungsvariablen:
   - `PKM_ROOT` (Pflicht): absoluter Pfad zum Vault im Nextcloud-Ordner
-  - `PKM_GIT_DIR` (Standard `~/Library/Application Support/pkm/git`): Git-Verzeichnis außerhalb der Nextcloud
-  - `PKM_CACHE_DIR` (Standard `~/Library/Application Support/pkm`): Suchindex. Muss außerhalb von `PKM_ROOT` und des Nextcloud-Ordners liegen. Liegt es nach `resolve()` innerhalb von `PKM_ROOT`, legt der Server keinen Index an und meldet einen Fehler. `search` ist dann nicht verfügbar, die übrigen lesenden Tools funktionieren weiter
+  - `PKM_GIT_DIR` (Standard macOS `~/Library/Application Support/pkm/git`, Windows `%APPDATA%\pkm\git`): Git-Verzeichnis außerhalb der Nextcloud
+  - `PKM_CACHE_DIR` (Standard macOS `~/Library/Application Support/pkm`, Windows `%APPDATA%\pkm`): Suchindex. Muss außerhalb von `PKM_ROOT` und des Nextcloud-Ordners liegen. Liegt es nach `resolve()` innerhalb von `PKM_ROOT`, legt der Server keinen Index an und meldet einen Fehler. `search` ist dann nicht verfügbar, die übrigen lesenden Tools funktionieren weiter
   - `PKM_TZ` (Standard `Europe/Berlin`)
   - `PKM_MAX_KB` (Standard 200): Grenze für ein Dokument bzw. für den Text einer einzelnen Änderung
   - `PKM_VAULT_NAME` (optional): Name des Obsidian-Vaults, um klickbare `obsidian://`-Links zu liefern
+  - `PKM_INLINE_MAX_KB` (Standard 24): Grenze für eingebettete Bilder, kodierte Größe (4.9)
+  - `PKM_SVG_MAX_KB` (Standard 200): Komplexitätsgrenze für SVG
+  - `PKM_IMAGE_MAX_MB` (Standard 5): Obergrenze je Bild
+  - `PKM_IMAGE_PARAM_MAX_KB` (Standard 512): Obergrenze für `png_base64` in einem Aufruf
+  - `PKM_IMPORT_DIR` (Standard `<HOME>/Downloads/pkm-import`, unter Windows `%USERPROFILE%\Downloads\pkm-import`): einziger Ordner, aus dem der Server Bilddateien übernimmt (`import_path`). Liegt außerhalb des Vaults. Nur `.png` und `.svg`, die Quelle wird kopiert, nicht gelöscht
+  - `PKM_SVG_RASTER` (Standard `false`): SVG für `read_image` mit `as: image` rastern (zusätzliche Bibliothek, z. B. `resvg`)
   - `PKM_GIT_AUTHOR` (Standard `pkm-mcp <pkm@localhost>`): Autor der MCP-Commits, damit sie sich im Verlauf von denen des Nutzers unterscheiden
 - Kein Netzwerk, keine LLM-Aufrufe, keine Hintergrundprozesse
 - Umfang: rund 550 Zeilen plus Tests
@@ -694,13 +778,26 @@ Gemeinsame Regeln:
 - **Atomar:** Die Datei wird erst in eine temporäre Datei geschrieben und dann umbenannt. Schlägt der Commit fehl, wird die Datei zurückgesetzt und ein Fehler gemeldet.
 - **Protokoll** in `.pkm/mcp.log` (nur anhängen, nicht in Git).
 - **Rückgabe:** `{ id, path, status, version, new_hash, commit, diff }`. Der Diff ist ein Unified Diff, gekürzt auf 80 Zeilen.
+- **Bilder:** `create_document`, `rewrite_document`, `append_to_document` und `edit_document` haben den optionalen Parameter `images`. Im Text steht an der gewünschten Stelle `{{image:<name>}}`. Der Server ersetzt den Platzhalter nach 4.9 durch eine eingebettete Data-URI oder legt eine Datei an und setzt den Link. Bilddatei und Dokument landen im selben Commit.
+
+  | Feld je Bild | Typ | Pflicht | Beschreibung |
+  |---|---|---|---|
+  | `name` | string | ja | Bildname, wird zu `pkm:<name>` |
+  | `alt` | string | ja | Alternativtext, eine Zeile |
+  | `svg` | string | eins von drei | SVG als Text |
+  | `png_base64` | string | eins von drei | PNG als Base64, höchstens `PKM_IMAGE_PARAM_MAX_KB` |
+  | `import_path` | string | eins von drei | PNG- oder SVG-Datei in `PKM_IMPORT_DIR`, sonst `forbidden` |
+  | `mode` | enum `auto` \| `inline` \| `file` | nein | Standard `auto` (4.9). `inline` über der Grenze ergibt `too_large_for_inline`. In `scratch/` immer `inline` |
+
+  Die Rückgabe nennt je Bild Format, Modus, Größe und Hash.
 - **Nicht angeboten:** Löschen, Umbenennen, Verschieben, jede Änderung in `wiki/`.
 
 #### `create_document`
 | Parameter | Typ | Pflicht | Beschreibung |
 |---|---|---|---|
 | `title` | string | ja | Wird zu `title`. Daraus wird auch der Dateiname gebildet |
-| `content` | string (Markdown) | ja | Ohne Frontmatter. Ein mitgeliefertes Frontmatter wird entfernt |
+| `content` | string (Markdown) | ja | Ohne Frontmatter. Ein mitgeliefertes Frontmatter wird entfernt. Bild-Platzhalter `{{image:<name>}}` siehe 7.2 |
+| `images` | list[object] | nein | Bilder zum Text (7.2, 4.9) |
 | `tags` | list[string] | nein | Schlagwörter (Kleinbuchstaben, Bindestrich). Werden vereinheitlicht (4.1) |
 | `short_citation` | string | nein | Kurzbezeichnung, z. B. `EN 61000-4-6:2014` |
 | `date_document` | string | nein | Ausgabedatum wie gedruckt |
@@ -711,7 +808,7 @@ Gemeinsame Regeln:
 | `area` | enum `documents` \| `scratch` | nein | Standard `documents` |
 | `folder` | string | nein | Nur bei `area: "scratch"`: Unterordner in `scratch/` (wird angelegt, falls nötig). Standard ist die Wurzel von `scratch/` |
 
-Ergebnis bei `documents`: Datei `documents/_inbox/<slug>_YYYY-MM-DD.md` (4.1) mit Frontmatter nach 4.1: `date_markdown` = jetzt, `toolchain_markdown`, `id`, `version: 1`. Commit `doc: <title> v1`. Bei Namensgleichheit kommt ein Suffix vor das Datum (`<slug>-2_YYYY-MM-DD.md`), es wird nie überschrieben.
+Ergebnis bei `documents`: Datei `documents/_inbox/<slug>_YYYY-MM-DD.md` (4.1) mit Frontmatter nach 4.1: `date_markdown` = jetzt, `toolchain_markdown`, `id`, `version: 1`. Commit `doc: <title> v1`. Bei Namensgleichheit kommt ein Suffix vor das Datum (`<slug>-2_YYYY-MM-DD.md`), es wird nie überschrieben. Zu lange Namen werden nur im Slug gekürzt (4.1).
 
 Ergebnis bei `scratch`: Datei `scratch/[<folder>/]<slug>.md` mit kleinem Frontmatter (`title`, `date_markdown`, später `date_updated`), ohne `id`, `version` und Commit. `tags`, `related` und `kind` werden übernommen, falls angegeben. Bei Namensgleichheit wird ein Suffix angehängt.
 
@@ -758,6 +855,20 @@ Schutz gegen versehentlichen Verlust: Ist der neue Inhalt kürzer als 60 % des a
 
 Geschützt: `id`, `version`, `date_markdown`, `date_updated`, `status_markdown`. Beim Schreiben werden Werte mit `: ` automatisch in Anführungszeichen gesetzt (4.1). Das Frontmatter wird vollständig neu geschrieben, in der Reihenfolge aus 4.1. Kommentare darin gehen verloren (4.1). Der Pflege-Agent benutzt dieses Tool nicht, sondern `set_document_metadata` (7.7).
 
+#### `add_image`
+Fügt ein Bild in ein bestehendes Dokument ein.
+
+| Parameter | Typ | Pflicht | Beschreibung |
+|---|---|---|---|
+| `target` | string | ja | |
+| `expected_hash` | string | ja | |
+| `image` | object | ja | ein Bild wie bei `images` (7.2) |
+| `section` | string | nein | Abschnitt, an dessen Ende das Bild eingefügt wird. Ohne Angabe am Dateiende |
+| `caption` | string | nein | Bildunterschrift als Zeile unter dem Bild |
+| `note` | string | nein | |
+
+Ergebnis wie bei `append_to_document`: neue Version mit Commit. In `scratch/` ohne Version und Commit, Bild immer eingebettet.
+
 #### `restore_document`
 Holt den Inhalt einer früheren Version zurück, und zwar als **neue** Version. Die Geschichte wird nicht umgeschrieben. Für Dateien in `scratch/` kommt `not_versioned`.
 
@@ -795,6 +906,15 @@ Rückgabe je Treffer: `id`, `version` (bei Dokumenten), `path`, `title`, `type`,
 
 Rückgabe: `id`, `version`, `path`, `frontmatter`, `content`, `content_length`, `hash`, `editable`, `sections` (je Abschnitt `key`, `level`, `sha`, bei leeren Abschnitten `empty: true`), `backlinks`, `links`. Ist der Inhalt größer als 40.000 Zeichen und weder `section` noch `offset`/`max_chars` angegeben, fehlt `content`, und die Rückgabe enthält `content_omitted: true` mit Hinweis. So wird nie stillschweigend nur ein Teil geliefert. Große Dokumente werden abschnittsweise gelesen und nur mit `edit_document` oder `append_to_document` geändert, nie mit `rewrite_document` aus einem Teilinhalt. Bei Wiki-Seiten zusätzlich `citations` (geparst, ohne Prüfung). Bei PDFs und Bildern nur Metadaten und Pfad. Lesbar sind `documents/`, `scratch/` und `wiki/`. In `scratch/` fehlen `id` und `version`, `editable` ist `true`.
 
+#### `read_image`
+| Parameter | Typ | Beschreibung |
+|---|---|---|
+| `target` | string | Dokument bzw. bei eigenständigen Bildern die Bilddatei |
+| `image` | string | Bildname (bei eigenständigen Bildern weglassen) |
+| `as` | enum `auto` \| `image` \| `svg_text` | `auto`: PNG als Bild, SVG als Text. `image` für SVG nur mit `PKM_SVG_RASTER` |
+
+Rückgabe: das Bild (als Bildinhalt bzw. SVG-Text) mit Name, Alternativtext, Format, Größe und Hash. Verfügbar in `pkm-mcp` und `pkm-pflege-mcp`. Damit lassen sich Bilder ohne verbundenen Vault-Ordner ansehen.
+
 #### `history`
 Für Dateien in `scratch/` kommt `not_versioned`.
 
@@ -831,6 +951,7 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 ### 7.4 Suchindex
 
 - `PKM_CACHE_DIR/index.db`, FTS5 mit `unicode61 remove_diacritics 2`
+- Bilder: nur ihr Alternativtext wird indexiert, nie Base64 oder SVG-Inhalt (4.9)
 - Gewichte: Titel 5, Aliase/Tags/Themen 3, Kurzfassung 2, Text 1. Zusätzlich eine Tabelle `id → path, version` für die Auflösung nach 5.2
 - `index.db` liegt in `PKM_CACHE_DIR`, nie im Vault oder im Nextcloud-Ordner (7.1)
 - Der Index umfasst `wiki/`, `documents/` und `scratch/`. Welcher Bereich durchsucht wird, bestimmt `scope`
@@ -839,7 +960,8 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 
 ### 7.5 Sicherheit
 
-- Pfadprüfung mit `resolve()`. Kein `..`, keine absoluten Pfade, keine Symlinks nach außen
+- Pfadprüfung mit `resolve()`. Kein `..`, keine absoluten Pfade, keine Symlinks nach außen. `import_path` nur innerhalb von `PKM_IMPORT_DIR`
+- Bilder: SVG-Bereinigung und PNG-Prüfung nach 4.9
 - `pkm-mcp` schreibt nur wie in 7.2 beschrieben. **Nie änderbar:** `wiki/`, `CLAUDE.md`, Nicht-Markdown-Dateien, alles außerhalb von `PKM_ROOT`
 - `pkm-pflege-mcp` schreibt nur wie in 7.7 beschrieben: Wiki-Seiten in den vier Seitenordnern, die generierten Dateien über `finish_maintenance`, `.pkm/state.json` und in Dokumenten nur `id`/`version` sowie die freigegebenen Metadaten. Löschen kann auch er nicht
 - Git-Aufrufe nur mit fest vorgegebenen Argumenten (kein Durchreichen von Eingaben als Optionen). Pfade werden nach `--` übergeben
@@ -876,13 +998,36 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 }
 ```
 
-Die Datei liegt auf dem Mac unter `~/Library/Application Support/Claude/claude_desktop_config.json`. Platzhalter in spitzen Klammern sind durch absolute Pfade zu ersetzen (`<HOME>` = Home-Verzeichnis auf dem Mac, `<VAULT>` = Ordner- bzw. Vault-Name). JSON kennt weder `~` noch Umgebungsvariablen. `uvx` steht mit absolutem Pfad und `git` muss über `PATH` erreichbar sein, weil Claude Desktop MCP-Server mit minimaler Umgebung startet. Die Server sind erreichbar, solange die Desktop-App auf dem Mac läuft, auch aus Cowork. Im `PATH` genügt der Ordner, in dem `git` liegt, plus `/usr/bin:/bin`.
+Die Datei liegt unter macOS in `~/Library/Application Support/Claude/claude_desktop_config.json`, unter Windows in `%APPDATA%\Claude\claude_desktop_config.json`. Platzhalter in spitzen Klammern sind durch absolute Pfade zu ersetzen (`<HOME>` = Home-Verzeichnis bzw. Benutzerordner, `<VAULT>` = Ordner- bzw. Vault-Name). JSON kennt weder `~` noch Umgebungsvariablen. `uvx` steht mit absolutem Pfad und `git` muss über `PATH` erreichbar sein, weil Claude Desktop MCP-Server mit minimaler Umgebung startet. Die Server sind erreichbar, solange die Desktop-App auf dem PKM-Rechner läuft, auch aus Cowork. Im `PATH` genügt unter macOS der Ordner, in dem `git` liegt, plus `/usr/bin:/bin`.
+
+**Windows:** In JSON wird jeder Backslash verdoppelt. Die Programme heißen `pkm-mcp.exe` bzw. `pkm-pflege-mcp.exe` (nach `uv tool install` in `<HOME>\.local\bin`) bzw. `uvx.exe`. `PKM_GIT_DIR` entfällt, wenn der Standard `%APPDATA%\pkm\git` gilt. `PATH` ist normalerweise nicht nötig, weil der Git-Installer Git in den System-`PATH` einträgt; sonst `C:\\Program Files\\Git\\cmd;C:\\Windows\\System32` (Trennzeichen `;`).
+
+```json
+{
+  "mcpServers": {
+    "pkm": {
+      "command": "C:\\Users\\<NAME>\\.local\\bin\\pkm-mcp.exe",
+      "env": {
+        "PKM_ROOT": "C:\\Users\\<NAME>\\Nextcloud\\<VAULT>",
+        "PKM_VAULT_NAME": "<VAULT>"
+      }
+    },
+    "pkm-pflege": {
+      "command": "C:\\Users\\<NAME>\\.local\\bin\\pkm-pflege-mcp.exe",
+      "env": {
+        "PKM_ROOT": "C:\\Users\\<NAME>\\Nextcloud\\<VAULT>",
+        "PKM_VAULT_NAME": "<VAULT>"
+      }
+    }
+  }
+}
+```
 
 **`pkm-pflege` nur zur Pflege einschalten.** Claude Desktop gibt einen MCP-Server allen Unterhaltungen frei und kann ihn nicht auf ein Projekt beschränken. `pkm-pflege` wird deshalb in normalen Unterhaltungen ausgeschaltet und nur in Pflege-Unterhaltungen eingeschaltet. Die Regel „Wiki aus Chats nur lesbar“ ist damit für `pkm-pflege` organisatorisch abgesichert, nicht technisch. Zusätzlich schreibt der Server nur in den Grenzen aus 7.7, und jeder Pflegelauf ist ein eigener Agenten-Commit, der sich mit `git revert` zurücknehmen lässt.
 
 ### 7.7 MCP-Server `pkm-pflege-mcp`
 
-Zweiter lokaler Server aus demselben Paket für die Wiki-Pflege aus Claude Desktop bzw. Cowork. Grund: Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus (lokale VM bzw. Cloud), in der `pkm`, Git und das Git-Verzeichnis fehlen. MCP-Server dagegen laufen auf dem Mac und sind über die Desktop-App erreichbar. Technik, Konfiguration, Sicherheit und Protokoll wie 7.1, 7.5 und 7.2. Keine LLM-Aufrufe: Der Server bündelt nur die deterministischen Schritte. Inhaltliche Arbeit (Seiten formulieren, Belege wählen) macht der Agent.
+Zweiter lokaler Server aus demselben Paket für die Wiki-Pflege aus Claude Desktop bzw. Cowork. Grund: Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus (lokale VM bzw. Cloud), in der `pkm`, Git und das Git-Verzeichnis fehlen. MCP-Server dagegen laufen auf dem PKM-Rechner und sind über die Desktop-App erreichbar. Technik, Konfiguration, Sicherheit und Protokoll wie 7.1, 7.5 und 7.2. Keine LLM-Aufrufe: Der Server bündelt nur die deterministischen Schritte. Inhaltliche Arbeit (Seiten formulieren, Belege wählen) macht der Agent.
 
 Der Server bietet die lesenden Tools aus 7.3 und vier Pflege-Tools:
 
@@ -948,7 +1093,7 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 |---|---|
 | `pkm init` | Legt Struktur, `CLAUDE.md`, `wiki/index.md`, `log.md`, `_status.md`, `state.json`, `.gitignore` und `.obsidian/types.json` (Property-Typen, 13) an, initialisiert das Git-Verzeichnis außerhalb des Vaults, falls nötig (idempotent) |
 | `pkm ids` | Trägt fehlende `id`/`version` in Markdown-Dokumente ein und committet **je Dokument einzeln** (`doc: <title> v1`, `PKM-Source: agent`). Meldet doppelte IDs |
-| `pkm versions` | Committet alle von Hand geänderten Dokumente als neue Version (je Dokument eine, `PKM-Source: user`). Erkennt auch Verschiebungen (Markdown über die ID, PDF/Bild über den Hash) und committet sie mit: ein Commit enthält dann alten und neuen Pfad. Eine neue Version entsteht nur, wenn sich `body_hash` oder `meta_hash` geändert hat (4.8). Reines Verschieben ergibt den Commit `doc: <title> moved` ohne Versionssprung. Eine von Hand geänderte `CLAUDE.md` wird als eigener Commit `pkm: CLAUDE.md geändert` mit `PKM-Source: user` erfasst |
+| `pkm versions` | Committet alle von Hand geänderten Dokumente als neue Version (je Dokument eine, `PKM-Source: user`). Erkennt auch Verschiebungen (Markdown über die ID, PDF/Bild über den Hash) und committet sie mit: ein Commit enthält dann alten und neuen Pfad. Eine neue Version entsteht nur, wenn sich `body_hash` oder `meta_hash` geändert hat (4.8). Reines Verschieben ergibt den Commit `doc: <title> moved` ohne Versionssprung. Eine von Hand geänderte `CLAUDE.md` wird als eigener Commit `pkm: CLAUDE.md geändert` mit `PKM-Source: user` erfasst Ändert sich eine verlinkte Bilddatei, erhält jedes Dokument, das sie verwendet, eine neue Version im selben Commit wie das Bild (4.9). Zugehörige Bilddateien werden nicht als eigenständige Dokumente geführt. |
 | `pkm pending` | JSON-Liste der zu verarbeitenden Dokumente: `new`, `changed` (mit `processed_version` → `version` und geänderten Abschnitten), `moved` (alt → neu), `deleted` (mit betroffenen Wiki-Seiten) |
 | `pkm history <target> [--diff <von> [<bis>]]` | Wie das MCP-Tool `history` |
 | `pkm show <target> --version <n> [--section <name>]` | Inhalt einer früheren Version |
@@ -957,13 +1102,13 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 | `pkm sha <target> [--section <key>] [--full]` | Abschnitts- oder Datei-Hash nach 4.8 (Standard: 6 Zeichen für Belege). Ohne `--section` werden alle Schlüssel mit Hash, `body_hash`, `meta_hash` und `file_hash` aufgelistet. Hilft bei der Fehlersuche |
 | `pkm mark <id>… --pages <page>…` | Trägt verarbeitete Dokumente mit Version und Abschnitts-Hashes in `state.json` ein |
 | `pkm index` | Erzeugt `wiki/index.md` neu |
-| `pkm status` | Erzeugt `wiki/_status.md` neu, inklusive Einsortier-Vorschlägen für verarbeitete Dokumente im Eingang |
-| `pkm lint` | JSON-Bericht. **Struktur:** kaputte Links, verwaiste Wiki-Seiten, fehlende Kurzfassung, fehlerhaftes Frontmatter, häufige Begriffe ohne Seite. **Belege:** Ziel fehlt oder verschoben, Anker fehlt, Zitat nicht in der belegten Version, Status `newer_version`, Beleg zeigt auf Wiki-Seite, Absatz ohne Fußnote (`statement_without_citation`, nicht für Zwischenüberschriften, reine Hervorhebungs- und Link-Zeilen und für Tabellen mit Fußnote direkt darunter, 4.2), Beleg auf einen Abschnitt ohne eigenen Text (`citation_empty_section`), Fußnote ohne Definition, `sources` nicht synchron. **Dokumente:** ohne ID oder Version, doppelte IDs, ungültiges YAML durch fehlende Anführungszeichen (Fehler, mit Hinweis auf `pkm fix-frontmatter`), fehlende Felder `date_markdown`/`toolchain_markdown` (Hinweis), Feld `short citation` mit Leerzeichen (Hinweis), umgewandeltes Dokument ohne `kind` (Hinweis), unbekannter Wert in `kind` (Fehler), Datumsfelder weder im Format `YYYY-MM-DDTHH:MM:SS` noch `YYYY-MM-DD` oder mit Zeitzonen-Angabe, `tags` mit Leerzeichen, `version` passt nicht zum Commit-Verlauf. **Plattform:** Nextcloud-Konfliktkopien, nicht plattformfeste Dateinamen, Namen, die sich nur in Groß- und Kleinschreibung unterscheiden. **Überschriften (4.8):** Duplikate, Zeichen, die Anker brechen, Text auf `#` plus Ziffern (`heading_suffix_like` als Warnung, `heading_suffix_collision` als Fehler) |
+| `pkm status` | Erzeugt `wiki/_status.md` neu, inklusive Einsortier-Vorschlägen für verarbeitete Dokumente im Eingang Meldet außerdem verwaiste Anhänge (Bilddateien ohne Verweis, 4.9). |
+| `pkm lint` | JSON-Bericht. **Struktur:** kaputte Links, verwaiste Wiki-Seiten, fehlende Kurzfassung, fehlerhaftes Frontmatter, häufige Begriffe ohne Seite. **Belege:** Ziel fehlt oder verschoben, Anker fehlt, Zitat nicht in der belegten Version, Status `newer_version`, Beleg zeigt auf Wiki-Seite, Absatz ohne Fußnote (`statement_without_citation`, nicht für Zwischenüberschriften, reine Hervorhebungs- und Link-Zeilen und für Tabellen mit Fußnote direkt darunter, 4.2), Beleg auf einen Abschnitt ohne eigenen Text (`citation_empty_section`), Fußnote ohne Definition, `sources` nicht synchron. **Dokumente:** ohne ID oder Version, doppelte IDs, ungültiges YAML durch fehlende Anführungszeichen (Fehler, mit Hinweis auf `pkm fix-frontmatter`), fehlende Felder `date_markdown`/`toolchain_markdown` (Hinweis), Feld `short citation` mit Leerzeichen (Hinweis), umgewandeltes Dokument ohne `kind` (Hinweis), unbekannter Wert in `kind` (Fehler), Datumsfelder weder im Format `YYYY-MM-DDTHH:MM:SS` noch `YYYY-MM-DD` oder mit Zeitzonen-Angabe, `tags` mit Leerzeichen, `version` passt nicht zum Commit-Verlauf. **Plattform:** Nextcloud-Konfliktkopien, nicht plattformfeste Dateinamen, Namen, die sich nur in Groß- und Kleinschreibung unterscheiden. **Überschriften (4.8):** Duplikate, Zeichen, die Anker brechen, Text auf `#` plus Ziffern (`heading_suffix_like` als Warnung, `heading_suffix_collision` als Fehler) **Bilder (4.9):** `[img:<name>]` in Belegen ohne Bild in der belegten Version, Bilder ohne Alternativtext (Hinweis, nicht bei bestehenden Base64-PNG), doppelte Bildnamen im Dokument, unbereinigtes SVG (Fehler), verwaiste Anhänge (Hinweis). |
 | `pkm restore <target> --version <n>` | Wie `restore_document` |
 | `pkm reindex` | Baut den Suchindex neu auf |
 | `pkm fix-frontmatter <target>… [--all]` | Repariert das Frontmatter zeilengenau, sonst ändert sich nichts: setzt Werte mit `: ` oder führenden YAML-Sonderzeichen in doppelte Anführungszeichen und benennt `short citation` in `short_citation` um. **Nur auf ausdrückliche Anweisung des Nutzers.** Ohne Ziel listet der Befehl nur die betroffenen Dateien auf. Jede geänderte Datei wird als neue Version committet (`PKM-Source: user`, weil der Nutzer es veranlasst hat) |
 | `pkm commit-wiki --message "<text>"` | Agenten-Commit am Ende eines Pflegelaufs (12). Committet ausschließlich `wiki/` und `.pkm/state.json`. Offene Änderungen in `documents/` bleiben unberührt |
-| `pkm doctor` | Prüft die Umgebung: Git-Verzeichnis außerhalb des Vaults und erreichbar, `PKM_CACHE_DIR` außerhalb des Vaults und des Nextcloud-Ordners, kein `.git` im Vault, `user.name`/`user.email`, Schreibrechte, Nextcloud-Konfliktkopien, Obsidian-Einstellungen aus Abschnitt 13 (soweit in `.obsidian/app.json` lesbar). Mit `--short` nur Fehler |
+| `pkm doctor` | Prüft die Umgebung: Git-Verzeichnis außerhalb des Vaults und erreichbar, `PKM_CACHE_DIR` außerhalb des Vaults und des Nextcloud-Ordners, kein `.git` im Vault, `user.name`/`user.email`, Schreibrechte, Nextcloud-Konfliktkopien, Obsidian-Einstellungen aus Abschnitt 13 (soweit in `.obsidian/app.json` lesbar). Mit `--short` nur Fehler Prüft außerdem, dass `PKM_IMPORT_DIR` außerhalb des Vaults liegt. |
 
 ---
 
@@ -990,7 +1135,7 @@ Der Agent arbeitet ausschließlich über die Tools von `pkm-pflege-mcp` (7.7). E
 4. **Nur Metadaten geändert** (`meta_changed`): Zusammenfassungsseite anpassen. Die Belege hebt `finish_maintenance` an.
 5. **Gelöschte Dokumente:** Betroffene Aussagen werden nicht gelöscht. Sie kommen unter „Widersprüche / offene Fragen“ mit dem Vermerk „Original nicht mehr vorhanden (letzter Stand in Git, v<n>)“, `confidence: low`, und im Bericht steht eine Rückfrage. Der Schlüssel geht an `finish_maintenance` als `removed`.
 6. **Korrektur-Dokumente** (`kind: correction`): Die Korrektur des Nutzers hat Vorrang vor älteren Quellen und gilt selbst als Beleg. Die betroffene Wiki-Seite wird angepasst und die alte Aussage im Log als ersetzt vermerkt. Widerspricht die Korrektur einer Quelle, die neuer ist als sie selbst, fragt der Agent nach.
-7. **PDF und Bilder:** `read` liefert nur Metadaten und `hash`. Den Inhalt liest der Agent, wenn der Vault-Ordner in der Unterhaltung verbunden ist. Sonst wird das Dokument nicht als verarbeitet gemeldet und im Bericht genannt.
+7. **Bilder:** Jedes neue oder geänderte Bild, eingebettet oder verlinkt, sieht sich der Agent mit `read_image` an. Er übernimmt den Inhalt in Worten und belegt ihn mit `[img:<name>]` (4.9). Zugehörige Bilder bekommen keine eigene Zusammenfassung, eigenständige wie bisher. **PDF:** `read` liefert nur Metadaten und `hash`. Den Inhalt liest der Agent, wenn der Vault-Ordner in der Unterhaltung verbunden ist. Sonst wird das PDF nicht als verarbeitet gemeldet und im Bericht genannt.
 8. `finish_maintenance` mit `processed`, `removed`, `log_entry`, `log_title` und gegebenenfalls `questions` (7.7). Meldet Lint Fehler in den eigenen Seiten, werden sie behoben und `finish_maintenance` mit `operation: fix` erneut aufgerufen.
 9. Kurzer Bericht im Chat: neue und geänderte Seiten, überholte Aussagen, Beleg-Probleme, Einsortier-Vorschläge, Rückfragen und je neuem Dokument mit fehlenden Feldern ein YAML-Block mit Vorschlägen und der Frage, ob er eingetragen werden soll (9.6).
 
@@ -1049,6 +1194,13 @@ Eingetragen wird erst nach **ausdrücklicher Bestätigung** des Nutzers im Chat:
 
 **Fortgeführte Diskussion:** Standard ist 6.2, also das Dokument aktualisieren, mit Vorher/Nachher pro Abschnitt, Änderungsnotiz und Bestätigung. 6.3 (datierter Abschnitt) **nur auf ausdrückliche Anweisung** und nie von sich aus vorschlagen.
 
+**Bilder (4.9):**
+- Diagramme, Skizzen und Schaltpläne zeichnet der Chat als **SVG**. Fotos und Screenshots bleiben PNG.
+- Neue Bilder werden über `images` bzw. `add_image` abgelegt, immer mit Alternativtext und erst nach Entwurf und Bestätigung. Im Entwurf zeigt der Chat das Bild mit.
+- **Im Chat hochgeladene Fotos oder Screenshots** kann der Chat nicht byte-genau weitergeben. Er bittet, die Datei in `PKM_IMPORT_DIR` zu legen, und übernimmt sie mit `import_path`. Bei einfachen Grafiken bietet er alternativ eine SVG-Nachzeichnung an, gekennzeichnet als „nachgezeichnet“.
+- Zum Ansehen eines Bildes dient `read_image`. Base64 wird nie in den Text übernommen.
+- Bestehende eingebettete PNG bleiben unverändert.
+
 **Große Dokumente:** Liefert `read` kein `content` (`content_omitted`), liest der Chat abschnittsweise (`section`) und ändert nur mit `edit_document` bzw. `append_to_document`, nie mit `rewrite_document` aus einem Teilinhalt (7.3).
 
 **Kleine Änderungen:** `read` → `edit_document`/`append_to_document`/`update_frontmatter` → Vorher/Nachher zeigen → bestätigen lassen → ausführen → Version und Diff nennen. Bei `conflict` neu lesen, nie blind wiederholen. Bei `large_shortening` die betroffenen Abschnitte nennen und ausdrücklich bestätigen lassen.
@@ -1080,7 +1232,7 @@ Eingetragen wird erst nach **ausdrücklicher Bestätigung** des Nutzers im Chat:
 - **Server:** In Pflege-Unterhaltungen ist `pkm-pflege` eingeschaltet, in allen anderen ausgeschaltet (7.6). Der Agent arbeitet nur über dessen Tools (7.7). Die Shell in Cowork ist abgeschottet; dort gibt es weder `pkm` noch Git.
 - **Ordnerzugriff (optional):** Wird der Vault im Chat über „+“ → „Ordner hinzufügen“ verbunden, kann der Agent auch PDFs und Bilder lesen. Für Markdown ist das nicht nötig.
 - **Start: manuell.** Pflegeläufe werden im Projekt angestoßen („Verarbeite neue Dokumente“, „Lint“).
-- **Automatik (vorbereitet, später):** eine geplante Aufgabe, z. B. täglich „Ingest, danach Lint“. Geplante Cowork-Aufgaben laufen in der Cloud und erreichen `pkm-pflege` nur über die Desktop-App. Der Mac muss dafür wach sein und die Claude-Desktop-App laufen; das ist vor dem Einschalten zu testen. Der Skill ist schon dafür ausgelegt: Im unbeaufsichtigten Lauf entscheidet er konservativ und schreibt Rückfragen in `wiki/_status.md` und ins Log, statt zu warten. Eingeschaltet wird die Automatik nur auf Anweisung des Nutzers.
+- **Automatik (vorbereitet, später):** eine geplante Aufgabe, z. B. täglich „Ingest, danach Lint“. Geplante Cowork-Aufgaben laufen in der Cloud und erreichen `pkm-pflege` nur über die Desktop-App. Der PKM-Rechner muss dafür wach sein und die Claude-Desktop-App laufen; das ist vor dem Einschalten zu testen. Der Skill ist schon dafür ausgelegt: Im unbeaufsichtigten Lauf entscheidet er konservativ und schreibt Rückfragen in `wiki/_status.md` und ins Log, statt zu warten. Eingeschaltet wird die Automatik nur auf Anweisung des Nutzers.
 
 ---
 
@@ -1101,7 +1253,7 @@ Git ist Pflicht und übernimmt zwei Aufgaben: die **Versionsgeschichte jedes Dok
 
 So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. Ein `git revert` auf einen Agenten-Commit trifft nur das Wiki.
 
-- Das Git-Verzeichnis liegt außerhalb der Nextcloud (5.5). Die Versionsgeschichte existiert damit **nur auf dem Mac**. Gesichert wird sie über **Time Machine**, denn `~/Library/Application Support/pkm/` ist darin enthalten.
+- Das Git-Verzeichnis liegt außerhalb der Nextcloud (5.5). Die Versionsgeschichte existiert damit **nur auf dem PKM-Rechner** und muss dort gesichert werden. **macOS:** Time Machine, denn `~/Library/Application Support/pkm/` ist darin enthalten. **Windows:** Der Dateiversionsverlauf sichert `%APPDATA%` standardmäßig nicht. `%APPDATA%\pkm\git` wird deshalb ausdrücklich in die Datensicherung aufgenommen, oder `PKM_GIT_DIR` zeigt von Anfang an auf einen gesicherten Ordner außerhalb der Nextcloud (und außerhalb von OneDrive). Der Suchindex ist ein Cache und muss nicht gesichert werden.
 - `.gitignore`: `scratch/`, `.obsidian/workspace*`, `.pkm/mcp.log`, Nextcloud-Hilfsdateien (`.sync_*`, `.owncloudsync.log`, `*.part`)
 - Obsidian Git wird nicht verwendet. Das Plugin fände das Repo auch gar nicht, weil kein `.git` im Vault liegt.
 - Kein Remote. Ein Push auf ein privates Remote (z. B. Gitea auf dem Homeserver) lässt sich später ohne Änderung am Konzept nachrüsten.
@@ -1116,17 +1268,19 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
   - „Wikilinks verwenden“: an
   - Anhang-Ordner: `documents/_attachments/`
 - **Ausgeschlossene Dateien:** `.pkm/`
+- **Bilder:** Anhang-Ordner `documents/_attachments/` (siehe oben). Eingebettete Bilder (Data-URIs, 4.9) zeigt Obsidian im Lese- und Live-Vorschau-Modus an. Das ist vor der Umsetzung mit PNG und SVG, auch mit `|breite`, zu testen.
 - **Web Clipper:** Zielordner `documents/_inbox/`. Die Vorlage des Clippers wird an 4.1 angepasst: `title` (Seitentitel), `source` (URL, wird von den Werkzeugen nicht ausgewertet), `date_document` (Veröffentlichungsdatum der Seite, falls vorhanden), `date_markdown` (Zeitpunkt des Clippens im Format `YYYY-MM-DDTHH:MM:SS`), `toolchain_markdown: Obsidian Web Clipper`, `tags`. Die Standardvorlage des Clippers verwendet teils andere Namen. Maßgeblich ist, was in den Einstellungen des Clippers eingestellt ist.
 - **Property-Typen:** `pkm init` legt sie in `.obsidian/types.json` an bzw. ergänzt fehlende, ohne vom Nutzer gesetzte Typen zu ändern; `pkm doctor` meldet Abweichungen. Von Hand in Obsidian über das Symbol neben dem Feldnamen im Eigenschaften-Bereich einer Notiz: `date_markdown` und `date_updated` als **Datum & Uhrzeit**, `version` als **Zahl**, `related` und `sources` als **Liste**, alle übrigen eigenen Felder als **Text**. `tags` und `aliases` sind Obsidian-Standard.
 - Optional: Dataview für Abfragen über das Frontmatter, Graph View (eingebaut)
-- **Mac und Windows** nutzen denselben Vault über Nextcloud. Die Einstellungen in `.obsidian/` werden mitsynchronisiert und gelten auf beiden Rechnern.
-- Auf **Windows** wird nur in Obsidian gelesen und bearbeitet. Änderungen von dort werden beim nächsten MCP-Zugriff auf die Datei bzw. beim nächsten Pflegelauf als Version mit `PKM-Source: user` übernommen.
+- **Alle Rechner** (Mac und Windows) nutzen denselben Vault über Nextcloud. Die Einstellungen in `.obsidian/` werden mitsynchronisiert und gelten überall.
+- Auf den **anderen Rechnern** (nicht PKM-Rechner) wird nur in Obsidian gelesen und bearbeitet. Änderungen von dort werden beim nächsten MCP-Zugriff auf die Datei bzw. beim nächsten Pflegelauf als Version mit `PKM-Source: user` übernommen.
 
 ---
 
 ## 14. Tests und Abnahme
 
 **Automatisiert (pytest, mit temporärem Git-Repo):**
+- Bilder (4.9): Einbetten bis 24 KB, Datei darüber, `scratch/` immer eingebettet, bestehende Base64-PNG byte-genau unverändert (auch über der Grenze und ohne Bildnamen), SVG-Bereinigung (Script, Ereignis-Attribute, externe Verweise, XXE), URL-Kodierung bricht keine Markdown-Syntax, Platzhalter in `read` und byte-genaue Rückübersetzung bei `rewrite_document`/`edit_document`, entfernte Bilder als `large_shortening`, `read_image` für PNG und SVG, `import_path` nur aus `PKM_IMPORT_DIR`, zugehörige Bilder nicht als `new`, geänderte Bilddatei ergibt neue Version des Dokuments, verwaiste Anhänge, Index ohne Base64
 - Pfadprüfung, Neuanlage nur in `_inbox/`, Änderungen nur in `documents/**/*.md`, `wiki/` immer abgelehnt
 - Adressierung über Pfad, Wikilink, Kurzname (auch in anderer Groß-/Kleinschreibung) und ID, einschließlich `ambiguous`
 - ID-Vergabe: Format, Kollisionsprüfung, `pkm ids` bei Datei mit und ohne Frontmatter (Inhalt byte-genau erhalten, Kommentare im Frontmatter erhalten), je Dokument ein Commit, doppelte IDs
@@ -1142,12 +1296,12 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 - Frontmatter (4.1): die Norm aus dem Beispiel mit unquotiertem `: ` im Titel ergibt `invalid_frontmatter`, `pkm fix-frontmatter` macht sie gültig und ändert nur diese Zeile. Ein Dokument mit genau den sechs Umwandlungsfeldern bekommt durch `pkm ids` nur `id` und `version`, eingefügt hinter `toolchain_markdown`. Neue Felder landen an ihrer Stelle nach 4.1, `update_frontmatter` schreibt in dieser Reihenfolge. `short_citation` wird gelesen, geschrieben und als Ziel aufgelöst. Die alte Schreibweise `short citation` wird gelesen und von `pkm fix-frontmatter` umbenannt. `meta_hash` ändert sich nicht bei Änderung von `status_markdown`. Kein Werkzeug schreibt `status_markdown`. Datumswerte gehen als Zeichenkette in `meta_hash` ein. `date_markdown` und `date_updated` werden mit Uhrzeit ohne Zeitzone geschrieben, in Ortszeit nach `PKM_TZ`
 - `scratch/`: Anlegen mit `area: "scratch"` und `folder`, Ändern ohne Version und Commit, `history`/`restore_document` liefern `not_versioned`, `search` findet `scratch/` nur mit `scope: "scratch"`, `pending`, `ids`, `versions` und `lint` ignorieren den Bereich, Lint meldet einen Beleg im Wiki, der auf `scratch/` zeigt, Verschieben von `scratch/` nach `documents/` ergibt beim nächsten Lauf `version: 1` und einen Commit
 - Getrenntes Git-Verzeichnis: alle Git-Operationen mit `--git-dir`/`--work-tree`, im Vault entsteht nie ein `.git`
-- Dateinamen: `create_document` erzeugt `<slug>_YYYY-MM-DD.md`, bei Namensgleichheit `<slug>-2_YYYY-MM-DD.md`
+- Dateinamen: `create_document` erzeugt `<slug>_YYYY-MM-DD.md`, bei Namensgleichheit `<slug>-2_YYYY-MM-DD.md`. Bei sehr langen Titeln wird der Slug gekürzt, Datum und Suffix bleiben vollständig, der Name hat höchstens 120 Zeichen
 - `pkm-pflege-mcp`: vollständiger Lauf (ID vergeben, Seite schreiben, abschließen, danach nichts offen), `blocked` bei Fehlern der Umgebung, `write_wiki_page` lehnt generierte Dateien, Bereiche außerhalb der Seitenordner und `..` ab und prüft `expected_hash`, `finish_maintenance` ermittelt die Seiten aus den Fußnoten und trägt `removed` aus. `set_document_metadata`: Whitelist, `field_exists` ohne `overwrite`, ungültiges `kind`, Tag-Vereinheitlichung, Commit mit `PKM-Source: agent`. `begin_maintenance` liefert `missing_fields` und `known_tags`. `pkm versions` committet eine geänderte `CLAUDE.md`
 - `read` mit `section`, `offset`/`max_chars`, `content: false` und `content_omitted` bei großen Inhalten. Leere Abschnitte mit `empty: true`
 - Lint: keine Warnung für Zwischenüberschriften, Hervorhebungs- und Link-Zeilen und belegte Tabellen, weiterhin Warnung für unbelegte Tabellen und Sätze, `citation_empty_section`
 - Verschieben außerhalb von Obsidian bei veraltetem Index: `fix-citations` schreibt Beleg und Wikilink im Text um. Belege auf unveränderte Abschnitte werden angehoben, Belege auf geänderte nicht
-- Plattform: NFC/NFD-Pfade, CRLF-Datei ergibt denselben Hash wie LF, Windows-ungültige Zeichen und reservierte Namen im Slug ersetzt, Konfliktkopien erkannt und nicht verarbeitet, Groß-/Kleinschreibungs-Kollisionen gemeldet
+- Plattform: Tests laufen unter Linux, macOS und Windows. NFC/NFD-Pfade, CRLF-Datei ergibt denselben Hash wie LF, Windows-ungültige Zeichen und reservierte Namen im Slug ersetzt, Konfliktkopien erkannt und nicht verarbeitet, Groß-/Kleinschreibungs-Kollisionen gemeldet
 
 **Abnahme (manuell):**
 1. Aus einem Chat: „Leg das Ergebnis ins PKM.“ → Die Datei erscheint als `documents/_inbox/<slug>_YYYY-MM-DD.md` mit ID und `version: 1`, und es gibt einen Commit.
@@ -1158,7 +1312,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 6. Nächster Pflegelauf → Nur die geänderten Abschnitte werden verarbeitet. Das Wiki zeigt den neuen Stand, bei einer geänderten Entscheidung zusätzlich „Bis Version 1: …“ mit Beleg auf v1.
 7. „Woher stammt die Angabe …?“ → Original mit Abschnitt, Zitat, Version und Status `ok`.
 8. „Dokumentiere das als Fortsetzung“ → Erst jetzt entsteht ein datierter Abschnitt.
-9. Auf dem Windows-Rechner ein Dokument in Obsidian ändern → Nach dem Sync und einem Pflegelauf gibt es eine neue Version mit `PKM-Source: user`, und das Wiki ist aktualisiert.
+9. Auf einem anderen Rechner (z. B. Windows, wenn der PKM-Rechner ein Mac ist) ein Dokument in Obsidian ändern → Nach dem Sync und einem Pflegelauf gibt es eine neue Version mit `PKM-Source: user`, und das Wiki ist aktualisiert.
 10. Aus einem Chat: „Setz ‚Filter der Zisternenpumpe reinigen‘ auf meine Todo-Liste“ → Entwurf, dann ein Eintrag in `scratch/`. Es gibt keinen Commit, und nach einem Pflegelauf taucht der Eintrag nicht im Wiki auf.
 11. `pkm doctor` und `pkm lint` melden null Fehler.
 
@@ -1185,7 +1339,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 
 | # | Thema | Entscheidung | Umgesetzt in |
 |---|---|---|---|
-| 1 | Speicherort und Plattform | Vault in einem Nextcloud-Ordner. Gelesen und bearbeitet auf Mac und Windows, Agent und MCP nur auf dem Mac. In der Spezifikation stehen Platzhalter statt konkreter Pfade | 5.5, 7.1, 7.6, 12, 13 |
+| 1 | Speicherort und Plattform | Vault in einem Nextcloud-Ordner. Gelesen und bearbeitet auf Mac und Windows, Agent und MCP nur auf dem PKM-Rechner (seit 0.22 Mac oder Windows, Entscheidung 36). In der Spezifikation stehen Platzhalter statt konkreter Pfade | 5.5, 7.1, 7.6, 12, 13 |
 | 2 | Ordnernamen | Englisch | 3 und überall |
 | 3 | Standardbereich der Chat-Suche | `wiki` | 7.3 |
 | 4 | Bestätigung | Immer erst einen Entwurf zeigen, ohne Ausnahme | 10 |
@@ -1208,7 +1362,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 16 | Frontmatter-Erhalt | Serverfelder zeilengenau, `update_frontmatter` schreibt neu | 4.1, 7.2 |
 | 17 | Verschieben in `pkm versions` | Ein Commit mit altem und neuem Pfad, neue Version nur bei geändertem Inhalt oder Metadaten | 8 |
 | 18 | Kurznamen | Ohne Groß-/Kleinschreibung, mehrdeutig → `ambiguous` | 7.1 |
-| 19 | Plattform für Tests | Pfade überschreibbar, Tests auch unter Linux, produktiv nur macOS | 7.1 |
+| 19 | Plattform für Tests | Pfade überschreibbar, Tests auch unter Linux, produktiv macOS oder Windows (36) | 7.1 |
 | 20 | Agenten-Commit | `pkm commit-wiki`, nur `wiki/` und `.pkm/state.json` | 8, 9.1, 12 |
 | 21 | Überschriften auf `#` plus Ziffern | Suffix-Vergabe überspringt belegte Schlüssel. Lint warnt (`heading_suffix_like`) bzw. meldet einen Fehler bei Kollision (`heading_suffix_collision`) | 4.8, 8, 14 |
 | 22 | Bereich `scratch/` | Für kurzlebige Notizen und Todo-Listen. Nicht in Git, nie im Wiki, von Lint ignoriert. Chats dürfen anlegen und ändern (mit Entwurf), ohne Version und Commit | 3, 7, 8, 9.5, 10, 12 |
@@ -1228,6 +1382,9 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 31 | Große Dokumente | `read` mit `section`, `offset`/`max_chars`, `content: false`; über 40.000 Zeichen Inhalt nur auf Anforderung | 7.3, 10 |
 | 32 | Belege | Strukturzeilen und belegte Tabellen ohne Lint-Warnung, Warnung bei Belegen auf leere Abschnitte, Anheben von `v:` bei unverändertem Abschnitt im Abschluss des Laufs, Wikilinks im Text werden beim Verschieben mit korrigiert | 4.2, 4.8, 5.2, 6.4, 8 |
 | 33 | `CLAUDE.md` in Git | Änderungen des Nutzers erfasst `pkm versions` als Commit mit `PKM-Source: user` | 3, 8, 12 |
+| 34 | Lange Dateinamen | Nur der Slug wird gekürzt, nie Datum oder Suffix | 4.1, 14 |
+| 35 | Bilder | PNG und SVG, SVG bevorzugt, bis 24 KB eingebettet (PNG Base64, SVG URL-kodiert), sonst Datei. `scratch/` immer eingebettet. Bestehende Base64-PNG unverändert. Bilder gehören zum Dokument. `add_image`, `read_image`, Importordner. Kein Befehl zum nachträglichen Einbetten bestehender Anhänge | 4.9, 7, 8, 9.1, 10 |
+| 36 | Windows als PKM-Rechner | Gleichwertig zum Mac, genau ein PKM-Rechner je Vault. Git von git-scm.com, Standardordner `%APPDATA%\pkm`, Datensicherung des Git-Verzeichnisses ausdrücklich einrichten | 5.5, 7.1, 7.6, 12, 13 |
 
 ### Noch offen
 
