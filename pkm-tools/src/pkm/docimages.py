@@ -141,8 +141,8 @@ def removed_images(old_body: str, new_body: str) -> list[str]:
     Returns:
         Namen der entfernten Bilder.
     """
-    new_raw = {r.raw for r in images.find_images(new_body)}
-    return [r.name for r in images.find_images(old_body) if r.raw not in new_raw]
+    new_keys = {r.link if r.inline else r.raw for r in images.find_images(new_body)}
+    return [r.name for r in images.find_images(old_body) if (r.link if r.inline else r.raw) not in new_keys]
 
 
 def edit_view(body: str, old: str, new: str) -> str:

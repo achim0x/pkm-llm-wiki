@@ -41,6 +41,7 @@ from typing import Any
 from urllib.parse import quote, unquote
 
 from .errors import PkmError
+from .imagescan import DataOccurrence, find_data_images
 from .paths import slugify
 
 # Variables *******************************************************************
@@ -62,7 +63,8 @@ PLACEHOLDER_SCHEME = "pkm-image:"
 MD_IMAGE_RE = re.compile(r'!\[(?P<alt>[^\]\n]*)\]\((?P<url>[^\s)]+)(?:[ \t]+"(?P<title>[^"\n]*)")?\)')
 WIKI_IMAGE_RE = re.compile(
     r"!\[\[(?P<path>[^\]|#\n]+?\.(?:png|svg|jpe?g|gif|webp))(?:\|(?P<opt>[^\]\n]*))?\]\]", re.IGNORECASE)
-PLACEHOLDER_RE = re.compile(r'!\[[^\]\n]*\]\(pkm-image:(?P<name>[a-z0-9-]+)(?:[ \t]+"[^"\n]*")?\)')
+PLACEHOLDER_RE = re.compile(r'!\[(?P<alt>[^\]\n]*)\]\(pkm-image:(?P<name>[a-z0-9-]+)(?:[ \t]+"[^"\n]*")?\)')
+TOKEN_RE = re.compile(r"pkm-image:(?P<name>[a-z0-9]+(?:-[a-z0-9]+)*)")
 NEW_IMAGE_RE = re.compile(r"\{\{image:(?P<name>[^}\s]+)\}\}")
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SVG_FORBIDDEN = (
@@ -95,6 +97,7 @@ class ImageRef:  # pylint: disable=too-many-instance-attributes
         fmt: Format (``png``, ``svg``, ``jpg`` …).
         link: Verweis wie geschrieben (Data-URI bzw. Pfad).
         named: Ob der Name als ``pkm:<name>`` im Text steht.
+        occ: Fundstelle bei eingebetteten Bildern (Schreibweise, Lage der URI, Referenz) oder ``None``.
     """
 
     name: str
@@ -106,6 +109,16 @@ class ImageRef:  # pylint: disable=too-many-instance-attributes
     fmt: str
     link: str
     named: bool
+    occ: DataOccurrence | None = None
+
+    @property
+    def full_placeholder(self) -> bool:
+        """Ob das Bild in ``read`` als ganzer Platzhalter erscheint (Schreibweise nach 4.9).
+
+        Returns:
+            ``True`` bei ``![alt](data:… "…")`` ohne Leerraum in der URI; sonst wird nur die URI ersetzt.
+        """
+        return self.occ is not None and self.occ.notation == "inline" and bool(MD_IMAGE_RE.fullmatch(self.raw))
 
     def data(self) -> bytes:
         """Inhalt eines eingebetteten Bildes.
@@ -179,23 +192,25 @@ def find_images(text: str) -> list[ImageRef]:
     Returns:
         Bilder in Textreihenfolge.
     """
-    found: list[tuple[int, int, str, str, str | None]] = []
+    found: list[tuple[int, int, str, str, str | None, DataOccurrence | None]] = []
     for m in MD_IMAGE_RE.finditer(text):
         url = m.group("url")
-        if url.startswith("data:image/") or PurePosixPath(unquote(url).lower()).suffix in IMAGE_EXTENSIONS:
+        if not url.lower().startswith("data:") and PurePosixPath(unquote(url).lower()).suffix in IMAGE_EXTENSIONS:
             if not re.match(r"^[a-z][a-z0-9+.-]*://", url, re.IGNORECASE) and not url.startswith(PLACEHOLDER_SCHEME):
-                found.append((m.start(), m.end(), m.group("alt"), url, m.group("title")))
+                found.append((m.start(), m.end(), m.group("alt"), url, m.group("title"), None))
     for m in WIKI_IMAGE_RE.finditer(text):
-        found.append((m.start(), m.end(), m.group("opt") or "", m.group("path"), None))
+        found.append((m.start(), m.end(), m.group("opt") or "", m.group("path"), None, None))
+    for occ in find_data_images(text):
+        if occ.notation != "reference" or occ.usages:
+            found.append((occ.start, occ.end, occ.alt, text[occ.uri_start:occ.uri_end], occ.title, occ))
     refs: list[ImageRef] = []
-    used: set[str] = set()
-    for n, (start, end, alt, url, title) in enumerate(sorted(found), start=1):
+    used: set[str] = {t[4][4:] for t in found if t[4] and t[4].startswith("pkm:") and NAME_RE.match(t[4][4:])}
+    for n, (start, end, alt, url, title, occ) in enumerate(sorted(found, key=lambda t: t[0]), start=1):
         named = bool(title and title.startswith("pkm:") and NAME_RE.match(title[4:]))
         name = title[4:] if named and title else _derived_name(alt, n, used)
         used.add(name)
-        inline = url.startswith("data:image/")
-        fmt = _format_of(url)
-        refs.append(ImageRef(name, alt.split("|", 1)[0].strip(), text[start:end], start, end, inline, fmt, url, named))
+        refs.append(ImageRef(name, alt.split("|", 1)[0].strip(), text[start:end], start, end, occ is not None,
+                             _format_of(url), url, named, occ))
     return refs
 
 
@@ -211,7 +226,7 @@ def _derived_name(alt: str, n: int, used: set[str]) -> str:
         Der Name.
     """
     base = alt.split("|", 1)[0].strip()
-    name = slugify(base, 60) if base and not base.isdigit() else f"bild-{n}"
+    name = slugify(base, 40) if base and not base.isdigit() else f"bild-{n}"
     candidate, k = name, 1
     while candidate in used:
         k += 1
@@ -323,11 +338,16 @@ def to_placeholders(text: str) -> str:
     Returns:
         Text ohne Data-URIs.
     """
-    out, pos = [], 0
+    spans: list[tuple[int, int, str]] = []
     for ref in find_images(text):
-        if ref.inline:
-            out += [text[pos:ref.start], placeholder(ref)]
-            pos = ref.end
+        if ref.full_placeholder:
+            spans.append((ref.start, ref.end, placeholder(ref)))
+        elif ref.inline and ref.occ is not None:
+            spans.append((ref.occ.uri_start, ref.occ.uri_end, f"{PLACEHOLDER_SCHEME}{ref.name}"))
+    out, pos = [], 0
+    for start, end, repl in sorted(spans):
+        out += [text[pos:start], repl]
+        pos = end
     return "".join(out) + text[pos:]
 
 
@@ -345,10 +365,24 @@ def restore_placeholders(text: str, refs: list[ImageRef]) -> str:
         PkmError: ``unknown_image`` bei Platzhaltern ohne Bild.
     """
     by_name = {r.name: r for r in refs if r.inline}
-    unknown = sorted({m.group("name") for m in PLACEHOLDER_RE.finditer(text)} - set(by_name))
+    unknown = sorted({m.group("name") for m in TOKEN_RE.finditer(text)} - set(by_name))
     if unknown:
         raise PkmError("unknown_image", "Unbekannte Bild-Platzhalter: " + ", ".join(unknown), images=unknown)
-    return PLACEHOLDER_RE.sub(lambda m: by_name[m.group("name")].raw, text)
+
+    def full(m: re.Match[str]) -> str:
+        """Ganzen Platzhalter ersetzen.
+
+        Args:
+            m: Treffer.
+
+        Returns:
+            Original bzw. Bild mit der ursprünglichen URI.
+        """
+        ref = by_name[m.group("name")]
+        return ref.raw if ref.full_placeholder else f"![{m.group('alt')}]({ref.link})"
+
+    text = PLACEHOLDER_RE.sub(full, text)
+    return TOKEN_RE.sub(lambda m: by_name[m.group("name")].link, text)
 
 
 def image_summary(text: str, section_of: Any = None) -> list[dict[str, Any]]:
