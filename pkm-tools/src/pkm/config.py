@@ -27,7 +27,7 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -38,12 +38,65 @@ from .errors import PkmError
 DEFAULT_AUTHOR = "pkm-mcp <pkm@localhost>"
 DEFAULT_MAX_KB = 200
 DEFAULT_TZ = "Europe/Berlin"
+IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX_MB": 5,
+                  "PKM_IMAGE_PARAM_MAX_KB": 512}
 
 # Classes *********************************************************************
 
 
 @dataclass(frozen=True)
-class Config:
+class ImageConfig:
+    """Grenzen und Ordner für Bilder (Spezifikation 4.9, 7.1).
+
+    Attributes:
+        inline_max_kb: Grenze für eingebettete Bilder, kodierte Größe (``PKM_INLINE_MAX_KB``).
+        svg_max_kb: Komplexitätsgrenze für SVG nach der Bereinigung (``PKM_SVG_MAX_KB``).
+        image_max_mb: Obergrenze je Bild (``PKM_IMAGE_MAX_MB``).
+        param_max_kb: Obergrenze für ``png_base64`` in einem Aufruf (``PKM_IMAGE_PARAM_MAX_KB``).
+        import_dir: Einziger Ordner, aus dem Bilddateien übernommen werden (``PKM_IMPORT_DIR``).
+        svg_raster: SVG für ``read_image`` rastern (``PKM_SVG_RASTER``).
+    """
+
+    inline_max_kb: int = 24
+    svg_max_kb: int = 200
+    image_max_mb: int = 5
+    param_max_kb: int = 512
+    import_dir: Path | None = None
+    svg_raster: bool = False
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str], home: Path | None) -> ImageConfig:
+        """Bild-Einstellungen aus der Umgebung lesen.
+
+        Args:
+            env: Umgebungsvariablen.
+            home: Home-Verzeichnis (für den Standard-Importordner).
+
+        Returns:
+            Die Einstellungen.
+
+        Raises:
+            PkmError: ``config_error`` bei ungültigen Zahlen.
+        """
+        values: dict[str, int] = {}
+        for key, default in IMAGE_DEFAULTS.items():
+            try:
+                values[key] = int(env.get(key) or default)
+            except ValueError as exc:
+                raise PkmError("config_error", f"{key} muss eine ganze Zahl sein.") from exc
+        import_dir = Path(env.get("PKM_IMPORT_DIR") or (home or Path.home()) / "Downloads" / "pkm-import")
+        return cls(
+            inline_max_kb=values["PKM_INLINE_MAX_KB"],
+            svg_max_kb=values["PKM_SVG_MAX_KB"],
+            image_max_mb=values["PKM_IMAGE_MAX_MB"],
+            param_max_kb=values["PKM_IMAGE_PARAM_MAX_KB"],
+            import_dir=import_dir.expanduser().resolve(),
+            svg_raster=(env.get("PKM_SVG_RASTER") or "").strip().lower() in ("1", "true", "yes", "ja"),
+        )
+
+
+@dataclass(frozen=True)
+class Config:  # pylint: disable=too-many-instance-attributes
     """Laufzeitkonfiguration von Server und CLI.
 
     Attributes:
@@ -54,6 +107,7 @@ class Config:
         max_kb: Größengrenze für Dokumente und Änderungstexte (``PKM_MAX_KB``).
         vault_name: Name des Obsidian-Vaults für ``obsidian://``-Links (``PKM_VAULT_NAME``).
         git_author: Autor der MCP-Commits (``PKM_GIT_AUTHOR``).
+        images: Einstellungen für Bilder (4.9).
     """
 
     root: Path
@@ -63,6 +117,7 @@ class Config:
     max_kb: int = DEFAULT_MAX_KB
     vault_name: str | None = None
     git_author: str = DEFAULT_AUTHOR
+    images: ImageConfig = field(default_factory=ImageConfig)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None, search_from: Path | None = None) -> Config:
@@ -103,6 +158,7 @@ class Config:
             max_kb=max_kb,
             vault_name=env.get("PKM_VAULT_NAME") or None,
             git_author=env.get("PKM_GIT_AUTHOR") or DEFAULT_AUTHOR,
+            images=ImageConfig.from_env(env, home),
         )
 
     # Abgeleitete Pfade ********************************************************
@@ -157,6 +213,17 @@ class Config:
                 f"PKM_CACHE_DIR ({self.cache_dir}) liegt im Vault. Der Suchindex darf nicht im "
                 "Nextcloud-Ordner liegen; bitte einen Ordner außerhalb wählen."
             )
+        return problem
+
+    def import_dir_problem(self) -> str | None:
+        """Prüfen, ob der Importordner für Bilder im Vault liegen würde.
+
+        Returns:
+            Fehlertext, wenn ``PKM_IMPORT_DIR`` im Vault liegt, sonst ``None``.
+        """
+        problem = None
+        if self.images.import_dir is not None and _is_within(self.images.import_dir, self.root):
+            problem = f"PKM_IMPORT_DIR ({self.images.import_dir}) liegt im Vault; er muss außerhalb liegen (4.9)."
         return problem
 
     def git_dir_problem(self) -> str | None:
