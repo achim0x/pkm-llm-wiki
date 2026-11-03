@@ -29,8 +29,16 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .config import IMPORT_FOLDER
 from .paths import is_conflict_copy
-from .vaultinit import PROPERTY_TYPES, TYPES_FILE, property_type_conflicts, read_property_types, scratch_ignored
+from .vaultinit import (
+    PROPERTY_TYPES,
+    TYPES_FILE,
+    folder_ignored,
+    property_type_conflicts,
+    read_property_types,
+    scratch_ignored,
+)
 
 if TYPE_CHECKING:
     from .service import Service
@@ -153,12 +161,16 @@ def _path_checks(svc: Service) -> list[dict[str, Any]]:
     checks.append(_check("conflict_copies", not conflicts, "Keine Nextcloud-Konfliktkopien.",
                          f"Konfliktkopien: {', '.join(conflicts)}"))
     import_problem = cfg.import_dir_problem()
-    checks.append(_check("import_dir_outside", import_problem is None, "PKM_IMPORT_DIR liegt außerhalb des Vaults.",
+    checks.append(_check("import_dir", import_problem is None, f"Importordner für Bilder: {cfg.images.import_dir}.",
                          import_problem or ""))
     gitignore = cfg.root / ".gitignore"
-    ignored = gitignore.is_file() and scratch_ignored(gitignore.read_text(encoding="utf-8"))
-    checks.append(_check("scratch_ignored", ignored, "scratch/ steht in .gitignore.",
+    text = gitignore.read_text(encoding="utf-8") if gitignore.is_file() else ""
+    checks.append(_check("scratch_ignored", scratch_ignored(text), "scratch/ steht in .gitignore.",
                          "scratch/ fehlt in .gitignore (pkm init ergänzt es)."))
+    if cfg.import_in_vault:
+        checks.append(_check("import_ignored", folder_ignored(text, IMPORT_FOLDER),
+                             f"{IMPORT_FOLDER}/ steht in .gitignore.",
+                             f"{IMPORT_FOLDER}/ fehlt in .gitignore (pkm init ergänzt es)."))
     return checks
 
 

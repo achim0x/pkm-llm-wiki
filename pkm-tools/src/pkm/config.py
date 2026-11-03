@@ -38,6 +38,7 @@ from .errors import PkmError
 DEFAULT_AUTHOR = "pkm-mcp <pkm@localhost>"
 DEFAULT_MAX_KB = 200
 DEFAULT_TZ = "Europe/Berlin"
+IMPORT_FOLDER = "pkm_img_import"
 IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX_MB": 5,
                   "PKM_IMAGE_PARAM_MAX_KB": 512}
 
@@ -65,12 +66,12 @@ class ImageConfig:
     svg_raster: bool = False
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str], home: Path | None) -> ImageConfig:
+    def from_env(cls, env: Mapping[str, str], root: Path) -> ImageConfig:
         """Bild-Einstellungen aus der Umgebung lesen.
 
         Args:
             env: Umgebungsvariablen.
-            home: Home-Verzeichnis (für den Standard-Importordner).
+            root: Vault-Wurzel (Standard-Importordner ``<Vault>/pkm_img_import``).
 
         Returns:
             Die Einstellungen.
@@ -84,7 +85,7 @@ class ImageConfig:
                 values[key] = int(env.get(key) or default)
             except ValueError as exc:
                 raise PkmError("config_error", f"{key} muss eine ganze Zahl sein.") from exc
-        import_dir = Path(env.get("PKM_IMPORT_DIR") or (home or Path.home()) / "Downloads" / "pkm-import")
+        import_dir = Path(env.get("PKM_IMPORT_DIR") or root / IMPORT_FOLDER)
         return cls(
             inline_max_kb=values["PKM_INLINE_MAX_KB"],
             svg_max_kb=values["PKM_SVG_MAX_KB"],
@@ -158,7 +159,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
             max_kb=max_kb,
             vault_name=env.get("PKM_VAULT_NAME") or None,
             git_author=env.get("PKM_GIT_AUTHOR") or DEFAULT_AUTHOR,
-            images=ImageConfig.from_env(env, home),
+            images=ImageConfig.from_env(env, root.resolve()),
         )
 
     # Abgeleitete Pfade ********************************************************
@@ -215,15 +216,28 @@ class Config:  # pylint: disable=too-many-instance-attributes
             )
         return problem
 
-    def import_dir_problem(self) -> str | None:
-        """Prüfen, ob der Importordner für Bilder im Vault liegen würde.
+    @property
+    def import_in_vault(self) -> bool:
+        """Ob der Importordner der Standardordner ``<Vault>/pkm_img_import`` ist.
 
         Returns:
-            Fehlertext, wenn ``PKM_IMPORT_DIR`` im Vault liegt, sonst ``None``.
+            ``True`` beim Ordner im Vault.
+        """
+        return self.images.import_dir == self.root / IMPORT_FOLDER
+
+    def import_dir_problem(self) -> str | None:
+        """Prüfen, ob der Importordner für Bilder zulässig ist (4.9).
+
+        Zulässig sind ``<Vault>/pkm_img_import`` und Ordner außerhalb des Vaults.
+
+        Returns:
+            Fehlertext bei einem anderen Ordner im Vault, sonst ``None``.
         """
         problem = None
-        if self.images.import_dir is not None and _is_within(self.images.import_dir, self.root):
-            problem = f"PKM_IMPORT_DIR ({self.images.import_dir}) liegt im Vault; er muss außerhalb liegen (4.9)."
+        imp = self.images.import_dir
+        if imp is not None and _is_within(imp, self.root) and not self.import_in_vault:
+            problem = (f"PKM_IMPORT_DIR ({imp}) liegt im Vault, aber nicht in {IMPORT_FOLDER}/; im Vault ist nur "
+                       f"{IMPORT_FOLDER}/ erlaubt (4.9).")
         return problem
 
     def git_dir_problem(self) -> str | None:

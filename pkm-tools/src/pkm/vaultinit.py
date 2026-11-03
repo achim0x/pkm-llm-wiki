@@ -29,7 +29,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
-from .config import Config
+from .config import IMPORT_FOLDER, Config
 from .errors import PkmError
 from .fsutil import write_bytes_atomic
 from .gitlayer import Git
@@ -46,9 +46,11 @@ DIRS = [
     "wiki/syntheses",
     "wiki/_lint",
     "scratch",
+    IMPORT_FOLDER,
     ".pkm",
 ]
 SCRATCH_IGNORE = "scratch/"
+IGNORED_FOLDERS = ("scratch", IMPORT_FOLDER)
 TYPES_FILE = ".obsidian/types.json"
 # Obsidian-Property-Typen (vault-weit je Feldname); Werte wie in Obsidians types.json.
 PROPERTY_TYPES = {
@@ -123,7 +125,7 @@ def _create_structure(cfg: Config) -> tuple[list[str], list[str]]:
 
 
 def ensure_scratch_ignored(cfg: Config) -> bool:
-    """``scratch/`` in eine bestehende ``.gitignore`` aufnehmen, falls es fehlt (ältere Vaults).
+    """``scratch/`` und ``pkm_img_import/`` in eine bestehende ``.gitignore`` aufnehmen, falls sie fehlen.
 
     Args:
         cfg: Konfiguration.
@@ -133,11 +135,24 @@ def ensure_scratch_ignored(cfg: Config) -> bool:
     """
     p = cfg.root / ".gitignore"
     text = p.read_text(encoding="utf-8") if p.is_file() else ""
-    missing = not scratch_ignored(text)
+    missing = [f"{name}/" for name in IGNORED_FOLDERS if not folder_ignored(text, name)]
     if missing:
-        new = text + ("" if not text or text.endswith("\n") else "\n") + SCRATCH_IGNORE + "\n"
+        new = text + ("" if not text or text.endswith("\n") else "\n") + "".join(f"{m}\n" for m in missing)
         p.write_bytes(new.encode("utf-8"))
-    return missing
+    return bool(missing)
+
+
+def folder_ignored(gitignore_text: str, name: str) -> bool:
+    """Prüfen, ob eine ``.gitignore`` einen Ordner auf oberster Ebene ausschließt.
+
+    Args:
+        gitignore_text: Inhalt der ``.gitignore``.
+        name: Ordnername ohne Schrägstrich.
+
+    Returns:
+        ``True`` bei einer Zeile ``name``, ``name/``, ``/name`` oder ``/name/``.
+    """
+    return any(line.strip().strip("/") == name for line in gitignore_text.splitlines())
 
 
 def scratch_ignored(gitignore_text: str) -> bool:

@@ -51,7 +51,12 @@ PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 PNG_TEXT_CHUNKS = (b"tEXt", b"iTXt", b"zTXt")
 PNG_MAX_PIXELS = 8000
 IMAGE_EXTENSIONS = (".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp")
-NEW_FORMATS = ("png", "svg")
+NEW_FORMATS = ("png", "svg", "jpg")
+IMPORT_SUFFIXES = {".png": "png", ".svg": "svg", ".jpg": "jpg", ".jpeg": "jpg"}
+JPEG_SOI = b"\xff\xd8"
+JPEG_DROP = (0xE1, 0xED, 0xFE)  # EXIF/XMP, Photoshop/IPTC, Kommentar
+JPEG_SOF = set(range(0xC0, 0xD0)) - {0xC4, 0xC8, 0xCC}
+EXIF_ORIENTATION = 0x0112
 MODES = ("auto", "inline", "file")
 PLACEHOLDER_SCHEME = "pkm-image:"
 MD_IMAGE_RE = re.compile(r'!\[(?P<alt>[^\]\n]*)\]\((?P<url>[^\s)]+)(?:[ \t]+"(?P<title>[^"\n]*)")?\)')
@@ -146,7 +151,8 @@ class PreparedImage:
         Returns:
             PNG als Base64-, SVG als URL-kodierte Data-URI.
         """
-        return png_data_uri(self.data) if self.fmt == "png" else svg_data_uri(self.data.decode("utf-8"))
+        uri = svg_data_uri(self.data.decode("utf-8")) if self.fmt == "svg" else png_data_uri(self.data)
+        return uri.replace("data:image/png;", "data:image/jpeg;", 1) if self.fmt == "jpg" else uri
 
     def info(self) -> dict[str, Any]:
         """Kurzinfo für Rückgaben.
@@ -534,6 +540,83 @@ def clean_png(data: bytes) -> bytes:
     return b"".join(chunks)
 
 
+def _exif_orientation(tiff: bytes) -> int | None:
+    """Ausrichtung (Tag 0x0112) aus einem EXIF-TIFF-Block lesen.
+
+    Args:
+        tiff: Inhalt des EXIF-Blocks nach ``Exif\\0\\0``.
+
+    Returns:
+        Wert 1–8 oder ``None``.
+    """
+    value = None
+    try:
+        endian = {b"II": "<", b"MM": ">"}[tiff[:2]]
+        ifd = struct.unpack(endian + "I", tiff[4:8])[0]
+        count = struct.unpack(endian + "H", tiff[ifd:ifd + 2])[0]
+        for i in range(count):
+            entry = tiff[ifd + 2 + 12 * i: ifd + 14 + 12 * i]
+            if struct.unpack(endian + "H", entry[:2])[0] == EXIF_ORIENTATION:
+                value = struct.unpack(endian + "H", entry[8:10])[0]
+    except (KeyError, struct.error):
+        value = None
+    return value if value in range(1, 9) else None
+
+
+def _orientation_segment(orientation: int) -> bytes:
+    """Minimalen EXIF-Block erzeugen, der nur die Ausrichtung enthält.
+
+    Args:
+        orientation: Wert 2–8.
+
+    Returns:
+        APP1-Segment.
+    """
+    tiff = (b"MM\x00\x2a" + struct.pack(">I", 8) + struct.pack(">H", 1)
+            + struct.pack(">HHIHH", EXIF_ORIENTATION, 3, 1, orientation, 0) + struct.pack(">I", 0))
+    payload = b"Exif\x00\x00" + tiff
+    return b"\xff\xe1" + struct.pack(">H", len(payload) + 2) + payload
+
+
+def clean_jpeg(data: bytes) -> bytes:
+    """Neues JPEG prüfen und Metadaten entfernen (EXIF/XMP, IPTC, Kommentare); die Ausrichtung bleibt.
+
+    Args:
+        data: JPEG-Bytes.
+
+    Returns:
+        JPEG ohne Metadaten, bei gedrehten Fotos mit einem EXIF-Block nur für die Ausrichtung.
+
+    Raises:
+        PkmError: ``invalid_image`` bei ungültiger Struktur oder mehr als 8.000 × 8.000 Pixeln.
+    """
+    if not data.startswith(JPEG_SOI):
+        raise PkmError("invalid_image", "Keine JPEG-Datei (Signatur fehlt).")
+    pos, segments, size, orientation, scan = 2, [JPEG_SOI], (0, 0), None, False
+    while pos + 4 <= len(data) and not scan and data[pos] == 0xFF:
+        marker = data[pos + 1]
+        length = struct.unpack(">H", data[pos + 2:pos + 4])[0]
+        segment = data[pos:pos + 2 + length]
+        if marker in JPEG_SOF and len(segment) >= 9:
+            size = struct.unpack(">HH", segment[5:9])
+        if marker == 0xE1 and segment[4:10] == b"Exif\x00\x00":
+            orientation = _exif_orientation(segment[10:]) or orientation
+        scan = marker == 0xDA
+        if scan:
+            segments.append(data[pos:])
+        elif marker not in JPEG_DROP:
+            segments.append(segment)
+        pos += 2 + length
+    if not scan or not all(size):
+        raise PkmError("invalid_image", "JPEG ist unvollständig oder beschädigt.")
+    if max(size) > PNG_MAX_PIXELS:
+        raise PkmError("invalid_image", f"JPEG ist größer als {PNG_MAX_PIXELS} × {PNG_MAX_PIXELS} Pixel.")
+    if orientation and orientation != 1:
+        at = 2 if len(segments) > 1 and segments[1][:2] == b"\xff\xe0" else 1
+        segments.insert(at, _orientation_segment(orientation))
+    return b"".join(segments)
+
+
 # Neue Bilder *****************************************************************
 def _source_bytes(spec: dict[str, Any], limits: Any) -> tuple[str, bytes]:
     """Quelle eines neuen Bildes lesen (genau eine von ``svg``, ``png_base64``, ``import_path``).
@@ -586,11 +669,11 @@ def _import_file(path: str, limits: Any) -> tuple[str, bytes]:
     full = (candidate if candidate.is_absolute() else (base or Path.cwd()) / candidate).resolve()
     if base is None or not full.is_relative_to(base):
         raise PkmError("forbidden", "Bilddateien werden nur aus PKM_IMPORT_DIR übernommen.", path=path)
-    if full.suffix.lower() not in (".png", ".svg"):
-        raise PkmError("invalid_argument", "Nur .png und .svg werden übernommen.", path=path)
+    if full.suffix.lower() not in IMPORT_SUFFIXES:
+        raise PkmError("invalid_argument", "Nur .png, .svg, .jpg und .jpeg werden übernommen.", path=path)
     if not full.is_file():
         raise PkmError("not_found", f"Datei nicht gefunden: {path}", path=path)
-    return full.suffix.lower().lstrip("."), full.read_bytes()
+    return IMPORT_SUFFIXES[full.suffix.lower()], full.read_bytes()
 
 
 def prepare_image(spec: dict[str, Any], limits: Any, scratch: bool = False) -> PreparedImage:
@@ -618,8 +701,9 @@ def prepare_image(spec: dict[str, Any], limits: Any, scratch: bool = False) -> P
     if mode not in MODES:
         raise PkmError("invalid_argument", f"mode muss eines von {', '.join(MODES)} sein.", image=name)
     fmt, data = _source_bytes(spec, limits)
-    data = sanitize_svg(data.decode("utf-8", "replace"), limits.svg_max_kb).encode("utf-8") if fmt == "svg" else \
-        clean_png(data)
+    cleaners = {"svg": lambda d: sanitize_svg(d.decode("utf-8", "replace"), limits.svg_max_kb).encode("utf-8"),
+                "png": clean_png, "jpg": clean_jpeg}
+    data = cleaners[fmt](data)
     if len(data) > limits.image_max_mb * 1024 * 1024:
         raise PkmError("too_large", f"Bild {name} ist größer als {limits.image_max_mb} MB.", image=name)
     image = PreparedImage(name, alt, fmt, data, "inline")

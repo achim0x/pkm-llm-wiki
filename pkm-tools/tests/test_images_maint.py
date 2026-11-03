@@ -166,7 +166,7 @@ def test_doctor_import_dir_and_search_alt_only(svc, cfg, monkeypatch):
     assert not svc.search(PNG_B64[20:40], scope="documents")["results"]
     monkeypatch.setenv("PKM_IMPORT_DIR", str(cfg.root / "import"))
     bad = Service(Config.from_env())
-    check = next(c for c in doctor(bad)["checks"] if c["check"] == "import_dir_outside")
+    check = next(c for c in doctor(bad)["checks"] if c["check"] == "import_dir")
     assert not check["ok"] and check["severity"] == "error"
     assert images.strip_images("a ![Alt](x.png) b") == "a Alt b"
 

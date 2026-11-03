@@ -1,5 +1,6 @@
 # PKM – nicht versionieren
 scratch/
+pkm_img_import/
 .obsidian/workspace*
 .pkm/mcp.log
 .sync_*
