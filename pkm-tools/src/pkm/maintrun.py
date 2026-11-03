@@ -31,7 +31,9 @@ from collections import Counter
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from .citations import fix_citations, parse_page, raise_versions, sync_citations
+from . import docimages, imagefix, images
+from .citations import fix_citations, parse_page, sync_citations
+from .citeraise import raise_versions
 from .doctor import doctor
 from .errors import PkmError
 from .frontmatter import set_fields_linewise
@@ -253,20 +255,27 @@ def _page_path(path: str) -> str:
     return rel
 
 
-def write_wiki_page(svc: Service, path: str, content: str, expected_hash: str | None = None) -> dict[str, Any]:
+def write_wiki_page(
+    svc: Service, path: str, content: str, expected_hash: str | None = None, fix_images: bool = False
+) -> dict[str, Any]:
     """Wiki-Seite anlegen oder ersetzen (ohne Commit; den macht ``finish_maintenance``).
+
+    Bild-Platzhalter aus ``read`` werden byte-genau durch die Originale ersetzt. Neue Data-URIs müssen
+    der Form nach 4.9 entsprechen; mit ``fix_images`` korrigiert der Server sie ohne Rückfrage.
 
     Args:
         svc: Dienst.
         path: Seite unter ``wiki/topics|entities|summaries|syntheses/``.
         content: Vollständiger Inhalt mit Frontmatter.
         expected_hash: ``hash`` aus ``read`` bei bestehenden Seiten; bei neuen Seiten weglassen.
+        fix_images: Abweichende Data-URIs korrigieren.
 
     Returns:
         ``status`` (``created``, ``changed``, ``unchanged``), Pfad und neuer ``hash``.
 
     Raises:
-        PkmError: ``forbidden``, ``invalid_path``, ``conflict`` oder ``too_large``.
+        PkmError: ``forbidden``, ``invalid_path``, ``conflict``, ``too_large``, ``unknown_image`` oder
+            ``nonconforming_image``.
     """
     rel = _page_path(path)
     safe_resolve(svc.cfg.root, rel)
@@ -279,11 +288,67 @@ def write_wiki_page(svc: Service, path: str, content: str, expected_hash: str | 
                            "hash als expected_hash angeben.", path=rel)
         if not exists and expected_hash is not None:
             raise PkmError("conflict", "Seite existiert nicht (mehr); ohne expected_hash neu anlegen.", path=rel)
+        content = _checked_page(svc, rel, content, exists, fix_images)
         (svc.cfg.root / rel).parent.mkdir(parents=True, exist_ok=True)
         changed = write_if_changed(svc, rel, content)
         new = svc.vault.load(rel).hashes
     status = "created" if not exists else ("changed" if changed else "unchanged")
     return {"status": status, "path": rel, "hash": new.file_hash if new else None}
+
+
+def _checked_page(svc: Service, rel: str, content: str, exists: bool, fix_images: bool) -> str:
+    """Inhalt einer Wiki-Seite: Platzhalter zurückübersetzen, neue Data-URIs prüfen (4.9).
+
+    Args:
+        svc: Dienst.
+        rel: Pfad der Seite.
+        content: Neuer Inhalt.
+        exists: Ob die Seite schon existiert.
+        fix_images: Abweichende Data-URIs korrigieren.
+
+    Returns:
+        Der zu schreibende Inhalt.
+
+    Raises:
+        PkmError: ``unknown_image`` oder ``nonconforming_image``.
+    """
+    old = svc.vault.load(rel).text or "" if exists else ""
+    old_refs = images.find_images(old)
+    content = images.restore_placeholders(content, old_refs)
+    new_links = {r.link for r in images.find_images(content) if r.inline} - {r.link for r in old_refs if r.inline}
+    issues = imagefix.image_issues(content, svc.cfg.images, legacy=False, wiki=True, only_links=new_links) \
+        if new_links else []
+    if issues and (not fix_images or not all(i["fixable"] for i in issues)):
+        raise PkmError("nonconforming_image", "Data-URIs entsprechen nicht 4.9; mit fix_images=true korrigieren "
+                       "oder SVG neu aufbauen.", image_issues=issues, path=rel)
+    if issues:
+        content, _ = imagefix.fix_text(content, svc.cfg.images, legacy=False, wiki=True, only_links=new_links)
+    return content
+
+
+def fix_document_images(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    svc: Service, target: str, expected_hash: str, images_only: list[str] | None = None,
+    image_alt: dict[str, str] | None = None, apply: bool = False, confirm_shortening: bool = False,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """Tool ``fix_images`` im Pflege-Server: nur ``documents/``, Commit mit ``PKM-Source: agent`` (7.7).
+
+    Args:
+        svc: Dienst.
+        target: Dokument.
+        expected_hash: Hash aus ``read``.
+        images_only: Nur diese Bilder.
+        image_alt: Alternativtexte je Name.
+        apply: Schreiben statt nur vorschlagen.
+        confirm_shortening: Entfernen unbenutzter Definitionen bestätigt.
+        note: Änderungsnotiz.
+
+    Returns:
+        Rückgabe von ``docimages.fix_document``.
+    """
+    return docimages.fix_document(svc.writer, target, expected_hash, images_only=images_only, image_alt=image_alt,
+                                  apply=apply, confirm_shortening=confirm_shortening, note=note, source="agent",
+                                  areas=("documents/",))
 
 
 def _load_target(svc: Service, target: str) -> Doc:

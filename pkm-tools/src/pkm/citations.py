@@ -708,7 +708,7 @@ def show_citations(
     return {"status": "ok", "page": rel, "citations": out}
 
 
-def _wiki_targets(svc: Service, pages: list[str] | None) -> list[str]:
+def wiki_targets(svc: Service, pages: list[str] | None) -> list[str]:
     """Zu bearbeitende Wiki-Seiten.
 
     Args:
@@ -856,76 +856,9 @@ def fix_citations(svc: Service, pages: list[str] | None = None) -> dict[str, Any
     """
     resolver = Resolver(svc)
     changes = []
-    for rel in _wiki_targets(svc, pages):
+    for rel in wiki_targets(svc, pages):
         page_changes = _fix_page(svc, rel, resolver)
         if page_changes:
-            changes.append({"page": rel, "changes": page_changes})
-    return {"status": "ok", "pages_changed": len(changes), "changes": changes}
-
-
-def _raised_line(line: str, version: int) -> str:
-    """Beleg-Zeile mit neuer Versionsangabe ``v:``.
-
-    Args:
-        line: Bisherige Zeile.
-        version: Neue Version.
-
-    Returns:
-        Die Zeile mit ersetztem ``v:``-Teil (übrige Teile unverändert).
-    """
-    return re.sub(r"(·\s*)v:\s*\d+", lambda m: f"{m.group(1)}v:{version}", line, count=1)
-
-
-def _raise_target(cit: Citation, resolver: Resolver) -> int | None:
-    """Neue Version für einen Beleg, dessen Abschnitt seit der belegten Version unverändert ist.
-
-    Args:
-        cit: Beleg.
-        resolver: Auflöser.
-
-    Returns:
-        Aktuelle Version des Originals oder ``None``, wenn nichts anzuheben ist.
-    """
-    target = None
-    res = resolver.resolve(cit) if cit.markdown and cit.version and cit.sha else None
-    if res is not None and res.doc is not None and res.doc.hashes and res.current_version:
-        current = res.doc.hashes.sections.get(cit.section_key or "")
-        newer = cit.version is not None and cit.version < res.current_version
-        if newer and current and hashes.matches(current, cit.sha or ""):
-            target = res.current_version
-    return target
-
-
-def raise_versions(svc: Service, pages: list[str] | None = None) -> dict[str, Any]:
-    """Belege auf unveränderte Abschnitte auf die aktuelle Version anheben (nur ``v:``, ``sha:`` bleibt).
-
-    Ein Beleg wird angehoben, wenn das Original eine neuere Version hat und der belegte Abschnitt dort
-    denselben Hash hat wie im Beleg. Belege auf geänderte Abschnitte bleiben unverändert.
-
-    Args:
-        svc: Dienst.
-        pages: Wiki-Seiten oder ``None`` für alle.
-
-    Returns:
-        Anzahl geänderter Seiten und die Änderungen.
-    """
-    resolver = Resolver(svc)
-    changes = []
-    for rel in _wiki_targets(svc, pages):
-        doc = svc.vault.load(rel)
-        if doc.parsed is None or doc.error:
-            continue
-        lines = body_lines(doc.parsed.body)
-        page_changes = []
-        for cit in parse_page(doc).definitions.values():
-            version = _raise_target(cit, resolver)
-            if version is not None:
-                new_line = _raised_line(lines[cit.line], version)
-                if new_line != lines[cit.line]:
-                    page_changes.append({"id": cit.label, "old": lines[cit.line], "new": new_line})
-                    lines[cit.line] = new_line
-        if page_changes:
-            write_if_changed(svc, rel, doc.parsed.frontmatter_text + "\n".join(lines) + "\n")
             changes.append({"page": rel, "changes": page_changes})
     return {"status": "ok", "pages_changed": len(changes), "changes": changes}
 
@@ -953,7 +886,7 @@ def sync_citations(svc: Service, pages: list[str] | None = None) -> dict[str, An
         Anzahl geänderter Seiten und die neuen ``sources``.
     """
     changed = []
-    for rel in _wiki_targets(svc, pages):
+    for rel in wiki_targets(svc, pages):
         doc = svc.vault.load(rel)
         if doc.parsed is not None and not doc.error:
             sources = expected_sources(parse_page(doc))

@@ -64,12 +64,25 @@ def _register_maintenance_tools(server: Server) -> None:
         return call("begin_maintenance", maintrun.begin_maintenance, with_lint=with_lint)
 
     @server.tool()
-    def write_wiki_page(path: str, content: str, expected_hash: str | None = None) -> dict:
+    def write_wiki_page(path: str, content: str, expected_hash: str | None = None, fix_images: bool = False) -> dict:
         """Wiki-Seite unter wiki/topics|entities|summaries|syntheses/ anlegen oder vollständig ersetzen
         (content mit Frontmatter). Bestehende Seiten erst mit read lesen und deren hash als expected_hash
-        angeben; neue Seiten ohne expected_hash. Kein Commit, den macht finish_maintenance."""
+        angeben; neue Seiten ohne expected_hash. Kein Commit, den macht finish_maintenance. Bild-Platzhalter aus
+        read stehen lassen. nonconforming_image: eigene Data-URIs mit fix_images=true korrigieren lassen."""
         return call("write_wiki_page", maintrun.write_wiki_page, path=path, content=content,
-                    expected_hash=expected_hash)
+                    expected_hash=expected_hash, fix_images=fix_images)
+
+    @server.tool(name="fix_images")
+    def fix_images_tool(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        target: str, expected_hash: str, images: list[str] | None = None, image_alt: dict | None = None,
+        apply: bool = False, confirm_shortening: bool = False, note: str | None = None,
+    ) -> dict:
+        """Nur nach ausdrücklicher Bestätigung des Nutzers, nie unbeaufsichtigt: Schreibweise abweichender
+        Bild-Data-URIs eines Dokuments in documents/ nach 4.9 korrigieren (image_issues aus begin_maintenance).
+        Ohne apply nur Vorschlag mit Diff; apply=true schreibt eine neue Version (PKM-Fix: images)."""
+        return call("fix_images", maintrun.fix_document_images, target=target, expected_hash=expected_hash,
+                    images_only=images, image_alt=image_alt, apply=apply, confirm_shortening=confirm_shortening,
+                    note=note)
 
     @server.tool()
     def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positional-arguments

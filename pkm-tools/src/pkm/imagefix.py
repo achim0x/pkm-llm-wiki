@@ -325,7 +325,7 @@ def _issue(text: str, a: Analysis, section_of: Any, scratch: bool) -> dict[str, 
         proposal = {"name": None, "alt": a.ref.alt, "mode": "inline", "removed": []}
     entry: dict[str, Any] = {"ref": a.ref.name, "line": a.line + 1, "section": section_of(a.ref.start) if section_of
                              else None, "format": a.fmt, "size": len(a.data), "problems": a.problems,
-                             "fixable": a.fixable and not many, "proposal": proposal}
+                             "fixable": a.fixable, "proposal": proposal}
     if many:
         entry["note"] = "Referenz mehrfach verwendet: " + ", ".join(
             str(text.count("\n", 0, s) + 1) for s, _ in occ.usages) + " (Zeilen); Bild nur an einer Stelle möglich"

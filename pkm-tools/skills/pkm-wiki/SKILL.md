@@ -15,6 +15,7 @@ Nutzers; eine Shell oder die CLI `pkm` brauchst du nicht (in Cowork gibt es dort
 | `read_image` | Bilder ansehen (PNG als Bild, SVG als Text) |
 | `write_wiki_page` | Wiki-Seite anlegen oder vollständig ersetzen (ohne Commit) |
 | `set_document_metadata` | Nur nach Bestätigung: `title`, `context`, `tags`, `kind`, `short_citation` eines Dokuments eintragen |
+| `fix_images` | Nur nach Bestätigung: Schreibweise abweichender Bild-Data-URIs eines Dokuments korrigieren |
 | `finish_maintenance` | Abschluss: Belege (verschoben, umbenannt, `v:` bei unveränderten Abschnitten angehoben), `sources`, Verarbeitungsstand, Log, Index, Status, Lint, Agenten-Commit |
 
 Sprache aller Inhalte: **Deutsch**.
@@ -26,7 +27,8 @@ Sprache aller Inhalte: **Deutsch**.
   `context`, `tags`, `kind`, `short_citation` – nur nach **ausdrücklicher Bestätigung** des
   Nutzers im Chat und nur mit `set_document_metadata` (siehe „Frontmatter-Vorschläge“). Die
   Dokument-Tools des Servers `pkm` (`create_document`, `edit_document`, `update_frontmatter` …)
-  benutzt du in der Pflege nicht.
+  benutzt du in der Pflege nicht. Ebenso nur nach Bestätigung: die Bildschreibweise mit `fix_images`
+  (siehe „Korrektur von Data-URIs“).
 - `scratch/` (kurzlebige Notizen, Todo-Listen) wird **weder gelesen noch verarbeitet**. Kein
   Beleg zeigt auf eine Datei dort. Wird eine Notiz nach `documents/` verschoben, ist sie beim
   nächsten Lauf ein neues Dokument; aus `documents/` nach `scratch/` verschoben wirkt wie Löschen.
@@ -63,6 +65,24 @@ bestätigten Feldern, `add` nur für weitere `tags`). Vorhandene Werte nicht üb
 `overwrite: true` nur, wenn der Nutzer das ausdrücklich will. Bei `conflict` neu lesen und dem
 Nutzer melden; bei `field_exists` den vorhandenen Wert nennen und nachfragen. Jede Eintragung
 ist eine neue Version des Dokuments; beim nächsten Lauf erscheint es als `meta_changed`.
+
+## Korrektur von Data-URIs
+
+`begin_maintenance` liefert bei neuen und geänderten Dokumenten `image_issues`, wenn eingebettete Bilder
+nicht der Form entsprechen (z. B. Referenzstil, nicht kodierte Zeichen im SVG, fehlender Name oder
+Alternativtext). Im Bericht je Bild nennen: Fundstelle (Abschnitt, Zeile), Befunde in Worten, Vorschlag
+(Name, Alternativtext, eingebettet oder Datei, bei SVG das bereinigte Bild und entfernte Teile) und
+fragen, ob korrigiert werden soll. Fehlt ein Alternativtext, einen vorschlagen und bestätigen lassen.
+
+Nach **ausdrücklicher Bestätigung**: `read` → `hash` → `fix_images` ohne `apply` (Vorschlag und Diff
+prüfen) → `fix_images` mit `apply: true` und `image_alt`. Bei `conflict` neu lesen und melden. Nicht
+korrigierbare Befunde (`fixable: false`) als offene Frage nennen. Die Korrektur ist eine neue Version;
+beim nächsten Lauf hat das Dokument `image_notation_only: true` und braucht keine Neuverarbeitung
+(trotzdem in `processed` angeben). Bestehende eingebettete PNG/JPEG: nur Schreibweise, Bytes bleiben,
+kein Name. **Unbeaufsichtigt nie korrigieren**, Vorschläge über `questions`.
+
+Eigene Wiki-Seiten: Meldet `write_wiki_page` `nonconforming_image`, korrigierst du ohne Rückfrage mit
+`fix_images: true` oder baust das SVG neu auf. Platzhalter `pkm-image:…` aus `read` stehen lassen.
 
 ## Formate
 
@@ -159,7 +179,8 @@ nur die Liste als `log_entry`:
    3. Querverweise in beide Richtungen setzen („Siehe auch“).
    4. Frontmatter prüfen und Vorschläge erarbeiten (siehe „Frontmatter-Vorschläge“), noch
       nichts eintragen.
-   5. Bestehende Seiten vor dem Ändern mit `read` lesen und deren `hash` als `expected_hash`
+   5. Befunde zu Data-URIs (`image_issues`) für den Bericht übernehmen, noch nichts korrigieren.
+   6. Bestehende Seiten vor dem Ändern mit `read` lesen und deren `hash` als `expected_hash`
       an `write_wiki_page` geben (immer den ganzen Seiteninhalt schreiben). Bei `conflict` neu
       lesen.
 3. **`changed`**: Nur die gemeldeten Abschnitte verarbeiten. Diff lesen:
@@ -176,7 +197,8 @@ nur die Liste als `log_entry`:
      (nur `v:`; `sha:` bleibt).
    - Zusammenfassungsseite des Dokuments aktualisieren.
 4. **`meta_changed`**: nur Zusammenfassungsseite (Titel, Themen, Verweise) anpassen. Die Belege
-   hebt `finish_maintenance` auf die neue Version.
+   hebt `finish_maintenance` auf die neue Version. **`image_notation_only`** (nur die Bildschreibweise
+   geändert): nichts verarbeiten, nur in `processed` angeben; die Belege hebt `finish_maintenance` an.
 5. **`deleted`**: betroffene Aussagen (siehe `wiki_pages`) **nicht löschen**, sondern unter
    „Widersprüche / offene Fragen“ vermerken: „Original nicht mehr vorhanden (letzter Stand in
    Git, v<n>)“, `confidence: low`, Rückfrage im Bericht. Den Schlüssel in `removed` angeben.
@@ -200,7 +222,8 @@ nur die Liste als `log_entry`:
      `finish_maintenance` erneut mit `operation: fix` aufrufen (ohne `processed`).
 9. Kurzer Bericht im Chat: neue/geänderte Seiten, überholte Aussagen, Beleg-Probleme,
    Einsortier-Vorschläge (aus `wiki/_status.md`), Rückfragen – und **je neuem Dokument mit
-   fehlenden Feldern den YAML-Block** mit der Frage, ob er eingetragen werden soll.
+   fehlenden Feldern den YAML-Block** mit der Frage, ob er eingetragen werden soll, sowie je Dokument
+   mit `image_issues` die Befunde mit Korrekturvorschlag und der Frage, ob korrigiert werden soll.
 
 Nextcloud-Konfliktkopien werden nie verarbeitet; der Nutzer führt sie in Obsidian zusammen.
 
@@ -210,7 +233,8 @@ Nextcloud-Konfliktkopien werden nie verarbeitet; der Nutzer führt sie in Obsidi
 2. **Selbst beheben** (mit `write_wiki_page`): kaputte Links mit eindeutigem Ziel, fehlende
    Kurzfassungen. Verschobene Belege, `sources` und Index erledigt `finish_maintenance`.
 3. **Vorschlagen statt ausführen:** fehlende Frontmatter-Felder von Dokumenten (YAML-Block wie
-   unter „Frontmatter-Vorschläge“), inhaltliche Widersprüche, Zusammenlegen von Seiten, neue
+   unter „Frontmatter-Vorschläge“), abweichende Data-URIs (`nonconforming_image`, siehe „Korrektur
+   von Data-URIs“), inhaltliche Widersprüche, Zusammenlegen von Seiten, neue
    Seiten, doppelte IDs, Belege mit `newer_version`, die nicht automatisch angehoben werden
    konnten, Hinweise zu Dokumenten (`documents/` fasst du nicht an).
 4. `finish_maintenance` mit `operation: lint`, `lint_report: true` (Bericht nach
@@ -231,7 +255,7 @@ Vault-Ordner verbunden ist; sonst übernimmt der Nutzer die Änderung selbst.
 
 ## Unbeaufsichtigter Lauf (geplante Aufgabe)
 
-Nicht auf Antworten warten. Frontmatter-Vorschläge **nie eintragen**, sondern als Frage über
+Nicht auf Antworten warten. Frontmatter-Vorschläge und Bildkorrekturen **nie eintragen**, sondern als Frage über
 `questions` nach `wiki/_status.md`. Konservativ entscheiden: Bei unklarer Einordnung, Duplikaten,
 Widersprüchen zu neueren Quellen oder gelöschten Originalen **nichts Riskantes tun**, sondern
 die Frage über `questions` von `finish_maintenance` in `wiki/_status.md` aufnehmen und im Log

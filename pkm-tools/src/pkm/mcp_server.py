@@ -49,7 +49,10 @@ except ImportError:  # mcp 1.x
 IMAGES_DOC = (
     "images: Liste von Bildern {name, alt, svg | png_base64 | import_path, mode auto|inline|file}; im Text steht "
     "an der Stelle {{image:<name>}}. Diagramme als SVG, Fotos/Screenshots als PNG/JPEG (Datei im Vault-Ordner "
-    "pkm_img_import/, import_path). Bis 24 KB eingebettet, sonst Datei; in scratch/ immer eingebettet."
+    "pkm_img_import/, import_path). Bis 24 KB eingebettet, sonst Datei; in scratch/ immer eingebettet. Keine "
+    "Data-URIs von Hand in Texte schreiben. nonconforming_image: Befunde (image_issues) und Vorschlag zeigen, nach "
+    "Bestätigung mit fix_images=true und image_alt {name: text} wiederholen. image_warnings: abweichende Bilder im "
+    "Bestand, Korrektur mit fix_images anbieten."
 )
 
 INSTRUCTIONS = (
@@ -237,6 +240,8 @@ def _register_write_tools(server: Server) -> None:
         area: str = "documents",
         folder: str | None = None,
         images: list[dict] | None = None,
+        fix_images: bool = False,
+        image_alt: dict | None = None,
     ) -> dict:
         """Neues Dokument in documents/_inbox/ anlegen (Version 1, Commit) oder mit area="scratch"
         eine kurzlebige Notiz/Todo-Liste in scratch/[folder/] (ohne Version und Commit, nie im Wiki).
@@ -245,39 +250,44 @@ def _register_write_tools(server: Server) -> None:
         "(pkm-mcp)", wird zu toolchain_markdown. Bilder siehe images."""
         return call("create_document", Service.create_document, title=title, content=content, tags=tags,
                     short_citation=short_citation, date_document=date_document, context=context, related=related,
-                    kind=kind, toolchain=toolchain, note=note, area=area, folder=folder, images=images)
+                    kind=kind, toolchain=toolchain, note=note, area=area, folder=folder, images=images,
+                    fix_images=fix_images, image_alt=image_alt)
 
     @server.tool()
     def rewrite_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str, content: str, expected_hash: str, note: str | None = None, confirm_shortening: bool = False,
-        images: list[dict] | None = None,
+        images: list[dict] | None = None, fix_images: bool = False, image_alt: dict | None = None,
     ) -> dict:
         """Gesamten Inhalt unterhalb des Frontmatters ersetzen (Normalfall bei Fortsetzungen).
         Bei deutlicher Kürzung oder fehlenden Abschnitten Status large_shortening: Kürzung vom
         Nutzer bestätigen lassen und mit confirm_shortening=true erneut aufrufen. Bild-Platzhalter aus read
         (pkm-image:…) unverändert lassen; fehlende Bilder gelten als entfernt (large_shortening)."""
         return call("rewrite_document", Service.rewrite_document, target=target, content=content,
-                    expected_hash=expected_hash, note=note, confirm_shortening=confirm_shortening, images=images)
+                    expected_hash=expected_hash, note=note, confirm_shortening=confirm_shortening, images=images,
+                    fix_images=fix_images, image_alt=image_alt)
 
     @server.tool()
     def append_to_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str, text: str, expected_hash: str, section: str | None = None, note: str | None = None,
-        images: list[dict] | None = None,
+        images: list[dict] | None = None, fix_images: bool = False, image_alt: dict | None = None,
     ) -> dict:
         """Text anhängen: am Ende des Abschnitts section (Schlüssel, z. B. "Offene Punkte",
         "Notizen#2" oder "_preamble"), neuer Abschnitt falls nicht vorhanden, ohne section am Dateiende."""
         return call("append_to_document", Service.append_to_document, target=target, text=text,
-                    expected_hash=expected_hash, section=section, note=note, images=images)
+                    expected_hash=expected_hash, section=section, note=note, images=images, fix_images=fix_images,
+                    image_alt=image_alt)
 
     @server.tool()
     def edit_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str, old: str, new: str, expected_hash: str, note: str | None = None,
-        images: list[dict] | None = None, confirm_shortening: bool = False,
+        images: list[dict] | None = None, confirm_shortening: bool = False, fix_images: bool = False,
+        image_alt: dict | None = None,
     ) -> dict:
         """Textstelle old (muss genau einmal vorkommen, im Text mit Bild-Platzhaltern aus read) durch new ersetzen.
         new darf leer sein. Entfernt die Änderung ein Bild: large_shortening, nach Bestätigung confirm_shortening."""
         return call("edit_document", Service.edit_document, target=target, old=old, new=new,
-                    expected_hash=expected_hash, note=note, images=images, confirm_shortening=confirm_shortening)
+                    expected_hash=expected_hash, note=note, images=images, confirm_shortening=confirm_shortening,
+                    fix_images=fix_images, image_alt=image_alt)
 
     @server.tool()
     def add_image(  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -288,6 +298,19 @@ def _register_write_tools(server: Server) -> None:
         Bildunterschrift. image wie ein Eintrag von images. Nur nach gezeigtem und bestätigtem Entwurf."""
         return call("add_image", Service.add_image, target=target, expected_hash=expected_hash, image=image,
                     section=section, caption=caption, note=note)
+
+    @server.tool(name="fix_images")
+    def fix_images_tool(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        target: str, expected_hash: str, images: list[str] | None = None, image_alt: dict | None = None,
+        apply: bool = False, confirm_shortening: bool = False, note: str | None = None,
+    ) -> dict:
+        """Schreibweise abweichender Bild-Data-URIs eines Dokuments in documents/ oder scratch/ nach 4.9
+        korrigieren. Ohne apply nur Vorschlag (status proposal, image_issues, Diff); erst nach ausdrücklicher
+        Bestätigung mit apply=true (neue Version, PKM-Fix: images). images: nur diese Bildnamen. image_alt:
+        Alternativtexte je Name. confirm_shortening: Entfernen unbenutzter Definitionen bestätigen."""
+        return call("fix_images", Service.fix_images, target=target, expected_hash=expected_hash,
+                    images_only=images, image_alt=image_alt, apply=apply, confirm_shortening=confirm_shortening,
+                    note=note, source="chat")
 
     @server.tool()
     def update_frontmatter(  # pylint: disable=too-many-arguments,too-many-positional-arguments

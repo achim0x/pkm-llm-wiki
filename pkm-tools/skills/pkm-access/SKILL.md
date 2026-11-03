@@ -13,7 +13,7 @@ mit Git-Commit.
 ## Grundregel – ohne Ausnahme
 
 **Jeder schreibende Aufruf** (`create_document`, `rewrite_document`, `append_to_document`,
-`edit_document`, `update_frontmatter`, `add_image`, `restore_document`) erfolgt erst, **nachdem ein Entwurf
+`edit_document`, `update_frontmatter`, `add_image`, `fix_images`, `restore_document`) erfolgt erst, **nachdem ein Entwurf
 gezeigt und vom Nutzer bestätigt wurde**. Das gilt auch, wenn der Nutzer „direkt“, „einfach
 speichern“ o. Ä. sagt: Dann den Entwurf knapp zeigen und kurz bestätigen lassen.
 
@@ -135,7 +135,17 @@ Original per `edit_document` markieren:
   Server setzt die Originale wieder ein. Fehlt ein Bild in der neuen Fassung, kommt
   `large_shortening` mit `removed_images` – nur nach Bestätigung mit `confirm_shortening`
   entfernen. `unknown_image`: Platzhaltername stimmt nicht.
-- Bestehende eingebettete PNG bleiben unverändert. Fehler: `svg_too_complex` (dann PNG),
+- **Keine Data-URIs von Hand in den Text schreiben**, Bilder immer über `images` bzw. `add_image`.
+- **`nonconforming_image`:** Der Text enthielt eine Data-URI, die nicht der Form entspricht (Befunde
+  in `image_issues`, z. B. `reference_style`, `unencoded_chars`, `missing_name`, `missing_alt`).
+  Befunde und Vorschlag dem Nutzer zeigen (bei SVG das Bild), fehlende Alternativtexte erfragen und
+  erst nach Bestätigung den Aufruf mit `fix_images: true` und `image_alt` (`{name: text}`)
+  wiederholen – oder die Fassung mit `images` neu aufbauen.
+- **Abweichende Bilder im Bestand** (`image_warnings` beim Schreiben, `conforming: false` in `read`):
+  dem Nutzer nennen und die Korrektur anbieten. Nach Bestätigung `fix_images` ohne `apply`
+  (Vorschlag und Diff zeigen), dann mit `apply: true`. Nie von sich aus korrigieren.
+- Bestehende eingebettete PNG bleiben unverändert; bei ihnen wird nach Bestätigung höchstens die
+  Schreibweise korrigiert. Fehler: `svg_too_complex` (dann PNG),
   `too_large_for_inline` (dann `mode: auto`), `invalid_image`, `forbidden` (`import_path`
   außerhalb des Importordners).
 

@@ -431,7 +431,7 @@ def test_mcp_show_citations(setup):
     """show_citations über den MCP-Server."""
     mcp_server.reset_service()
     names = {t.name for t in asyncio.run(mcp_server.build_server().list_tools())}
-    assert len(names) == 14 and {"show_citations", "add_image", "read_image"} <= names
+    assert len(names) == 15 and {"show_citations", "add_image", "read_image", "fix_images"} <= names
     res = mcp_server.call("show_citations", lambda s, **k: s.show_citations(**k), target=setup["page"],
                           statement="Tank fasst")
     assert [c["id"] for c in res["citations"]] == ["b3"]

@@ -374,7 +374,7 @@ class Service:  # pylint: disable=too-many-public-methods
             result = self._doc_result(doc, with_links=True)
         if "content" in result:
             text = _section_content(doc, section, result) if section is not None else result["content"]
-            text, result["images"] = docimages.read_view(doc, text, result.get("section"))
+            text, result["images"] = docimages.read_view(doc, text, result.get("section"), self.cfg.images)
             result.update(_page_of(text, offset, max_chars, content))
             if "content" not in result or result["content"] is None:
                 result.pop("content", None)
@@ -611,6 +611,17 @@ class Service:  # pylint: disable=too-many-public-methods
             Metadaten und Bild (``svg`` als Text bzw. ``data`` als Bytes).
         """
         return docimages.image_payload(self, target, image, as_)
+
+    def fix_images(self, **kwargs: Any) -> dict[str, Any]:
+        """Tool ``fix_images`` (4.9, 7.2).
+
+        Args:
+            **kwargs: Parameter von ``docimages.fix_document``.
+
+        Returns:
+            Vorschlag bzw. neue Version.
+        """
+        return docimages.fix_document(self.writer, **kwargs)
 
     def update_frontmatter(self, **kwargs: Any) -> dict[str, Any]:
         """Tool ``update_frontmatter``.

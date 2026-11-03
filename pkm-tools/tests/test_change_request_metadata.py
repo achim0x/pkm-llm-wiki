@@ -26,7 +26,8 @@ Lint ohne Fehlalarme, Verschieben außerhalb von Obsidian, leere Abschnitte, Anh
 import pytest
 
 from pkm import maintrun, service
-from pkm.citations import fix_citations, parse_page, raise_versions
+from pkm.citations import fix_citations, parse_page
+from pkm.citeraise import raise_versions
 from pkm.errors import PkmError
 from pkm.lint import lint
 

@@ -309,7 +309,8 @@ class Writer:
     # Abschluss ****************************************************************
 
     def finish(  # pylint: disable=too-many-arguments,too-many-positional-arguments
-        self, doc: Doc, new_text: str, note: str, source: str = "chat", extra_paths: list[str] | None = None
+        self, doc: Doc, new_text: str, note: str, source: str = "chat", extra_paths: list[str] | None = None,
+        trailer: str | None = None,
     ) -> dict[str, Any]:
         """Neue Fassung als neue Version schreiben und committen.
 
@@ -319,6 +320,7 @@ class Writer:
             note: Änderungsnotiz.
             source: ``chat``, ``user`` oder ``agent``.
             extra_paths: Weitere Dateien im selben Commit (z. B. neue Bilddateien).
+            trailer: Zusätzliche Commit-Zeile, z. B. ``PKM-Fix: images``.
 
         Returns:
             ``{id, path, status, version, new_hash, commit, diff}``; ``status`` ist ``changed``
@@ -342,6 +344,7 @@ class Writer:
             if new_doc.error:
                 raise PkmError(new_doc.error, new_doc.error_message or "Ergebnis ungültig.")
             msg = build_message(new_doc.title, f"v{version}", note, doc.id or "", version, source)
+            msg = msg.rstrip("\n") + f"\n{trailer}\n" if trailer else msg
             sha = self.write_and_commit(doc.rel, new_text, msg, extra_paths)
             result = {
                 "id": doc.id, "path": doc.rel, "status": "changed", "version": version,
@@ -352,7 +355,7 @@ class Writer:
 
     def change(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, target: str, expected_hash: str | None, transform: Callable[[Doc], str], note: str, source: str = "chat",
-        images: list[dict[str, Any]] | None = None,
+        images: list[dict[str, Any]] | None = None, fix: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Gemeinsamer Ablauf aller Änderungs-Tools.
 
@@ -363,9 +366,11 @@ class Writer:
             note: Änderungsnotiz.
             source: ``chat`` oder ``user``.
             images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` im Text (4.9).
+            fix: ``fix_images`` und ``image_alt`` für Data-URIs im übergebenen Text (4.9, 7.2).
 
         Returns:
-            Rückgabe von ``finish``, bei neuen Bildern mit ``images``.
+            Rückgabe von ``finish``, bei neuen Bildern mit ``images``, bei abweichenden Bildern im Bestand
+            mit ``image_warnings``.
         """
         with self.lock():
             doc = self.editable_doc(target)
@@ -374,8 +379,10 @@ class Writer:
             self.check_hash(doc, expected_hash)
             if doc.versioned:
                 doc = self.commit_user_state(doc)
-            text, files, infos = docimages.place_images(self, doc, transform(doc), images)
+            text, files, warnings = docimages.check_text_images(self, doc, transform(doc), fix)
             try:
+                text, new_files, infos = docimages.place_images(self, doc, text, images)
+                files += new_files
                 result = (self.finish(doc, text, note, source, files) if doc.versioned
                           else self.finish_scratch(doc, text))
             except PkmError:
@@ -383,6 +390,8 @@ class Writer:
                 raise
         if infos:
             result["images"] = infos
+        if warnings:
+            result["image_warnings"] = warnings
         return result
 
     def finish_scratch(self, doc: Doc, new_text: str) -> dict[str, Any]:
@@ -437,6 +446,8 @@ class Writer:
         area: str = "documents",
         folder: str | None = None,
         images: list[dict[str, Any]] | None = None,
+        fix_images: bool = False,
+        image_alt: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Tool ``create_document``: neues Dokument in ``documents/_inbox/`` (Version 1) oder Notiz in ``scratch/``.
 
@@ -454,6 +465,8 @@ class Writer:
             area: ``documents`` (Standard) oder ``scratch``.
             folder: Nur bei ``scratch``: Unterordner in ``scratch/``.
             images: Bilder zu Platzhaltern ``{{image:<name>}}`` im Inhalt (4.9).
+            fix_images: Abweichende Data-URIs im Text nach Bestätigung korrigieren (4.9).
+            image_alt: Alternativtexte je Bildname für ``missing_alt``.
 
         Returns:
             ``{id, path, status: created, version: 1, new_hash, commit, diff}``; bei ``scratch``
@@ -479,11 +492,12 @@ class Writer:
         if area != SCRATCH:
             values["kind"] = kind or DEFAULT_KIND
             values["toolchain_markdown"] = " ".join(toolchain.split()) if toolchain else DEFAULT_TOOLCHAIN
-        return (self._write_scratch(body, _scratch_folder(folder), values, images) if area == SCRATCH
-                else self._write_new(body, note or "neu angelegt", values, images))
+        fix = {"fix_images": fix_images, "image_alt": image_alt}
+        return (self._write_scratch(body, _scratch_folder(folder), values, (images, fix)) if area == SCRATCH
+                else self._write_new(body, note or "neu angelegt", values, (images, fix)))
 
-    def _write_new(
-        self, body: str, note: str, values: dict[str, Any], images: list[dict[str, Any]] | None = None
+    def _write_new(  # pylint: disable=too-many-locals
+        self, body: str, note: str, values: dict[str, Any], images: tuple[Any, Any] = (None, None)
     ) -> dict[str, Any]:
         """Neues Dokument mit ``date_markdown``, ID und Version 1 schreiben und committen.
 
@@ -491,7 +505,7 @@ class Writer:
             body: Inhalt ohne Frontmatter.
             note: Änderungsnotiz.
             values: Frontmatter-Felder aus dem Aufruf (``title`` … ``kind``).
-            images: Neue Bilder (4.9).
+            images: Neue Bilder (4.9) und ``fix``-Angaben für Data-URIs im Text.
 
         Returns:
             Rückgabe von ``_created_result``.
@@ -504,8 +518,11 @@ class Writer:
             meta = _ordered_meta({**values, "date_markdown": stamp(now), "id": doc_id, "version": 1})
             text = normalize_text(dump_meta(meta) + "\n" + body.lstrip("\n"))
             rel = self._free_inbox_name(now.date().isoformat(), title)
-            text, files, infos = docimages.place_images(self, load_text_doc(rel, b""), text, images)
+            empty = load_text_doc(rel, b"")
+            text, files, _ = docimages.check_text_images(self, empty, text, images[1])
             try:
+                text, new_files, infos = docimages.place_images(self, empty, text, images[0])
+                files += new_files
                 sha = self.write_and_commit(rel, text, build_message(title, "v1", note, doc_id, 1, "chat"), files)
             except PkmError:
                 docimages.remove_files(self, files)
@@ -535,7 +552,7 @@ class Writer:
         }
 
     def _write_scratch(
-        self, body: str, folder: str, values: dict[str, Any], images: list[dict[str, Any]] | None = None
+        self, body: str, folder: str, values: dict[str, Any], images: tuple[Any, Any] = (None, None)
     ) -> dict[str, Any]:
         """Notiz in ``scratch/`` anlegen: kleines Frontmatter, ohne ID, Version und Commit.
 
@@ -543,7 +560,7 @@ class Writer:
             body: Inhalt ohne Frontmatter.
             folder: Geprüfter Unterordner (relativ zu ``scratch/``, ggf. leer).
             values: Frontmatter-Felder aus dem Aufruf (leere Werte entfallen).
-            images: Neue Bilder (in ``scratch/`` immer eingebettet).
+            images: Neue Bilder (in ``scratch/`` immer eingebettet) und ``fix``-Angaben.
 
         Returns:
             ``{path, status: created, new_hash, diff}``.
@@ -553,7 +570,9 @@ class Writer:
             text = normalize_text(dump_meta(meta) + "\n" + body.lstrip("\n"))
             base = "/".join(p for p in (SCRATCH, folder) if p)
             rel = self.free_name(base, slugify(values["title"], MAX_NAME))
-            text, _, infos = docimages.place_images(self, load_text_doc(rel, b""), text, images)
+            empty = load_text_doc(rel, b"")
+            text, _, _ = docimages.check_text_images(self, empty, text, images[1])
+            text, _, infos = docimages.place_images(self, empty, text, images[0])
             self.write_atomic(rel, text)
         doc = self.vault.load(rel)
         result = {"path": rel, "status": "created", "new_hash": doc.hashes.file_hash if doc.hashes else None,
@@ -610,7 +629,8 @@ class Writer:
 
     def rewrite_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, target: str, content: str, expected_hash: str | None, note: str | None = None,
-        confirm_shortening: bool = False, images: list[dict[str, Any]] | None = None,
+        confirm_shortening: bool = False, images: list[dict[str, Any]] | None = None, fix_images: bool = False,
+        image_alt: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Tool ``rewrite_document``: gesamten Inhalt unterhalb des Frontmatters ersetzen.
 
@@ -621,6 +641,8 @@ class Writer:
             note: Änderungsnotiz.
             confirm_shortening: Deutliche Kürzung, fehlende Abschnitte bzw. entfernte Bilder bestätigen.
             images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` (4.9).
+            fix_images: Abweichende Data-URIs im Text nach Bestätigung korrigieren (4.9).
+            image_alt: Alternativtexte je Bildname für ``missing_alt``.
 
         Returns:
             Rückgabe von ``finish``.
@@ -640,11 +662,12 @@ class Writer:
             fm = doc.parsed.frontmatter_text
             return fm + ("\n" if fm else "") + body.lstrip("\n")
 
-        return self.change(target, expected_hash, transform, note or "neu gefasst", images=images)
+        return self.change(target, expected_hash, transform, note or "neu gefasst", images=images,
+                           fix={"fix_images": fix_images, "image_alt": image_alt})
 
     def append_to_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, target: str, text: str, expected_hash: str | None, section: str | None = None, note: str | None = None,
-        images: list[dict[str, Any]] | None = None,
+        images: list[dict[str, Any]] | None = None, fix_images: bool = False, image_alt: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Tool ``append_to_document``.
 
@@ -656,6 +679,8 @@ class Writer:
                 wird er als Ebene 2 angelegt; ohne Angabe wird am Dateiende angehängt.
             note: Änderungsnotiz.
             images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` (4.9).
+            fix_images: Abweichende Data-URIs im Text nach Bestätigung korrigieren (4.9).
+            image_alt: Alternativtexte je Bildname für ``missing_alt``.
 
         Returns:
             Rückgabe von ``finish``.
@@ -673,11 +698,13 @@ class Writer:
             return doc.parsed.frontmatter_text + "\n".join(append_lines(doc.parsed, block, section)) + "\n"
 
         default = f"ergänzt: {section}" if section else "ergänzt am Ende"
-        return self.change(target, expected_hash, transform, note or default, images=images)
+        return self.change(target, expected_hash, transform, note or default, images=images,
+                           fix={"fix_images": fix_images, "image_alt": image_alt})
 
     def edit_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, target: str, old: str, new: str, expected_hash: str | None, note: str | None = None,
-        images: list[dict[str, Any]] | None = None, confirm_shortening: bool = False,
+        images: list[dict[str, Any]] | None = None, confirm_shortening: bool = False, fix_images: bool = False,
+        image_alt: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Tool ``edit_document``: Textstelle ersetzen.
 
@@ -689,6 +716,8 @@ class Writer:
             note: Änderungsnotiz.
             images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` (4.9).
             confirm_shortening: Entfernen von Bildern bestätigen.
+            fix_images: Abweichende Data-URIs im Text nach Bestätigung korrigieren (4.9).
+            image_alt: Alternativtexte je Bildname für ``missing_alt``.
 
         Returns:
             Rückgabe von ``finish``.
@@ -713,7 +742,8 @@ class Writer:
                                "und mit confirm_shortening=true erneut aufrufen.", removed_images=removed, path=doc.rel)
             return doc.parsed.frontmatter_text + new_body
 
-        return self.change(target, expected_hash, transform, note or "Textstelle geändert", images=images)
+        return self.change(target, expected_hash, transform, note or "Textstelle geändert", images=images,
+                           fix={"fix_images": fix_images, "image_alt": image_alt})
 
     def add_image(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, target: str, expected_hash: str | None, image: dict[str, Any], section: str | None = None,

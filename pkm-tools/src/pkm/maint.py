@@ -29,7 +29,7 @@ from collections import defaultdict
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from . import hashes
+from . import docimages, hashes, imagefix
 from .assets import AssetMap, asset_changes, known_assets
 from .errors import PkmError
 from .frontmatter import fix_frontmatter_text, set_fields_linewise
@@ -195,6 +195,32 @@ class Maintenance:
             committed += [self._commit_deleted(rel) for rel in sorted(deleted - handled) if is_markdown(rel)]
             committed += self._commit_schema()
         return {"status": "ok", "committed": committed, "skipped": skipped}
+
+    def _image_findings(self, docs: list[Doc], result: dict[str, list[dict[str, Any]]]) -> None:
+        """Befunde zu Data-URIs (``image_issues``) und reine Änderungen der Bildschreibweise melden (4.9).
+
+        Args:
+            docs: Dokumente.
+            result: Ergebnislisten von ``pending`` (werden ergänzt).
+        """
+        by_rel = {d.rel: d for d in docs if d.kind == "md" and d.parsed is not None and not d.error}
+        limits = self.cfg.images
+        for item in [*result.get("new", []), *result.get("changed", [])]:
+            doc = by_rel.get(item.get("path") or "")
+            if doc is None:
+                continue
+            issues = imagefix.image_issues(doc.body or "", limits, section_of=docimages.section_of(doc, doc.body or ""))
+            if issues:
+                item["image_issues"] = issues
+            old = item.get("processed_version")
+            if item in result.get("changed", []) and doc.id and old and "assets_changed" not in item:
+                try:
+                    _, text = self.svc.text_at_version(doc.id, int(old))
+                except PkmError:
+                    text = None
+                old_body = load_text_doc(doc.rel, text.encode("utf-8")).body if text is not None else None
+                if old_body is not None and imagefix.body_notation_only(old_body, doc.body or "", limits):
+                    item["image_notation_only"] = True
 
     def _commit_changed_images(self, modified: set[str]) -> tuple[list[dict[str, Any]], set[str]]:
         """Geänderte zugehörige Bilddateien als neue Version der Dokumente committen, die sie verwenden (4.9).
@@ -384,6 +410,7 @@ class Maintenance:
             elif not (doc.kind == "md" and doc.error):
                 self._pending_doc(doc, entries, dups, result, present)
         _asset_pending(docs, entries, amap, result)
+        self._image_findings(docs, result)
         result["deleted"] = _deleted_entries(entries, present)
         result.pop("invalid", None)
         counts = {k: len(v) for k, v in result.items()}

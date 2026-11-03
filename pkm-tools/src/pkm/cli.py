@@ -31,6 +31,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from . import docimages, imagefix
 from .citations import fix_citations, sync_citations
 from .config import Config
 from .doctor import doctor
@@ -43,7 +44,7 @@ from .wikigen import build_index, build_status
 
 # Variables *******************************************************************
 
-OK_STATUSES = (None, "ok", "changed", "created", "unchanged")
+OK_STATUSES = (None, "ok", "changed", "created", "unchanged", "proposal")
 
 # Classes *********************************************************************
 
@@ -218,6 +219,39 @@ def cmd_fix_frontmatter(svc: Service, args: argparse.Namespace) -> Any:
     return Maintenance(svc).fix_frontmatter(args.targets, args.all)
 
 
+def cmd_fix_images(svc: Service, args: argparse.Namespace) -> Any:
+    """``pkm fix-images <target>… [--all] [--apply] [--alt <name>=<text>]`` (nur auf Anweisung, 4.9).
+
+    Ohne Ziel und ohne ``--all`` listet der Befehl nur die betroffenen Dateien. Ohne ``--apply`` zeigt er
+    Befunde, Vorschläge und Diff; mit ``--apply`` wird jede geänderte Datei als neue Version committet
+    (``PKM-Source: user``, ``PKM-Fix: images``).
+
+    Args:
+        svc: Dienst.
+        args: ``targets``, ``all``, ``apply``, ``alt``.
+
+    Returns:
+        Liste der betroffenen Dateien bzw. Ergebnisse je Datei.
+
+    Raises:
+        PkmError: ``invalid_argument`` bei ``--alt`` ohne ``=``.
+    """
+    if any("=" not in a for a in args.alt):
+        raise PkmError("invalid_argument", "--alt erwartet <name>=<text>.")
+    alt = dict(a.split("=", 1) for a in args.alt)
+    docs = [d for d in Maintenance(svc).documents()[0] if d.kind == "md" and d.parsed is not None and not d.error]
+    affected = [d.rel for d in docs if imagefix.image_issues(d.body or "", svc.cfg.images)]
+    targets = list(args.targets) or (affected if args.all else [])
+    result: dict[str, Any] = {"status": "ok", "affected": affected}
+    if targets:
+        result["results"] = [
+            docimages.fix_document(svc.writer, t, svc.read(t, content=False)["hash"], image_alt=alt, apply=args.apply,
+                                   source="user", areas=("documents/",))
+            for t in targets
+        ]
+    return result
+
+
 def cmd_index(svc: Service, _args: argparse.Namespace) -> Any:
     """``pkm index``.
 
@@ -351,6 +385,12 @@ def build_parser() -> argparse.ArgumentParser:
               cmd_fix_frontmatter)
     ff.add_argument("targets", nargs="*")
     ff.add_argument("--all", action="store_true", help="alle betroffenen Dokumente reparieren")
+    fi = _add(sub, "fix-images", "Bild-Data-URIs nach 4.9 korrigieren (nur auf Anweisung; ohne --apply nur Vorschlag)",
+              cmd_fix_images)
+    fi.add_argument("targets", nargs="*")
+    fi.add_argument("--all", action="store_true", help="alle betroffenen Dokumente")
+    fi.add_argument("--apply", action="store_true", help="Korrektur schreiben (neue Version)")
+    fi.add_argument("--alt", action="append", default=[], metavar="NAME=TEXT", help="Alternativtext je Bild")
     _add(sub, "index", "wiki/index.md neu erzeugen", cmd_index)
     st = _add(sub, "status", "wiki/_status.md neu erzeugen", cmd_status)
     st.add_argument("--question", action="append", default=[], help="Rückfrage aufnehmen (mehrfach)")

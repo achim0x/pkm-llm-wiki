@@ -28,9 +28,10 @@ import re
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 
-from . import images
+from . import imagefix, images
 from .assets import AssetMap, known_assets
 from .errors import PkmError
+from .imagescan import non_image_data_links
 from .state import load_state
 from .vault import Doc
 
@@ -72,26 +73,35 @@ def has_image(text: str | None, name: str) -> bool:
     return any(r.name == name for r in images.find_images(text or ""))
 
 
-def _check_refs(add: Any, doc: Doc) -> None:
-    """Bilder eines Markdown-Dokuments prüfen: doppelte Namen, fehlender Alternativtext, unsicheres SVG.
+def _check_refs(add: Any, doc: Doc, limits: Any) -> None:
+    """Bilder eines Markdown-Dokuments prüfen.
+
+    Eingebettete Bilder: abweichende Data-URIs (``nonconforming_image`` mit Befundcodes, 4.9) und andere
+    Data-URIs (``unsupported_type``). Verlinkte Dateien: doppelte Namen, fehlender Alternativtext.
 
     Args:
         add: ``Report.add``.
         doc: Dokument oder Wiki-Seite.
+        limits: Bildgrenzen.
     """
-    refs = images.find_images(doc.body or "")
+    body = doc.body or ""
+    refs = [r for r in images.find_images(body) if not r.inline]
     for name, n in Counter(r.name for r in refs if r.named).items():
         if n > 1:
             add("image_duplicate_name", "warning", doc.rel, f"Bildname „{name}“ kommt {n}-mal vor.", image=name)
     for ref in refs:
-        legacy_png = ref.inline and ref.fmt == "png" and not ref.named
-        if not ref.alt and not legacy_png:
+        if not ref.alt:
             add("image_without_alt", "info", doc.rel, f"Bild „{ref.name}“ ohne Alternativtext.", image=ref.name)
-        if ref.inline and ref.fmt == "svg":
-            problems = images.svg_problems(ref.data().decode("utf-8", "replace"))
-            if problems:
-                add("svg_unsafe", "error", doc.rel, f"SVG „{ref.name}“ nicht bereinigt: {', '.join(problems)}.",
-                    image=ref.name)
+    for issue in imagefix.image_issues(body, limits, wiki=doc.area == "wiki"):
+        severe = {"svg_unsafe", "invalid_data"} & set(issue["problems"])
+        add("nonconforming_image", "error" if severe else "warning", doc.rel,
+            f"Bild „{issue['ref']}“ (Zeile {issue['line']}) entspricht nicht 4.9: {', '.join(issue['problems'])}"
+            + (". Korrektur nach Bestätigung mit pkm fix-images bzw. fix_images." if issue["fixable"] else "."),
+            image=issue["ref"], problems=issue["problems"], fixable=issue["fixable"])
+    for pos, mime in non_image_data_links(body):
+        line = body.count("\n", 0, pos) + 1
+        add("unsupported_type", "warning", doc.rel,
+            f"Data-URI vom Typ {mime} (Zeile {line}) wird weder dargestellt noch korrigiert.")
 
 
 def check_images(add: Any, svc: Service, docs: list[Doc], pages: list[Doc]) -> None:
@@ -105,7 +115,7 @@ def check_images(add: Any, svc: Service, docs: list[Doc], pages: list[Doc]) -> N
     """
     for doc in [*docs, *pages]:
         if doc.kind == "md" and doc.parsed is not None and not doc.error:
-            _check_refs(add, doc)
+            _check_refs(add, doc, svc.cfg.images)
         elif doc.kind == "bin" and doc.rel.lower().endswith(".svg"):
             problems = images.svg_problems(svc.vault.path(doc.rel).read_text(encoding="utf-8", errors="replace"))
             if problems:

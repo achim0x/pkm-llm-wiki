@@ -139,9 +139,11 @@ def test_lint_image_checks(svc):
             f'![](data:image/png;base64,{PNG_B64} "pkm:a")\n\n![x](data:image/png;base64,{PNG_B64} "pkm:a")\n\n'
             f'![](data:image/png;base64,{PNG_B64})\n')
     write(svc.cfg, "documents/bilder.md", text)
-    checks = _checks(svc, "documents/bilder.md")
-    assert "svg_unsafe" in checks and "image_duplicate_name" in checks
-    assert checks.count("image_without_alt") == 1
+    findings = [f for f in lint(svc)["findings"] if f.get("path") == "documents/bilder.md"]
+    problems = {f["detail"]["image"]: (f["severity"], f["detail"]["problems"])
+                for f in findings if f["check"] == "nonconforming_image"}
+    assert problems["plan"][0] == "error" and "svg_unsafe" in problems["plan"][1]
+    assert all("missing_alt" not in p for _, p in problems.values()), "bestehende Base64-PNG ohne Hinweis"
 
 
 def test_image_citation_checked(svc):

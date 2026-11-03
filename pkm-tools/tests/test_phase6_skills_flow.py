@@ -93,7 +93,7 @@ SKILLS = Path(__file__).resolve().parents[1] / "skills"
 
 SPEC_TOOLS = {"create_document", "rewrite_document", "append_to_document", "edit_document",
               "update_frontmatter", "restore_document", "search", "read", "history", "show_citations",
-              "read_index", "list_unprocessed", "add_image", "read_image"}
+              "read_index", "list_unprocessed", "add_image", "read_image", "fix_images"}
 
 # Classes *********************************************************************
 

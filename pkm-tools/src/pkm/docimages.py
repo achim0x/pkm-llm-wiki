@@ -29,8 +29,9 @@ import hashlib
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from . import images
+from . import imagefix, images
 from .appendtext import count_overlapping
+from .diffs import unified_diff
 from .errors import PkmError
 from .fsutil import write_bytes_atomic
 from .paths import MAX_NAME, slugify
@@ -61,6 +62,47 @@ def has_image_markers(text: str) -> bool:
         ``True`` bei ``{{image:…}}``.
     """
     return bool(images.NEW_IMAGE_RE.search(text))
+
+
+def check_text_images(
+    writer: Writer, doc: Doc, text: str, fix: dict[str, Any] | None
+) -> tuple[str, list[str], list[dict[str, Any]]]:
+    """Data-URIs im neuen Text prüfen (4.9, Prüfung bei der Übernahme; 7.2).
+
+    Neue Data-URIs (nicht schon im Dokument) müssen der Form nach 4.9 entsprechen, sonst kommt
+    ``nonconforming_image``. Mit ``fix_images`` werden sie korrigiert. Abweichende Bilder, die schon im
+    Dokument stehen, blockieren nicht und werden als Warnungen geliefert.
+
+    Args:
+        writer: Writer.
+        doc: Dokument (vorher).
+        text: Neuer Gesamttext.
+        fix: ``fix_images`` und ``image_alt`` aus dem Aufruf.
+
+    Returns:
+        Tupel aus (ggf. korrigierter Text, neue Bilddateien, ``image_warnings``).
+
+    Raises:
+        PkmError: ``nonconforming_image`` mit ``image_issues``.
+    """
+    fix = fix or {}
+    limits, scratch = writer.cfg.images, not doc.versioned
+    old_links = {r.link for r in images.find_images(doc.body or "") if r.inline}
+    new_links = {r.link for r in images.find_images(text) if r.inline} - old_links
+    issues = imagefix.image_issues(text, limits, legacy=False, scratch=scratch, only_links=new_links) if new_links \
+        else []
+    files: list[str] = []
+    if issues and (not fix.get("fix_images") or not all(i["fixable"] for i in issues)):
+        raise PkmError("nonconforming_image", "Der Text enthält Bild-Data-URIs, die nicht der Form nach 4.9 "
+                       "entsprechen. Befunde und Vorschlag dem Nutzer zeigen; nach Bestätigung mit fix_images=true "
+                       "(und image_alt) wiederholen oder Bilder über images übergeben.", image_issues=issues)
+    if issues:
+        text, files = imagefix.fix_text(text, limits, writer=writer, doc_rel=doc.rel, image_alt=fix.get("image_alt"),
+                                        legacy=False, scratch=scratch, only_links=new_links)
+    current = {r.link for r in images.find_images(text) if r.inline}
+    warnings = imagefix.image_issues(text, limits, scratch=scratch, only_links=old_links & current) \
+        if old_links & current else []
+    return text, files, warnings
 
 
 def place_images(
@@ -168,6 +210,70 @@ def edit_view(body: str, old: str, new: str) -> str:
     return restore_body(body, view.replace(old, new, 1))
 
 
+# Korrigieren ****************************************************************
+def fix_document(  # pylint: disable=too-many-arguments,too-many-locals
+    writer: Writer, target: str, expected_hash: str | None, *, images_only: list[str] | None = None,
+    image_alt: dict[str, str] | None = None, apply: bool = False, confirm_shortening: bool = False,
+    note: str | None = None, source: str = "chat", areas: tuple[str, ...] = ("documents/", "scratch/"),
+) -> dict[str, Any]:
+    """Tool ``fix_images``: Schreibweise abweichender Bild-Data-URIs eines Dokuments korrigieren (4.9, 7.2).
+
+    Ohne ``apply`` nur Vorschlag (``proposal``) mit Befunden und Diff in Platzhalter-Schreibweise. Mit
+    ``apply`` eine neue Version, in der sich nur die Bildschreibweise ändert (Commit mit ``PKM-Fix: images``).
+
+    Args:
+        writer: Writer.
+        target: Dokument.
+        expected_hash: Hash aus ``read``.
+        images_only: Nur diese Bilder (Namen aus ``image_issues``).
+        image_alt: Alternativtexte je Name.
+        apply: Schreiben statt nur vorschlagen.
+        confirm_shortening: Entfernen unbenutzter Definitionen bestätigt.
+        note: Änderungsnotiz.
+        source: ``chat``, ``agent`` oder ``user``.
+        areas: Erlaubte Bereiche.
+
+    Returns:
+        ``proposal``/``unchanged``/Rückgabe von ``finish`` mit ``image_issues`` (verbleibende Befunde).
+
+    Raises:
+        PkmError: ``forbidden`` außerhalb der Bereiche, ``conflict``, ``ambiguous``, ``large_shortening``.
+    """
+    with writer.lock():
+        doc = writer.editable_doc(target)
+        if not doc.rel.startswith(areas):
+            raise PkmError("forbidden", "fix_images ist hier nur für " + ", ".join(areas) + " erlaubt.", path=doc.rel)
+        if doc.versioned and apply:
+            writer.git.require_ok()
+        writer.check_hash(doc, expected_hash)
+        if doc.versioned and apply:
+            doc = writer.commit_user_state(doc)
+        assert doc.parsed is not None
+        body, scratch = doc.parsed.body, not doc.versioned
+        limits = writer.cfg.images
+        issues = imagefix.image_issues(body, limits, scratch=scratch, section_of=section_of(doc, body))
+        opts = {"names": images_only, "image_alt": image_alt, "confirm_shortening": confirm_shortening,
+                "scratch": scratch, "doc_rel": doc.rel}
+        if not apply:
+            new_body, _ = imagefix.fix_text(body, limits, **opts)
+            result: dict[str, Any] = {
+                "status": "proposal" if new_body != body else "unchanged", "path": doc.rel, "image_issues": issues,
+                "diff": unified_diff(images.to_placeholders(body), images.to_placeholders(new_body), "vorher",
+                                     "nachher", 200),
+            }
+        else:
+            new_body, files = imagefix.fix_text(body, limits, writer=writer, **opts)
+            try:
+                text = doc.parsed.frontmatter_text + new_body
+                result = (writer.finish(doc, text, note or "Bilder nach 4.9 korrigiert", source, files,
+                                        "PKM-Fix: images") if doc.versioned else writer.finish_scratch(doc, text))
+            except PkmError:
+                remove_files(writer, files)
+                raise
+            result["image_issues"] = imagefix.image_issues(new_body, limits, scratch=scratch)
+    return result
+
+
 # Lesen ***********************************************************************
 def section_of(doc: Doc, text: str) -> Any:
     """Funktion Textposition → Abschnittsschlüssel für den Body eines Dokuments.
@@ -196,19 +302,30 @@ def section_of(doc: Doc, text: str) -> Any:
     return lookup
 
 
-def read_view(doc: Doc, text: str, section: str | None = None) -> tuple[str, list[dict[str, Any]]]:
+def read_view(
+    doc: Doc, text: str, section: str | None = None, limits: Any = None
+) -> tuple[str, list[dict[str, Any]]]:
     """Text für ``read``: eingebettete Bilder als Platzhalter, dazu die Bildliste.
 
     Args:
         doc: Dokument.
         text: Gelesener Text (Body oder ein Abschnitt).
         section: Schlüssel, wenn nur ein Abschnitt gelesen wird.
+        limits: Bildgrenzen (``ImageConfig``) für ``conforming`` und ``problems``.
 
     Returns:
         Tupel aus (Text mit Platzhaltern, Bildliste des Bodys bzw. des Abschnitts).
     """
     body = doc.body or ""
     listed = images.image_summary(body, section_of(doc, body))
+    if limits is not None:
+        found = {i["ref"]: i["problems"] for i in imagefix.image_issues(
+            body, limits, scratch=not doc.versioned, wiki=doc.area == "wiki")}
+        for entry in listed:
+            if entry["mode"] == "inline":
+                entry["conforming"] = entry["name"] not in found
+                if entry["name"] in found:
+                    entry["problems"] = found[entry["name"]]
     return images.to_placeholders(text), [i for i in listed if section is None or i.get("section") == section]
 
 
