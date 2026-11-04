@@ -1,4 +1,4 @@
-"""Suchindex in ``PKM_CACHE_DIR/index.db`` (Spezifikation 7.4). Reiner Wegwerf-Cache.
+"""Search index in ``PKM_CACHE_DIR/index.db`` (specification 7.4). A pure throwaway cache.
 
     Author: Achim0x
 """
@@ -73,17 +73,17 @@ SEARCH_SQL = (
 
 
 class SearchIndex:
-    """FTS5-Index über ``documents/``, ``wiki/`` und ``scratch/``, inkrementell und selbstheilend."""
+    """FTS5 index over ``documents/``, ``wiki/`` and ``scratch/``, incremental and self-healing."""
 
     def __init__(self, cfg: Config, vault: Vault) -> None:
-        """Index-Zugriff anlegen.
+        """Create the index access.
 
         Args:
-            cfg: Konfiguration.
-            vault: Vault-Zugriff.
+            cfg: Configuration.
+            vault: Vault access.
 
         Raises:
-            PkmError: ``index_unavailable``, wenn ``PKM_CACHE_DIR`` im Vault liegt.
+            PkmError: ``index_unavailable`` if ``PKM_CACHE_DIR`` lies in the vault.
         """
         problem = cfg.cache_dir_problem()
         if problem:
@@ -92,16 +92,16 @@ class SearchIndex:
         self.vault = vault
         self.path = cfg.index_path
 
-    # Verbindung ***************************************************************
+    # Connection ***************************************************************
 
     def _connect(self) -> sqlite3.Connection:
-        """Datenbank öffnen und Schema prüfen bzw. anlegen.
+        """Open the database and check or create the schema.
 
         Returns:
-            Offene Verbindung.
+            Open connection.
 
         Raises:
-            sqlite3.DatabaseError: Bei beschädigter Datei oder abweichendem Schema.
+            sqlite3.DatabaseError: For a damaged file or a different schema.
         """
         self.path.parent.mkdir(parents=True, exist_ok=True)
         con = sqlite3.connect(self.path)
@@ -115,25 +115,25 @@ class SearchIndex:
             elif row[0] != str(SCHEMA):
                 raise sqlite3.DatabaseError("schema mismatch")
         except sqlite3.Error:
-            con.close()  # Unter Windows ließe sich die Datei sonst nicht löschen und neu aufbauen.
+            con.close()  # Otherwise the file could not be deleted and rebuilt on Windows.
             raise
         return con
 
     def _drop(self) -> None:
-        """Indexdatei samt Begleitdateien löschen."""
+        """Delete the index file together with its companion files."""
         for suffix in ("", "-journal", "-wal", "-shm"):
             p = self.path.with_name(self.path.name + suffix)
             if p.exists():
                 p.unlink()
 
     def _run_db(self, fn: Callable[[sqlite3.Connection], T]) -> T:
-        """Funktion mit einer Verbindung ausführen und danach committen.
+        """Run a function with a connection and commit afterwards.
 
         Args:
-            fn: Funktion, die die Verbindung erhält.
+            fn: Function that receives the connection.
 
         Returns:
-            Das Ergebnis von ``fn``.
+            The result of ``fn``.
         """
         with closing(self._connect()) as con:
             result = fn(con)
@@ -141,13 +141,13 @@ class SearchIndex:
         return result
 
     def _with_db(self, fn: Callable[[sqlite3.Connection], T]) -> T:
-        """Wie ``_run_db``, aber bei beschädigtem Index einmal neu aufbauen und wiederholen.
+        """Like ``_run_db``, but rebuild a damaged index once and retry.
 
         Args:
-            fn: Funktion, die die Verbindung erhält.
+            fn: Function that receives the connection.
 
         Returns:
-            Das Ergebnis von ``fn``.
+            The result of ``fn``.
         """
         try:
             result = self._run_db(fn)
@@ -156,26 +156,26 @@ class SearchIndex:
             result = self._run_db(fn)
         return result
 
-    # Aktualisierung ***********************************************************
+    # Updating *****************************************************************
 
     @staticmethod
     def _forget(con: sqlite3.Connection, rel: str) -> None:
-        """Alle Einträge einer Datei entfernen.
+        """Remove all entries of a file.
 
         Args:
-            con: Verbindung.
-            rel: Relativer Pfad.
+            con: Connection.
+            rel: Relative path.
         """
         con.execute("DELETE FROM files WHERE path=?", (rel,))
         con.execute("DELETE FROM fts WHERE path=?", (rel,))
         con.execute("DELETE FROM links WHERE src=?", (rel,))
 
     def _index_doc(self, con: sqlite3.Connection, doc: Doc) -> None:
-        """Eine Datei (neu) indexieren.
+        """Index a file (again).
 
         Args:
-            con: Verbindung.
-            doc: Geladenes Dokument.
+            con: Connection.
+            doc: Loaded document.
         """
         self._forget(con, doc.rel)
         meta = doc.meta
@@ -200,15 +200,15 @@ class SearchIndex:
             con.executemany("INSERT INTO links VALUES(?,?)", [(doc.rel, link_key(t)) for t in extract_links(body)])
 
     def _changed_doc(self, rel: str, known: tuple[int, int] | None, force: bool) -> Doc | None:
-        """Datei laden, wenn sie (neu) indexiert werden muss.
+        """Load a file if it has to be (re)indexed.
 
         Args:
-            rel: Relativer Pfad.
-            known: Gespeicherte (mtime_ns, Größe) oder ``None``.
-            force: Unabhängig von mtime und Größe neu indexieren.
+            rel: Relative path.
+            known: Stored (mtime_ns, size) or ``None``.
+            force: Reindex regardless of mtime and size.
 
         Returns:
-            Das Dokument oder ``None``, wenn nichts zu tun ist oder die Datei nicht lesbar ist.
+            The document or ``None`` if there is nothing to do or the file is not readable.
         """
         doc = None
         try:
@@ -220,14 +220,14 @@ class SearchIndex:
         return doc
 
     def _refresh(self, con: sqlite3.Connection, force: bool = False) -> dict[str, int]:
-        """Geänderte Dateien nachindexieren (Vergleich von mtime und Größe), gelöschte entfernen.
+        """Reindex changed files (comparing mtime and size), remove deleted ones.
 
         Args:
-            con: Verbindung.
-            force: Alle Dateien neu indexieren.
+            con: Connection.
+            force: Reindex all files.
 
         Returns:
-            Zähler ``updated``, ``removed`` und ``total``.
+            Counters ``updated``, ``removed`` and ``total``.
         """
         known = {r[0]: (r[1], r[2]) for r in con.execute("SELECT path, mtime_ns, size FROM files")}
         seen: set[str] = set()
@@ -244,32 +244,32 @@ class SearchIndex:
         return {"updated": updated, "removed": len(removed), "total": len(seen)}
 
     def refresh(self) -> dict[str, int]:
-        """Index inkrementell aktualisieren.
+        """Update the index incrementally.
 
         Returns:
-            Zähler ``updated``, ``removed`` und ``total``.
+            Counters ``updated``, ``removed`` and ``total``.
         """
         return self._with_db(self._refresh)
 
     def rebuild(self) -> dict[str, int]:
-        """Index löschen und neu aufbauen.
+        """Delete and rebuild the index.
 
         Returns:
-            Zähler ``updated``, ``removed`` und ``total``.
+            Counters ``updated``, ``removed`` and ``total``.
         """
         self._drop()
         return self._with_db(lambda con: self._refresh(con, force=True))
 
-    # Abfragen *****************************************************************
+    # Queries ******************************************************************
 
     def find_id(self, doc_id: str) -> list[str]:
-        """Pfade zu einer Dokument-ID.
+        """Paths for a document ID.
 
         Args:
-            doc_id: Dokument-ID.
+            doc_id: Document ID.
 
         Returns:
-            Sortierte Pfade (mehrere bei doppelten IDs).
+            Sorted paths (several for duplicate IDs).
         """
         def query(con: sqlite3.Connection) -> list[str]:
             self._refresh(con)
@@ -278,13 +278,13 @@ class SearchIndex:
         return self._with_db(query)
 
     def find_citation(self, value: str) -> list[str]:
-        """Pfade zu einer Kurzbezeichnung (``short_citation``).
+        """Paths for a short citation (``short_citation``).
 
         Args:
-            value: Kurzbezeichnung.
+            value: Short citation.
 
         Returns:
-            Sortierte Pfade in ``documents/``.
+            Sorted paths in ``documents/``.
         """
         key = citation_key(value)
 
@@ -296,10 +296,10 @@ class SearchIndex:
         return self._with_db(query)
 
     def ids(self) -> set[str]:
-        """Alle vergebenen IDs.
+        """All assigned IDs.
 
         Returns:
-            Menge der IDs im Vault.
+            Set of the IDs in the vault.
         """
         def query(con: sqlite3.Connection) -> set[str]:
             self._refresh(con)
@@ -308,13 +308,13 @@ class SearchIndex:
         return self._with_db(query)
 
     def backlinks(self, doc: Doc) -> list[str]:
-        """Dateien, die per Wikilink auf ein Dokument verweisen.
+        """Files that link to a document via wikilink.
 
         Args:
-            doc: Ziel-Dokument.
+            doc: Target document.
 
         Returns:
-            Sortierte Pfade der verweisenden Dateien (ohne das Dokument selbst).
+            Sorted paths of the linking files (without the document itself).
         """
         keys = sorted(doc.link_keys())
 
@@ -330,18 +330,18 @@ class SearchIndex:
         return self._with_db(query)
 
     def search(self, query: str, areas: Iterable[str], limit: int) -> list[dict[str, Any]]:
-        """Volltextsuche mit Präfixsuche und Gewichtung (Titel 5, Aliase/Tags/Themen 3, Kurzfassung 2).
+        """Full-text search with prefix search and weighting (title 5, aliases/tags/topics 3, summary 2).
 
-        Erst werden alle Begriffe verlangt; ohne Treffer genügt einer davon.
+        First all terms are required; without hits one of them is enough.
 
         Args:
-            query: Suchbegriffe.
-            areas: Bereiche (``documents``, ``wiki``, ``scratch``).
-            limit: Höchstzahl der Treffer.
+            query: Search terms.
+            areas: Areas (``documents``, ``wiki``, ``scratch``).
+            limit: Maximum number of hits.
 
         Returns:
-            Treffer mit Pfad, Bereich, Art, ID, Version, Titel, Typ, Kurzfassung, Datum, Score und
-            den verwendeten Begriffen.
+            Hits with path, area, kind, ID, version, title, type, summary, date, score and
+            the terms used.
         """
         terms = query_terms(query)
         area_list = list(areas)
@@ -361,42 +361,42 @@ class SearchIndex:
 
 
 def fold(text: str) -> str:
-    """Indextext bilden: Original plus Fassung mit ausgeschriebenen Umlauten.
+    """Build the index text: original plus a version with umlauts spelled out.
 
-    Der Tokenizer entfernt Diakritika (ü → u). Mit der zweiten Fassung findet die Suche
-    „Überlauf“ auch über „Ueberlauf“ und „uberlauf“.
+    The tokenizer removes diacritics (ü → u). With the second version the search finds
+    "Überlauf" also via "Ueberlauf" and "uberlauf".
 
     Args:
-        text: Originaltext.
+        text: Original text.
 
     Returns:
-        Text für den Index.
+        Text for the index.
     """
     alt = transliterate(text)
     return text if alt == text else f"{text}\n{alt}"
 
 
 def strip_marks(text: str) -> str:
-    """Diakritische Zeichen entfernen.
+    """Remove diacritical marks.
 
     Args:
-        text: Beliebiger Text.
+        text: Arbitrary text.
 
     Returns:
-        Text ohne Akzente und Umlaut-Punkte.
+        Text without accents and umlaut dots.
     """
     decomposed = unicodedata.normalize("NFKD", text)
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
 def _as_list(value: Any) -> list[str]:
-    """Frontmatter-Wert als Liste von Strings.
+    """Frontmatter value as a list of strings.
 
     Args:
-        value: Liste, Einzelwert oder ``None``.
+        value: List, single value or ``None``.
 
     Returns:
-        Liste von Strings (leer bei ``None``).
+        List of strings (empty for ``None``).
     """
     if isinstance(value, list):
         items = [str(v) for v in value]
@@ -408,13 +408,13 @@ def _as_list(value: Any) -> list[str]:
 
 
 def query_terms(query: str) -> list[str]:
-    """Suchbegriffe aus einer Anfrage gewinnen.
+    """Extract search terms from a query.
 
     Args:
-        query: Freitext.
+        query: Free text.
 
     Returns:
-        Wörter in Kleinbuchstaben ohne Diakritika.
+        Words in lower case without diacritics.
     """
     return [t for t in re.findall(r"\w+", strip_marks(query).lower()) if t]
 
@@ -422,17 +422,17 @@ def query_terms(query: str) -> list[str]:
 def _search_rows(
     con: sqlite3.Connection, terms: list[str], areas: list[str], limit: int, joiner: str
 ) -> list[tuple[Any, ...]]:
-    """FTS-Abfrage ausführen.
+    """Run an FTS query.
 
     Args:
-        con: Verbindung.
-        terms: Suchbegriffe (werden als Präfix gesucht).
-        areas: Bereiche.
-        limit: Höchstzahl der Treffer.
-        joiner: ``" "`` (alle Begriffe) oder ``" OR "`` (ein Begriff genügt).
+        con: Connection.
+        terms: Search terms (searched as prefixes).
+        areas: Areas.
+        limit: Maximum number of hits.
+        joiner: ``" "`` (all terms) or ``" OR "`` (one term is enough).
 
     Returns:
-        Trefferzeilen sortiert nach Relevanz.
+        Hit rows sorted by relevance.
     """
     match = joiner.join(f'"{t}"*' for t in terms)
     sql = SEARCH_SQL.format(marks=",".join("?" * len(areas)))
@@ -440,14 +440,14 @@ def _search_rows(
 
 
 def _hit(row: tuple[Any, ...], terms: list[str]) -> dict[str, Any]:
-    """Trefferzeile in ein Ergebnis umwandeln.
+    """Convert a hit row into a result.
 
     Args:
-        row: Zeile aus ``SEARCH_SQL``.
-        terms: Verwendete Suchbegriffe.
+        row: Row from ``SEARCH_SQL``.
+        terms: Search terms used.
 
     Returns:
-        Treffer als Wörterbuch; der Score ist der negierte BM25-Rang.
+        Hit as a dictionary; the score is the negated BM25 rank.
     """
     path, area, kind, doc_id, version, title, typ, summary, updated, citation, rank = row
     return {
@@ -459,15 +459,15 @@ def _hit(row: tuple[Any, ...], terms: list[str]) -> dict[str, Any]:
 
 
 def snippet(body: str, terms: list[str], width: int = SNIPPET_WIDTH) -> str:
-    """Ausschnitt aus dem Originaltext um den ersten Treffer.
+    """Excerpt from the original text around the first hit.
 
     Args:
-        body: Originaltext.
-        terms: Suchbegriffe.
-        width: Länge des Ausschnitts.
+        body: Original text.
+        terms: Search terms.
+        width: Length of the excerpt.
 
     Returns:
-        Ausschnitt, ggf. mit „…“ an den Rändern; ohne Treffer der Textanfang.
+        Excerpt, possibly with "…" at the edges; without a hit the beginning of the text.
     """
     flat = " ".join(body.split())
     pos = -1

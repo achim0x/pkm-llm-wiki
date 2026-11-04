@@ -1,5 +1,5 @@
-"""Belege auf die aktuelle Version anheben (Spezifikation 6.4, 4.9): bei unverändertem Abschnitt nur ``v:``,
-bei reiner Änderung der Bildschreibweise ``v:`` und ``sha:``.
+"""Raise citations to the current version (specification 6.4, 4.9): only ``v:`` for unchanged sections,
+``v:`` and ``sha:`` if only the image notation changed.
 
     Author: Achim0x
 """
@@ -44,30 +44,30 @@ if TYPE_CHECKING:
 
 
 def _raised_line(line: str, version: int, sha: str | None = None) -> str:
-    """Beleg-Zeile mit neuer Versionsangabe ``v:`` (und ggf. neuem ``sha:``).
+    """Citation line with a new version ``v:`` (and, if given, a new ``sha:``).
 
     Args:
-        line: Bisherige Zeile.
-        version: Neue Version.
-        sha: Neuer Kurz-Hash oder ``None`` (unverändert).
+        line: Previous line.
+        version: New version.
+        sha: New short hash or ``None`` (unchanged).
 
     Returns:
-        Die Zeile mit ersetzten Teilen (übrige Teile unverändert).
+        The line with the replaced parts (other parts unchanged).
     """
     line = re.sub(r"(·\s*)v:\s*\d+", lambda m: f"{m.group(1)}v:{version}", line, count=1)
     return re.sub(r"(·\s*)sha:\s*[0-9a-f]+", lambda m: f"{m.group(1)}sha:{sha}", line, count=1) if sha else line
 
 
 def _raise_target(cit: Citation, resolver: Resolver) -> tuple[int, str | None] | None:
-    """Neue Version für einen Beleg, dessen Abschnitt unverändert ist oder sich nur in der Bildschreibweise
-    geändert hat (6.4, 4.9).
+    """New version for a citation whose section is unchanged or changed only in image notation
+    (6.4, 4.9).
 
     Args:
-        cit: Beleg.
-        resolver: Auflöser.
+        cit: Citation.
+        resolver: Resolver.
 
     Returns:
-        Tupel aus (aktuelle Version, neuer Kurz-Hash oder ``None``) bzw. ``None``, wenn nichts anzuheben ist.
+        Tuple of (current version, new short hash or ``None``), or ``None`` if nothing is to be raised.
     """
     target = None
     res = resolver.resolve(cit) if cit.markdown and cit.version and cit.sha else None
@@ -83,15 +83,15 @@ def _raise_target(cit: Citation, resolver: Resolver) -> tuple[int, str | None] |
 
 
 def _notation_only(cit: Citation, res: Resolution, resolver: Resolver) -> bool:
-    """Prüfen, ob sich der belegte Abschnitt seit der belegten Version nur in der Bildschreibweise geändert hat.
+    """Check whether the cited section changed only in image notation since the cited version.
 
     Args:
-        cit: Beleg.
-        res: Auflösung (aktuelle Fassung).
-        resolver: Auflöser (für die belegte Version).
+        cit: Citation.
+        res: Resolution (current version).
+        resolver: Resolver (for the cited version).
 
     Returns:
-        ``True`` bei reiner Änderung der Bildschreibweise (Abschnitt oder ganzer Body).
+        ``True`` if only the image notation changed (section or whole body).
     """
     cited = resolver.version_doc(cit.doc_id, cit.version) if cit.doc_id and cit.version else None
     limits = resolver.svc.cfg.images
@@ -104,17 +104,17 @@ def _notation_only(cit: Citation, res: Resolution, resolver: Resolver) -> bool:
 
 
 def raise_versions(svc: Service, pages: list[str] | None = None) -> dict[str, Any]:
-    """Belege auf unveränderte Abschnitte auf die aktuelle Version anheben (nur ``v:``, ``sha:`` bleibt).
+    """Raise citations of unchanged sections to the current version (only ``v:``, ``sha:`` stays).
 
-    Ein Beleg wird angehoben, wenn das Original eine neuere Version hat und der belegte Abschnitt dort
-    denselben Hash hat wie im Beleg. Belege auf geänderte Abschnitte bleiben unverändert.
+    A citation is raised if the original has a newer version and the cited section there has
+    the same hash as in the citation. Citations of changed sections stay unchanged.
 
     Args:
-        svc: Dienst.
-        pages: Wiki-Seiten oder ``None`` für alle.
+        svc: Service.
+        pages: Wiki pages or ``None`` for all.
 
     Returns:
-        Anzahl geänderter Seiten und die Änderungen.
+        Number of changed pages and the changes.
     """
     resolver = Resolver(svc)
     changes = []

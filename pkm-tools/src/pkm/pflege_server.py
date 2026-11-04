@@ -1,10 +1,10 @@
-"""MCP-Server ``pkm-pflege-mcp`` für die Wiki-Pflege aus Claude Desktop bzw. Cowork.
+"""MCP server ``pkm-pflege-mcp`` for wiki maintenance from Claude Desktop or Cowork.
 
-Läuft wie ``pkm-mcp`` lokal auf dem PKM-Rechner. Neben den lesenden Tools bietet er die Pflege-Tools
-``begin_maintenance``, ``write_wiki_page``, ``set_document_metadata`` und ``finish_maintenance``. Er schreibt
-in ``wiki/`` und ``.pkm/state.json``; an Dokumenten setzt er nur ``id``/``version`` (wie ``pkm ids``/
-``pkm versions``) und nach Bestätigung des Nutzers ``title``, ``context``, ``tags``, ``kind``, ``short_citation``.
-Nur in Pflege-Unterhaltungen einschalten.
+Runs locally on the PKM host like ``pkm-mcp``. Besides the reading tools it offers the maintenance tools
+``begin_maintenance``, ``write_wiki_page``, ``set_document_metadata`` and ``finish_maintenance``. It writes
+to ``wiki/`` and ``.pkm/state.json``; on documents it only sets ``id``/``version`` (like ``pkm ids``/
+``pkm versions``) and, after the user's confirmation, ``title``, ``context``, ``tags``, ``kind``, ``short_citation``.
+Enable only in maintenance conversations.
 
     Author: Achim0x
 """
@@ -36,9 +36,9 @@ from .mcp_server import Server, call, register_read_tools
 # Variables *******************************************************************
 
 INSTRUCTIONS = (
-    "Pflege des PKM-Wikis (Skill pkm-wiki). Ablauf: begin_maintenance, Dokumente mit read/history lesen, "
-    "Wiki-Seiten mit write_wiki_page schreiben, zum Schluss finish_maintenance. Dokumente in documents/ werden "
-    "nie geändert; index.md, _status.md, log.md und sources sind generiert."
+    "Maintenance of the PKM wiki (skill pkm-wiki). Flow: begin_maintenance, read documents with read/history, "
+    "write wiki pages with write_wiki_page, finally finish_maintenance. Documents in documents/ are "
+    "never changed; index.md, _status.md, log.md and sources are generated."
 )
 
 # Classes *********************************************************************
@@ -47,28 +47,28 @@ INSTRUCTIONS = (
 
 
 def _register_maintenance_tools(server: Server) -> None:
-    """Pflege-Tools registrieren.
+    """Register the maintenance tools.
 
     Args:
-        server: MCP-Server.
+        server: MCP server.
     """
 
     @server.tool()
     def begin_maintenance(with_lint: bool = False) -> dict:
-        """Pflegelauf beginnen: prüft die Umgebung (doctor), committet Handänderungen als Versionen,
-        vergibt fehlende IDs, liefert pending (new, changed, meta_changed, moved, deleted, problems) und
-        korrigiert Belege auf verschobene Dokumente. Neue Dokumente enthalten missing_fields (fehlende title,
-        context, tags, kind); known_tags nennt vorhandene Schlagwörter mit Häufigkeit.
-        status blocked: Fehler melden und abbrechen. status needs_decision: doppelte IDs, Nutzer fragen.
-        with_lint liefert zusätzlich den Prüfbericht."""
+        """Begin a maintenance run: checks the environment (doctor), commits manual changes as versions,
+        assigns missing IDs, returns pending (new, changed, meta_changed, moved, deleted, problems) and
+        fixes citations of moved documents. New documents contain missing_fields (missing title,
+        context, tags, kind); known_tags lists existing tags with their frequency.
+        status blocked: report the error and stop. status needs_decision: duplicate IDs, ask the user.
+        with_lint additionally returns the lint report."""
         return call("begin_maintenance", maintrun.begin_maintenance, with_lint=with_lint)
 
     @server.tool()
     def write_wiki_page(path: str, content: str, expected_hash: str | None = None, fix_images: bool = False) -> dict:
-        """Wiki-Seite unter wiki/topics|entities|summaries|syntheses/ anlegen oder vollständig ersetzen
-        (content mit Frontmatter). Bestehende Seiten erst mit read lesen und deren hash als expected_hash
-        angeben; neue Seiten ohne expected_hash. Kein Commit, den macht finish_maintenance. Bild-Platzhalter aus
-        read stehen lassen. nonconforming_image: eigene Data-URIs mit fix_images=true korrigieren lassen."""
+        """Create or completely replace a wiki page below wiki/topics|entities|summaries|syntheses/
+        (content with frontmatter). Read existing pages with read first and pass their hash as expected_hash;
+        new pages without expected_hash. No commit, finish_maintenance does that. Leave image placeholders from
+        read in place. nonconforming_image: have your own data URIs fixed with fix_images=true."""
         return call("write_wiki_page", maintrun.write_wiki_page, path=path, content=content,
                     expected_hash=expected_hash, fix_images=fix_images)
 
@@ -77,9 +77,9 @@ def _register_maintenance_tools(server: Server) -> None:
         target: str, expected_hash: str, images: list[str] | None = None, image_alt: dict | None = None,
         apply: bool = False, confirm_shortening: bool = False, note: str | None = None,
     ) -> dict:
-        """Nur nach ausdrücklicher Bestätigung des Nutzers, nie unbeaufsichtigt: Schreibweise abweichender
-        Bild-Data-URIs eines Dokuments in documents/ nach 4.9 korrigieren (image_issues aus begin_maintenance).
-        Ohne apply nur Vorschlag mit Diff; apply=true schreibt eine neue Version (PKM-Fix: images)."""
+        """Only after explicit confirmation by the user, never unattended: fix the notation of nonconforming
+        image data URIs of a document in documents/ per 4.9 (image_issues from begin_maintenance).
+        Without apply only a proposal with diff; apply=true writes a new version (PKM-Fix: images)."""
         return call("fix_images", maintrun.fix_document_images, target=target, expected_hash=expected_hash,
                     images_only=images, image_alt=image_alt, apply=apply, confirm_shortening=confirm_shortening,
                     note=note)
@@ -93,11 +93,11 @@ def _register_maintenance_tools(server: Server) -> None:
         overwrite: bool = False,
         note: str | None = None,
     ) -> dict:
-        """Nur nach ausdrücklicher Bestätigung des Nutzers: title, context, tags, kind, short_citation eines
-        Dokuments in documents/ eintragen (neue Version, Commit mit PKM-Source agent). set setzt Felder, add
-        hängt an tags an. Vorhandene Werte nur mit overwrite=true ändern (sonst field_exists). kind: note |
-        standard | regulation | correction. Tags werden vereinheitlicht (klein, Umlaute ausgeschrieben,
-        Bindestriche). expected_hash aus read; bei conflict neu lesen."""
+        """Only after explicit confirmation by the user: enter title, context, tags, kind, short_citation of a
+        document in documents/ (new version, commit with PKM-Source agent). set sets fields, add
+        appends to tags. Change existing values only with overwrite=true (otherwise field_exists). kind: note |
+        standard | regulation | correction. Tags are normalized (lower case, umlauts spelled out,
+        hyphens). expected_hash from read; on conflict read again."""
         return call("set_document_metadata", maintrun.set_document_metadata, target=target,
                     expected_hash=expected_hash, set=set, add=add, overwrite=overwrite, note=note)
 
@@ -111,22 +111,22 @@ def _register_maintenance_tools(server: Server) -> None:
         questions: list[str] | None = None,
         lint_report: bool = False,
     ) -> dict:
-        """Pflegelauf abschließen: Belege korrigieren, sources erzeugen, verarbeitete Dokumente (processed:
-        IDs oder Pfade) mit den belegenden Seiten vermerken, removed (Schlüssel gelöschter Dokumente)
-        austragen, log_entry (Markdown-Liste) mit Zeitstempel an wiki/log.md anhängen, index.md und
-        _status.md (mit questions) erzeugen, lint ausführen und den Agenten-Commit anlegen.
-        operation: ingest | lint | fix. Meldet lint Fehler in eigenen Seiten: beheben und erneut mit
-        operation=fix aufrufen."""
+        """Finish a maintenance run: fix citations, generate sources, record processed documents (processed:
+        IDs or paths) with the citing pages, remove removed (keys of deleted documents),
+        append log_entry (Markdown list) with a timestamp to wiki/log.md, generate index.md and
+        _status.md (with questions), run lint and create the agent commit.
+        operation: ingest | lint | fix. If lint reports errors in your own pages: fix them and call again with
+        operation=fix."""
         return call("finish_maintenance", maintrun.finish_maintenance, log_entry=log_entry, operation=operation,
                     log_title=log_title, processed=processed, removed=removed, questions=questions,
                     lint_report=lint_report)
 
 
 def build_server() -> Server:
-    """Pflege-Server mit lesenden Tools und den Pflege-Tools aufbauen.
+    """Build the maintenance server with the reading tools and the maintenance tools.
 
     Returns:
-        Der Server.
+        The server.
     """
     server = Server("pkm-pflege", instructions=INSTRUCTIONS)
     register_read_tools(server)
@@ -135,7 +135,7 @@ def build_server() -> Server:
 
 
 def main() -> None:
-    """Einstiegspunkt ``pkm-pflege-mcp``: Server über stdio starten."""
+    """Entry point ``pkm-pflege-mcp``: start the server via stdio."""
     build_server().run()
 
 # Main ************************************************************************

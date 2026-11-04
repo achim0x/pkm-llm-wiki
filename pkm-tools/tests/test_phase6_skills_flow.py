@@ -220,7 +220,7 @@ def _finish_first_run(cfg: Config, capsys: pytest.CaptureFixture[str], chat_id: 
     assert run(capsys, "commit-wiki", "-m", "pkm: ingest 3 documents")["status"] == "ok"
     assert run(capsys, "pending")["counts"]["new"] == 0
     status = (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
-    assert "## Noch nicht verarbeitet (0)" in status
+    assert "## Not yet processed (0)" in status
     assert "Vorschlag: documents/haus/" not in status  # tags passen nicht
 
 

@@ -1,4 +1,4 @@
-"""Belege: Parser, Auflösung, show_citations, fix-/sync-citations (Spezifikation 4.2, 5.2, 7.3).
+"""Citations: parser, resolution, show_citations, fix-/sync-citations (specification 4.2, 5.2, 7.3).
 
     Author: Achim0x
 """
@@ -53,28 +53,28 @@ QUOTE_PAIRS = (("„", "“"), ("“", "”"), ('"', '"'), ("»", "«"), ("«", 
 MAX_QUOTE = 200
 MAX_EXCERPT = 1500
 MAX_UNKNOWN_PART = 40
-CONTENT_SECTIONS = ("Inhalt", "Widersprüche / offene Fragen")
+CONTENT_SECTIONS = ("Content", "Contradictions / open questions", "Inhalt", "Widersprüche / offene Fragen")
 
 # Classes *********************************************************************
 
 
 @dataclass
 class Citation:  # pylint: disable=too-many-instance-attributes
-    """Ein Beleg (Fußnotendefinition) nach 4.2.
+    """A citation (footnote definition) per 4.2.
 
     Attributes:
-        label: Fußnotenname, z. B. ``b1``.
-        line: Zeilenindex der Definition im Body.
-        raw: Text nach ``[^label]:``.
-        path: Link-Ziel wie geschrieben (ohne Anker).
-        anchor: Anker (Überschrift oder ``page=n``).
-        page: PDF-Seite bei ``#page=n``.
-        explicit_key: Genauer Abschnittsschlüssel aus ``§:``.
-        quote: Wörtliches Zitat.
+        label: Footnote name, e.g. ``b1``.
+        line: Line index of the definition in the body.
+        raw: Text after ``[^label]:``.
+        path: Link target as written (without anchor).
+        anchor: Anchor (heading or ``page=n``).
+        page: PDF page for ``#page=n``.
+        explicit_key: Exact section key from ``§:``.
+        quote: Literal quote.
         doc_id: ``id:``.
         version: ``v:``.
-        sha: ``sha:`` (Präfix des Abschnitts- bzw. Datei-Hashes).
-        problems: Formatfehler (deutsch).
+        sha: ``sha:`` (prefix of the section or file hash).
+        problems: Format errors.
     """
 
     label: str
@@ -92,19 +92,19 @@ class Citation:  # pylint: disable=too-many-instance-attributes
 
     @property
     def markdown(self) -> bool:
-        """Ob der Beleg auf ein Markdown-Dokument zeigt.
+        """Whether the citation points to a Markdown document.
 
         Returns:
-            ``True`` ohne Endung oder bei ``.md``.
+            ``True`` without extension or for ``.md``.
         """
         return not self.path or PurePosixPath(self.path).suffix.lower() in ("", ".md")
 
     @property
     def target_rel(self) -> str | None:
-        """Pfad der Zieldatei.
+        """Path of the target file.
 
         Returns:
-            Pfad mit ``.md`` bei Markdown, sonst wie geschrieben; ``None`` ohne Link.
+            Path with ``.md`` for Markdown, otherwise as written; ``None`` without a link.
         """
         result = self.path
         if self.path and self.markdown and not self.path.lower().endswith(".md"):
@@ -113,19 +113,19 @@ class Citation:  # pylint: disable=too-many-instance-attributes
 
     @property
     def link_path(self) -> str | None:
-        """Pfad, wie er im Wikilink steht.
+        """Path as it appears in the wikilink.
 
         Returns:
-            Pfad ohne ``.md``; ``None`` ohne Link.
+            Path without ``.md``; ``None`` without a link.
         """
         return self.path[:-3] if self.path and self.path.lower().endswith(".md") else self.path
 
     @property
     def section_key(self) -> str | None:
-        """Belegter Abschnitt.
+        """Cited section.
 
         Returns:
-            ``§:``-Schlüssel, sonst der Anker als Schlüssel, sonst ``_preamble``; ``None`` bei Anhängen.
+            ``§:`` key, otherwise the anchor as key, otherwise ``_preamble``; ``None`` for attachments.
         """
         key = None
         if self.markdown:
@@ -135,14 +135,14 @@ class Citation:  # pylint: disable=too-many-instance-attributes
 
 @dataclass
 class Statement:
-    """Aussage (Absatz oder Listeneintrag) mit ihren Fußnoten.
+    """Statement (paragraph or list item) with its footnotes.
 
     Attributes:
-        text: Text ohne Fußnotenmarken.
-        labels: Fußnoten im Absatz.
-        section: Abschnittsschlüssel.
-        line: Zeilenindex im Body.
-        segments: Textstücke jeweils bis zur nächsten Fußnotengruppe mit deren Fußnoten.
+        text: Text without footnote marks.
+        labels: Footnotes in the paragraph.
+        section: Section key.
+        line: Line index in the body.
+        segments: Text pieces each up to the next footnote group, with its footnotes.
     """
 
     text: str
@@ -152,13 +152,13 @@ class Statement:
     segments: list[tuple[str, list[str]]] = field(default_factory=list)
 
     def labels_for(self, needle: str) -> list[str]:
-        """Belege für ein Textstück.
+        """Citations for a piece of text.
 
         Args:
-            needle: Normalisiertes Textstück (siehe ``norm_ws``).
+            needle: Normalized piece of text (see ``norm_ws``).
 
         Returns:
-            Die Fußnoten direkt nach der Stelle, sonst die des ganzen Absatzes.
+            The footnotes directly after the passage, otherwise those of the whole paragraph.
         """
         hit = next((labels for text, labels in self.segments if needle in norm_ws(text)), None)
         return hit or self.labels
@@ -166,13 +166,13 @@ class Statement:
 
 @dataclass
 class PageCitations:
-    """Alle Belege und Aussagen einer Wiki-Seite.
+    """All citations and statements of a wiki page.
 
     Attributes:
-        doc: Die Seite.
-        definitions: Fußnotendefinitionen je Name.
-        references: Fußnotenverweise als (Name, Zeilenindex).
-        statements: Aussagen in Dokumentreihenfolge.
+        doc: The page.
+        definitions: Footnote definitions per name.
+        references: Footnote references as (name, line index).
+        statements: Statements in document order.
     """
 
     doc: Doc
@@ -181,37 +181,37 @@ class PageCitations:
     statements: list[Statement]
 
     def labels_in_order(self) -> list[str]:
-        """Fußnotennamen in Reihenfolge der Verwendung, danach unbenutzte Definitionen.
+        """Footnote names in order of use, then unused definitions.
 
         Returns:
-            Namen ohne Duplikate.
+            Names without duplicates.
         """
         return list(dict.fromkeys([label for label, _ in self.references] + list(self.definitions)))
 
     def statement_for(self, label: str) -> str | None:
-        """Erste Aussage, die eine Fußnote verwendet.
+        """First statement that uses a footnote.
 
         Args:
-            label: Fußnotenname.
+            label: Footnote name.
 
         Returns:
-            Aussagetext oder ``None``.
+            Statement text or ``None``.
         """
         return next((st.text for st in self.statements if label in st.labels), None)
 
 
 @dataclass
 class Resolution:  # pylint: disable=too-many-instance-attributes
-    """Ergebnis der Auflösung eines Belegs nach 5.2.
+    """Result of resolving a citation per 5.2.
 
     Attributes:
-        status: ``ok``, ``moved``, ``newer_version`` oder ``missing``.
-        current_path: Aktueller Pfad des Originals.
-        moved: Ob das Original über ID bzw. Hash an anderem Ort gefunden wurde.
-        doc: Aktuelles Original (nur Markdown).
-        current_version: Aktuelle Version (nur Markdown).
-        cited_text: Belegter Abschnitt in der belegten Version.
-        cited_sections: Abschnitts-Hashes der belegten Version.
+        status: ``ok``, ``moved``, ``newer_version`` or ``missing``.
+        current_path: Current path of the original.
+        moved: Whether the original was found elsewhere via ID or hash.
+        doc: Current original (Markdown only).
+        current_version: Current version (Markdown only).
+        cited_text: Cited section in the cited version.
+        cited_sections: Section hashes of the cited version.
     """
 
     status: str
@@ -224,27 +224,27 @@ class Resolution:  # pylint: disable=too-many-instance-attributes
 
 
 class Resolver:
-    """Löst Belege auf; merkt sich gelesene Versionen und Anhang-Hashes."""
+    """Resolves citations; remembers loaded versions and attachment hashes."""
 
     def __init__(self, svc: Service) -> None:
-        """Auflöser anlegen.
+        """Create the resolver.
 
         Args:
-            svc: Dienst.
+            svc: Service.
         """
         self.svc = svc
         self._versions: dict[tuple[str, int], Doc | None] = {}
         self._bin_index: dict[str, list[str]] | None = None
 
     def version_doc(self, doc_id: str, version: int) -> Doc | None:
-        """Dokument in einer Version aus Git.
+        """Document in a version from Git.
 
         Args:
-            doc_id: Dokument-ID.
-            version: Versionsnummer.
+            doc_id: Document ID.
+            version: Version number.
 
         Returns:
-            Das Dokument oder ``None``, wenn die Version nicht im Verlauf ist.
+            The document or ``None`` if the version is not in the history.
         """
         key = (doc_id, version)
         if key not in self._versions:
@@ -256,10 +256,10 @@ class Resolver:
         return self._versions[key]
 
     def _bins(self) -> dict[str, list[str]]:
-        """Hash → Pfade aller Anhänge unter ``documents/`` (einmal berechnet).
+        """Hash → paths of all attachments below ``documents/`` (computed once).
 
         Returns:
-            Zuordnung von SHA-256 zu Pfaden.
+            Mapping of SHA-256 to paths.
         """
         if self._bin_index is None:
             index: dict[str, list[str]] = {}
@@ -273,13 +273,13 @@ class Resolver:
         return self._bin_index
 
     def _load(self, rel: str | None) -> Doc | None:
-        """Datei unter ``documents/`` laden, falls vorhanden.
+        """Load a file below ``documents/`` if it exists.
 
         Args:
-            rel: Relativer Pfad oder ``None``.
+            rel: Relative path or ``None``.
 
         Returns:
-            Das Dokument oder ``None``.
+            The document or ``None``.
         """
         doc = None
         try:
@@ -290,13 +290,13 @@ class Resolver:
         return doc
 
     def _find_markdown(self, cit: Citation) -> tuple[Doc | None, bool]:
-        """Original zu einem Markdown-Beleg finden: erst Pfad mit passender ID, dann ID.
+        """Find the original for a Markdown citation: first the path with a matching ID, then the ID.
 
         Args:
-            cit: Beleg.
+            cit: Citation.
 
         Returns:
-            Tupel aus (Dokument oder ``None``, verschoben).
+            Tuple of (document or ``None``, moved).
         """
         doc, moved = None, False
         candidate = self._load(cit.target_rel)
@@ -309,13 +309,13 @@ class Resolver:
         return doc, moved
 
     def resolve(self, cit: Citation) -> Resolution:
-        """Beleg auflösen und Status bestimmen (5.2).
+        """Resolve a citation and determine its status (5.2).
 
         Args:
-            cit: Beleg.
+            cit: Citation.
 
         Returns:
-            Die Auflösung; bei Markdown mit belegtem Abschnitt aus der belegten Version.
+            The resolution; for Markdown with the cited section from the cited version.
         """
         if not cit.markdown:
             result = self._resolve_bin(cit)
@@ -336,13 +336,13 @@ class Resolver:
         return result
 
     def _resolve_bin(self, cit: Citation) -> Resolution:
-        """Beleg auf einen Anhang auflösen (Pfad und Hash, sonst Hash im Bestand).
+        """Resolve a citation of an attachment (path and hash, otherwise hash in the inventory).
 
         Args:
-            cit: Beleg.
+            cit: Citation.
 
         Returns:
-            Die Auflösung.
+            The resolution.
         """
         result = Resolution("missing", None, False, None, None)
         rel = cit.target_rel
@@ -360,13 +360,13 @@ class Resolver:
 
 
 def _strip_quote(part: str) -> str | None:
-    """Zitat aus einem Belegteil lösen.
+    """Extract a quote from a citation part.
 
     Args:
-        part: Teil zwischen `` · ``.
+        part: Part between `` · ``.
 
     Returns:
-        Text ohne Anführungszeichen oder ``None``, wenn der Teil kein Zitat ist.
+        Text without quotes or ``None`` if the part is not a quote.
     """
     return next(
         (part[len(left) : len(part) - len(right)] for left, right in QUOTE_PAIRS
@@ -376,11 +376,11 @@ def _strip_quote(part: str) -> str | None:
 
 
 def _parse_part(cit: Citation, part: str) -> None:
-    """Einen Teil der Beleg-Zeile auswerten.
+    """Evaluate one part of the citation line.
 
     Args:
-        cit: Beleg (wird ergänzt).
-        part: Teil zwischen `` · ``.
+        cit: Citation (added to).
+        part: Part between `` · ``.
     """
     quote = _strip_quote(part)
     if part.startswith("§:"):
@@ -388,57 +388,57 @@ def _parse_part(cit: Citation, part: str) -> None:
     elif part.startswith("id:"):
         cit.doc_id = part[3:].strip()
         if not is_valid_id(cit.doc_id):
-            cit.problems.append("ungültige ID")
+            cit.problems.append("invalid ID")
     elif part.startswith("v:"):
         value = part[2:].strip()
         if value.isdigit():
             cit.version = int(value)
         else:
-            cit.problems.append("ungültige Version")
+            cit.problems.append("invalid version")
     elif part.startswith("sha:"):
         value = part[4:].strip().lower()
         if SHA_VALUE_RE.fullmatch(value):
             cit.sha = value
         else:
-            cit.problems.append("ungültiger sha")
+            cit.problems.append("invalid sha")
     elif quote is not None:
         cit.quote = quote
     else:
-        cit.problems.append(f"unbekannter Teil: {part[:MAX_UNKNOWN_PART]}")
+        cit.problems.append(f"unknown part: {part[:MAX_UNKNOWN_PART]}")
 
 
 def _check_required(cit: Citation) -> None:
-    """Pflichtteile des Belegs prüfen und Probleme ergänzen.
+    """Check the required parts of the citation and add problems.
 
     Args:
-        cit: Beleg (wird ergänzt).
+        cit: Citation (added to).
     """
     if cit.sha is None:
-        cit.problems.append("sha fehlt")
+        cit.problems.append("sha missing")
     if cit.markdown:
         missing = [name for name, value in (("id", cit.doc_id), ("v", cit.version)) if value is None]
-        cit.problems.extend(f"{name} fehlt" for name in missing)
+        cit.problems.extend(f"{name} missing" for name in missing)
         if cit.quote is None:
-            cit.problems.append("Zitat fehlt")
+            cit.problems.append("quote missing")
     if cit.quote is not None and len(cit.quote) > MAX_QUOTE:
-        cit.problems.append(f"Zitat länger als {MAX_QUOTE} Zeichen")
+        cit.problems.append(f"quote longer than {MAX_QUOTE} characters")
 
 
 def parse_citation(label: str, rest: str, line: int) -> Citation:
-    """Beleg-Zeile nach 4.2 lesen.
+    """Read a citation line per 4.2.
 
     Args:
-        label: Fußnotenname.
-        rest: Text nach ``[^label]:``.
-        line: Zeilenindex im Body.
+        label: Footnote name.
+        rest: Text after ``[^label]:``.
+        line: Line index in the body.
 
     Returns:
-        Der Beleg; Formatfehler stehen in ``problems``.
+        The citation; format errors are in ``problems``.
     """
     cit = Citation(label, line, rest)
     parts = [p.strip() for p in SEP_RE.split(rest.strip()) if p.strip()]
     if not parts:
-        cit.problems.append("leer")
+        cit.problems.append("empty")
     else:
         m = LINK_RE.match(parts[0])
         if m:
@@ -449,7 +449,7 @@ def parse_citation(label: str, rest: str, line: int) -> Citation:
             tail = parts[0][m.end() :].strip()
             parts = ([tail] if tail else []) + parts[1:]
         else:
-            cit.problems.append("Link fehlt")
+            cit.problems.append("link missing")
         for part in parts:
             _parse_part(cit, part)
         _check_required(cit)
@@ -457,26 +457,26 @@ def parse_citation(label: str, rest: str, line: int) -> Citation:
 
 
 def _clean_statement(text: str) -> str:
-    """Fußnotenmarken und Listenzeichen entfernen, Leerraum zusammenfassen.
+    """Remove footnote marks and list markers, collapse whitespace.
 
     Args:
-        text: Rohtext.
+        text: Raw text.
 
     Returns:
-        Bereinigter Text.
+        Cleaned text.
     """
     text = LIST_ITEM_RE.sub("", REF_RE.sub("", text), count=1)
     return " ".join(text.split())
 
 
 def _segments(text: str) -> list[tuple[str, list[str]]]:
-    """Text an Fußnotengruppen zerlegen.
+    """Split text at footnote groups.
 
     Args:
-        text: Rohtext mit Fußnotenmarken.
+        text: Raw text with footnote marks.
 
     Returns:
-        Liste aus (Textstück bis zur Gruppe, Fußnoten der Gruppe).
+        List of (piece of text up to the group, footnotes of the group).
     """
     parts = REF_GROUP_RE.split(text)
     out: list[tuple[str, list[str]]] = []
@@ -488,14 +488,14 @@ def _segments(text: str) -> list[tuple[str, list[str]]]:
 
 
 def _block_statements(block: list[tuple[int, str]], section: str) -> list[Statement]:
-    """Absatz in Aussagen umwandeln; in Listen ist jeder Eintrag eine eigene Aussage.
+    """Turn a paragraph into statements; in lists every item is a statement of its own.
 
     Args:
-        block: Zeilen des Absatzes als (Index, Text).
-        section: Abschnittsschlüssel.
+        block: Lines of the paragraph as (index, text).
+        section: Section key.
 
     Returns:
-        Aussagen.
+        Statements.
     """
     items = [block] if not any(LIST_ITEM_RE.match(t) for _, t in block) else [[b] for b in block]
     out = []
@@ -510,19 +510,19 @@ def _block_statements(block: list[tuple[int, str]], section: str) -> list[Statem
 
 
 def parse_page(doc: Doc) -> PageCitations:
-    """Wiki-Seite in Belege, Verweise und Aussagen zerlegen.
+    """Split a wiki page into citations, references and statements.
 
     Args:
-        doc: Wiki-Seite.
+        doc: Wiki page.
 
     Returns:
-        Die Belege der Seite.
+        The citations of the page.
 
     Raises:
-        PkmError: Wenn die Seite nicht lesbar ist.
+        PkmError: If the page is not readable.
     """
     if doc.parsed is None:
-        raise PkmError(doc.error or "invalid_encoding", doc.error_message or "Seite nicht lesbar.", path=doc.rel)
+        raise PkmError(doc.error or "invalid_encoding", doc.error_message or "Page not readable.", path=doc.rel)
     lines = body_lines(doc.parsed.body)
     definitions: dict[str, Citation] = {}
     references: list[tuple[str, int]] = []
@@ -542,13 +542,13 @@ def parse_page(doc: Doc) -> PageCitations:
 
 
 def render_section(sec: Section) -> str:
-    """Abschnitt als Text (Überschrift und Inhalt, ohne abschließende Leerzeilen).
+    """Section as text (heading and content, without trailing blank lines).
 
     Args:
-        sec: Abschnitt.
+        sec: Section.
 
     Returns:
-        Der Text.
+        The text.
     """
     lines = ([sec.heading] if sec.heading else []) + list(sec.content_lines)
     while lines and not lines[-1].strip():
@@ -557,52 +557,52 @@ def render_section(sec: Section) -> str:
 
 
 def section_text(doc: Doc, key: str | None) -> str | None:
-    """Text eines Abschnitts.
+    """Text of a section.
 
     Args:
-        doc: Dokument.
-        key: Abschnittsschlüssel.
+        doc: Document.
+        key: Section key.
 
     Returns:
-        Der Text oder ``None``, wenn es den Abschnitt nicht gibt.
+        The text or ``None`` if the section does not exist.
     """
     sec = doc.parsed.section(key) if doc.parsed is not None and key is not None else None
     return render_section(sec) if sec is not None else None
 
 
 def _excerpt(text: str | None) -> str | None:
-    """Text auf ``MAX_EXCERPT`` Zeichen kürzen.
+    """Shorten text to ``MAX_EXCERPT`` characters.
 
     Args:
-        text: Text oder ``None``.
+        text: Text or ``None``.
 
     Returns:
-        Gekürzter Text (mit „…“) oder ``None``.
+        Shortened text (with "…") or ``None``.
     """
     return text if text is None or len(text) <= MAX_EXCERPT else text[:MAX_EXCERPT] + "…"
 
 
 def norm_ws(text: str) -> str:
-    """Text für Vergleiche normalisieren (Leerraum zusammenfassen, casefold).
+    """Normalize text for comparisons (collapse whitespace, casefold).
 
     Args:
         text: Text.
 
     Returns:
-        Normalisierter Text.
+        Normalized text.
     """
     return " ".join(text.split()).casefold()
 
 
 def obsidian_link(vault_name: str | None, rel: str | None) -> str | None:
-    """``obsidian://``-Link auf eine Datei.
+    """``obsidian://`` link to a file.
 
     Args:
-        vault_name: Name des Obsidian-Vaults (``PKM_VAULT_NAME``).
-        rel: Relativer Pfad.
+        vault_name: Name of the Obsidian vault (``PKM_VAULT_NAME``).
+        rel: Relative path.
 
     Returns:
-        Der Link oder ``None``, wenn Vault-Name oder Pfad fehlen.
+        The link or ``None`` if the vault name or path is missing.
     """
     link = None
     if vault_name and rel:
@@ -612,13 +612,13 @@ def obsidian_link(vault_name: str | None, rel: str | None) -> str | None:
 
 
 def citations_overview(pc: PageCitations) -> list[dict[str, Any]]:
-    """Geparste Belege ohne Prüfung (für ``read`` von Wiki-Seiten).
+    """Parsed citations without checking (for ``read`` of wiki pages).
 
     Args:
-        pc: Belege der Seite.
+        pc: Citations of the page.
 
     Returns:
-        Je Beleg Pfad, Anker, Abschnitt, Zitat, ID, Version, sha, Aussage und Probleme.
+        Per citation path, anchor, section, quote, ID, version, sha, statement and problems.
     """
     return [
         {
@@ -633,17 +633,17 @@ def citations_overview(pc: PageCitations) -> list[dict[str, Any]]:
 def _citation_entry(
     svc: Service, pc: PageCitations, cit: Citation, res: Resolution, with_excerpt: bool
 ) -> dict[str, Any]:
-    """Eintrag für ``show_citations``.
+    """Entry for ``show_citations``.
 
     Args:
-        svc: Dienst.
-        pc: Belege der Seite.
-        cit: Beleg.
-        res: Auflösung des Belegs.
-        with_excerpt: Wortlaut aus belegter (und ggf. aktueller) Version mitliefern.
+        svc: Service.
+        pc: Citations of the page.
+        cit: Citation.
+        res: Resolution of the citation.
+        with_excerpt: Include the wording from the cited (and possibly the current) version.
 
     Returns:
-        Der Eintrag.
+        The entry.
     """
     entry: dict[str, Any] = {
         "id": cit.label,
@@ -676,16 +676,16 @@ def show_citations(
     """Tool ``show_citations``.
 
     Args:
-        svc: Dienst.
-        target: Wiki-Seite.
-        statement: Textstück; grenzt auf die Belege dieser Stelle bzw. des Absatzes ein.
-        with_excerpt: Wortlaut aus belegter und ggf. aktueller Version (je höchstens 1.500 Zeichen).
+        svc: Service.
+        target: Wiki page.
+        statement: Piece of text; narrows to the citations of this passage or paragraph.
+        with_excerpt: Wording from the cited and possibly the current version (at most 1,500 characters each).
 
     Returns:
-        Seite und Belege mit Original, Abschnitt, Zitat, Versionen, Status und ggf. Obsidian-Link.
+        Page and citations with original, section, quote, versions, status and possibly Obsidian link.
 
     Raises:
-        PkmError: ``not_found``, wenn ``statement`` auf der Seite nicht vorkommt.
+        PkmError: ``not_found`` if ``statement`` does not occur on the page.
     """
     rel = svc.resolve(target, ("wiki",))
     pc = parse_page(svc.vault.load(rel))
@@ -694,7 +694,7 @@ def show_citations(
         needle = norm_ws(statement)
         matching = [st for st in pc.statements if needle in norm_ws(st.text)]
         if not matching:
-            raise PkmError("not_found", "Keine Aussage mit diesem Text auf der Seite gefunden.", page=rel)
+            raise PkmError("not_found", "No statement with this text found on the page.", page=rel)
         wanted = {lab for st in matching for lab in st.labels_for(needle)}
         labels = [lab for lab in labels if lab in wanted]
     resolver = Resolver(svc)
@@ -709,25 +709,25 @@ def show_citations(
 
 
 def wiki_targets(svc: Service, pages: list[str] | None) -> list[str]:
-    """Zu bearbeitende Wiki-Seiten.
+    """Wiki pages to process.
 
     Args:
-        svc: Dienst.
-        pages: Angegebene Seiten oder ``None`` für alle.
+        svc: Service.
+        pages: Given pages or ``None`` for all.
 
     Returns:
-        Relative Pfade.
+        Relative paths.
     """
     return [svc.resolve(p, ("wiki",)) for p in pages] if pages else [d.rel for d in wiki_pages(svc)]
 
 
 def _render_first(link_path: str, key: str | None, page: int | None) -> str:
-    """Ersten Teil einer Beleg-Zeile bilden (Link mit Anker, ggf. ``§:``).
+    """Build the first part of a citation line (link with anchor, possibly ``§:``).
 
     Args:
-        link_path: Pfad ohne ``.md``.
-        key: Abschnittsschlüssel.
-        page: PDF-Seite.
+        link_path: Path without ``.md``.
+        key: Section key.
+        page: PDF page.
 
     Returns:
         Z. B. ``[[documents/a#Notizen]] §:Notizen#2``.
@@ -747,15 +747,15 @@ def _render_first(link_path: str, key: str | None, page: int | None) -> str:
 
 
 def rewrite_definition(cit: Citation, link_path: str, key: str | None) -> str:
-    """Beleg-Zeile mit neuem Pfad bzw. Abschnitt; übrige Teile bleiben erhalten.
+    """Citation line with a new path or section; the other parts are kept.
 
     Args:
-        cit: Beleg.
-        link_path: Neuer Pfad ohne ``.md``.
-        key: Neuer Abschnittsschlüssel.
+        cit: Citation.
+        link_path: New path without ``.md``.
+        key: New section key.
 
     Returns:
-        Die neue Zeile.
+        The new line.
     """
     parts = [p.strip() for p in SEP_RE.split(cit.raw.strip()) if p.strip()]
     m = LINK_RE.match(parts[0]) if parts else None
@@ -765,14 +765,14 @@ def rewrite_definition(cit: Citation, link_path: str, key: str | None) -> str:
 
 
 def _fixed_target(cit: Citation, res: Resolution) -> tuple[str | None, str | None]:
-    """Neuen Pfad und Abschnitt eines Belegs bestimmen (verschoben bzw. umbenannt).
+    """Determine the new path and section of a citation (moved or renamed).
 
     Args:
-        cit: Beleg.
-        res: Auflösung.
+        cit: Citation.
+        res: Resolution.
 
     Returns:
-        Tupel aus (Pfad ohne ``.md``, Abschnittsschlüssel).
+        Tuple of (path without ``.md``, section key).
     """
     new_path = cit.link_path
     if res.moved and res.current_path:
@@ -787,15 +787,15 @@ def _fixed_target(cit: Citation, res: Resolution) -> tuple[str | None, str | Non
 
 
 def _fix_page(svc: Service, rel: str, resolver: Resolver) -> list[dict[str, str]]:
-    """Belege einer Seite korrigieren und die Seite schreiben.
+    """Fix the citations of a page and write the page.
 
     Args:
-        svc: Dienst.
-        rel: Wiki-Seite.
-        resolver: Auflöser.
+        svc: Service.
+        rel: Wiki page.
+        resolver: Resolver.
 
     Returns:
-        Geänderte Zeilen als (id, old, new).
+        Changed lines as (id, old, new).
     """
     doc = svc.vault.load(rel)
     changes: list[dict[str, str]] = []
@@ -821,15 +821,15 @@ def _fix_page(svc: Service, rel: str, resolver: Resolver) -> list[dict[str, str]
 
 
 def _relink_lines(lines: list[str], moved: dict[str, str], skip: set[int]) -> list[dict[str, str]]:
-    """Wikilinks im Seitentext auf verschobene Originale umschreiben.
+    """Rewrite wikilinks in the page text to moved originals.
 
     Args:
-        lines: Zeilen des Bodys (werden geändert).
-        moved: Alter Pfad ohne ``.md`` → neuer Pfad.
-        skip: Zeilen, die nicht angefasst werden (Fußnotendefinitionen).
+        lines: Lines of the body (changed).
+        moved: Old path without ``.md`` → new path.
+        skip: Lines that are not touched (footnote definitions).
 
     Returns:
-        Änderungen als (id, old, new) mit ``id: link``.
+        Changes as (id, old, new) with ``id: link``.
     """
     changes: list[dict[str, str]] = []
     if moved:
@@ -845,14 +845,14 @@ def _relink_lines(lines: list[str], moved: dict[str, str], skip: set[int]) -> li
 
 
 def fix_citations(svc: Service, pages: list[str] | None = None) -> dict[str, Any]:
-    """``pkm fix-citations``: Belege auf verschobene Originale und umbenannte Abschnitte korrigieren.
+    """``pkm fix-citations``: fix citations of moved originals and renamed sections.
 
     Args:
-        svc: Dienst.
-        pages: Wiki-Seiten oder ``None`` für alle.
+        svc: Service.
+        pages: Wiki pages or ``None`` for all.
 
     Returns:
-        Anzahl geänderter Seiten und die Änderungen.
+        Number of changed pages and the changes.
     """
     resolver = Resolver(svc)
     changes = []
@@ -864,26 +864,26 @@ def fix_citations(svc: Service, pages: list[str] | None = None) -> dict[str, Any
 
 
 def expected_sources(pc: PageCitations) -> list[str]:
-    """``sources`` aus den Fußnoten.
+    """``sources`` from the footnotes.
 
     Args:
-        pc: Belege der Seite.
+        pc: Citations of the page.
 
     Returns:
-        Sortierte, eindeutige Wikilinks auf die Originale.
+        Sorted, unique wikilinks to the originals.
     """
     return sorted({f"[[{c.link_path}]]" for c in pc.definitions.values() if c.link_path})
 
 
 def sync_citations(svc: Service, pages: list[str] | None = None) -> dict[str, Any]:
-    """``pkm sync-citations``: ``sources`` aus den Fußnoten neu erzeugen.
+    """``pkm sync-citations``: regenerate ``sources`` from the footnotes.
 
     Args:
-        svc: Dienst.
-        pages: Wiki-Seiten oder ``None`` für alle.
+        svc: Service.
+        pages: Wiki pages or ``None`` for all.
 
     Returns:
-        Anzahl geänderter Seiten und die neuen ``sources``.
+        Number of changed pages and the new ``sources``.
     """
     changed = []
     for rel in wiki_targets(svc, pages):
@@ -897,13 +897,13 @@ def sync_citations(svc: Service, pages: list[str] | None = None) -> dict[str, An
 
 
 def page_citations_for_read(doc: Doc) -> list[dict[str, Any]]:
-    """Belege einer Wiki-Seite für ``read`` (ohne Prüfung).
+    """Citations of a wiki page for ``read`` (without checking).
 
     Args:
-        doc: Wiki-Seite.
+        doc: Wiki page.
 
     Returns:
-        Übersicht der Belege; leer, wenn die Seite nicht lesbar ist.
+        Overview of the citations; empty if the page is not readable.
     """
     try:
         overview = citations_overview(parse_page(doc))

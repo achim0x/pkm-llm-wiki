@@ -1,8 +1,8 @@
-"""Bild-Data-URIs in jeder Schreibweise finden (Spezifikation 4.9, „Prüfung bei der Übernahme“).
+"""Find image data URIs in every notation (specification 4.9, "check on import").
 
-Erkannt werden Markdown-Bilder ``![alt](data:…)``, spitze Klammern ``![alt](<data:…>)``, der
-Referenzstil ``![alt][ref]`` mit ``[ref]: <data:…>`` und HTML ``<img src="data:…">``, auch mit nicht
-kodierten Zeichen (z. B. SVG mit Leerzeichen). Codeblöcke und Inline-Code werden übergangen.
+Detected are Markdown images ``![alt](data:…)``, angle brackets ``![alt](<data:…>)``, the
+reference style ``![alt][ref]`` with ``[ref]: <data:…>`` and HTML ``<img src="data:…">``, also with
+unencoded characters (e.g. SVG with spaces). Code blocks and inline code are skipped.
 
     Author: Achim0x
 """
@@ -49,20 +49,20 @@ SVG_END = ("</svg>", "%3c/svg%3e", "%3c%2fsvg%3e")
 
 @dataclass
 class DataOccurrence:  # pylint: disable=too-many-instance-attributes
-    """Eine Bild-Data-URI im Text.
+    """An image data URI in the text.
 
     Attributes:
-        notation: ``inline``, ``angle``, ``reference`` oder ``html``.
-        start: Beginn des Bildes (bei ``reference`` der ersten Verwendung).
-        end: Ende des Bildes.
-        uri_start: Beginn der Data-URI.
-        uri_end: Ende der Data-URI.
-        alt: Alternativtext wie geschrieben (ggf. mit ``|breite``).
-        title: Titel (``"…"``) oder ``None``.
-        label: Referenzname (nur ``reference``).
-        def_span: Zeile der Referenzdefinition einschließlich Zeilenende (nur ``reference``).
-        usages: Positionen aller Verwendungen (nur ``reference``).
-        width: Breite aus ``width`` (nur ``html``).
+        notation: ``inline``, ``angle``, ``reference`` or ``html``.
+        start: Start of the image (for ``reference``, of the first usage).
+        end: End of the image.
+        uri_start: Start of the data URI.
+        uri_end: End of the data URI.
+        alt: Alt text as written (possibly with ``|width``).
+        title: Title (``"…"``) or ``None``.
+        label: Reference name (``reference`` only).
+        def_span: Line of the reference definition including line end (``reference`` only).
+        usages: Positions of all usages (``reference`` only).
+        width: Width from ``width`` (``html`` only).
     """
 
     notation: str
@@ -81,13 +81,13 @@ class DataOccurrence:  # pylint: disable=too-many-instance-attributes
 
 
 def code_spans(text: str) -> list[tuple[int, int]]:
-    """Bereiche von eingezäunten Codeblöcken und Inline-Code.
+    """Ranges of fenced code blocks and inline code.
 
     Args:
         text: Markdown.
 
     Returns:
-        Liste aus (Beginn, Ende).
+        List of (start, end).
     """
     spans: list[tuple[int, int]] = []
     pos, fence, fence_start = 0, "", 0
@@ -107,32 +107,32 @@ def code_spans(text: str) -> list[tuple[int, int]]:
 
 
 def _inside(pos: int, spans: list[tuple[int, int]]) -> bool:
-    """Prüfen, ob eine Position in einem der Bereiche liegt.
+    """Check whether a position lies in one of the ranges.
 
     Args:
         pos: Position.
-        spans: Bereiche.
+        spans: Ranges.
 
     Returns:
-        ``True`` innerhalb.
+        ``True`` if inside.
     """
     return any(s <= pos < e for s, e in spans)
 
 
 def uri_end(text: str, start: int, stop: str) -> int:
-    """Ende einer Data-URI ab ``start`` bestimmen.
+    """Determine the end of a data URI starting at ``start``.
 
-    Base64 reicht bis zum ersten Zeichen außerhalb des Alphabets (Leerraum zählt mit, endet aber nicht
-    darauf). SVG ohne Base64 reicht bis zum Ende des ``</svg>``-Tags (kodiert oder nicht) in derselben
-    Zeile, sonst bis zum ersten Leerraum bzw. Stoppzeichen.
+    Base64 extends to the first character outside the alphabet (whitespace counts, but the URI does not
+    end on it). SVG without Base64 extends to the end of the ``</svg>`` tag (encoded or not) in the same
+    line, otherwise to the first whitespace or stop character.
 
     Args:
         text: Markdown.
-        start: Position von ``data:``.
-        stop: Zeichen, die die URI ohne SVG-Ende beenden (z. B. ``)`` oder ``>``).
+        start: Position of ``data:``.
+        stop: Characters that end the URI without an SVG end (e.g. ``)`` or ``>``).
 
     Returns:
-        Endposition (exklusiv).
+        End position (exclusive).
     """
     line_end = text.find("\n", start)
     line_end = len(text) if line_end < 0 else line_end
@@ -155,14 +155,14 @@ def uri_end(text: str, start: int, stop: str) -> int:
 
 
 def _title_after(text: str, pos: int) -> tuple[str | None, int]:
-    """Optionalen Titel ``"…"`` ab einer Position lesen.
+    """Read an optional title ``"…"`` at a position.
 
     Args:
         text: Markdown.
-        pos: Position direkt nach der URI bzw. nach ``>``.
+        pos: Position directly after the URI or after ``>``.
 
     Returns:
-        Tupel aus (Titel oder ``None``, Position danach).
+        Tuple of (title or ``None``, position after it).
     """
     m = TITLE_RE.match(text, pos)
     title = (m.group("d") if m.group("d") is not None else m.group("s")) if m else None
@@ -170,14 +170,14 @@ def _title_after(text: str, pos: int) -> tuple[str | None, int]:
 
 
 def _inline(text: str, spans: list[tuple[int, int]]) -> list[DataOccurrence]:
-    """Markdown-Bilder ``![alt](data:…)`` und ``![alt](<data:…>)``.
+    """Markdown images ``![alt](data:…)`` and ``![alt](<data:…>)``.
 
     Args:
         text: Markdown.
-        spans: Code-Bereiche.
+        spans: Code ranges.
 
     Returns:
-        Vorkommen.
+        Occurrences.
     """
     out = []
     for m in INLINE_START_RE.finditer(text):
@@ -196,26 +196,26 @@ def _inline(text: str, spans: list[tuple[int, int]]) -> list[DataOccurrence]:
 
 
 def _label_key(label: str) -> str:
-    """Referenzname vergleichbar machen (CommonMark: ohne Groß-/Kleinschreibung, Leerraum zusammengefasst).
+    """Make a reference name comparable (CommonMark: case-insensitive, whitespace collapsed).
 
     Args:
-        label: Referenzname.
+        label: Reference name.
 
     Returns:
-        Schlüssel.
+        Key.
     """
     return " ".join(label.split()).casefold()
 
 
 def _references(text: str, spans: list[tuple[int, int]]) -> list[DataOccurrence]:
-    """Referenzstil: Definitionen ``[ref]: <data:…>`` mit ihren Verwendungen ``![alt][ref]``.
+    """Reference style: definitions ``[ref]: <data:…>`` with their usages ``![alt][ref]``.
 
     Args:
         text: Markdown.
-        spans: Code-Bereiche.
+        spans: Code ranges.
 
     Returns:
-        Vorkommen; unbenutzte Definitionen haben keine Verwendungen (``start == def_span[0]``).
+        Occurrences; unused definitions have no usages (``start == def_span[0]``).
     """
     defs: dict[str, DataOccurrence] = {}
     for m in DEF_RE.finditer(text):
@@ -246,14 +246,14 @@ def _references(text: str, spans: list[tuple[int, int]]) -> list[DataOccurrence]
 
 
 def _html(text: str, spans: list[tuple[int, int]]) -> list[DataOccurrence]:
-    """HTML-Bilder ``<img src="data:…">``.
+    """HTML images ``<img src="data:…">``.
 
     Args:
         text: Markdown.
-        spans: Code-Bereiche.
+        spans: Code ranges.
 
     Returns:
-        Vorkommen.
+        Occurrences.
     """
     out = []
     for m in IMG_TAG_RE.finditer(text):
@@ -278,13 +278,13 @@ def _html(text: str, spans: list[tuple[int, int]]) -> list[DataOccurrence]:
 
 
 def find_data_images(text: str) -> list[DataOccurrence]:
-    """Alle Bild-Data-URIs im Text (außerhalb von Code).
+    """All image data URIs in the text (outside of code).
 
     Args:
         text: Markdown.
 
     Returns:
-        Vorkommen nach Position der (ersten) Verwendung; unbenutzte Definitionen eingeschlossen.
+        Occurrences by position of the (first) usage; unused definitions included.
     """
     spans = code_spans(text)
     found = _inline(text, spans) + _references(text, spans) + _html(text, spans)
@@ -292,13 +292,13 @@ def find_data_images(text: str) -> list[DataOccurrence]:
 
 
 def non_image_data_links(text: str) -> list[tuple[int, str]]:
-    """Andere Data-URIs in Links (z. B. ``data:text/html``) für Lint.
+    """Other data URIs in links (e.g. ``data:text/html``) for lint.
 
     Args:
         text: Markdown.
 
     Returns:
-        Liste aus (Position, Medientyp).
+        List of (position, media type).
     """
     spans = code_spans(text)
     rx = re.compile(r"\]\(\s*<?data:(?P<type>[a-z]+/[a-z0-9.+-]+)", re.IGNORECASE)

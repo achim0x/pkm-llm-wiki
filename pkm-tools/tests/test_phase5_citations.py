@@ -138,7 +138,7 @@ def test_parse_citation_preamble_and_problems():
     c = parse_citation("b1", "[[documents/a]] · „x“ · id:d-20261012-0915-x7mp · v:1 · sha:abcdef", 0)
     assert c.section_key == "_preamble"
     bad = parse_citation("b2", "ohne Link · v:x", 0)
-    assert {"Link fehlt", "ungültige Version", "sha fehlt", "id fehlt", "Zitat fehlt"} <= set(bad.problems)
+    assert {"link missing", "invalid version", "sha missing", "id missing", "quote missing"} <= set(bad.problems)
     long = parse_citation("b3", f"[[documents/a]] · „{'x' * 201}“ · id:{OTHER_ID} · v:1 · sha:abcdef", 0)
     assert any("200" in p for p in long.problems)
 
@@ -374,7 +374,7 @@ def test_lint_report(svc, cfg):
     """lint --report schreibt den Bericht nach wiki/_lint/."""
     res = lint(svc)
     rel = write_report(svc, res)
-    assert rel.startswith("wiki/_lint/") and (cfg.root / rel).read_text(encoding="utf-8").startswith("# Lint-Bericht")
+    assert rel.startswith("wiki/_lint/") and (cfg.root / rel).read_text(encoding="utf-8").startswith("# Lint report")
 
 
 # doctor **********************************************************************

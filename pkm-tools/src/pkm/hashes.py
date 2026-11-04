@@ -1,4 +1,4 @@
-"""Hashes nach Spezifikation 4.8, Schritt 4. Einzige Stelle für Hash-Berechnungen.
+"""Hashes according to specification 4.8, step 4. The only place for hash calculations.
 
     Author: Achim0x
 """
@@ -37,20 +37,20 @@ from .schema import LEGACY_SHORT_CITATION, SHORT_CITATION
 META_FIELDS = ("title", "short_citation", "date_document", "tags", "related", "kind")
 SHORT = 6
 
-EMPTY_HASH = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"  # SHA-256 des leeren Texts
+EMPTY_HASH = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"  # SHA-256 of the empty text
 
 # Classes *********************************************************************
 
 
 @dataclass(frozen=True)
 class DocHashes:
-    """Alle Hashes eines Markdown-Dokuments.
+    """All hashes of a Markdown document.
 
     Attributes:
-        file_hash: Hash der ganzen normalisierten Datei (``hash``/``expected_hash``).
-        body_hash: Hash der Abschnittsfolge mit Schlüsseln und Abschnitts-Hashes.
-        meta_hash: Hash der inhaltlich relevanten Metadaten.
-        sections: Abschnitts-Hash je Schlüssel.
+        file_hash: Hash of the whole normalized file (``hash``/``expected_hash``).
+        body_hash: Hash of the sequence of sections with keys and section hashes.
+        meta_hash: Hash of the metadata relevant for content.
+        sections: Section hash per key.
     """
 
     file_hash: str
@@ -62,52 +62,52 @@ class DocHashes:
 
 
 def sha256_bytes(data: bytes) -> str:
-    """SHA-256 über Bytes.
+    """SHA-256 over bytes.
 
     Args:
-        data: Beliebige Bytes.
+        data: Arbitrary bytes.
 
     Returns:
-        64 Hex-Zeichen in Kleinbuchstaben.
+        64 hex characters in lower case.
     """
     return hashlib.sha256(data).hexdigest()
 
 
 def sha256_text(text: str) -> str:
-    """SHA-256 über UTF-8-kodierten Text.
+    """SHA-256 over UTF-8 encoded text.
 
     Args:
-        text: Beliebiger Text.
+        text: Any text.
 
     Returns:
-        64 Hex-Zeichen in Kleinbuchstaben.
+        64 hex characters in lower case.
     """
     return sha256_bytes(text.encode("utf-8"))
 
 
 def file_hash(normalized_text: str) -> str:
-    """Datei-Hash (``hash``/``expected_hash``/``file_hash``).
+    """File hash (``hash``/``expected_hash``/``file_hash``).
 
     Args:
-        normalized_text: Gesamte normalisierte Datei einschließlich Frontmatter.
+        normalized_text: Whole normalized file including frontmatter.
 
     Returns:
-        SHA-256 des Texts.
+        SHA-256 of the text.
     """
     return sha256_text(normalized_text)
 
 
 def normalize_section_content(lines: list[str]) -> str:
-    """Abschnittsinhalt für den Hash normalisieren.
+    """Normalize section content for the hash.
 
-    Zeilen werden rechts getrimmt, Leerzeilen am Rand entfernt und Folgen von Leerzeilen zu
-    einer zusammengefasst.
+    Lines are trimmed on the right, blank lines at the edges removed and runs of blank lines
+    collapsed into one.
 
     Args:
-        lines: Abschnittszeilen ohne Überschrift.
+        lines: Section lines without the heading.
 
     Returns:
-        Die normalisierten Zeilen, mit LF verbunden.
+        The normalized lines, joined with LF.
     """
     out: list[str] = []
     for raw in lines:
@@ -120,49 +120,49 @@ def normalize_section_content(lines: list[str]) -> str:
 
 
 def section_hash(section: Section) -> str:
-    """Hash eines Abschnitts (ohne Überschriftenzeile).
+    """Hash of a section (without the heading line).
 
     Args:
-        section: Der Abschnitt.
+        section: The section.
 
     Returns:
-        SHA-256 des normalisierten Inhalts.
+        SHA-256 of the normalized content.
     """
     return sha256_text(normalize_section_content(section.content_lines))
 
 
 def section_hashes(p: Parsed) -> dict[str, str]:
-    """Hashes aller Abschnitte.
+    """Hashes of all sections.
 
     Args:
-        p: Zerlegtes Dokument.
+        p: Parsed document.
 
     Returns:
-        Abschnitts-Hash je Schlüssel in Dokumentreihenfolge.
+        Section hash per key in document order.
     """
     return {s.key: section_hash(s) for s in p.sections}
 
 
 def body_hash(p: Parsed) -> str:
-    """Hash der Abschnittsfolge (Reihenfolge inklusive).
+    """Hash of the sequence of sections (order included).
 
     Args:
-        p: Zerlegtes Dokument.
+        p: Parsed document.
 
     Returns:
-        SHA-256 über die Zeilen ``<schlüssel>\\t<abschnitts-hash>\\n``.
+        SHA-256 over the lines ``<key>\\t<section-hash>\\n``.
     """
     return sha256_text("".join(f"{s.key}\t{section_hash(s)}\n" for s in p.sections))
 
 
 def _jsonable(value: Any) -> Any:
-    """Wert für ``meta_hash`` aufbereiten: Werte als Zeichenketten in Frontmatter-Schreibweise.
+    """Prepare a value for ``meta_hash``: values as strings in frontmatter notation.
 
     Args:
-        value: Beliebiger YAML-Wert.
+        value: Any YAML value.
 
     Returns:
-        Zeichenkette, Liste bzw. Wörterbuch solcher Zeichenketten oder ``None``.
+        String, list or dictionary of such strings, or ``None``.
     """
     if isinstance(value, dict):
         result: Any = {str(k): _jsonable(v) for k, v in value.items()}
@@ -178,17 +178,17 @@ def _jsonable(value: Any) -> Any:
 
 
 def meta_hash(meta: dict[str, Any]) -> str:
-    """Hash der inhaltlich relevanten Metadaten (4.8).
+    """Hash of the metadata relevant for content (4.8).
 
-    Eingang: ``title``, ``short_citation`` (auch in der alten Schreibweise ``short citation``),
-    ``date_document``, ``tags``, ``related``, ``kind``. ``status_markdown``, Datumsfelder, ``id``
-    und ``version`` sind bewusst ausgenommen.
+    Input: ``title``, ``short_citation`` (also in the old spelling ``short citation``),
+    ``date_document``, ``tags``, ``related``, ``kind``. ``status_markdown``, date fields, ``id``
+    and ``version`` are deliberately excluded.
 
     Args:
-        meta: Frontmatter-Felder.
+        meta: Frontmatter fields.
 
     Returns:
-        SHA-256 des kanonischen JSON (sortiert, UTF-8, ohne Leerraum).
+        SHA-256 of the canonical JSON (sorted, UTF-8, without whitespace).
     """
     fields = dict(meta)
     if SHORT_CITATION not in fields and LEGACY_SHORT_CITATION in fields:
@@ -198,40 +198,40 @@ def meta_hash(meta: dict[str, Any]) -> str:
 
 
 def short(h: str) -> str:
-    """Kurzform eines Hashes für Belege und Anzeigen.
+    """Short form of a hash for citations and display.
 
     Args:
-        h: Voller Hash.
+        h: Full hash.
 
     Returns:
-        Die ersten sechs Zeichen.
+        The first six characters.
     """
     return h[:SHORT]
 
 
 def matches(stored: str, given: str) -> bool:
-    """Vollen Hash mit einem (ggf. gekürzten) Präfix vergleichen.
+    """Compare a full hash with a (possibly shortened) prefix.
 
     Args:
-        stored: Voller Hash.
-        given: Präfix, Groß-/Kleinschreibung egal.
+        stored: Full hash.
+        given: Prefix, case-insensitive.
 
     Returns:
-        ``True``, wenn ``given`` nicht leer ist und ``stored`` damit beginnt.
+        ``True`` if ``given`` is not empty and ``stored`` starts with it.
     """
     given = given.strip().lower()
     return bool(given) and stored.lower().startswith(given)
 
 
 def compute(normalized_text: str, p: Parsed) -> DocHashes:
-    """Alle Hashes eines Dokuments berechnen.
+    """Compute all hashes of a document.
 
     Args:
-        normalized_text: Normalisierter Dateitext.
-        p: Zerlegtes Dokument zu diesem Text.
+        normalized_text: Normalized file text.
+        p: Parsed document for this text.
 
     Returns:
-        Die Hashes.
+        The hashes.
     """
     return DocHashes(file_hash(normalized_text), body_hash(p), meta_hash(p.meta), section_hashes(p))
 

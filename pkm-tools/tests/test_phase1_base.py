@@ -104,7 +104,7 @@ def test_nfd_input_becomes_nfc(tmp_path):
 @pytest.mark.parametrize(
     "title, slug",
     [("Zisterne – Überlaufsensor", "zisterne-ueberlaufsensor"), ("Größe: 5 m²", "groesse-5-m2"),
-     ("CON", "con-doc"), ("???", "dokument"), ("a/b\\c:d*e", "a-b-c-d-e")],
+     ("CON", "con-doc"), ("???", "document"), ("a/b\\c:d*e", "a-b-c-d-e")],
 )
 def test_slugify(title, slug):
     """Slugs sind klein, mit Bindestrichen und plattformfest."""

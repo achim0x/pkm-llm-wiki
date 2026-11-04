@@ -1,4 +1,4 @@
-"""Verarbeitungsstand ``.pkm/state.json`` und Vergleich nach Spezifikation 4.6 und 4.8.
+"""Processing state ``.pkm/state.json`` and comparison according to specification 4.6 and 4.8.
 
     Author: Achim0x
 """
@@ -41,16 +41,16 @@ FORMAT = 1
 
 
 def load_state(cfg: Config) -> dict[str, Any]:
-    """``state.json`` lesen.
+    """Read ``state.json``.
 
     Args:
-        cfg: Konfiguration.
+        cfg: Configuration.
 
     Returns:
-        Den Stand mit mindestens dem Schlüssel ``documents``; leer, wenn die Datei fehlt.
+        The state with at least the key ``documents``; empty if the file is missing.
 
     Raises:
-        PkmError: ``invalid_state``, wenn die Datei nicht lesbar ist.
+        PkmError: ``invalid_state`` if the file cannot be read.
     """
     data: dict[str, Any] = {"version": FORMAT, "documents": {}}
     p = cfg.state_path
@@ -58,35 +58,35 @@ def load_state(cfg: Config) -> dict[str, Any]:
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
-            raise PkmError("invalid_state", f"state.json nicht lesbar: {exc}") from exc
+            raise PkmError("invalid_state", f"state.json cannot be read: {exc}") from exc
         data.setdefault("documents", {})
     return data
 
 
 def state_key(doc: Doc) -> str | None:
-    """Schlüssel eines Dokuments in ``state.json``.
+    """Key of a document in ``state.json``.
 
     Args:
-        doc: Dokument.
+        doc: Document.
 
     Returns:
-        Die ID bei Markdown, ``sha:<hash>`` bei Anhängen, ``None`` ohne ID.
+        The ID for Markdown, ``sha:<hash>`` for attachments, ``None`` without ID.
     """
     return f"sha:{doc.bin_hash}" if doc.kind == "bin" else doc.id
 
 
 def section_changes(old: dict[str, str], new: dict[str, str]) -> list[dict[str, str]]:
-    """Abschnittsvergleich nach 4.8: ``added``, ``removed``, ``changed``, ``renamed``.
+    """Section comparison according to 4.8: ``added``, ``removed``, ``changed``, ``renamed``.
 
-    Ein entfallener und ein neuer Inhalt mit gleichem Hash gelten als ``renamed``. Das erkennt
-    auch Verschiebungen der Duplikat-Nummerierung (``Notizen#2`` → ``Notizen``).
+    A removed and an added content with the same hash count as ``renamed``. This also detects
+    shifts of the duplicate numbering (``Notes#2`` → ``Notes``).
 
     Args:
-        old: Abschnitts-Hashes der verarbeiteten Version.
-        new: Abschnitts-Hashes der aktuellen Version.
+        old: Section hashes of the processed version.
+        new: Section hashes of the current version.
 
     Returns:
-        Änderungen je Abschnitt mit ``key``, ``change`` und bei ``renamed`` ``from``.
+        Changes per section with ``key``, ``change`` and, for ``renamed``, ``from``.
     """
     same = {k for k in new if old.get(k) == new[k]}
     new_open = [k for k in new if k not in same]
@@ -107,22 +107,22 @@ def section_changes(old: dict[str, str], new: dict[str, str]) -> list[dict[str, 
         else:
             changes.append({"key": n, "change": "added"})
     for o in old_open:
-        # Bereits als changed gemeldete Schlüssel nicht doppelt als removed melden.
+        # Do not report keys already reported as changed again as removed.
         if o not in consumed and (o not in new or o in renamed):
             changes.append({"key": o, "change": "removed"})
     return changes
 
 
 def classify(doc: Doc, entry: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Verarbeitungsstand eines Dokuments bestimmen.
+    """Determine the processing state of a document.
 
     Args:
-        doc: Aktuelles Dokument.
-        entry: Eintrag aus ``state.json`` oder ``None``.
+        doc: Current document.
+        entry: Entry from ``state.json`` or ``None``.
 
     Returns:
-        ``None``, wenn der aktuelle Stand verarbeitet ist; sonst ein Wörterbuch mit
-        ``category`` (``new``, ``changed``, ``meta_changed`` oder ``invalid``) und Details.
+        ``None`` if the current state is processed; otherwise a dictionary with
+        ``category`` (``new``, ``changed``, ``meta_changed`` or ``invalid``) and details.
     """
     result: dict[str, Any] | None
     if doc.kind == "bin":

@@ -359,9 +359,9 @@ def test_index(svc, cfg):
     res = build_index(svc)
     text = (cfg.root / "wiki/index.md").read_text(encoding="utf-8")
     assert res["pages"] == 3 and res["changed"]
-    assert "## Themen\n\n- [[wiki/topics/regenwasser-ertrag]] – Ertrag in L/mm. _(2 Quellen, 2026-11-02)_" in text
-    assert "## Entitäten\n\n- [[wiki/entities/tank-1]] – Der Tank. _(0 Quellen)_" in text
-    assert "## Zusammenfassungen\n\n- [[wiki/summaries/x]] – _(keine Kurzfassung)_" in text
+    assert "## Topics\n\n- [[wiki/topics/regenwasser-ertrag]] – Ertrag in L/mm. _(2 sources, 2026-11-02)_" in text
+    assert "## Entities\n\n- [[wiki/entities/tank-1]] – Der Tank. _(0 sources)_" in text
+    assert "## Summaries\n\n- [[wiki/summaries/x]] – _(no summary)_" in text
     assert build_index(svc)["changed"] is False
 
 
@@ -371,14 +371,14 @@ def test_status(svc, m, cfg, created):
     write(cfg, "documents/n (conflicted copy).md", "x\n")
     build_status(svc)
     text = (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
-    assert f"## Noch nicht verarbeitet (2)\n- [[{created['path'][:-3]}]] – neu (v1)" in text
-    assert "Konfliktkopie des Cloud-Speichers: documents/n (conflicted copy).md" in text
+    assert f"## Not yet processed (2)\n- [[{created['path'][:-3]}]] – new (v1)" in text
+    assert "Cloud storage conflict copy: documents/n (conflicted copy).md" in text
     m.mark([created["id"], "d-20261031-2340-abcd"])
     build_status(svc, ["Wohin mit dem Sensor-Dokument?"])
     text = (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
-    assert "## Noch nicht verarbeitet (0)" in text
-    assert f"- [[{created['path'][:-3]}]] → Vorschlag: documents/haus/" in text
-    assert "## Rückfragen (1)\n- Wohin mit dem Sensor-Dokument?" in text
+    assert "## Not yet processed (0)" in text
+    assert f"- [[{created['path'][:-3]}]] → proposal: documents/haus/" in text
+    assert "## Questions (1)\n- Wohin mit dem Sensor-Dokument?" in text
 
 
 def test_status_changed_line(svc, m, cfg, created):
@@ -386,7 +386,7 @@ def test_status_changed_line(svc, m, cfg, created):
     m.mark([created["id"]])
     svc.edit_document(target=created["path"], old="- x", new="- y", expected_hash=created["new_hash"])
     build_status(svc)
-    assert "– v1 → v2, geändert: „Offene Punkte“" in (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
+    assert '– v1 → v2, changed: "Offene Punkte"' in (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
 
 
 # commit-wiki *****************************************************************

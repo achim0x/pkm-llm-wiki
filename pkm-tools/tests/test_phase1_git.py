@@ -197,7 +197,7 @@ def test_problem_reports(cfg, isolated_env):
     init_vault(cfg)
     assert g.problem() is None
     isolated_env["gitconfig"].write_text("", encoding="utf-8", newline="\n")
-    assert "Identität" in g.problem()
+    assert "identity" in g.problem()
 
 
 def test_cli_without_pkm_root_uses_cwd(cfg, isolated_env, monkeypatch, capsys):

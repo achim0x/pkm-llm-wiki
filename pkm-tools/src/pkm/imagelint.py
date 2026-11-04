@@ -1,4 +1,4 @@
-"""Lint-Prüfungen für Bilder (Spezifikation 4.9, 8).
+"""Lint checks for images (specification 4.9, 8).
 
     Author: Achim0x
 """
@@ -48,70 +48,70 @@ IMG_QUOTE_RE = re.compile(r"^\[img:(?P<name>[a-z0-9-]+)\]$")
 
 
 def image_quote(quote: str | None) -> str | None:
-    """Bildname aus einem Bild-Zitat ``[img:<name>]``.
+    """Image name from an image quote ``[img:<name>]``.
 
     Args:
-        quote: Zitat eines Belegs.
+        quote: Quote of a citation.
 
     Returns:
-        Der Bildname oder ``None``, wenn das Zitat kein Bildverweis ist.
+        The image name or ``None`` if the quote is not an image reference.
     """
     m = IMG_QUOTE_RE.match((quote or "").strip())
     return m.group("name") if m else None
 
 
 def has_image(text: str | None, name: str) -> bool:
-    """Prüfen, ob ein Text ein Bild mit diesem Namen enthält.
+    """Check whether a text contains an image with this name.
 
     Args:
-        text: Abschnittstext der belegten Version.
-        name: Bildname.
+        text: Section text of the cited version.
+        name: Image name.
 
     Returns:
-        ``True``, wenn es das Bild gibt.
+        ``True`` if the image exists.
     """
     return any(r.name == name for r in images.find_images(text or ""))
 
 
 def _check_refs(add: Any, doc: Doc, limits: Any) -> None:
-    """Bilder eines Markdown-Dokuments prüfen.
+    """Check the images of a Markdown document.
 
-    Eingebettete Bilder: abweichende Data-URIs (``nonconforming_image`` mit Befundcodes, 4.9) und andere
-    Data-URIs (``unsupported_type``). Verlinkte Dateien: doppelte Namen, fehlender Alternativtext.
+    Embedded images: nonconforming data URIs (``nonconforming_image`` with problem codes, 4.9) and other
+    data URIs (``unsupported_type``). Linked files: duplicate names, missing alt text.
 
     Args:
         add: ``Report.add``.
-        doc: Dokument oder Wiki-Seite.
-        limits: Bildgrenzen.
+        doc: Document or wiki page.
+        limits: Image limits.
     """
     body = doc.body or ""
     refs = [r for r in images.find_images(body) if not r.inline]
     for name, n in Counter(r.name for r in refs if r.named).items():
         if n > 1:
-            add("image_duplicate_name", "warning", doc.rel, f"Bildname „{name}“ kommt {n}-mal vor.", image=name)
+            add("image_duplicate_name", "warning", doc.rel, f"Image name '{name}' occurs {n} times.", image=name)
     for ref in refs:
         if not ref.alt:
-            add("image_without_alt", "info", doc.rel, f"Bild „{ref.name}“ ohne Alternativtext.", image=ref.name)
+            add("image_without_alt", "info", doc.rel, f"Image \"{ref.name}\" without alt text.", image=ref.name)
     for issue in imagefix.image_issues(body, limits, wiki=doc.area == "wiki"):
         severe = {"svg_unsafe", "invalid_data"} & set(issue["problems"])
         add("nonconforming_image", "error" if severe else "warning", doc.rel,
-            f"Bild „{issue['ref']}“ (Zeile {issue['line']}) entspricht nicht 4.9: {', '.join(issue['problems'])}"
-            + (". Korrektur nach Bestätigung mit pkm fix-images bzw. fix_images." if issue["fixable"] else "."),
+            f"Image \"{issue['ref']}\" (line {issue['line']}) does not conform to 4.9: {', '.join(issue['problems'])}"
+            + (". Fix after confirmation with pkm fix-images or fix_images." if issue["fixable"] else "."),
             image=issue["ref"], problems=issue["problems"], fixable=issue["fixable"])
     for pos, mime in non_image_data_links(body):
         line = body.count("\n", 0, pos) + 1
         add("unsupported_type", "warning", doc.rel,
-            f"Data-URI vom Typ {mime} (Zeile {line}) wird weder dargestellt noch korrigiert.")
+            f"Data URI of type {mime} (line {line}) is neither displayed nor fixed.")
 
 
 def check_images(add: Any, svc: Service, docs: list[Doc], pages: list[Doc]) -> None:
-    """Alle Bildprüfungen aus 8 (``pkm lint``, Bilder).
+    """All image checks from 8 (``pkm lint``, images).
 
     Args:
         add: ``Report.add``.
-        svc: Dienst.
-        docs: Dateien aus ``documents/``.
-        pages: Wiki-Seiten.
+        svc: Service.
+        docs: Files from ``documents/``.
+        pages: Wiki pages.
     """
     for doc in [*docs, *pages]:
         if doc.kind == "md" and doc.parsed is not None and not doc.error:
@@ -119,12 +119,12 @@ def check_images(add: Any, svc: Service, docs: list[Doc], pages: list[Doc]) -> N
         elif doc.kind == "bin" and doc.rel.lower().endswith(".svg"):
             problems = images.svg_problems(svc.vault.path(doc.rel).read_text(encoding="utf-8", errors="replace"))
             if problems:
-                add("svg_unsafe", "error", doc.rel, f"SVG-Datei nicht bereinigt: {', '.join(problems)}.")
+                add("svg_unsafe", "error", doc.rel, f"SVG file not sanitized: {', '.join(problems)}.")
     try:
         entries = load_state(svc.cfg)["documents"]
     except PkmError:
         entries = {}
     for rel in AssetMap(svc, docs).orphans(known_assets(entries)):
-        add("orphaned_attachment", "info", rel, "Verwaister Anhang: kein Dokument verweist auf diese Bilddatei.")
+        add("orphaned_attachment", "info", rel, "Orphaned attachment: no document links to this image file.")
 
 # Main ************************************************************************

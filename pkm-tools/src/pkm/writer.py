@@ -1,8 +1,8 @@
-"""Schreibende Operationen (Spezifikation 5.4, 6, 7.2).
+"""Writing operations (specification 5.4, 6, 7.2).
 
-Ablauf jeder Änderung: Git prüfen → Ziel prüfen → Hash-Schutz → Stand von Hand ggf. als
-eigene Version committen → Änderung anwenden → Version +1, ``updated`` → atomar schreiben →
-Commit nur dieser Datei → bei Fehler Datei zurücksetzen.
+Flow of every change: check Git → check target → hash protection → commit a manual state as its
+own version if needed → apply the change → version +1, ``updated`` → write atomically →
+commit only this file → on errors reset the file.
 
     Author: Achim0x
 """
@@ -65,15 +65,15 @@ FILE_MODE_MASK = 0o777
 
 @dataclass
 class _UserVersion:
-    """Plan für das Committen eines von Hand geänderten Stands.
+    """Plan for committing a manually changed state.
 
     Attributes:
-        doc_id: Dokument-ID (ggf. neu vergeben).
-        version: Versionsnummer des Commits.
-        label: Zusatz im Betreff (``v<n>`` oder ``moved``).
-        note: Änderungsnotiz.
-        fields: Frontmatter-Felder, die vorher zu setzen sind.
-        extra_paths: Weitere Pfade im Commit (alter Pfad bei Verschiebung).
+        doc_id: Document ID (possibly newly assigned).
+        version: Version number of the commit.
+        label: Suffix in the subject (``v<n>`` or ``moved``).
+        note: Change note.
+        fields: Frontmatter fields to set beforehand.
+        extra_paths: Further paths in the commit (old path for a move).
     """
 
     doc_id: str
@@ -85,27 +85,27 @@ class _UserVersion:
 
 
 class Writer:
-    """Alle schreibenden Vorgänge auf Dokumenten (MCP-Tools und CLI)."""
+    """All writing operations on documents (MCP tools and CLI)."""
 
     def __init__(self, svc: Service) -> None:
-        """Writer anlegen.
+        """Create the writer.
 
         Args:
-            svc: Dienst mit Konfiguration, Vault und Git.
+            svc: Service with configuration, vault and Git.
         """
         self.svc = svc
         self.cfg = svc.cfg
         self.git = svc.git
         self.vault = svc.vault
 
-    # Grundlagen ***************************************************************
+    # Basics *******************************************************************
 
     @contextlib.contextmanager
     def lock(self) -> Iterator[None]:
-        """Schreibvorgänge von MCP und CLI über eine Sperrdatei serialisieren.
+        """Serialize write operations of MCP and CLI via a lock file.
 
         Yields:
-            Nichts; die Sperre gilt innerhalb des ``with``-Blocks.
+            Nothing; the lock holds within the ``with`` block.
         """
         if not self.cfg.git_dir.is_dir():
             yield
@@ -114,32 +114,32 @@ class Writer:
                 yield
 
     def now_stamp(self) -> str:
-        """Aktuelle Zeit für Datumsfelder: Ortszeit ohne Zeitzone (4.1).
+        """Current time for date fields: local time without time zone (4.1).
 
         Returns:
-            Zeitstempel, z. B. ``2026-11-02T19:05:00``.
+            Timestamp, e.g. ``2026-11-02T19:05:00``.
         """
         return stamp(self.svc.now())
 
     def check_size(self, text: str, what: str) -> None:
-        """Größengrenze ``PKM_MAX_KB`` prüfen.
+        """Check the size limit ``PKM_MAX_KB``.
 
         Args:
-            text: Zu prüfender Text.
-            what: Bezeichnung für die Fehlermeldung.
+            text: Text to check.
+            what: Label for the error message.
 
         Raises:
-            PkmError: ``too_large``, wenn der Text größer ist.
+            PkmError: ``too_large`` if the text is larger.
         """
         if len(text.encode("utf-8")) > self.cfg.max_bytes:
-            raise PkmError("too_large", f"{what} ist größer als {self.cfg.max_kb} KB (PKM_MAX_KB).")
+            raise PkmError("too_large", f"{what} is larger than {self.cfg.max_kb} KB (PKM_MAX_KB).")
 
     def write_atomic(self, rel: str, text: str) -> None:
-        """Datei atomar schreiben (temporäre Datei, dann umbenennen), Dateirechte erhalten.
+        """Write a file atomically (temporary file, then rename), keeping the file permissions.
 
         Args:
-            rel: Relativer Pfad.
-            text: Inhalt; wird in die Schreibform gebracht.
+            rel: Relative path.
+            text: Content; brought into write form.
         """
         p = self.vault.path(rel)
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -160,20 +160,20 @@ class Writer:
     def write_and_commit(
         self, rel: str, text: str, message: str, extra_paths: list[str] | None = None, as_user: bool = False
     ) -> str:
-        """Schreiben und committen; schlägt der Commit fehl, wird die Datei zurückgesetzt.
+        """Write and commit; if the commit fails, the file is reset.
 
         Args:
-            rel: Relativer Pfad.
-            text: Neuer Inhalt.
-            message: Commit-Nachricht.
-            extra_paths: Weitere Pfade im Commit (z. B. alter Pfad bei Verschiebung).
-            as_user: Mit der Git-Identität des Nutzers committen.
+            rel: Relative path.
+            text: New content.
+            message: Commit message.
+            extra_paths: Further paths in the commit (e.g. old path for a move).
+            as_user: Commit with the user's Git identity.
 
         Returns:
-            Hash des Commits.
+            Hash of the commit.
 
         Raises:
-            PkmError: ``commit_failed`` (die Datei ist dann wieder im alten Zustand).
+            PkmError: ``commit_failed`` (the file is then back in its old state).
         """
         p = self.vault.path(rel)
         old = p.read_bytes() if p.exists() else None
@@ -185,30 +185,30 @@ class Writer:
                 p.unlink(missing_ok=True)
             else:
                 p.write_bytes(old)
-            raise PkmError("commit_failed", f"Commit fehlgeschlagen, Datei zurückgesetzt. {exc.message}") from exc
+            raise PkmError("commit_failed", f"Commit failed, file reset. {exc.message}") from exc
         return sha
 
     def editable_doc(self, target: str) -> Doc:
-        """Ziel auflösen und prüfen, ob es geändert werden darf.
+        """Resolve a target and check whether it may be changed.
 
         Args:
-            target: Pfad, Wikilink oder ``id:``.
+            target: Path, wikilink or ``id:``.
 
         Returns:
-            Das geladene Dokument.
+            The loaded document.
 
         Raises:
-            PkmError: ``forbidden`` außerhalb von ``documents/`` und ``scratch/`` oder bei Nicht-Markdown,
-                ``invalid_encoding``/``invalid_frontmatter`` bei unlesbaren Dateien.
+            PkmError: ``forbidden`` outside ``documents/`` and ``scratch/`` or for non-Markdown,
+                ``invalid_encoding``/``invalid_frontmatter`` for unreadable files.
         """
         rel = self.svc.resolve(target)
         if not rel.startswith(("documents/", f"{SCRATCH}/")):
             raise PkmError(
-                "forbidden", "Nur Dateien unter documents/ und scratch/ sind änderbar; wiki/ ist aus Chats nur lesbar.",
+                "forbidden", "Only files below documents/ and scratch/ can be changed; wiki/ is read-only from chats.",
                 path=rel,
             )
         if not rel.lower().endswith(".md"):
-            raise PkmError("forbidden", "Nur Markdown-Dateien sind änderbar.", path=rel)
+            raise PkmError("forbidden", "Only Markdown files can be changed.", path=rel)
         doc = self.vault.load(rel)
         if doc.error:
             raise PkmError(doc.error, doc.error_message or doc.error, path=rel)
@@ -216,33 +216,33 @@ class Writer:
 
     @staticmethod
     def check_hash(doc: Doc, expected_hash: str | None) -> None:
-        """Hash-Schutz: ``expected_hash`` muss zum aktuellen Datei-Hash passen.
+        """Hash protection: ``expected_hash`` must match the current file hash.
 
         Args:
-            doc: Aktuelles Dokument.
-            expected_hash: Hash aus ``read`` oder der letzten Schreib-Rückgabe.
+            doc: Current document.
+            expected_hash: Hash from ``read`` or the last write return value.
 
         Raises:
-            PkmError: ``conflict`` mit ``current_hash``, wenn er fehlt oder abweicht.
+            PkmError: ``conflict`` with ``current_hash`` if it is missing or differs.
         """
         current = doc.hashes.file_hash if doc.hashes else ""
         if not expected_hash or expected_hash.strip().lower() != current:
             raise PkmError(
                 "conflict",
-                "Die Datei wurde seit dem Lesen geändert (oder expected_hash fehlt). Bitte neu lesen.",
+                "The file was changed since it was read (or expected_hash is missing). Please read it again.",
                 path=doc.rel, current_hash=current, version=doc.version,
             )
 
-    # Stand von Hand als Version (5.4) *****************************************
+    # Manual state as a version (5.4) ******************************************
 
     def commit_user_state(self, doc: Doc) -> Doc:
-        """Weicht die Datei vom letzten Commit ab, diesen Stand vorher als eigene Version committen.
+        """If the file differs from the last commit, commit this state as its own version first.
 
         Args:
-            doc: Aktuelles Dokument.
+            doc: Current document.
 
         Returns:
-            Das (ggf. neu geladene) Dokument nach dem Commit.
+            The (possibly reloaded) document after the commit.
         """
         if not doc.id or self.git.is_dirty(doc.rel):
             plan = self._plan_user_version(doc)
@@ -253,22 +253,22 @@ class Writer:
         return doc
 
     def _plan_user_version(self, doc: Doc) -> _UserVersion:
-        """Version, Betreff und Felder für einen Stand von Hand bestimmen.
+        """Determine version, subject and fields for a manual state.
 
         Args:
-            doc: Aktuelles Dokument.
+            doc: Current document.
 
         Returns:
-            Der Plan für den Commit.
+            The plan for the commit.
         """
         if not doc.id:
             doc_id = new_id(self.svc.now(), exists=lambda i: i in self.svc.known_ids())
-            plan = _UserVersion(doc_id, 1, "v1", "Erstfassung von Hand, ID vergeben", {"id": doc_id, "version": 1})
+            plan = _UserVersion(doc_id, 1, "v1", "first version by hand, ID assigned", {"id": doc_id, "version": 1})
         else:
             prev = next((c for c in reversed(self.svc.versions(doc.id)) if c.path), None)
             if prev is None:
                 version = doc.version or 1
-                plan = _UserVersion(doc.id, version, f"v{version}", "Erstfassung von Hand")
+                plan = _UserVersion(doc.id, version, f"v{version}", "first version by hand")
             else:
                 plan = self._plan_from_previous(doc, prev)
             if doc.version != plan.version:
@@ -276,16 +276,16 @@ class Writer:
         return plan
 
     def _plan_from_previous(self, doc: Doc, prev: Commit) -> _UserVersion:
-        """Plan für ein schon versioniertes Dokument (Änderung und/oder Verschiebung).
+        """Plan for an already versioned document (change and/or move).
 
-        Reines Verschieben ohne inhaltliche Änderung erhöht die Version nicht (16 Nr. 17).
+        A pure move without a change of content does not raise the version (16 no. 17).
 
         Args:
-            doc: Aktuelles Dokument mit ID.
-            prev: Letzter Commit dieses Dokuments.
+            doc: Current document with ID.
+            prev: Last commit of this document.
 
         Returns:
-            Der Plan für den Commit.
+            The plan for the commit.
         """
         prev_path = prev.path or ""
         prev_doc = load_text_doc(prev_path, self.git.show_file(prev.sha, prev_path))
@@ -297,37 +297,37 @@ class Writer:
         )
         assert doc.id is not None
         if moved and same:
-            plan = _UserVersion(doc.id, prev.version or 1, "moved", f"verschoben: {prev_path} → {doc.rel}")
+            plan = _UserVersion(doc.id, prev.version or 1, "moved", f"moved: {prev_path} → {doc.rel}")
         else:
             version = (prev.version or 0) + 1
-            note = "Änderung von Hand" + (f", verschoben von {prev_path}" if moved else "")
+            note = "change by hand" + (f", moved from {prev_path}" if moved else "")
             plan = _UserVersion(doc.id, version, f"v{version}", note, {"date_updated": self.now_stamp()})
         if moved and not self.vault.exists(prev_path):
             plan.extra_paths.append(prev_path)
         return plan
 
-    # Abschluss ****************************************************************
+    # Finishing ****************************************************************
 
     def finish(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, doc: Doc, new_text: str, note: str, source: str = "chat", extra_paths: list[str] | None = None,
         trailer: str | None = None,
     ) -> dict[str, Any]:
-        """Neue Fassung als neue Version schreiben und committen.
+        """Write the new version as a new version and commit it.
 
         Args:
-            doc: Dokument vor der Änderung.
-            new_text: Neuer Gesamttext (Serverfelder werden hier gesetzt).
-            note: Änderungsnotiz.
-            source: ``chat``, ``user`` oder ``agent``.
-            extra_paths: Weitere Dateien im selben Commit (z. B. neue Bilddateien).
-            trailer: Zusätzliche Commit-Zeile, z. B. ``PKM-Fix: images``.
+            doc: Document before the change.
+            new_text: New full text (server fields are set here).
+            note: Change note.
+            source: ``chat``, ``user`` or ``agent``.
+            extra_paths: Further files in the same commit (e.g. new image files).
+            trailer: Additional commit line, e.g. ``PKM-Fix: images``.
 
         Returns:
-            ``{id, path, status, version, new_hash, commit, diff}``; ``status`` ist ``changed``
-            oder ``unchanged`` (dann ohne Commit).
+            ``{id, path, status, version, new_hash, commit, diff}``; ``status`` is ``changed``
+            or ``unchanged`` (then without commit).
 
         Raises:
-            PkmError: ``too_large`` oder Fehler des Ergebnisses (z. B. ungültiges Frontmatter).
+            PkmError: ``too_large`` or errors of the result (e.g. invalid frontmatter).
         """
         old_text = doc.text or ""
         new_text = normalize_text(new_text)
@@ -339,10 +339,10 @@ class Writer:
         else:
             version = (doc.version or 0) + 1
             new_text = set_fields_linewise(new_text, {"version": version, "date_updated": self.now_stamp()})
-            self.check_size(new_text, "Das Dokument")
+            self.check_size(new_text, "The document")
             new_doc = load_text_doc(doc.rel, new_text.encode("utf-8"))
             if new_doc.error:
-                raise PkmError(new_doc.error, new_doc.error_message or "Ergebnis ungültig.")
+                raise PkmError(new_doc.error, new_doc.error_message or "Result invalid.")
             msg = build_message(new_doc.title, f"v{version}", note, doc.id or "", version, source)
             msg = msg.rstrip("\n") + f"\n{trailer}\n" if trailer else msg
             sha = self.write_and_commit(doc.rel, new_text, msg, extra_paths)
@@ -357,20 +357,20 @@ class Writer:
         self, target: str, expected_hash: str | None, transform: Callable[[Doc], str], note: str, source: str = "chat",
         images: list[dict[str, Any]] | None = None, fix: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Gemeinsamer Ablauf aller Änderungs-Tools.
+        """Common flow of all change tools.
 
         Args:
-            target: Ziel.
-            expected_hash: Hash aus ``read``.
-            transform: Erzeugt aus dem Dokument den neuen Gesamttext.
-            note: Änderungsnotiz.
-            source: ``chat`` oder ``user``.
-            images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` im Text (4.9).
-            fix: ``fix_images`` und ``image_alt`` für Data-URIs im übergebenen Text (4.9, 7.2).
+            target: Target.
+            expected_hash: Hash from ``read``.
+            transform: Creates the new full text from the document.
+            note: Change note.
+            source: ``chat`` or ``user``.
+            images: New images for placeholders ``{{image:<name>}}`` in the text (4.9).
+            fix: ``fix_images`` and ``image_alt`` for data URIs in the given text (4.9, 7.2).
 
         Returns:
-            Rückgabe von ``finish``, bei neuen Bildern mit ``images``, bei abweichenden Bildern im Bestand
-            mit ``image_warnings``.
+            Return value of ``finish``, with ``images`` for new images, with ``image_warnings`` for
+            nonconforming images in the existing text.
         """
         with self.lock():
             doc = self.editable_doc(target)
@@ -395,19 +395,19 @@ class Writer:
         return result
 
     def finish_scratch(self, doc: Doc, new_text: str) -> dict[str, Any]:
-        """Neue Fassung einer Datei in ``scratch/`` schreiben: ohne Version und ohne Commit.
+        """Write a new version of a file in ``scratch/``: without version and without commit.
 
-        ``date_updated`` wird nur gesetzt, wenn die Datei ein Frontmatter hat.
+        ``date_updated`` is only set if the file has a frontmatter.
 
         Args:
-            doc: Datei vor der Änderung.
-            new_text: Neuer Gesamttext.
+            doc: File before the change.
+            new_text: New full text.
 
         Returns:
-            ``{path, status, new_hash, diff}``; ``status`` ist ``changed`` oder ``unchanged``.
+            ``{path, status, new_hash, diff}``; ``status`` is ``changed`` or ``unchanged``.
 
         Raises:
-            PkmError: ``too_large`` oder Fehler des Ergebnisses.
+            PkmError: ``too_large`` or errors of the result.
         """
         old_text = doc.text or ""
         new_text = normalize_text(new_text)
@@ -419,13 +419,13 @@ class Writer:
                 new_text = set_fields_linewise(new_text, {"date_updated": self.now_stamp()})
                 new_doc = load_text_doc(doc.rel, new_text.encode("utf-8"))
             if new_doc.error:
-                raise PkmError(new_doc.error, new_doc.error_message or "Ergebnis ungültig.")
-            self.check_size(new_text, "Die Datei")
+                raise PkmError(new_doc.error, new_doc.error_message or "Result invalid.")
+            self.check_size(new_text, "The file")
             self.write_atomic(doc.rel, new_text)
             result = {
                 "path": doc.rel, "status": "changed",
                 "new_hash": new_doc.hashes.file_hash if new_doc.hashes else None,
-                "diff": unified_diff(old_text, new_text, "vorher", "nachher", DIFF_LINES),
+                "diff": unified_diff(old_text, new_text, "before", "after", DIFF_LINES),
             }
         return result
 
@@ -449,37 +449,37 @@ class Writer:
         fix_images: bool = False,
         image_alt: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        """Tool ``create_document``: neues Dokument in ``documents/_inbox/`` (Version 1) oder Notiz in ``scratch/``.
+        """Tool ``create_document``: new document in ``documents/_inbox/`` (version 1) or note in ``scratch/``.
 
         Args:
-            title: Titel; daraus wird auch der Dateiname gebildet.
-            content: Inhalt ohne Frontmatter (ein mitgeliefertes wird entfernt).
-            tags: Schlagwörter (Kleinbuchstaben, Bindestrich).
-            short_citation: Kurzbezeichnung, z. B. ``EN 61000-4-6:2014``.
-            date_document: Ausgabedatum wie gedruckt.
-            context: Anlass, z. B. Chat-Titel.
-            related: Verwandte Dokumente (Pfad, Wikilink oder ID).
-            kind: ``note`` (Standard), ``standard``, ``regulation`` oder ``correction``.
-            toolchain: Wird zu ``toolchain_markdown``; ohne Angabe ``pkm-mcp``.
-            note: Änderungsnotiz für den Commit.
-            area: ``documents`` (Standard) oder ``scratch``.
-            folder: Nur bei ``scratch``: Unterordner in ``scratch/``.
-            images: Bilder zu Platzhaltern ``{{image:<name>}}`` im Inhalt (4.9).
-            fix_images: Abweichende Data-URIs im Text nach Bestätigung korrigieren (4.9).
-            image_alt: Alternativtexte je Bildname für ``missing_alt``.
+            title: Title; the file name is derived from it as well.
+            content: Content without frontmatter (a supplied one is removed).
+            tags: Tags (lower case, hyphens).
+            short_citation: Short citation, e.g. ``EN 61000-4-6:2014``.
+            date_document: Issue date as printed.
+            context: Occasion, e.g. chat title.
+            related: Related documents (path, wikilink or ID).
+            kind: ``note`` (default), ``standard``, ``regulation`` or ``correction``.
+            toolchain: Becomes ``toolchain_markdown``; ``pkm-mcp`` if omitted.
+            note: Change note for the commit.
+            area: ``documents`` (default) or ``scratch``.
+            folder: Only for ``scratch``: subfolder in ``scratch/``.
+            images: Images for placeholders ``{{image:<name>}}`` in the content (4.9).
+            fix_images: Fix nonconforming data URIs in the text after confirmation (4.9).
+            image_alt: Alt texts per image name for ``missing_alt``.
 
         Returns:
-            ``{id, path, status: created, version: 1, new_hash, commit, diff}``; bei ``scratch``
+            ``{id, path, status: created, version: 1, new_hash, commit, diff}``; for ``scratch``
             ``{path, status: created, new_hash, diff}``.
 
         Raises:
-            PkmError: ``invalid_argument``, ``too_large``, ``not_found`` (``related``) oder
+            PkmError: ``invalid_argument``, ``too_large``, ``not_found`` (``related``) or
                 ``git_unavailable``.
         """
         title = " ".join((title or "").split())
         _check_create_args(title, area, folder, kind)
         body = strip_frontmatter(normalize_fragment(content or ""))
-        self.check_size(body, "Der Inhalt")
+        self.check_size(body, "The content")
         values = {
             "title": title,
             "short_citation": " ".join(short_citation.split()) if short_citation else None,
@@ -494,21 +494,21 @@ class Writer:
             values["toolchain_markdown"] = " ".join(toolchain.split()) if toolchain else DEFAULT_TOOLCHAIN
         fix = {"fix_images": fix_images, "image_alt": image_alt}
         return (self._write_scratch(body, _scratch_folder(folder), values, (images, fix)) if area == SCRATCH
-                else self._write_new(body, note or "neu angelegt", values, (images, fix)))
+                else self._write_new(body, note or "created", values, (images, fix)))
 
     def _write_new(  # pylint: disable=too-many-locals
         self, body: str, note: str, values: dict[str, Any], images: tuple[Any, Any] = (None, None)
     ) -> dict[str, Any]:
-        """Neues Dokument mit ``date_markdown``, ID und Version 1 schreiben und committen.
+        """Write a new document with ``date_markdown``, ID and version 1 and commit it.
 
         Args:
-            body: Inhalt ohne Frontmatter.
-            note: Änderungsnotiz.
-            values: Frontmatter-Felder aus dem Aufruf (``title`` … ``kind``).
-            images: Neue Bilder (4.9) und ``fix``-Angaben für Data-URIs im Text.
+            body: Content without frontmatter.
+            note: Change note.
+            values: Frontmatter fields from the call (``title`` … ``kind``).
+            images: New images (4.9) and ``fix`` settings for data URIs in the text.
 
         Returns:
-            Rückgabe von ``_created_result``.
+            Return value of ``_created_result``.
         """
         title = values["title"]
         with self.lock():
@@ -533,13 +533,13 @@ class Writer:
         return result
 
     def _created_result(self, doc_id: str, rel: str, text: str, sha: str) -> dict[str, Any]:
-        """Rückgabe von ``create_document`` bilden.
+        """Build the return value of ``create_document``.
 
         Args:
-            doc_id: Neue ID.
-            rel: Pfad der neuen Datei.
-            text: Geschriebener Text.
-            sha: Commit-Hash.
+            doc_id: New ID.
+            rel: Path of the new file.
+            text: Written text.
+            sha: Commit hash.
 
         Returns:
             ``{id, path, status: created, version: 1, new_hash, commit, diff}``.
@@ -554,13 +554,13 @@ class Writer:
     def _write_scratch(
         self, body: str, folder: str, values: dict[str, Any], images: tuple[Any, Any] = (None, None)
     ) -> dict[str, Any]:
-        """Notiz in ``scratch/`` anlegen: kleines Frontmatter, ohne ID, Version und Commit.
+        """Create a note in ``scratch/``: small frontmatter, without ID, version and commit.
 
         Args:
-            body: Inhalt ohne Frontmatter.
-            folder: Geprüfter Unterordner (relativ zu ``scratch/``, ggf. leer).
-            values: Frontmatter-Felder aus dem Aufruf (leere Werte entfallen).
-            images: Neue Bilder (in ``scratch/`` immer eingebettet) und ``fix``-Angaben.
+            body: Content without frontmatter.
+            folder: Checked subfolder (relative to ``scratch/``, possibly empty).
+            values: Frontmatter fields from the call (empty values are dropped).
+            images: New images (always embedded in ``scratch/``) and ``fix`` settings.
 
         Returns:
             ``{path, status: created, new_hash, diff}``.
@@ -582,17 +582,17 @@ class Writer:
         return result
 
     def free_name(self, base_dir: str, stem: str, tail: str = "", ext: str = ".md") -> str:
-        """Freien Dateinamen ``<stem><tail>.md`` in einem Ordner finden (nie überschreiben).
+        """Find a free file name ``<stem><tail>.md`` in a folder (never overwrite).
 
         Args:
-            base_dir: Ordner relativ zum Vault.
-            stem: Gewünschter Dateiname ohne Endung.
-            tail: Fester Schluss des Namens (z. B. ``_2026-11-03``); das Suffix steht davor.
-            ext: Dateiendung.
+            base_dir: Folder relative to the vault.
+            stem: Desired file name without extension.
+            tail: Fixed end of the name (e.g. ``_2026-11-03``); the suffix goes before it.
+            ext: File extension.
 
         Returns:
-            Relativer Pfad; bei Namensgleichheit mit Suffix ``-2``, ``-3`` … vor ``tail``. Der Name hat
-            höchstens ``MAX_NAME`` Zeichen; gekürzt wird nur ``stem``, nie Suffix, ``tail`` oder Endung.
+            Relative path; for equal names with suffix ``-2``, ``-3`` … before ``tail``. The name has
+            at most ``MAX_NAME`` characters; only ``stem`` is shortened, never the suffix, ``tail`` or extension.
         """
         area = base_dir.split("/", 1)[0]
         existing = {r.casefold() for r in self.vault.iter_files((area,))}
@@ -604,26 +604,26 @@ class Writer:
         return rel
 
     def _link_target(self, target: str) -> str:
-        """Ziel für ``related`` als Wikilink-Pfad.
+        """Target for ``related`` as a wikilink path.
 
         Args:
-            target: Pfad, Wikilink oder ID.
+            target: Path, wikilink or ID.
 
         Returns:
-            Pfad ohne ``.md``.
+            Path without ``.md``.
         """
         rel = self.svc.resolve(target)
         return rel[:-3] if rel.lower().endswith(".md") else rel
 
     def _free_inbox_name(self, date: str, title: str) -> str:
-        """Freien Dateinamen ``<slug>_YYYY-MM-DD.md`` im Eingang finden (nie überschreiben).
+        """Find a free file name ``<slug>_YYYY-MM-DD.md`` in the inbox (never overwrite).
 
         Args:
-            date: Datum ``YYYY-MM-DD``.
-            title: Titel.
+            date: Date ``YYYY-MM-DD``.
+            title: Title.
 
         Returns:
-            Relativer Pfad; bei Namensgleichheit mit Suffix vor dem Datum (``<slug>-2_YYYY-MM-DD.md``).
+            Relative path; for equal names with a suffix before the date (``<slug>-2_YYYY-MM-DD.md``).
         """
         return self.free_name(INBOX, slugify(title, MAX_NAME), f"_{date}")
 
@@ -632,28 +632,28 @@ class Writer:
         confirm_shortening: bool = False, images: list[dict[str, Any]] | None = None, fix_images: bool = False,
         image_alt: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        """Tool ``rewrite_document``: gesamten Inhalt unterhalb des Frontmatters ersetzen.
+        """Tool ``rewrite_document``: replace the entire content below the frontmatter.
 
         Args:
-            target: Ziel.
-            content: Neuer Inhalt ohne Frontmatter.
-            expected_hash: Hash aus ``read``.
-            note: Änderungsnotiz.
-            confirm_shortening: Deutliche Kürzung, fehlende Abschnitte bzw. entfernte Bilder bestätigen.
-            images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` (4.9).
-            fix_images: Abweichende Data-URIs im Text nach Bestätigung korrigieren (4.9).
-            image_alt: Alternativtexte je Bildname für ``missing_alt``.
+            target: Target.
+            content: New content without frontmatter.
+            expected_hash: Hash from ``read``.
+            note: Change note.
+            confirm_shortening: Confirm a clear shortening, missing sections or removed images.
+            images: New images for placeholders ``{{image:<name>}}`` (4.9).
+            fix_images: Fix nonconforming data URIs in the text after confirmation (4.9).
+            image_alt: Alt texts per image name for ``missing_alt``.
 
         Returns:
-            Rückgabe von ``finish``.
+            Return value of ``finish``.
 
         Raises:
-            PkmError: ``large_shortening`` mit ``missing_sections`` bzw. ``removed_images``, wenn der Inhalt
-                kürzer als 60 % ist, Abschnitte oder Bilder fehlen und nicht bestätigt wurde;
-                ``unknown_image`` bei unbekannten Platzhaltern.
+            PkmError: ``large_shortening`` with ``missing_sections`` or ``removed_images`` if the content
+                is shorter than 60 %, sections or images are missing and it was not confirmed;
+                ``unknown_image`` for unknown placeholders.
         """
         new_body = normalize_text(strip_frontmatter(normalize_fragment(content or "")))
-        self.check_size(new_body, "Der Inhalt")
+        self.check_size(new_body, "The content")
 
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
@@ -662,7 +662,7 @@ class Writer:
             fm = doc.parsed.frontmatter_text
             return fm + ("\n" if fm else "") + body.lstrip("\n")
 
-        return self.change(target, expected_hash, transform, note or "neu gefasst", images=images,
+        return self.change(target, expected_hash, transform, note or "rewritten", images=images,
                            fix={"fix_images": fix_images, "image_alt": image_alt})
 
     def append_to_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -672,32 +672,32 @@ class Writer:
         """Tool ``append_to_document``.
 
         Args:
-            target: Ziel.
-            text: Einzufügender Markdown-Text.
-            expected_hash: Hash aus ``read``.
-            section: Abschnittsschlüssel (auch ``_preamble`` oder mit Suffix); fehlt der Abschnitt,
-                wird er als Ebene 2 angelegt; ohne Angabe wird am Dateiende angehängt.
-            note: Änderungsnotiz.
-            images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` (4.9).
-            fix_images: Abweichende Data-URIs im Text nach Bestätigung korrigieren (4.9).
-            image_alt: Alternativtexte je Bildname für ``missing_alt``.
+            target: Target.
+            text: Markdown text to insert.
+            expected_hash: Hash from ``read``.
+            section: Section key (also ``_preamble`` or with suffix); a missing section is created
+                as level 2; without it the text is appended at the end of the file.
+            note: Change note.
+            images: New images for placeholders ``{{image:<name>}}`` (4.9).
+            fix_images: Fix nonconforming data URIs in the text after confirmation (4.9).
+            image_alt: Alt texts per image name for ``missing_alt``.
 
         Returns:
-            Rückgabe von ``finish``.
+            Return value of ``finish``.
 
         Raises:
-            PkmError: ``invalid_argument`` bei leerem Text, ``ambiguous`` bei doppelten Überschriften.
+            PkmError: ``invalid_argument`` for an empty text, ``ambiguous`` for duplicate headings.
         """
         block = normalize_fragment(text or "").strip("\n").split("\n")
         if not "".join(block).strip():
-            raise PkmError("invalid_argument", "text ist leer.")
-        self.check_size("\n".join(block), "Der Text")
+            raise PkmError("invalid_argument", "text is empty.")
+        self.check_size("\n".join(block), "The text")
 
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
             return doc.parsed.frontmatter_text + "\n".join(append_lines(doc.parsed, block, section)) + "\n"
 
-        default = f"ergänzt: {section}" if section else "ergänzt am Ende"
+        default = f"appended: {section}" if section else "appended at the end"
         return self.change(target, expected_hash, transform, note or default, images=images,
                            fix={"fix_images": fix_images, "image_alt": image_alt})
 
@@ -706,31 +706,31 @@ class Writer:
         images: list[dict[str, Any]] | None = None, confirm_shortening: bool = False, fix_images: bool = False,
         image_alt: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        """Tool ``edit_document``: Textstelle ersetzen.
+        """Tool ``edit_document``: replace a passage.
 
         Args:
-            target: Ziel.
-            old: Textstelle, die genau einmal im Body vorkommen muss.
-            new: Ersatz (darf leer sein).
-            expected_hash: Hash aus ``read``.
-            note: Änderungsnotiz.
-            images: Neue Bilder zu Platzhaltern ``{{image:<name>}}`` (4.9).
-            confirm_shortening: Entfernen von Bildern bestätigen.
-            fix_images: Abweichende Data-URIs im Text nach Bestätigung korrigieren (4.9).
-            image_alt: Alternativtexte je Bildname für ``missing_alt``.
+            target: Target.
+            old: Passage that must occur exactly once in the body.
+            new: Replacement (may be empty).
+            expected_hash: Hash from ``read``.
+            note: Change note.
+            images: New images for placeholders ``{{image:<name>}}`` (4.9).
+            confirm_shortening: Confirm the removal of images.
+            fix_images: Fix nonconforming data URIs in the text after confirmation (4.9).
+            image_alt: Alt texts per image name for ``missing_alt``.
 
         Returns:
-            Rückgabe von ``finish``.
+            Return value of ``finish``.
 
         Raises:
-            PkmError: ``invalid_argument`` bei leerem ``old``, ``not_found`` oder ``ambiguous``,
-                ``large_shortening`` bei entfernten Bildern ohne Bestätigung.
+            PkmError: ``invalid_argument`` for an empty ``old``, ``not_found`` or ``ambiguous``,
+                ``large_shortening`` for removed images without confirmation.
         """
         old_n = normalize_fragment(old or "")
         new_n = normalize_fragment(new or "")
         if not old_n:
-            raise PkmError("invalid_argument", "old ist leer.")
-        self.check_size(new_n, "Der Text")
+            raise PkmError("invalid_argument", "old is empty.")
+        self.check_size(new_n, "The text")
 
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
@@ -738,33 +738,33 @@ class Writer:
             new_body = docimages.edit_view(body, old_n, new_n)
             removed = docimages.removed_images(body, new_body)
             if removed and not confirm_shortening:
-                raise PkmError("large_shortening", "Die Änderung entfernt Bilder. Bitte vom Nutzer bestätigen lassen "
-                               "und mit confirm_shortening=true erneut aufrufen.", removed_images=removed, path=doc.rel)
+                raise PkmError("large_shortening", "The change removes images. Please have the user confirm it "
+                               "and call again with confirm_shortening=true.", removed_images=removed, path=doc.rel)
             return doc.parsed.frontmatter_text + new_body
 
-        return self.change(target, expected_hash, transform, note or "Textstelle geändert", images=images,
+        return self.change(target, expected_hash, transform, note or "passage changed", images=images,
                            fix={"fix_images": fix_images, "image_alt": image_alt})
 
     def add_image(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, target: str, expected_hash: str | None, image: dict[str, Any], section: str | None = None,
         caption: str | None = None, note: str | None = None,
     ) -> dict[str, Any]:
-        """Tool ``add_image``: ein Bild am Ende eines Abschnitts bzw. des Dokuments einfügen (4.9).
+        """Tool ``add_image``: insert an image at the end of a section or of the document (4.9).
 
         Args:
-            target: Ziel.
-            expected_hash: Hash aus ``read``.
-            image: Bildangabe wie bei ``images``.
-            section: Abschnitt, an dessen Ende eingefügt wird; ohne Angabe am Dateiende.
-            caption: Bildunterschrift (eine Zeile unter dem Bild).
-            note: Änderungsnotiz.
+            target: Target.
+            expected_hash: Hash from ``read``.
+            image: Image specification as for ``images``.
+            section: Section at whose end the image is inserted; at the end of the file if omitted.
+            caption: Caption (one line below the image).
+            note: Change note.
 
         Returns:
-            Wie ``append_to_document``, mit ``images``.
+            Like ``append_to_document``, with ``images``.
         """
         name = str((image or {}).get("name") or "")
         block = f"{{{{image:{name}}}}}" + (f"\n{' '.join(caption.split())}" if caption and caption.strip() else "")
-        return self.append_to_document(target, block, expected_hash, section, note or f"Bild ergänzt: {name}",
+        return self.append_to_document(target, block, expected_hash, section, note or f"image added: {name}",
                                        images=[image])
 
     def update_frontmatter(  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -779,132 +779,132 @@ class Writer:
         """Tool ``update_frontmatter``.
 
         Args:
-            target: Ziel.
-            expected_hash: Hash aus ``read``.
-            set: Felder setzen oder überschreiben (Parametername laut Spezifikation 7.2).
-            add: An Listenfelder anhängen, ohne Duplikate.
-            remove: Felder entfernen.
-            note: Änderungsnotiz.
+            target: Target.
+            expected_hash: Hash from ``read``.
+            set: Set or overwrite fields (parameter name per specification 7.2).
+            add: Append to list fields, without duplicates.
+            remove: Remove fields.
+            note: Change note.
 
         Returns:
-            Rückgabe von ``finish``.
+            Return value of ``finish``.
 
         Raises:
-            PkmError: ``invalid_argument`` ohne Änderung, ``protected_field`` bei geschützten Feldern.
+            PkmError: ``invalid_argument`` without a change, ``protected_field`` for protected fields.
         """
         set_fields = dict(set or {})
         add_fields = dict(add or {})
         remove_fields = list(remove or [])
         touched = [*set_fields, *add_fields, *remove_fields]
         if not touched:
-            raise PkmError("invalid_argument", "Keine Änderung angegeben (set, add oder remove).")
+            raise PkmError("invalid_argument", "No change given (set, add or remove).")
         bad = [k for k in touched if k in PROTECTED]
         if bad:
-            raise PkmError("protected_field", f"Geschützte Felder: {', '.join(bad)}", fields=bad)
+            raise PkmError("protected_field", f"Protected fields: {', '.join(bad)}", fields=bad)
 
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
             meta = order_meta(_updated_meta(doc.meta, set_fields, add_fields, remove_fields))
             return dump_meta(meta) + doc.parsed.body
 
-        default = f"Metadaten: {', '.join(dict.fromkeys(touched))}"
+        default = f"metadata: {', '.join(dict.fromkeys(touched))}"
         return self.change(target, expected_hash, transform, note or default)
 
     def restore_document(
         self, target: str, version: int, expected_hash: str | None, source: str = "chat"
     ) -> dict[str, Any]:
-        """Tool ``restore_document``: Inhalt einer früheren Version als neue Version.
+        """Tool ``restore_document``: content of an earlier version as a new version.
 
         Args:
-            target: Ziel.
-            version: Wiederherzustellende Version.
-            expected_hash: Hash aus ``read``.
-            source: ``chat`` (MCP) oder ``user`` (CLI).
+            target: Target.
+            version: Version to restore.
+            expected_hash: Hash from ``read``.
+            source: ``chat`` (MCP) or ``user`` (CLI).
 
         Returns:
-            Rückgabe von ``finish`` mit der Notiz ``wiederhergestellt aus v<n>``.
+            Return value of ``finish`` with the note ``restored from v<n>``.
 
         Raises:
-            PkmError: ``not_versioned`` für Dateien in ``scratch/``.
+            PkmError: ``not_versioned`` for files in ``scratch/``.
         """
         if not self.vault.load(self.svc.resolve(target)).versioned:
-            raise PkmError("not_versioned", "Dateien in scratch/ haben keine Versionen.", target=target)
+            raise PkmError("not_versioned", "Files in scratch/ have no versions.", target=target)
 
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None and doc.id
             _, old_text = self.svc.text_at_version(doc.id, int(version))
             old = load_text_doc(doc.rel, old_text.encode("utf-8"))
             if old.parsed is None:
-                raise PkmError("invalid_encoding", f"Version {version} ist nicht lesbar.")
+                raise PkmError("invalid_encoding", f"Version {version} is not readable.")
             return doc.parsed.frontmatter_text + old.parsed.body
 
-        return self.change(target, expected_hash, transform, f"wiederhergestellt aus v{int(version)}", source)
+        return self.change(target, expected_hash, transform, f"restored from v{int(version)}", source)
 
 # Functions *******************************************************************
 
 
 def _scratch_folder(folder: str | None) -> str:
-    """Unterordner für ``scratch/`` prüfen.
+    """Check a subfolder for ``scratch/``.
 
     Args:
-        folder: Angegebener Unterordner (``/`` als Trenner) oder ``None``.
+        folder: Given subfolder (``/`` as separator) or ``None``.
 
     Returns:
-        Bereinigter relativer Unterordner (leer für die Wurzel von ``scratch/``).
+        Cleaned relative subfolder (empty for the root of ``scratch/``).
 
     Raises:
-        PkmError: ``invalid_path`` bei ``..``, absoluten oder nicht plattformfesten Namen.
+        PkmError: ``invalid_path`` for ``..``, absolute or not platform-safe names.
     """
     parts = [p for p in (folder or "").replace("\\", "/").strip().strip("/").split("/") if p]
     if (folder or "").strip().startswith(("/", "\\")) or any(p == ".." or not is_platform_safe_name(p) for p in parts):
-        raise PkmError("invalid_path", f"Ungültiger Ordner: {folder}", folder=folder)
+        raise PkmError("invalid_path", f"Invalid folder: {folder}", folder=folder)
     return "/".join(parts)
 
 
 def _ordered_meta(values: dict[str, Any]) -> dict[str, Any]:
-    """Frontmatter eines neuen Dokuments in der Reihenfolge aus 4.1; leere Werte entfallen.
+    """Frontmatter of a new document in the order of 4.1; empty values are dropped.
 
     Args:
-        values: Feldwerte.
+        values: Field values.
 
     Returns:
-        Die Felder in der Reihenfolge von ``FIELD_ORDER``.
+        The fields in the order of ``FIELD_ORDER``.
     """
     return {k: values[k] for k in FIELD_ORDER if values.get(k) not in (None, "", [])}
 
 
 def _check_create_args(title: str, area: str, folder: str | None, kind: str | None) -> None:
-    """Parameter von ``create_document`` prüfen.
+    """Check the parameters of ``create_document``.
 
     Args:
-        title: Bereinigter Titel.
-        area: Zielbereich.
-        folder: Unterordner (nur bei ``scratch``).
-        kind: Art des Dokuments oder ``None``.
+        title: Cleaned title.
+        area: Target area.
+        folder: Subfolder (only for ``scratch``).
+        kind: Kind of the document or ``None``.
 
     Raises:
-        PkmError: ``invalid_argument`` bei fehlendem Titel, unbekanntem Bereich oder ``kind``.
+        PkmError: ``invalid_argument`` for a missing title, an unknown area or ``kind``.
     """
     if not title:
-        raise PkmError("invalid_argument", "title fehlt.")
+        raise PkmError("invalid_argument", "title is missing.")
     if area not in CREATE_AREAS:
-        raise PkmError("invalid_argument", "area muss documents oder scratch sein.")
+        raise PkmError("invalid_argument", "area must be documents or scratch.")
     if folder and area != SCRATCH:
-        raise PkmError("invalid_argument", "folder gibt es nur bei area scratch.")
+        raise PkmError("invalid_argument", "folder only exists for area scratch.")
     if kind is not None and kind not in KINDS:
-        raise PkmError("invalid_argument", f"kind muss einer der Werte {', '.join(KINDS)} sein.")
+        raise PkmError("invalid_argument", f"kind must be one of {', '.join(KINDS)}.")
 
 
 def _check_shortening(doc: Doc, new_body: str, confirmed: bool) -> None:
-    """Kürzungsschutz von ``rewrite_document`` (weniger als 60 % oder fehlende Abschnitte).
+    """Shortening protection of ``rewrite_document`` (less than 60 % or missing sections).
 
     Args:
-        doc: Dokument vor der Änderung.
-        new_body: Neuer, normalisierter Body.
-        confirmed: Kürzung wurde vom Nutzer bestätigt.
+        doc: Document before the change.
+        new_body: New, normalized body.
+        confirmed: Shortening was confirmed by the user.
 
     Raises:
-        PkmError: ``large_shortening`` mit den fehlenden Abschnitten.
+        PkmError: ``large_shortening`` with the missing sections.
     """
     assert doc.parsed is not None
     old_body = normalize_text(doc.parsed.body)
@@ -915,8 +915,8 @@ def _check_shortening(doc: Doc, new_body: str, confirmed: bool) -> None:
     if not confirmed and (ratio < SHORTENING_RATIO or missing or removed):
         raise PkmError(
             "large_shortening",
-            "Der neue Inhalt ist deutlich kürzer oder es fehlen Abschnitte. "
-            "Bitte vom Nutzer bestätigen lassen und mit confirm_shortening=true erneut aufrufen.",
+            "The new content is clearly shorter or sections are missing. "
+            "Please have the user confirm it and call again with confirm_shortening=true.",
             missing_sections=missing, removed_images=removed, old_chars=len(old_body), new_chars=len(new_body),
             ratio=round(ratio, 2), path=doc.rel,
         )
@@ -925,19 +925,19 @@ def _check_shortening(doc: Doc, new_body: str, confirmed: bool) -> None:
 def _updated_meta(
     meta: dict[str, Any], set_fields: dict[str, Any], add_fields: dict[str, Any], remove_fields: list[str]
 ) -> dict[str, Any]:
-    """Frontmatter-Felder nach ``update_frontmatter`` berechnen.
+    """Compute the frontmatter fields after ``update_frontmatter``.
 
     Args:
-        meta: Bisherige Felder.
-        set_fields: Zu setzende Felder.
-        add_fields: An Listen anzuhängende Werte.
-        remove_fields: Zu entfernende Felder.
+        meta: Previous fields.
+        set_fields: Fields to set.
+        add_fields: Values to append to lists.
+        remove_fields: Fields to remove.
 
     Returns:
-        Neue Felder (Reihenfolge bleibt erhalten).
+        New fields (order is kept).
 
     Raises:
-        PkmError: ``invalid_argument``, wenn an ein Feld angehängt werden soll, das keine Liste ist.
+        PkmError: ``invalid_argument`` if appending to a field that is not a list.
     """
     result = dict(meta)
     result.update(set_fields)
@@ -946,7 +946,7 @@ def _updated_meta(
         current = result.get(key)
         current = [] if current is None else current
         if not isinstance(current, list):
-            raise PkmError("invalid_argument", f"Feld {key} ist keine Liste.", field=key)
+            raise PkmError("invalid_argument", f"Field {key} is not a list.", field=key)
         result[key] = current + [v for v in values if v not in current]
     for key in remove_fields:
         result.pop(key, None)

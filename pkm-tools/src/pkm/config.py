@@ -1,4 +1,4 @@
-"""Konfiguration über Umgebungsvariablen (Spezifikation 7.1).
+"""Configuration via environment variables (specification 7.1).
 
     Author: Achim0x
 """
@@ -47,15 +47,15 @@ IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX
 
 @dataclass(frozen=True)
 class ImageConfig:
-    """Grenzen und Ordner für Bilder (Spezifikation 4.9, 7.1).
+    """Limits and folders for images (specification 4.9, 7.1).
 
     Attributes:
-        inline_max_kb: Grenze für eingebettete Bilder, kodierte Größe (``PKM_INLINE_MAX_KB``).
-        svg_max_kb: Komplexitätsgrenze für SVG nach der Bereinigung (``PKM_SVG_MAX_KB``).
-        image_max_mb: Obergrenze je Bild (``PKM_IMAGE_MAX_MB``).
-        param_max_kb: Obergrenze für ``png_base64`` in einem Aufruf (``PKM_IMAGE_PARAM_MAX_KB``).
-        import_dir: Einziger Ordner, aus dem Bilddateien übernommen werden (``PKM_IMPORT_DIR``).
-        svg_raster: SVG für ``read_image`` rastern (``PKM_SVG_RASTER``).
+        inline_max_kb: Limit for embedded images, encoded size (``PKM_INLINE_MAX_KB``).
+        svg_max_kb: Complexity limit for SVG after sanitizing (``PKM_SVG_MAX_KB``).
+        image_max_mb: Upper limit per image (``PKM_IMAGE_MAX_MB``).
+        param_max_kb: Upper limit for ``png_base64`` in one call (``PKM_IMAGE_PARAM_MAX_KB``).
+        import_dir: The only folder image files are imported from (``PKM_IMPORT_DIR``).
+        svg_raster: Rasterize SVG for ``read_image`` (``PKM_SVG_RASTER``).
     """
 
     inline_max_kb: int = 24
@@ -67,24 +67,24 @@ class ImageConfig:
 
     @classmethod
     def from_env(cls, env: Mapping[str, str], root: Path) -> ImageConfig:
-        """Bild-Einstellungen aus der Umgebung lesen.
+        """Read the image settings from the environment.
 
         Args:
-            env: Umgebungsvariablen.
-            root: Vault-Wurzel (Standard-Importordner ``<Vault>/pkm_img_import``).
+            env: Environment variables.
+            root: Vault root (default import folder ``<Vault>/pkm_img_import``).
 
         Returns:
-            Die Einstellungen.
+            The settings.
 
         Raises:
-            PkmError: ``config_error`` bei ungültigen Zahlen.
+            PkmError: ``config_error`` for invalid numbers.
         """
         values: dict[str, int] = {}
         for key, default in IMAGE_DEFAULTS.items():
             try:
                 values[key] = int(env.get(key) or default)
             except ValueError as exc:
-                raise PkmError("config_error", f"{key} muss eine ganze Zahl sein.") from exc
+                raise PkmError("config_error", f"{key} must be an integer.") from exc
         import_dir = Path(env.get("PKM_IMPORT_DIR") or root / IMPORT_FOLDER)
         return cls(
             inline_max_kb=values["PKM_INLINE_MAX_KB"],
@@ -98,17 +98,17 @@ class ImageConfig:
 
 @dataclass(frozen=True)
 class Config:  # pylint: disable=too-many-instance-attributes
-    """Laufzeitkonfiguration von Server und CLI.
+    """Runtime configuration of server and CLI.
 
     Attributes:
-        root: Absoluter Pfad zum Vault (``PKM_ROOT``).
-        git_dir: Git-Verzeichnis außerhalb des Vaults (``PKM_GIT_DIR``).
-        cache_dir: Ordner für den Suchindex (``PKM_CACHE_DIR``).
-        tz: Zeitzone für Zeitstempel und IDs (``PKM_TZ``).
-        max_kb: Größengrenze für Dokumente und Änderungstexte (``PKM_MAX_KB``).
-        vault_name: Name des Obsidian-Vaults für ``obsidian://``-Links (``PKM_VAULT_NAME``).
-        git_author: Autor der MCP-Commits (``PKM_GIT_AUTHOR``).
-        images: Einstellungen für Bilder (4.9).
+        root: Absolute path to the vault (``PKM_ROOT``).
+        git_dir: Git directory outside the vault (``PKM_GIT_DIR``).
+        cache_dir: Folder for the search index (``PKM_CACHE_DIR``).
+        tz: Time zone for timestamps and IDs (``PKM_TZ``).
+        max_kb: Size limit for documents and change texts (``PKM_MAX_KB``).
+        vault_name: Name of the Obsidian vault for ``obsidian://`` links (``PKM_VAULT_NAME``).
+        git_author: Author of the MCP commits (``PKM_GIT_AUTHOR``).
+        images: Image settings (4.9).
     """
 
     root: Path
@@ -122,20 +122,20 @@ class Config:  # pylint: disable=too-many-instance-attributes
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None, search_from: Path | None = None) -> Config:
-        """Konfiguration aus der Umgebung lesen.
+        """Read the configuration from the environment.
 
-        Fehlt ``PKM_ROOT`` und ist ``search_from`` gesetzt (CLI), wird der Vault vom Ordner aus
-        aufwärts gesucht: Er ist der erste Ordner, der ``.pkm/state.json`` enthält.
+        If ``PKM_ROOT`` is missing and ``search_from`` is set (CLI), the vault is searched upwards
+        from that folder: it is the first folder that contains ``.pkm/state.json``.
 
         Args:
-            env: Umgebungsvariablen; ohne Angabe ``os.environ``.
-            search_from: Startordner für die Vault-Suche, wenn ``PKM_ROOT`` fehlt.
+            env: Environment variables; ``os.environ`` if omitted.
+            search_from: Start folder for the vault search when ``PKM_ROOT`` is missing.
 
         Returns:
-            Die fertige Konfiguration mit aufgelösten Pfaden.
+            The finished configuration with resolved paths.
 
         Raises:
-            PkmError: ``config_error`` bei fehlenden oder ungültigen Angaben.
+            PkmError: ``config_error`` for missing or invalid settings.
         """
         env = os.environ if env is None else env
         root = _root_from_env(env, search_from)
@@ -146,11 +146,11 @@ class Config:  # pylint: disable=too-many-instance-attributes
         try:
             tz = ZoneInfo(env.get("PKM_TZ") or DEFAULT_TZ)
         except (ZoneInfoNotFoundError, ValueError) as exc:
-            raise PkmError("config_error", f"Ungültige Zeitzone PKM_TZ: {exc}") from exc
+            raise PkmError("config_error", f"Invalid time zone PKM_TZ: {exc}") from exc
         try:
             max_kb = int(env.get("PKM_MAX_KB") or DEFAULT_MAX_KB)
         except ValueError as exc:
-            raise PkmError("config_error", "PKM_MAX_KB muss eine ganze Zahl sein.") from exc
+            raise PkmError("config_error", "PKM_MAX_KB must be an integer.") from exc
         return cls(
             root=root.resolve(),
             git_dir=git_dir.resolve(),
@@ -162,11 +162,11 @@ class Config:  # pylint: disable=too-many-instance-attributes
             images=ImageConfig.from_env(env, root.resolve()),
         )
 
-    # Abgeleitete Pfade ********************************************************
+    # Derived paths ************************************************************
 
     @property
     def index_path(self) -> Path:
-        """Pfad der SQLite-Datei des Suchindex.
+        """Path of the SQLite file of the search index.
 
         Returns:
             ``PKM_CACHE_DIR/index.db``.
@@ -175,7 +175,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
 
     @property
     def log_path(self) -> Path:
-        """Pfad des MCP-Protokolls.
+        """Path of the MCP log.
 
         Returns:
             ``<Vault>/.pkm/mcp.log``.
@@ -184,7 +184,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
 
     @property
     def state_path(self) -> Path:
-        """Pfad des Verarbeitungsstands.
+        """Path of the processing state.
 
         Returns:
             ``<Vault>/.pkm/state.json``.
@@ -193,64 +193,64 @@ class Config:  # pylint: disable=too-many-instance-attributes
 
     @property
     def max_bytes(self) -> int:
-        """Größengrenze in Bytes.
+        """Size limit in bytes.
 
         Returns:
             ``max_kb`` mal 1024.
         """
         return self.max_kb * 1024
 
-    # Prüfungen (5.5, 7.1) *****************************************************
+    # Checks (5.5, 7.1) ********************************************************
 
     def cache_dir_problem(self) -> str | None:
-        """Prüfen, ob der Suchindex im Vault liegen würde.
+        """Check whether the search index would lie in the vault.
 
         Returns:
-            Fehlertext, wenn ``PKM_CACHE_DIR`` im Vault liegt, sonst ``None``.
+            Error text if ``PKM_CACHE_DIR`` lies in the vault, otherwise ``None``.
         """
         problem = None
         if _is_within(self.cache_dir, self.root):
             problem = (
-                f"PKM_CACHE_DIR ({self.cache_dir}) liegt im Vault. Der Suchindex darf nicht im "
-                "Cloud-Ordner (Nextcloud, OneDrive, Google Drive …) liegen; bitte einen Ordner außerhalb wählen."
+                f"PKM_CACHE_DIR ({self.cache_dir}) lies in the vault. The search index must not lie in the "
+                "cloud folder (Nextcloud, OneDrive, Google Drive …); please choose a folder outside."
             )
         return problem
 
     @property
     def import_in_vault(self) -> bool:
-        """Ob der Importordner der Standardordner ``<Vault>/pkm_img_import`` ist.
+        """Whether the import folder is the default folder ``<Vault>/pkm_img_import``.
 
         Returns:
-            ``True`` beim Ordner im Vault.
+            ``True`` for the folder in the vault.
         """
         return self.images.import_dir == self.root / IMPORT_FOLDER
 
     def import_dir_problem(self) -> str | None:
-        """Prüfen, ob der Importordner für Bilder zulässig ist (4.9).
+        """Check whether the image import folder is allowed (4.9).
 
-        Zulässig sind ``<Vault>/pkm_img_import`` und Ordner außerhalb des Vaults.
+        Allowed are ``<Vault>/pkm_img_import`` and folders outside the vault.
 
         Returns:
-            Fehlertext bei einem anderen Ordner im Vault, sonst ``None``.
+            Error text for another folder in the vault, otherwise ``None``.
         """
         problem = None
         imp = self.images.import_dir
         if imp is not None and _is_within(imp, self.root) and not self.import_in_vault:
-            problem = (f"PKM_IMPORT_DIR ({imp}) liegt im Vault, aber nicht in {IMPORT_FOLDER}/; im Vault ist nur "
-                       f"{IMPORT_FOLDER}/ erlaubt (4.9).")
+            problem = (f"PKM_IMPORT_DIR ({imp}) lies in the vault but not in {IMPORT_FOLDER}/; in the vault only "
+                       f"{IMPORT_FOLDER}/ is allowed (4.9).")
         return problem
 
     def git_dir_problem(self) -> str | None:
-        """Prüfen, ob das Git-Verzeichnis im Vault liegen würde.
+        """Check whether the Git directory would lie in the vault.
 
         Returns:
-            Fehlertext, wenn ``PKM_GIT_DIR`` im Vault liegt, sonst ``None``.
+            Error text if ``PKM_GIT_DIR`` lies in the vault, otherwise ``None``.
         """
         problem = None
         if _is_within(self.git_dir, self.root):
             problem = (
-                f"PKM_GIT_DIR ({self.git_dir}) liegt im Vault. Das Git-Verzeichnis muss außerhalb "
-                "des Cloud-Ordners liegen (5.5)."
+                f"PKM_GIT_DIR ({self.git_dir}) lies in the vault. The Git directory must lie outside "
+                "the cloud folder (5.5)."
             )
         return problem
 
@@ -258,14 +258,14 @@ class Config:  # pylint: disable=too-many-instance-attributes
 
 
 def default_app_dir(home: Path | None = None) -> Path:
-    """Standardordner für Git-Verzeichnis und Suchindex, abhängig vom Betriebssystem.
+    """Default folder for Git directory and search index, depending on the operating system.
 
     Args:
-        home: Home-Verzeichnis; ohne Angabe ``Path.home()``.
+        home: Home directory; ``Path.home()`` if omitted.
 
     Returns:
         macOS: ``~/Library/Application Support/pkm``; Windows: ``%APPDATA%/pkm``;
-        sonst ``$XDG_DATA_HOME/pkm`` bzw. ``~/.local/share/pkm``.
+        otherwise ``$XDG_DATA_HOME/pkm`` or ``~/.local/share/pkm``.
     """
     home = home or Path.home()
     if sys.platform == "darwin":
@@ -280,30 +280,30 @@ def default_app_dir(home: Path | None = None) -> Path:
 
 
 def find_vault(start: Path) -> Path | None:
-    """Vault ab einem Ordner aufwärts suchen.
+    """Search the vault upwards from a folder.
 
     Args:
-        start: Ordner, in dem die Suche beginnt.
+        start: Folder where the search starts.
 
     Returns:
-        Den ersten Ordner, der ``.pkm/state.json`` enthält, sonst ``None``.
+        The first folder that contains ``.pkm/state.json``, otherwise ``None``.
     """
     start = start.resolve()
     return next((p for p in [start, *start.parents] if (p / ".pkm" / "state.json").is_file()), None)
 
 
 def _root_from_env(env: Mapping[str, str], search_from: Path | None) -> Path:
-    """Vault-Pfad aus ``PKM_ROOT`` oder per Suche bestimmen.
+    """Determine the vault path from ``PKM_ROOT`` or by searching.
 
     Args:
-        env: Umgebungsvariablen.
-        search_from: Startordner für die Suche, wenn ``PKM_ROOT`` fehlt.
+        env: Environment variables.
+        search_from: Start folder for the search when ``PKM_ROOT`` is missing.
 
     Returns:
-        Absoluter, noch nicht aufgelöster Vault-Pfad.
+        Absolute, not yet resolved vault path.
 
     Raises:
-        PkmError: ``config_error``, wenn kein gültiger Vault-Pfad vorliegt.
+        PkmError: ``config_error`` if there is no valid vault path.
     """
     root_s = env.get("PKM_ROOT")
     if not root_s and search_from is not None:
@@ -312,24 +312,24 @@ def _root_from_env(env: Mapping[str, str], search_from: Path | None) -> Path:
     if not root_s:
         raise PkmError(
             "config_error",
-            "PKM_ROOT ist nicht gesetzt (absoluter Pfad zum Vault) und im aktuellen Ordner "
-            "bzw. darüber liegt kein Vault mit .pkm/state.json.",
+            "PKM_ROOT is not set (absolute path to the vault) and there is no vault with .pkm/state.json "
+            "in the current folder or above.",
         )
     root = Path(root_s).expanduser()
     if not root.is_absolute():
-        raise PkmError("config_error", f"PKM_ROOT muss ein absoluter Pfad sein: {root_s}")
+        raise PkmError("config_error", f"PKM_ROOT must be an absolute path: {root_s}")
     return root
 
 
 def _is_within(child: Path, parent: Path) -> bool:
-    """Prüfen, ob ein Pfad innerhalb eines anderen liegt.
+    """Check whether a path lies inside another one.
 
     Args:
-        child: Zu prüfender Pfad.
-        parent: Möglicher übergeordneter Pfad.
+        child: Path to check.
+        parent: Possible parent path.
 
     Returns:
-        ``True``, wenn ``child`` gleich ``parent`` ist oder darunter liegt.
+        ``True`` if ``child`` equals ``parent`` or lies below it.
     """
     return child == parent or parent in child.parents
 

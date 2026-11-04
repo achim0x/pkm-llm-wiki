@@ -306,7 +306,7 @@ def test_show_section(filled):
 # read_index / list_unprocessed ***********************************************
 def test_read_index(filled):
     """read_index liefert wiki/index.md."""
-    assert filled.read_index()["content"].startswith("# Wiki-Index")
+    assert filled.read_index()["content"].startswith("# Wiki index")
 
 
 def test_list_unprocessed(filled, cfg):

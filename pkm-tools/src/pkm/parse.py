@@ -1,6 +1,6 @@
-"""Frontmatter, Body und Abschnitte (Spezifikation 4.8, Schritte 2 und 3).
+"""Frontmatter, body and sections (specification 4.8, steps 2 and 3).
 
-Eingabe ist immer bereits normalisierter Text (``normalize.normalize_text``).
+Input is always already normalized text (``normalize.normalize_text``).
 
     Author: Achim0x
 """
@@ -48,7 +48,7 @@ MAX_FENCE_INDENT = 3
 
 
 class _Loader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
-    """SafeLoader ohne automatische Datums-Umwandlung: Zeitstempel bleiben Strings."""
+    """SafeLoader without automatic date conversion: timestamps stay strings."""
 
 
 _Loader.yaml_implicit_resolvers = {
@@ -59,16 +59,16 @@ _Loader.yaml_implicit_resolvers = {
 
 @dataclass
 class Section:
-    """Abschnitt eines Dokuments nach 4.8.
+    """Section of a document per 4.8.
 
     Attributes:
-        key: Abschnittsschlüssel, ggf. mit Duplikat-Suffix (``Notizen#2``) oder ``_preamble``.
-        level: 0 für den Vorspann, sonst 1 oder 2.
-        heading: Überschriftenzeile ohne LF; ``None`` beim Vorspann.
-        start: Index der ersten Zeile (Überschrift bzw. Vorspann) in den Body-Zeilen.
-        end: Index nach der letzten Zeile (exklusiv).
-        content_lines: Zeilen ohne Überschrift und ohne LF.
-        base: Überschriftentext als Schlüssel ohne Duplikat-Suffix.
+        key: Section key, possibly with a duplicate suffix (``Notes#2``) or ``_preamble``.
+        level: 0 for the preamble, otherwise 1 or 2.
+        heading: Heading line without LF; ``None`` for the preamble.
+        start: Index of the first line (heading or preamble) in the body lines.
+        end: Index after the last line (exclusive).
+        content_lines: Lines without heading and without LF.
+        base: Heading text as key without duplicate suffix.
     """
 
     key: str
@@ -82,17 +82,17 @@ class Section:
 
 @dataclass
 class Parsed:  # pylint: disable=too-many-instance-attributes
-    """Zerlegtes Dokument.
+    """Parsed document.
 
     Attributes:
-        text: Normalisierter Gesamttext.
-        has_frontmatter: Ob die erste Zeile ``---`` ist.
-        frontmatter_text: Frontmatter inklusive Begrenzungszeilen und LF; leer ohne Frontmatter.
-        fm_inner_lines: YAML-Zeilen ohne Begrenzer.
-        meta: Gelesene Felder.
-        fm_error: Fehlertext bei ungültigem Frontmatter, sonst ``None``.
-        body: Alles nach dem Frontmatter.
-        sections: Abschnitte in Dokumentreihenfolge.
+        text: Normalized full text.
+        has_frontmatter: Whether the first line is ``---``.
+        frontmatter_text: Frontmatter including delimiter lines and LF; empty without frontmatter.
+        fm_inner_lines: YAML lines without delimiters.
+        meta: Parsed fields.
+        fm_error: Error text for an invalid frontmatter, otherwise ``None``.
+        body: Everything after the frontmatter.
+        sections: Sections in document order.
     """
 
     text: str
@@ -106,29 +106,29 @@ class Parsed:  # pylint: disable=too-many-instance-attributes
 
     @property
     def body_lines(self) -> list[str]:
-        """Zeilen des Body.
+        """Lines of the body.
 
         Returns:
-            Zeilen ohne LF (siehe ``body_lines``).
+            Lines without LF (see ``body_lines``).
         """
         return body_lines(self.body)
 
     def section_keys(self) -> list[str]:
-        """Alle Abschnittsschlüssel.
+        """All section keys.
 
         Returns:
-            Schlüssel in Dokumentreihenfolge.
+            Keys in document order.
         """
         return [s.key for s in self.sections]
 
     def section(self, key: str) -> Section | None:
-        """Abschnitt zu einem Schlüssel suchen.
+        """Find the section for a key.
 
         Args:
-            key: Abschnittsschlüssel (mit Suffix bei Duplikaten).
+            key: Section key (with suffix for duplicates).
 
         Returns:
-            Den Abschnitt oder ``None``.
+            The section or ``None``.
         """
         return next((s for s in self.sections if s.key == key), None)
 
@@ -136,36 +136,36 @@ class Parsed:  # pylint: disable=too-many-instance-attributes
 
 
 def load_yaml(text: str) -> Any:
-    """YAML sicher laden, ohne Zeitstempel in Datumsobjekte umzuwandeln.
+    """Load YAML safely without converting timestamps into date objects.
 
     Args:
-        text: YAML-Text.
+        text: YAML text.
 
     Returns:
-        Die geladenen Daten.
+        The loaded data.
 
     Raises:
-        yaml.YAMLError: Bei ungültigem YAML.
+        yaml.YAMLError: For invalid YAML.
     """
-    return yaml.load(text, Loader=_Loader)  # noqa: S506 - SafeLoader-Unterklasse
+    return yaml.load(text, Loader=_Loader)  # noqa: S506 - SafeLoader subclass
 
 
 def split_frontmatter(text: str) -> tuple[bool, str, list[str], str, str | None]:
-    """Frontmatter vom Body trennen (4.8, Schritt 2).
+    """Split the frontmatter from the body (4.8, step 2).
 
     Args:
-        text: Normalisierter Dateitext.
+        text: Normalized file text.
 
     Returns:
-        Tupel aus (Frontmatter vorhanden, Frontmatter-Text, innere Zeilen, Body, Fehlertext).
-        Fehlt die Abschlusszeile, ist der Fehlertext gesetzt und der Body der ganze Text.
+        Tuple of (frontmatter present, frontmatter text, inner lines, body, error text).
+        If the closing line is missing, the error text is set and the body is the whole text.
     """
     lines = text.split("\n")
     result: tuple[bool, str, list[str], str, str | None] = (False, "", [], text, None)
     if lines and lines[0] == "---":
         close = next((i for i in range(1, len(lines)) if lines[i] in ("---", "...")), None)
         if close is None:
-            result = (True, "", [], text, "Frontmatter ohne Abschlusszeile (--- oder ...).")
+            result = (True, "", [], text, "Frontmatter without closing line (--- or ...).")
         else:
             fm_text = "\n".join(lines[: close + 1]) + "\n"
             result = (True, fm_text, lines[1:close], "\n".join(lines[close + 1 :]), None)
@@ -173,13 +173,13 @@ def split_frontmatter(text: str) -> tuple[bool, str, list[str], str, str | None]
 
 
 def parse_meta(inner_lines: list[str]) -> tuple[dict[str, Any], str | None]:
-    """YAML-Zeilen des Frontmatters lesen.
+    """Read the YAML lines of the frontmatter.
 
     Args:
-        inner_lines: Zeilen zwischen den Begrenzern.
+        inner_lines: Lines between the delimiters.
 
     Returns:
-        Tupel aus (Felder, Fehlertext); bei Fehlern sind die Felder leer.
+        Tuple of (fields, error text); on errors the fields are empty.
     """
     raw = "\n".join(inner_lines)
     meta: dict[str, Any] = {}
@@ -188,35 +188,35 @@ def parse_meta(inner_lines: list[str]) -> tuple[dict[str, Any], str | None]:
         try:
             data = load_yaml(raw)
         except yaml.YAMLError as exc:
-            data, error = None, f"Ungültiges YAML im Frontmatter: {exc}"
+            data, error = None, f"Invalid YAML in the frontmatter: {exc}"
         if isinstance(data, dict):
             meta = {str(k): v for k, v in data.items()}
         elif data is not None:
-            error = "Frontmatter ist keine Zuordnung (key: value)."
+            error = "Frontmatter is not a mapping (key: value)."
     return meta, error
 
 
 def heading_key(raw: str) -> str:
-    """Abschnittsschlüssel aus dem Überschrifteninhalt bilden (4.8, Schritt 3).
+    """Build the section key from the heading content (4.8, step 3).
 
     Args:
-        raw: Überschrifteninhalt ohne die führenden ``#``.
+        raw: Heading content without the leading ``#``.
 
     Returns:
-        Schlüssel ohne ATX-Abschluss, mit zusammengefasstem Leerraum.
+        Key without ATX closing sequence, with collapsed whitespace.
     """
     raw = ATX_CLOSE_RE.sub("", raw) if raw else ""
     return " ".join(raw.split())
 
 
 def normalize_key_input(key: str) -> str:
-    """Nutzereingabe für ``section`` auf die Schlüsselform bringen (``## Text`` → ``Text``).
+    """Bring user input for ``section`` into key form (``## Text`` → ``Text``).
 
     Args:
-        key: Eingabe, z. B. ``"## Offene  Punkte"``, ``"Notizen#2"`` oder ``"_preamble"``.
+        key: Input, e.g. ``"## Open  points"``, ``"Notes#2"`` or ``"_preamble"``.
 
     Returns:
-        Der normalisierte Schlüssel.
+        The normalized key.
     """
     key = key.strip()
     result = key
@@ -230,14 +230,14 @@ def normalize_key_input(key: str) -> str:
 
 
 def _closes_fence(line: str, fence: tuple[str, int]) -> bool:
-    """Prüfen, ob eine Zeile einen offenen Codezaun schließt (CommonMark).
+    """Check whether a line closes an open code fence (CommonMark).
 
     Args:
-        line: Zeile ohne LF.
-        fence: Zaunzeichen und Mindestlänge des offenen Zauns.
+        line: Line without LF.
+        fence: Fence character and minimum length of the open fence.
 
     Returns:
-        ``True``, wenn die Zeile den Zaun schließt.
+        ``True`` if the line closes the fence.
     """
     ch, length = fence
     stripped = line.lstrip(" ")
@@ -247,13 +247,13 @@ def _closes_fence(line: str, fence: tuple[str, int]) -> bool:
 
 
 def iter_outside_fences(lines: list[str]) -> Iterator[tuple[int, str]]:
-    """Zeilen außerhalb eingezäunter Codeblöcke durchlaufen (ohne Zaunzeilen).
+    """Iterate over the lines outside fenced code blocks (without fence lines).
 
     Args:
-        lines: Zeilen ohne LF.
+        lines: Lines without LF.
 
     Yields:
-        Tupel aus (Index, Zeile).
+        Tuples of (index, line).
     """
     fence: tuple[str, int] | None = None
     for i, line in enumerate(lines):
@@ -269,14 +269,14 @@ def iter_outside_fences(lines: list[str]) -> Iterator[tuple[int, str]]:
 
 
 def _is_setext_underline(line: str, prev: str | None) -> bool:
-    """Prüfen, ob eine Zeile eine Setext-Unterstreichung der vorigen Zeile ist.
+    """Check whether a line is a setext underline of the previous line.
 
     Args:
-        line: Aktuelle Zeile.
-        prev: Vorige Zeile außerhalb von Codeblöcken oder ``None``.
+        line: Current line.
+        prev: Previous line outside code blocks or ``None``.
 
     Returns:
-        ``True`` bei einer Setext-Überschrift.
+        ``True`` for a setext heading.
     """
     return bool(
         SETEXT_RE.match(line)
@@ -290,13 +290,13 @@ def _is_setext_underline(line: str, prev: str | None) -> bool:
 
 
 def find_setext(lines: list[str]) -> list[int]:
-    """Zeilen mit Setext-Unterstreichung finden (keine Abschnittsgrenze, Lint-Hinweis).
+    """Find lines with a setext underline (no section boundary, lint hint).
 
     Args:
-        lines: Body-Zeilen ohne LF.
+        lines: Body lines without LF.
 
     Returns:
-        Indizes der Unterstreichungszeilen.
+        Indices of the underline lines.
     """
     result: list[int] = []
     prev: str | None = None
@@ -308,13 +308,13 @@ def find_setext(lines: list[str]) -> list[int]:
 
 
 def find_headings(lines: list[str]) -> list[tuple[int, int, str]]:
-    """Grenzüberschriften der Ebenen 1 und 2 außerhalb von Codeblöcken finden.
+    """Find boundary headings of levels 1 and 2 outside code blocks.
 
     Args:
-        lines: Body-Zeilen ohne LF.
+        lines: Body lines without LF.
 
     Returns:
-        Liste von (Zeilenindex, Ebene, Rohinhalt).
+        List of (line index, level, raw content).
     """
     result: list[tuple[int, int, str]] = []
     for i, line in iter_outside_fences(lines):
@@ -325,13 +325,13 @@ def find_headings(lines: list[str]) -> list[tuple[int, int, str]]:
 
 
 def body_lines(body: str) -> list[str]:
-    """Body in Zeilen zerlegen.
+    """Split the body into lines.
 
     Args:
-        body: Body-Text.
+        body: Body text.
 
     Returns:
-        Zeilen ohne LF; das LF am Dateiende erzeugt kein zusätzliches leeres Element.
+        Lines without LF; the LF at the end of the file does not create an additional empty element.
     """
     lines = body.split("\n")
     if lines and lines[-1] == "":
@@ -340,16 +340,16 @@ def body_lines(body: str) -> list[str]:
 
 
 def _assign_keys(bases: list[str]) -> list[str]:
-    """Abschnittsschlüssel mit Duplikat-Suffix vergeben (4.8, Schritt 3).
+    """Assign section keys with duplicate suffix (4.8, step 3).
 
-    Nummern, deren Schlüssel schon als wörtliche Überschrift vorkommt (z. B. „Version#2“)
-    oder bereits vergeben ist, werden übersprungen.
+    Numbers whose key already occurs as a literal heading (e.g. "Version#2")
+    or is already assigned are skipped.
 
     Args:
-        bases: Schlüssel der Überschriften ohne Suffix, in Dokumentreihenfolge.
+        bases: Keys of the headings without suffix, in document order.
 
     Returns:
-        Eindeutige Schlüssel in derselben Reihenfolge.
+        Unique keys in the same order.
     """
     literal = set(bases)
     used: set[str] = set()
@@ -371,13 +371,13 @@ def _assign_keys(bases: list[str]) -> list[str]:
 
 
 def split_sections(body: str) -> list[Section]:
-    """Body in Abschnitte zerlegen (Vorspann, Ebene 1 und 2).
+    """Split the body into sections (preamble, level 1 and 2).
 
     Args:
-        body: Body-Text (normalisiert).
+        body: Body text (normalized).
 
     Returns:
-        Abschnitte in Dokumentreihenfolge; der Vorspann nur, wenn er Inhalt hat.
+        Sections in document order; the preamble only if it has content.
     """
     lines = body_lines(body)
     heads = find_headings(lines)
@@ -394,16 +394,16 @@ def split_sections(body: str) -> list[Section]:
 
 
 def parse(text: str) -> Parsed:
-    """Normalisierten Text vollständig zerlegen.
+    """Fully parse normalized text.
 
-    Bei ungültigem Frontmatter bleibt der Rohtext lesbar; die Abschnitte umfassen dann den
-    ganzen Text und ``fm_error`` ist gesetzt.
+    With an invalid frontmatter the raw text stays readable; the sections then cover the
+    whole text and ``fm_error`` is set.
 
     Args:
-        text: Normalisierter Dateitext.
+        text: Normalized file text.
 
     Returns:
-        Das zerlegte Dokument.
+        The parsed document.
     """
     has_fm, fm_text, inner, body, err = split_frontmatter(text)
     meta: dict[str, Any] = {}
@@ -417,13 +417,13 @@ def parse(text: str) -> Parsed:
 
 
 def strip_frontmatter(content: str) -> str:
-    """Mitgeliefertes Frontmatter aus Chat-Inhalt entfernen (create/rewrite).
+    """Remove frontmatter supplied with chat content (create/rewrite).
 
     Args:
-        content: Inhalt aus dem Chat.
+        content: Content from the chat.
 
     Returns:
-        Inhalt ohne gültiges Frontmatter; ungültiges bleibt als Text erhalten.
+        Content without a valid frontmatter; an invalid one is kept as text.
     """
     has_fm, _fm, _inner, body, err = split_frontmatter(content)
     return body if has_fm and err is None else content

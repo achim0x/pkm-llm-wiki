@@ -1,4 +1,4 @@
-"""Vault-Modell: Dateien finden, laden und adressieren (Spezifikation 3, 7.1).
+"""Vault model: find, load and address files (specification 3, 7.1).
 
     Author: Achim0x
 """
@@ -63,19 +63,19 @@ __all__ = [
 
 @dataclass
 class Doc:  # pylint: disable=too-many-instance-attributes
-    """Eine Datei im Vault (Markdown oder Anhang).
+    """A file in the vault (Markdown or attachment).
 
     Attributes:
-        rel: Relativer Pfad mit ``/`` in NFC.
-        kind: ``md`` oder ``bin``.
-        size: Dateigröße in Bytes.
-        mtime_ns: Änderungszeit in Nanosekunden.
-        text: Normalisierter Text (nur Markdown, ``None`` bei ungültiger Kodierung).
-        parsed: Zerlegtes Dokument (nur Markdown).
-        hashes: Hashes nach 4.8 (nur Markdown).
-        bin_hash: SHA-256 der Rohbytes (nur Anhänge).
-        error: ``invalid_encoding`` oder ``invalid_frontmatter``.
-        error_message: Erklärung zum Fehler.
+        rel: Relative path with ``/`` in NFC.
+        kind: ``md`` or ``bin``.
+        size: File size in bytes.
+        mtime_ns: Modification time in nanoseconds.
+        text: Normalized text (Markdown only, ``None`` for an invalid encoding).
+        parsed: Parsed document (Markdown only).
+        hashes: Hashes per 4.8 (Markdown only).
+        bin_hash: SHA-256 of the raw bytes (attachments only).
+        error: ``invalid_encoding`` or ``invalid_frontmatter``.
+        error_message: Explanation of the error.
     """
 
     rel: str
@@ -91,67 +91,67 @@ class Doc:  # pylint: disable=too-many-instance-attributes
 
     @property
     def area(self) -> str:
-        """Bereich der Datei.
+        """Area of the file.
 
         Returns:
-            ``documents``, ``wiki`` oder ``scratch``.
+            ``documents``, ``wiki`` or ``scratch``.
         """
         return self.rel.split("/", 1)[0]
 
     @property
     def meta(self) -> dict[str, Any]:
-        """Frontmatter-Felder.
+        """Frontmatter fields.
 
         Returns:
-            Die Felder; leer bei Anhängen oder ungültigem Frontmatter.
+            The fields; empty for attachments or an invalid frontmatter.
         """
         return self.parsed.meta if self.parsed else {}
 
     @property
     def id(self) -> str | None:
-        """Dokument-ID aus dem Frontmatter.
+        """Document ID from the frontmatter.
 
         Returns:
-            Die ID, wenn sie gültig ist, sonst ``None``.
+            The ID if it is valid, otherwise ``None``.
         """
         value = self.meta.get("id")
         return value if is_valid_id(value) else None
 
     @property
     def version(self) -> int | None:
-        """Versionsnummer aus dem Frontmatter.
+        """Version number from the frontmatter.
 
         Returns:
-            Die Version als ganze Zahl oder ``None``.
+            The version as an integer or ``None``.
         """
         value = self.meta.get("version")
         return value if isinstance(value, int) and not isinstance(value, bool) else None
 
     @property
     def short_citation(self) -> str | None:
-        """Kurzbezeichnung aus ``short_citation`` (auch alte Schreibweise ``short citation``).
+        """Short citation from ``short_citation`` (also the old notation ``short citation``).
 
         Returns:
-            Die Kurzbezeichnung oder ``None``.
+            The short citation or ``None``.
         """
         return short_citation(self.meta)
 
     @property
     def stem(self) -> str:
-        """Dateiname ohne Endung.
+        """File name without extension.
 
         Returns:
-            Der Stamm des Dateinamens.
+            The stem of the file name.
         """
         return PurePosixPath(self.rel).stem
 
     @property
     def title(self) -> str:
-        """Titel für Anzeige und Commits.
+        """Title for display and commits.
 
         Returns:
-            ``title`` aus dem Frontmatter, sonst die erste Überschrift der Ebene 1, sonst den
-            Dateinamen (bei Anhängen mit Endung).
+            ``title`` from the frontmatter, otherwise the first level-1 heading, otherwise the
+            file name (with extension for attachments).
         """
         t = self.meta.get("title")
         result = t.strip() if isinstance(t, str) and t.strip() else ""
@@ -163,34 +163,34 @@ class Doc:  # pylint: disable=too-many-instance-attributes
 
     @property
     def editable(self) -> bool:
-        """Ob die Datei per MCP geändert werden darf.
+        """Whether the file may be changed via MCP.
 
         Returns:
-            ``True`` für gültige Markdown-Dateien unter ``documents/`` und ``scratch/``.
+            ``True`` for valid Markdown files below ``documents/`` and ``scratch/``.
         """
         return self.area in ("documents", SCRATCH) and self.kind == "md" and self.error is None
 
     @property
     def versioned(self) -> bool:
-        """Ob die Datei versioniert wird (``scratch/`` nie, Spezifikation 3).
+        """Whether the file is versioned (``scratch/`` never, specification 3).
 
         Returns:
-            ``False`` für Dateien in ``scratch/``.
+            ``False`` for files in ``scratch/``.
         """
         return self.area != SCRATCH
 
     @property
     def link_path(self) -> str:
-        """Pfad, wie er in Wikilinks steht.
+        """Path as it appears in wikilinks.
 
         Returns:
-            Markdown ohne ``.md``, Anhänge mit Endung.
+            Markdown without ``.md``, attachments with extension.
         """
         return self.rel[:-3] if self.kind == "md" else self.rel
 
     @property
     def wikilink(self) -> str:
-        """Wikilink auf die Datei.
+        """Wikilink to the file.
 
         Returns:
             ``[[<link_path>]]``.
@@ -199,45 +199,45 @@ class Doc:  # pylint: disable=too-many-instance-attributes
 
     @property
     def body(self) -> str:
-        """Body ohne Frontmatter.
+        """Body without frontmatter.
 
         Returns:
-            Den Body oder einen leeren Text, wenn die Datei nicht lesbar ist.
+            The body or an empty text if the file is not readable.
         """
         return self.parsed.body if self.parsed is not None else ""
 
     def link_keys(self) -> set[str]:
-        """Schlüssel, unter denen Wikilinks auf diese Datei zeigen.
+        """Keys under which wikilinks point to this file.
 
         Returns:
-            Vollständiger Link-Pfad und Dateiname (ohne ``.md``), jeweils casefold.
+            Full link path and file name (without ``.md``), each casefolded.
         """
         name = self.stem if self.kind == "md" else PurePosixPath(self.rel).name
         return {self.link_path.casefold(), name.casefold()}
 
 
 class Vault:
-    """Zugriff auf die Dateien unter ``documents/`` und ``wiki/``."""
+    """Access to the files below ``documents/`` and ``wiki/``."""
 
     def __init__(self, cfg: Config) -> None:
-        """Vault-Zugriff anlegen.
+        """Create the vault access.
 
         Args:
-            cfg: Konfiguration.
+            cfg: Configuration.
         """
         self.cfg = cfg
         self.root = cfg.root
 
-    # Bestand ******************************************************************
+    # Inventory ****************************************************************
 
     def iter_files(self, areas: tuple[str, ...] = AREAS) -> Iterator[str]:
-        """Alle Dateien der Bereiche durchlaufen (versteckte Dateien und Ordner ausgenommen).
+        """Iterate over all files of the areas (hidden files and folders excluded).
 
         Args:
-            areas: Bereiche, z. B. ``("documents",)``.
+            areas: Areas, e.g. ``("documents",)``.
 
         Yields:
-            Relative Pfade in NFC, sortiert je Ordner.
+            Relative paths in NFC, sorted per folder.
         """
         for area in areas:
             base = self.root / area
@@ -249,45 +249,45 @@ class Vault:
                             yield nfc((Path(dirpath) / name).relative_to(self.root).as_posix())
 
     def path(self, rel: str) -> Path:
-        """Relativen Pfad sicher im Vault auflösen.
+        """Resolve a relative path safely within the vault.
 
         Args:
-            rel: Relativer Pfad.
+            rel: Relative path.
 
         Returns:
-            Pfad im Vault.
+            Path in the vault.
 
         Raises:
-            PkmError: ``invalid_path`` bei unzulässigen Pfaden.
+            PkmError: ``invalid_path`` for disallowed paths.
         """
         return safe_resolve(self.root, rel)
 
     def exists(self, rel: str) -> bool:
-        """Prüfen, ob eine Datei existiert.
+        """Check whether a file exists.
 
         Args:
-            rel: Relativer Pfad.
+            rel: Relative path.
 
         Returns:
-            ``True``, wenn es eine Datei ist.
+            ``True`` if it is a file.
         """
         return self.path(rel).is_file()
 
     def load(self, rel: str) -> Doc:
-        """Datei laden und (bei Markdown) zerlegen und hashen.
+        """Load a file and (for Markdown) parse and hash it.
 
         Args:
-            rel: Relativer Pfad.
+            rel: Relative path.
 
         Returns:
-            Das Dokument.
+            The document.
 
         Raises:
-            PkmError: ``not_found``, wenn die Datei fehlt.
+            PkmError: ``not_found`` if the file is missing.
         """
         p = self.path(rel)
         if not p.is_file():
-            raise PkmError("not_found", f"Datei nicht gefunden: {rel}", target=rel)
+            raise PkmError("not_found", f"File not found: {rel}", target=rel)
         st = p.stat()
         if is_markdown(rel):
             doc = load_text_doc(rel, p.read_bytes(), st.st_size, st.st_mtime_ns)
@@ -295,7 +295,7 @@ class Vault:
             doc = Doc(rel, "bin", st.st_size, st.st_mtime_ns, bin_hash=hashes.sha256_bytes(p.read_bytes()))
         return doc
 
-    # Adressierung (7.1) *******************************************************
+    # Addressing (7.1) *********************************************************
 
     def resolve(
         self,
@@ -304,25 +304,25 @@ class Vault:
         find_id: Callable[[str], list[str]] | None = None,
         find_citation: Callable[[str], list[str]] | None = None,
     ) -> str:
-        """Ziel (Pfad, Wikilink, Kurzname, ``id:`` oder Kurzbezeichnung) in einen relativen Pfad auflösen.
+        """Resolve a target (path, wikilink, short name, ``id:`` or short citation) into a relative path.
 
-        Passt kein Pfad und kein Kurzname, wird ``short_citation`` verglichen (7.1).
+        If no path and no short name matches, ``short_citation`` is compared (7.1).
 
         Args:
-            target: Ziel, z. B. ``documents/haus/zisterne.md``, ``[[zisterne]]``, ``id:d-…`` oder
+            target: Target, e.g. ``documents/house/cistern.md``, ``[[cistern]]``, ``id:d-…`` or
                 ``EN 61000-4-6:2014``.
-            areas: Erlaubte Bereiche.
-            find_id: Suche nach ID (z. B. über den Index); ohne Angabe ``scan_id``.
-            find_citation: Suche nach Kurzbezeichnung; ohne Angabe ``scan_citation``.
+            areas: Allowed areas.
+            find_id: Search by ID (e.g. via the index); ``scan_id`` if omitted.
+            find_citation: Search by short citation; ``scan_citation`` if omitted.
 
         Returns:
-            Relativer Pfad der gefundenen Datei.
+            Relative path of the file found.
 
         Raises:
-            PkmError: ``not_found``, ``ambiguous`` (mit Kandidaten), ``forbidden`` oder ``invalid_path``.
+            PkmError: ``not_found``, ``ambiguous`` (with candidates), ``forbidden`` or ``invalid_path``.
         """
         if not isinstance(target, str) or not target.strip():
-            raise PkmError("not_found", "Leeres Ziel.")
+            raise PkmError("not_found", "Empty target.")
         t = nfc(target.strip())
         if t.startswith("id:"):
             rel = self._resolve_id(t[3:].strip(), target, areas, find_id)
@@ -344,60 +344,60 @@ class Vault:
     def _resolve_id(
         self, doc_id: str, target: str, areas: tuple[str, ...], find_id: Callable[[str], list[str]] | None
     ) -> str:
-        """Ziel über die Dokument-ID auflösen.
+        """Resolve a target via the document ID.
 
         Args:
-            doc_id: Dokument-ID.
-            target: Ursprüngliches Ziel (für Fehlermeldungen).
-            areas: Erlaubte Bereiche.
-            find_id: Suche nach ID oder ``None`` für ``scan_id``.
+            doc_id: Document ID.
+            target: Original target (for error messages).
+            areas: Allowed areas.
+            find_id: Search by ID or ``None`` for ``scan_id``.
 
         Returns:
-            Relativer Pfad.
+            Relative path.
 
         Raises:
-            PkmError: ``not_found`` oder ``ambiguous``.
+            PkmError: ``not_found`` or ``ambiguous``.
         """
         if not is_valid_id(doc_id):
-            raise PkmError("not_found", f"Ungültige ID: {doc_id}", target=target)
+            raise PkmError("not_found", f"Invalid ID: {doc_id}", target=target)
         found = [r for r in (find_id or self.scan_id)(doc_id) if r.split("/", 1)[0] in areas]
         return _one(found, target)
 
     def _resolve_path(self, t: str, target: str, areas: tuple[str, ...]) -> str:
-        """Ziel mit ``/`` als Pfad (mit oder ohne ``.md``) auflösen.
+        """Resolve a target containing ``/`` as a path (with or without ``.md``).
 
         Args:
-            t: Bereinigter Pfad.
-            target: Ursprüngliches Ziel (für Fehlermeldungen).
-            areas: Erlaubte Bereiche.
+            t: Cleaned path.
+            target: Original target (for error messages).
+            areas: Allowed areas.
 
         Returns:
-            Relativer Pfad.
+            Relative path.
 
         Raises:
-            PkmError: ``not_found``, ``forbidden`` oder ``invalid_path``.
+            PkmError: ``not_found``, ``forbidden`` or ``invalid_path``.
         """
         found = next((p for p in (self.path(t), self.path(f"{t}.md")) if p.is_file()), None)
         if found is None:
-            raise PkmError("not_found", f"Nicht gefunden: {target}", target=target)
+            raise PkmError("not_found", f"Not found: {target}", target=target)
         rel = nfc(found.relative_to(self.root).as_posix())
         if rel.split("/", 1)[0] not in areas:
-            raise PkmError("forbidden", f"Nur {', '.join(areas)} sind hier erlaubt.", target=target)
+            raise PkmError("forbidden", f"Only {', '.join(areas)} are allowed here.", target=target)
         return rel
 
     def _resolve_short(self, t: str, target: str, areas: tuple[str, ...]) -> str:
-        """Kurznamen ohne Ordner auflösen (Dateiname ohne Endung, ohne Groß-/Kleinschreibung).
+        """Resolve short names without folder (file name without extension, case-insensitive).
 
         Args:
-            t: Kurzname.
-            target: Ursprüngliches Ziel (für Fehlermeldungen).
-            areas: Erlaubte Bereiche.
+            t: Short name.
+            target: Original target (for error messages).
+            areas: Allowed areas.
 
         Returns:
-            Relativer Pfad.
+            Relative path.
 
         Raises:
-            PkmError: ``not_found`` oder ``ambiguous``.
+            PkmError: ``not_found`` or ``ambiguous``.
         """
         key = link_key(t)
         found = []
@@ -409,13 +409,13 @@ class Vault:
         return _one(found, target)
 
     def scan_id(self, doc_id: str) -> list[str]:
-        """ID ohne Index suchen (langsam, Rückfallebene).
+        """Search an ID without the index (slow, fallback).
 
         Args:
-            doc_id: Dokument-ID.
+            doc_id: Document ID.
 
         Returns:
-            Alle Markdown-Dateien mit dieser ID.
+            All Markdown files with this ID.
         """
         needle = doc_id.encode()
         found = []
@@ -425,13 +425,13 @@ class Vault:
         return found
 
     def scan_citation(self, value: str) -> list[str]:
-        """Kurzbezeichnung ohne Index suchen (langsam, Rückfallebene).
+        """Search a short citation without the index (slow, fallback).
 
         Args:
-            value: Kurzbezeichnung, z. B. ``EN 61000-4-6:2014``.
+            value: Short citation, e.g. ``EN 61000-4-6:2014``.
 
         Returns:
-            Markdown-Dateien in ``documents/``, deren ``short_citation`` passt.
+            Markdown files in ``documents/`` whose ``short_citation`` matches.
         """
         key = citation_key(value)
         found = []
@@ -443,13 +443,13 @@ class Vault:
         return found
 
     def _head(self, rel: str) -> bytes:
-        """Anfang einer Datei lesen (für die schnelle ID-Suche).
+        """Read the beginning of a file (for the fast ID search).
 
         Args:
-            rel: Relativer Pfad.
+            rel: Relative path.
 
         Returns:
-            Die ersten Bytes oder leere Bytes, wenn die Datei nicht lesbar ist.
+            The first bytes or empty bytes if the file is not readable.
         """
         try:
             data = self.path(rel).read_bytes()[:ID_SCAN_BYTES]
@@ -461,48 +461,48 @@ class Vault:
 
 
 def _one(found: list[str], target: str) -> str:
-    """Genau einen Treffer verlangen.
+    """Require exactly one hit.
 
     Args:
-        found: Gefundene Pfade.
-        target: Ursprüngliches Ziel (für Fehlermeldungen).
+        found: Paths found.
+        target: Original target (for error messages).
 
     Returns:
-        Den einzigen Treffer.
+        The only hit.
 
     Raises:
-        PkmError: ``not_found`` ohne Treffer, ``ambiguous`` mit Kandidaten bei mehreren.
+        PkmError: ``not_found`` without a hit, ``ambiguous`` with candidates for several.
     """
     if not found:
-        raise PkmError("not_found", f"Nicht gefunden: {target}", target=target)
+        raise PkmError("not_found", f"Not found: {target}", target=target)
     if len(found) > 1:
-        raise PkmError("ambiguous", f"Mehrdeutig: {target}", target=target, candidates=sorted(found))
+        raise PkmError("ambiguous", f"Ambiguous: {target}", target=target, candidates=sorted(found))
     return found[0]
 
 
 def is_markdown(rel: str) -> bool:
-    """Prüfen, ob ein Pfad eine Markdown-Datei bezeichnet.
+    """Check whether a path denotes a Markdown file.
 
     Args:
-        rel: Pfad oder Dateiname.
+        rel: Path or file name.
 
     Returns:
-        ``True`` bei Endung ``.md`` (Groß-/Kleinschreibung egal).
+        ``True`` for the extension ``.md`` (case-insensitive).
     """
     return rel.lower().endswith(".md")
 
 
 def load_text_doc(rel: str, data: bytes, size: int = 0, mtime_ns: int = 0) -> Doc:
-    """Markdown-Dokument aus Bytes laden.
+    """Load a Markdown document from bytes.
 
     Args:
-        rel: Relativer Pfad.
-        data: Dateiinhalt.
-        size: Dateigröße; ohne Angabe die Länge von ``data``.
-        mtime_ns: Änderungszeit.
+        rel: Relative path.
+        data: File content.
+        size: File size; the length of ``data`` if omitted.
+        mtime_ns: Modification time.
 
     Returns:
-        Das Dokument; bei Fehlern sind ``error`` und ``error_message`` gesetzt.
+        The document; on errors ``error`` and ``error_message`` are set.
     """
     doc = Doc(rel, "md", size or len(data), mtime_ns)
     try:
@@ -520,13 +520,13 @@ def load_text_doc(rel: str, data: bytes, size: int = 0, mtime_ns: int = 0) -> Do
 
 
 def extract_links(body: str) -> list[str]:
-    """Wikilink-Ziele aus einem Text sammeln.
+    """Collect wikilink targets from a text.
 
     Args:
-        body: Markdown-Text.
+        body: Markdown text.
 
     Returns:
-        Ziele ohne Anker und Alias, ohne Duplikate, in Reihenfolge des Auftretens.
+        Targets without anchor and alias, without duplicates, in order of appearance.
     """
     seen: list[str] = []
     for m in WIKILINK_RE.finditer(body):
@@ -537,13 +537,13 @@ def extract_links(body: str) -> list[str]:
 
 
 def link_key(target: str) -> str:
-    """Wikilink-Ziel vergleichbar machen.
+    """Make a wikilink target comparable.
 
     Args:
-        target: Link-Ziel.
+        target: Link target.
 
     Returns:
-        Ziel in NFC, mit ``/``, ohne ``.md``, casefold.
+        Target in NFC, with ``/``, without ``.md``, casefolded.
     """
     t = nfc(target.strip()).replace("\\", "/")
     if t.lower().endswith(".md"):
@@ -552,14 +552,14 @@ def link_key(target: str) -> str:
 
 
 def summary_of(doc: Doc) -> str:
-    """Kurzfassung eines Dokuments.
+    """Summary of a document.
 
     Args:
-        doc: Dokument.
+        doc: Document.
 
     Returns:
-        Bei Wiki-Seiten das erste Zitat nach dem Frontmatter (ohne fettes Etikett wie
-        „Kurzfassung:“), bei Dokumenten das erste Zitat oder der erste Absatz; sonst leer.
+        For wiki pages the first quote after the frontmatter (without a bold label like
+        "Summary:"), for documents the first quote or the first paragraph; otherwise empty.
     """
     summary = ""
     if doc.parsed is not None:
@@ -577,13 +577,13 @@ def summary_of(doc: Doc) -> str:
 
 
 def _first_paragraph(parsed: Parsed) -> str:
-    """Ersten Absatz über alle Abschnitte suchen.
+    """Find the first paragraph across all sections.
 
     Args:
-        parsed: Zerlegtes Dokument.
+        parsed: Parsed document.
 
     Returns:
-        Den ersten Absatz (Zeilen mit Leerzeichen verbunden) oder einen leeren Text.
+        The first paragraph (lines joined with spaces) or an empty text.
     """
     para: list[str] = []
     for section in parsed.sections:
@@ -598,14 +598,14 @@ def _first_paragraph(parsed: Parsed) -> str:
 
 
 def section_summary(doc: Doc) -> list[dict[str, Any]]:
-    """Abschnittsübersicht für ``read``.
+    """Section overview for ``read``.
 
     Args:
-        doc: Dokument.
+        doc: Document.
 
     Returns:
-        Je Abschnitt Schlüssel, Ebene und Kurz-Hash (``empty: true`` bei Abschnitten ohne eigenen
-        Text); leer bei nicht lesbaren Dateien.
+        Per section key, level and short hash (``empty: true`` for sections without text of their
+        own); empty for unreadable files.
     """
     result: list[dict[str, Any]] = []
     if doc.parsed is not None and doc.hashes is not None:

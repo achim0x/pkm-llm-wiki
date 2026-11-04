@@ -1,4 +1,4 @@
-"""Generierte Wiki-Dateien: ``wiki/index.md`` (4.3) und ``wiki/_status.md`` (4.4).
+"""Generated wiki files: ``wiki/index.md`` (4.3) and ``wiki/_status.md`` (4.4).
 
     Author: Achim0x
 """
@@ -43,10 +43,10 @@ if TYPE_CHECKING:
 
 GENERATED = {"wiki/index.md", "wiki/_status.md", "wiki/log.md"}
 TYPE_HEADINGS = [
-    ("topic", "Themen"),
-    ("entity", "Entitäten"),
-    ("summary", "Zusammenfassungen"),
-    ("synthesis", "Synthesen"),
+    ("topic", "Topics"),
+    ("entity", "Entities"),
+    ("summary", "Summaries"),
+    ("synthesis", "Syntheses"),
 ]
 FOLDER_TYPES = {"topics": "topic", "entities": "entity", "summaries": "summary", "syntheses": "synthesis"}
 INBOX = "documents/_inbox/"
@@ -58,13 +58,13 @@ ATTACHMENTS = "documents/_attachments/"
 
 
 def wiki_pages(svc: Service) -> list[Doc]:
-    """Alle Wiki-Seiten außer den generierten Dateien und Lint-Berichten.
+    """All wiki pages except the generated files and lint reports.
 
     Args:
-        svc: Dienst.
+        svc: Service.
 
     Returns:
-        Geladene Seiten.
+        Loaded pages.
     """
     pages = []
     for rel in svc.vault.iter_files(("wiki",)):
@@ -77,13 +77,13 @@ def wiki_pages(svc: Service) -> list[Doc]:
 
 
 def page_type(doc: Doc) -> str:
-    """Typ einer Wiki-Seite.
+    """Type of a wiki page.
 
     Args:
-        doc: Wiki-Seite.
+        doc: Wiki page.
 
     Returns:
-        ``type`` aus dem Frontmatter, sonst aus dem Ordner abgeleitet, sonst leer.
+        ``type`` from the frontmatter, otherwise derived from the folder, otherwise empty.
     """
     t = doc.meta.get("type")
     parts = doc.rel.split("/")
@@ -92,28 +92,28 @@ def page_type(doc: Doc) -> str:
 
 
 def source_count(doc: Doc) -> int:
-    """Anzahl der Quellen einer Wiki-Seite.
+    """Number of sources of a wiki page.
 
     Args:
-        doc: Wiki-Seite.
+        doc: Wiki page.
 
     Returns:
-        Länge von ``sources`` (0, wenn das Feld fehlt).
+        Length of ``sources`` (0 if the field is missing).
     """
     sources = doc.meta.get("sources")
     return len(sources) if isinstance(sources, list) else 0
 
 
 def write_if_changed(svc: Service, rel: str, text: str) -> bool:
-    """Datei nur schreiben, wenn sich der Inhalt ändert (atomar).
+    """Write a file only if its content changes (atomically).
 
     Args:
-        svc: Dienst.
-        rel: Relativer Pfad.
-        text: Neuer Inhalt (wird in die Schreibform gebracht).
+        svc: Service.
+        rel: Relative path.
+        text: New content (brought into write form).
 
     Returns:
-        ``True``, wenn geschrieben wurde.
+        ``True`` if it was written.
     """
     p = svc.vault.path(rel)
     data = encode(text)
@@ -124,56 +124,56 @@ def write_if_changed(svc: Service, rel: str, text: str) -> bool:
 
 
 def _index_line(doc: Doc) -> str:
-    """Zeile einer Seite in ``wiki/index.md``.
+    """Line of a page in ``wiki/index.md``.
 
     Args:
-        doc: Wiki-Seite.
+        doc: Wiki page.
 
     Returns:
-        ``- [[pfad]] – Kurzfassung _(n Quellen, Datum)_`` (Datum ohne Uhrzeit).
+        ``- [[path]] – summary _(n sources, date)_`` (date without time).
     """
-    summary = strip_images(summary_of(doc)) or "_(keine Kurzfassung)_"
+    summary = strip_images(summary_of(doc)) or "_(no summary)_"
     n = source_count(doc)
     updated = str(doc.meta.get("date_updated") or "")[:10]
-    info = f"{n} {'Quelle' if n == 1 else 'Quellen'}" + (f", {updated}" if updated else "")
+    info = f"{n} {'source' if n == 1 else 'sources'}" + (f", {updated}" if updated else "")
     return f"- {doc.wikilink} – {summary} _({info})_"
 
 
 def build_index(svc: Service) -> dict[str, Any]:
-    """``pkm index``: ``wiki/index.md`` neu erzeugen, gruppiert nach Typ.
+    """``pkm index``: regenerate ``wiki/index.md``, grouped by type.
 
     Args:
-        svc: Dienst.
+        svc: Service.
 
     Returns:
-        Anzahl der Seiten und ob die Datei geändert wurde.
+        Number of pages and whether the file was changed.
     """
     pages = wiki_pages(svc)
     groups: dict[str, list[Doc]] = {}
     for doc in pages:
         groups.setdefault(page_type(doc), []).append(doc)
     known = [t for t, _ in TYPE_HEADINGS]
-    others = [(t, "Sonstige" if not t else f"Sonstige ({t})") for t in sorted(groups) if t not in known]
-    lines = ["# Wiki-Index", ""]
+    others = [(t, "Other" if not t else f"Other ({t})") for t in sorted(groups) if t not in known]
+    lines = ["# Wiki index", ""]
     for t, heading in TYPE_HEADINGS + others:
         docs = sorted(groups.get(t, []), key=lambda d: (d.title.casefold(), d.rel))
         if docs:
             lines += [f"## {heading}", "", *(_index_line(d) for d in docs), ""]
     if len(lines) == 2:
-        lines += ["_Noch keine Seiten._", ""]
+        lines += ["_No pages yet._", ""]
     changed = write_if_changed(svc, "wiki/index.md", "\n".join(lines))
     return {"status": "ok", "pages": len(pages), "changed": changed}
 
 
 def suggest_folder(doc: Doc, all_docs: list[Doc]) -> str | None:
-    """Einsortier-Vorschlag: Ordner, in dem die meisten Dokumente mit gleichen ``tags`` liegen.
+    """Filing proposal: folder that holds most documents with the same ``tags``.
 
     Args:
-        doc: Dokument im Eingang.
-        all_docs: Alle Dokumente.
+        doc: Document in the inbox.
+        all_docs: All documents.
 
     Returns:
-        Ordner mit ``/`` am Ende oder ``None``.
+        Folder ending in ``/`` or ``None``.
     """
     tags = doc.meta.get("tags")
     wanted = {str(t).casefold() for t in tags} if isinstance(tags, list) else set()
@@ -191,69 +191,69 @@ def suggest_folder(doc: Doc, all_docs: list[Doc]) -> str | None:
 
 
 def _quote_keys(keys: list[str]) -> str:
-    """Abschnittsschlüssel in deutschen Anführungszeichen aufzählen.
+    """List section keys in quotes.
 
     Args:
-        keys: Schlüssel.
+        keys: Keys.
 
     Returns:
-        Z. B. ``„Ergebnis“, „Offene Punkte“``.
+        E.g. ``"Result", "Open points"``.
     """
-    return ", ".join(f"„{k}“" for k in keys)
+    return ", ".join(f'"{k}"' for k in keys)
 
 
 def _link(rel: str) -> str:
-    """Wikilink auf eine Datei.
+    """Wikilink to a file.
 
     Args:
-        rel: Relativer Pfad.
+        rel: Relative path.
 
     Returns:
-        ``[[pfad]]`` (Markdown ohne ``.md``).
+        ``[[path]]`` (Markdown without ``.md``).
     """
     return f"[[{rel[:-3] if rel.lower().endswith('.md') else rel}]]"
 
 
 def _unprocessed_lines(pend: dict[str, Any]) -> list[str]:
-    """Zeilen für „Noch nicht verarbeitet“.
+    """Lines for "Not yet processed".
 
     Args:
-        pend: Ergebnis von ``pkm pending``.
+        pend: Result of ``pkm pending``.
 
     Returns:
-        Eine Zeile je Dokument.
+        One line per document.
     """
     lines: list[str] = []
     for item in pend["new"]:
         version = f" (v{item.get('version')})" if item.get("version") else ""
-        extra = ", ohne ID" if item.get("missing_id") else ""
-        lines.append(f"- {_link(item['path'])} – neu{version}{extra}")
+        extra = ", without ID" if item.get("missing_id") else ""
+        lines.append(f"- {_link(item['path'])} – new{version}{extra}")
     for item in pend["changed"]:
         keys = [c["key"] for c in item.get("sections", [])]
-        what = f"geändert: {_quote_keys(keys)}" if keys else "nur Reihenfolge geändert"
+        what = f"changed: {_quote_keys(keys)}" if keys else "only order changed"
         lines.append(f"- {_link(item['path'])} – v{item.get('processed_version')} → v{item.get('version')}, {what}")
     for item in pend["meta_changed"]:
         lines.append(
-            f"- {_link(item['path'])} – v{item.get('processed_version')} → v{item.get('version')}, nur Metadaten"
+            f"- {_link(item['path'])} – v{item.get('processed_version')} → v{item.get('version')}, metadata only"
         )
     for item in pend["moved"]:
-        lines.append(f"- {_link(item['to'])} – verschoben von {item['from']}")
+        lines.append(f"- {_link(item['to'])} – moved from {item['from']}")
     for item in pend["deleted"]:
-        pages = ", ".join(item.get("wiki_pages") or []) or "keine Wiki-Seiten"
-        lines.append(f"- {item.get('path')} – gelöscht (zuletzt v{item.get('processed_version')}), betrifft: {pages}")
+        pages = ", ".join(item.get("wiki_pages") or []) or "no wiki pages"
+        lines.append(f"- {item.get('path')} – deleted (last v{item.get('processed_version')}), affects: {pages}")
     return lines
 
 
 def _inbox_lines(svc: Service, pend: dict[str, Any], docs: list[Doc]) -> list[str]:
-    """Zeilen für „Noch im Eingang, bereits verarbeitet“ mit Einsortier-Vorschlag.
+    """Lines for "Still in the inbox, already processed" with a filing proposal.
 
     Args:
-        svc: Dienst.
-        pend: Ergebnis von ``pkm pending``.
-        docs: Alle Dokumente.
+        svc: Service.
+        pend: Result of ``pkm pending``.
+        docs: All documents.
 
     Returns:
-        Eine Zeile je verarbeitetem Dokument im Eingang.
+        One line per processed document in the inbox.
     """
     state = load_state(svc.cfg)["documents"]
     pending_paths = {i["path"] for k in ("new", "changed", "meta_changed") for i in pend[k]}
@@ -262,41 +262,41 @@ def _inbox_lines(svc: Service, pend: dict[str, Any], docs: list[Doc]) -> list[st
         key = doc.id if doc.kind == "md" else f"sha:{doc.bin_hash}"
         if doc.rel.startswith(INBOX) and doc.rel not in pending_paths and key and key in state:
             folder = suggest_folder(doc, docs)
-            lines.append(f"- {_link(doc.rel)} → {f'Vorschlag: {folder}' if folder else 'kein Vorschlag'}")
+            lines.append(f"- {_link(doc.rel)} → {f'proposal: {folder}' if folder else 'no proposal'}")
     return lines
 
 
 def _problem_lines(pend: dict[str, Any]) -> list[str]:
-    """Zeilen für „Probleme“.
+    """Lines for "Problems".
 
     Args:
-        pend: Ergebnis von ``pkm pending``.
+        pend: Result of ``pkm pending``.
 
     Returns:
-        Eine Zeile je Problem.
+        One line per problem.
     """
     lines = []
     for p in pend["problems"]:
         if p["problem"] == "conflict_copy":
-            lines.append(f"- Konfliktkopie des Cloud-Speichers: {p['path']} (bitte in Obsidian zusammenführen)")
+            lines.append(f"- Cloud storage conflict copy: {p['path']} (please merge in Obsidian)")
         elif p["problem"] == "duplicate_id":
-            lines.append(f"- Doppelte ID {p['id']}: {', '.join(p['paths'])}")
+            lines.append(f"- Duplicate ID {p['id']}: {', '.join(p['paths'])}")
         elif p["problem"] == "case_collision":
-            lines.append(f"- Nur in Groß-/Kleinschreibung verschieden: {', '.join(p['paths'])}")
+            lines.append(f"- Differ only in upper/lower case: {', '.join(p['paths'])}")
         else:
             lines.append(f"- {p['problem']}: {p.get('path')} – {p.get('message') or ''}".rstrip(" –"))
     return lines
 
 
 def build_status(svc: Service, questions: list[str] | None = None) -> dict[str, Any]:
-    """``pkm status``: ``wiki/_status.md`` neu erzeugen.
+    """``pkm status``: regenerate ``wiki/_status.md``.
 
     Args:
-        svc: Dienst.
-        questions: Rückfragen für den Abschnitt „Rückfragen“.
+        svc: Service.
+        questions: Questions for the "Questions" section.
 
     Returns:
-        Zähler und ob die Datei geändert wurde.
+        Counters and whether the file was changed.
     """
     maint = Maintenance(svc)
     pend = maint.pending()
@@ -304,14 +304,14 @@ def build_status(svc: Service, questions: list[str] | None = None) -> dict[str, 
     unprocessed = _unprocessed_lines(pend)
     inbox_done = _inbox_lines(svc, pend, docs)
     problems = _problem_lines(pend)
-    lines = ["# Status", "", f"## Noch nicht verarbeitet ({len(unprocessed)})", *unprocessed, "",
-             f"## Noch im Eingang, bereits verarbeitet ({len(inbox_done)})", *inbox_done, "",
-             f"## Probleme ({len(problems)})", *problems, ""]
+    lines = ["# Status", "", f"## Not yet processed ({len(unprocessed)})", *unprocessed, "",
+             f"## Still in the inbox, already processed ({len(inbox_done)})", *inbox_done, "",
+             f"## Problems ({len(problems)})", *problems, ""]
     orphans = pend.get("orphaned_attachments") or []
     if orphans:
-        lines += [f"## Verwaiste Anhänge ({len(orphans)})", *[f"- {_link(rel)}" for rel in orphans], ""]
+        lines += [f"## Orphaned attachments ({len(orphans)})", *[f"- {_link(rel)}" for rel in orphans], ""]
     if questions:
-        lines += [f"## Rückfragen ({len(questions)})", *[f"- {q}" for q in questions], ""]
+        lines += [f"## Questions ({len(questions)})", *[f"- {q}" for q in questions], ""]
     changed = write_if_changed(svc, "wiki/_status.md", "\n".join(lines))
     return {"status": "ok", "unprocessed": len(unprocessed), "inbox_processed": len(inbox_done),
             "problems": len(problems), "changed": changed}

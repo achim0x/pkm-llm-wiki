@@ -1,4 +1,4 @@
-"""Textstruktur von Wiki-Seiten: Fußnoten-Muster, Absätze, Tabellen und strukturelle Zeilen.
+"""Text structure of wiki pages: footnote patterns, paragraphs, tables and structural lines.
 
     Author: Achim0x
 """
@@ -42,14 +42,14 @@ LINK_LABEL_RE = re.compile(r"^[\w ./-]{1,30}:$")
 
 
 def is_structural_line(line: str) -> bool:
-    """Zeilen ohne eigene Sachaussage: Zwischenüberschrift, reine Hervorhebung, reine Link-Zeile.
+    """Lines without a statement of their own: subheading, emphasis only, links only.
 
     Args:
-        line: Zeile im Body.
+        line: Line of the body.
 
     Returns:
-        ``True`` für ``### …``, ``**Text**`` (auch als Listeneintrag) und Zeilen, die nur aus Links
-        bestehen, ggf. mit kurzer Beschriftung wie ``Details:``.
+        ``True`` for ``### …``, ``**Text**`` (also as a list item) and lines that consist only of links,
+        optionally with a short label such as ``Details:``.
     """
     rest = LIST_ITEM_RE.sub("", line, count=1)
     links_only = False
@@ -60,16 +60,16 @@ def is_structural_line(line: str) -> bool:
 
 
 def section_blocks(lines: list[str], rows: range, def_lines: set[int]) -> list[list[tuple[int, str]] | None]:
-    """Zeilen eines Abschnitts in Absätze zerlegen.
+    """Split the lines of a section into paragraphs.
 
     Args:
-        lines: Zeilen des Bodys.
-        rows: Zeilenindizes des Abschnitts (ohne Überschrift).
-        def_lines: Zeilen mit Fußnotendefinitionen.
+        lines: Lines of the body.
+        rows: Line indexes of the section (without the heading).
+        def_lines: Lines with footnote definitions.
 
     Returns:
-        Absätze als Listen von (Index, Text); ``None`` markiert eine strukturelle Zeile, die
-        Absätze trennt und eine Tabelle nicht mit einer folgenden Beleg-Zeile verbindet.
+        Paragraphs as lists of (index, text); ``None`` marks a structural line that separates
+        paragraphs and does not join a table with a following citation line.
     """
     blocks: list[list[tuple[int, str]] | None] = []
     block: list[tuple[int, str]] = []
@@ -85,25 +85,25 @@ def section_blocks(lines: list[str], rows: range, def_lines: set[int]) -> list[l
 
 
 def _is_table(block: list[tuple[int, str]] | None) -> bool:
-    """Prüfen, ob ein Absatz eine Markdown-Tabelle ist.
+    """Check whether a paragraph is a Markdown table.
 
     Args:
-        block: Absatz oder ``None``.
+        block: Paragraph or ``None``.
 
     Returns:
-        ``True``, wenn alle Zeilen mit ``|`` beginnen.
+        ``True`` if all lines start with ``|``.
     """
     return bool(block) and all(t.lstrip().startswith("|") for _, t in block or [])
 
 
 def _is_ref_only(block: list[tuple[int, str]] | None) -> bool:
-    """Prüfen, ob ein Absatz nur aus Fußnotenmarken besteht (ggf. mit „Quelle:“).
+    """Check whether a paragraph consists only of footnote markers (optionally with "Source:").
 
     Args:
-        block: Absatz oder ``None``.
+        block: Paragraph or ``None``.
 
     Returns:
-        ``True`` bei Zeilen wie ``[^b1][^b2]`` oder ``Quelle: [^b1]``.
+        ``True`` for lines like ``[^b1][^b2]`` or ``Source: [^b1]``.
     """
     text = " ".join(t for _, t in block or [])
     rest = REF_RE.sub("", text).strip(" \t.,;:")
@@ -111,13 +111,13 @@ def _is_ref_only(block: list[tuple[int, str]] | None) -> bool:
 
 
 def merge_table_refs(blocks: list[list[tuple[int, str]] | None]) -> list[list[tuple[int, str]] | None]:
-    """Tabelle mit einer direkt folgenden Beleg-Zeile zu einer Aussage verbinden.
+    """Join a table with a directly following citation line into one statement.
 
     Args:
-        blocks: Absätze aus ``section_blocks``.
+        blocks: Paragraphs from ``section_blocks``.
 
     Returns:
-        Absätze; eine Tabelle und ihre Beleg-Zeile bilden einen Absatz.
+        Paragraphs; a table and its citation line form one paragraph.
     """
     out: list[list[tuple[int, str]] | None] = []
     for block in blocks:

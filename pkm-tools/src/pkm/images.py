@@ -1,8 +1,8 @@
-"""Bilder in Dokumenten (Spezifikation 4.9): erkennen, prüfen, bereinigen, kodieren, Platzhalter.
+"""Images in documents (specification 4.9): detect, check, sanitize, encode, placeholders.
 
-PNG und SVG. Kleine Bilder werden als Data-URI eingebettet (PNG Base64, SVG URL-kodiert), größere als
-Datei abgelegt. Base64 gelangt nie in den Kontext des Modells: ``read`` zeigt Platzhalter, die beim
-Schreiben byte-genau zurückübersetzt werden.
+PNG and SVG. Small images are embedded as data URIs (PNG Base64, SVG URL-encoded), larger ones are
+stored as files. Base64 never reaches the model's context: ``read`` shows placeholders that are
+translated back byte for byte when writing.
 
     Author: Achim0x
 """
@@ -55,7 +55,7 @@ IMAGE_EXTENSIONS = (".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp")
 NEW_FORMATS = ("png", "svg", "jpg")
 IMPORT_SUFFIXES = {".png": "png", ".svg": "svg", ".jpg": "jpg", ".jpeg": "jpg"}
 JPEG_SOI = b"\xff\xd8"
-JPEG_DROP = (0xE1, 0xED, 0xFE)  # EXIF/XMP, Photoshop/IPTC, Kommentar
+JPEG_DROP = (0xE1, 0xED, 0xFE)  # EXIF/XMP, Photoshop/IPTC, comment
 JPEG_SOF = set(range(0xC0, 0xD0)) - {0xC4, 0xC8, 0xCC}
 EXIF_ORIENTATION = 0x0112
 MODES = ("auto", "inline", "file")
@@ -72,10 +72,10 @@ SVG_FORBIDDEN = (
     (re.compile(r"<\?xml-stylesheet", re.IGNORECASE), "xml-stylesheet"),
     (re.compile(r"<(?:[\w-]+:)?script\b", re.IGNORECASE), "<script>"),
     (re.compile(r"<(?:[\w-]+:)?foreignObject\b", re.IGNORECASE), "<foreignObject>"),
-    (re.compile(r"""\son[a-z]+\s*=""", re.IGNORECASE), "Ereignis-Attribut"),
-    (re.compile(r"""(?:xlink:)?href\s*=\s*["'](?!#)""", re.IGNORECASE), "externer Verweis"),
-    (re.compile(r"url\(\s*['\"]?(?!#)[a-z]+:", re.IGNORECASE), "externer Verweis in CSS"),
-    (re.compile(r"data:image/(?!svg)", re.IGNORECASE), "eingebettete Rastergrafik"),
+    (re.compile(r"""\son[a-z]+\s*=""", re.IGNORECASE), "event attribute"),
+    (re.compile(r"""(?:xlink:)?href\s*=\s*["'](?!#)""", re.IGNORECASE), "external reference"),
+    (re.compile(r"url\(\s*['\"]?(?!#)[a-z]+:", re.IGNORECASE), "external reference in CSS"),
+    (re.compile(r"data:image/(?!svg)", re.IGNORECASE), "embedded raster image"),
 )
 URL_UNSAFE = set('%#<>" \n\r\t()[]{}|\\^`')
 DROP_ELEMENTS = ("script", "foreignObject", "metadata")
@@ -85,19 +85,19 @@ DROP_ELEMENTS = ("script", "foreignObject", "metadata")
 
 @dataclass
 class ImageRef:  # pylint: disable=too-many-instance-attributes
-    """Ein Bild im Text eines Dokuments.
+    """An image in the text of a document.
 
     Attributes:
-        name: Bildname (``pkm:<name>`` oder abgeleitet).
-        alt: Alternativtext (ohne ``|breite``).
-        raw: Exakter Markdown-Text des Bildes.
-        start: Startposition im Text.
-        end: Endposition im Text.
-        inline: Eingebettet (Data-URI) statt Datei.
+        name: Image name (``pkm:<name>`` or derived).
+        alt: Alt text (without ``|width``).
+        raw: Exact Markdown text of the image.
+        start: Start position in the text.
+        end: End position in the text.
+        inline: Embedded (data URI) instead of a file.
         fmt: Format (``png``, ``svg``, ``jpg`` …).
-        link: Verweis wie geschrieben (Data-URI bzw. Pfad).
-        named: Ob der Name als ``pkm:<name>`` im Text steht.
-        occ: Fundstelle bei eingebetteten Bildern (Schreibweise, Lage der URI, Referenz) oder ``None``.
+        link: Reference as written (data URI or path).
+        named: Whether the name is in the text as ``pkm:<name>``.
+        occ: Occurrence for embedded images (notation, position of the URI, reference) or ``None``.
     """
 
     name: str
@@ -113,32 +113,32 @@ class ImageRef:  # pylint: disable=too-many-instance-attributes
 
     @property
     def full_placeholder(self) -> bool:
-        """Ob das Bild in ``read`` als ganzer Platzhalter erscheint (Schreibweise nach 4.9).
+        """Whether the image appears in ``read`` as a whole placeholder (notation per 4.9).
 
         Returns:
-            ``True`` bei ``![alt](data:… "…")`` ohne Leerraum in der URI; sonst wird nur die URI ersetzt.
+            ``True`` for ``![alt](data:… "…")`` without whitespace in the URI; otherwise only the URI is replaced.
         """
         return self.occ is not None and self.occ.notation == "inline" and bool(MD_IMAGE_RE.fullmatch(self.raw))
 
     def data(self) -> bytes:
-        """Inhalt eines eingebetteten Bildes.
+        """Content of an embedded image.
 
         Returns:
-            Dekodierte Bytes (leer bei Dateien oder unlesbaren Data-URIs).
+            Decoded bytes (empty for files or unreadable data URIs).
         """
         return decode_data_uri(self.link)[1] if self.inline else b""
 
 
 @dataclass
 class PreparedImage:
-    """Ein neues Bild, geprüft und kodiert, bereit zum Einsetzen.
+    """A new image, checked and encoded, ready to insert.
 
     Attributes:
-        name: Bildname.
-        alt: Alternativtext.
-        fmt: ``png`` oder ``svg``.
-        data: Bereinigte Bytes.
-        mode: ``inline`` oder ``file``.
+        name: Image name.
+        alt: Alt text.
+        fmt: ``png`` or ``svg``.
+        data: Sanitized bytes.
+        mode: ``inline`` or ``file``.
     """
 
     name: str
@@ -148,10 +148,10 @@ class PreparedImage:
     mode: str
 
     def markdown(self, link: str) -> str:
-        """Markdown-Zeile des Bildes.
+        """Markdown line of the image.
 
         Args:
-            link: Data-URI oder relativer Pfad zur Datei.
+            link: Data URI or relative path to the file.
 
         Returns:
             ``![alt](link "pkm:name")``.
@@ -159,19 +159,19 @@ class PreparedImage:
         return f'![{self.alt}]({link} "pkm:{self.name}")'
 
     def data_uri(self) -> str:
-        """Bild als Data-URI.
+        """Image as a data URI.
 
         Returns:
-            PNG als Base64-, SVG als URL-kodierte Data-URI.
+            PNG as a Base64 data URI, SVG as a URL-encoded one.
         """
         uri = svg_data_uri(self.data.decode("utf-8")) if self.fmt == "svg" else png_data_uri(self.data)
         return uri.replace("data:image/png;", "data:image/jpeg;", 1) if self.fmt == "jpg" else uri
 
     def info(self) -> dict[str, Any]:
-        """Kurzinfo für Rückgaben.
+        """Short info for return values.
 
         Returns:
-            Name, Format, Modus, Größe in Bytes und Hash.
+            Name, format, mode, size in bytes and hash.
         """
         return {"name": self.name, "format": self.fmt, "mode": self.mode, "size": len(self.data),
                 "hash": hashlib.sha256(self.data).hexdigest()}
@@ -179,18 +179,18 @@ class PreparedImage:
 # Functions *******************************************************************
 
 
-# Erkennen ********************************************************************
+# Detecting *******************************************************************
 def find_images(text: str) -> list[ImageRef]:
-    """Bilder im Text finden: Markdown-Bilder (Data-URI oder Datei) und Obsidian-Einbettungen.
+    """Find images in the text: Markdown images (data URI or file) and Obsidian embeds.
 
-    Bilder mit ``http(s):``-Adresse zählen nicht. Bilder ohne ``pkm:``-Namen bekommen einen
-    abgeleiteten Namen (Alternativtext, sonst ``bild-<n>``), der nicht in die Datei geschrieben wird.
+    Images with an ``http(s):`` address do not count. Images without a ``pkm:`` name get a
+    derived name (alt text, otherwise ``image-<n>``) that is not written to the file.
 
     Args:
-        text: Markdown (Body oder Abschnitt).
+        text: Markdown (body or section).
 
     Returns:
-        Bilder in Textreihenfolge.
+        Images in text order.
     """
     found: list[tuple[int, int, str, str, str | None, DataOccurrence | None]] = []
     for m in MD_IMAGE_RE.finditer(text):
@@ -215,18 +215,18 @@ def find_images(text: str) -> list[ImageRef]:
 
 
 def _derived_name(alt: str, n: int, used: set[str]) -> str:
-    """Bildnamen ableiten (aus dem Alternativtext, sonst ``bild-<n>``), eindeutig im Dokument.
+    """Derive an image name (from the alt text, otherwise ``image-<n>``), unique in the document.
 
     Args:
-        alt: Alternativtext (ggf. mit ``|breite``).
-        n: Position des Bildes im Dokument.
-        used: Bereits vergebene Namen.
+        alt: Alt text (possibly with ``|width``).
+        n: Position of the image in the document.
+        used: Names already assigned.
 
     Returns:
-        Der Name.
+        The name.
     """
     base = alt.split("|", 1)[0].strip()
-    name = slugify(base, 40) if base and not base.isdigit() else f"bild-{n}"
+    name = slugify(base, 40) if base and not base.isdigit() else f"image-{n}"
     candidate, k = name, 1
     while candidate in used:
         k += 1
@@ -235,13 +235,13 @@ def _derived_name(alt: str, n: int, used: set[str]) -> str:
 
 
 def _format_of(url: str) -> str:
-    """Format eines Bildverweises.
+    """Format of an image reference.
 
     Args:
-        url: Data-URI oder Pfad.
+        url: Data URI or path.
 
     Returns:
-        ``png``, ``svg``, ``jpg`` … (leer, wenn unbekannt).
+        ``png``, ``svg``, ``jpg`` … (empty if unknown).
     """
     m = re.match(r"data:image/([a-z0-9.+-]+)", url, re.IGNORECASE)
     fmt = m.group(1).lower() if m else PurePosixPath(unquote(url).lower()).suffix.lstrip(".")
@@ -249,15 +249,15 @@ def _format_of(url: str) -> str:
 
 
 def link_target(ref: ImageRef, doc_rel: str) -> str | None:
-    """Vault-Pfad einer verlinkten Bilddatei (Markdown-Link relativ zum Dokument).
+    """Vault path of a linked image file (Markdown link relative to the document).
 
     Args:
-        ref: Bild.
-        doc_rel: Pfad des Dokuments im Vault.
+        ref: Image.
+        doc_rel: Path of the document in the vault.
 
     Returns:
-        Pfad im Vault; ``None`` bei eingebetteten Bildern. Obsidian-Einbettungen ohne Ordner liefern
-        den Namen wie geschrieben (Auflösung über den Dateibestand).
+        Path in the vault; ``None`` for embedded images. Obsidian embeds without a folder return
+        the name as written (resolved via the file inventory).
     """
     target = None
     if not ref.inline:
@@ -272,27 +272,27 @@ def link_target(ref: ImageRef, doc_rel: str) -> str | None:
 
 
 def relative_link(doc_rel: str, file_rel: str) -> str:
-    """Markdown-Link vom Dokument auf eine Datei im Vault.
+    """Markdown link from the document to a file in the vault.
 
     Args:
-        doc_rel: Pfad des Dokuments.
-        file_rel: Pfad der Datei.
+        doc_rel: Path of the document.
+        file_rel: Path of the file.
 
     Returns:
-        Relativer Pfad, z. B. ``../_attachments/foto_2026-11-03.png`` (Leerzeichen kodiert).
+        Relative path, e.g. ``../_attachments/photo_2026-11-03.png`` (spaces encoded).
     """
     rel = posixpath.relpath(file_rel, posixpath.dirname(doc_rel) or ".")
     return quote(rel, safe="/._-~")
 
 
 def strip_images(text: str) -> str:
-    """Bilder durch ihren Alternativtext ersetzen (für Suche und Index; nie Base64 oder SVG-Inhalt).
+    """Replace images by their alt text (for search and index; never Base64 or SVG content).
 
     Args:
         text: Markdown.
 
     Returns:
-        Text, in dem jedes Bild nur noch als Alternativtext steht.
+        Text in which every image only appears as its alt text.
     """
     out, pos = [], 0
     for ref in find_images(text):
@@ -301,27 +301,27 @@ def strip_images(text: str) -> str:
     return "".join(out) + text[pos:]
 
 
-# Platzhalter *****************************************************************
+# Placeholders ****************************************************************
 def human_size(size: int) -> str:
-    """Größe für Platzhalter.
+    """Size for placeholders.
 
     Args:
         size: Bytes.
 
     Returns:
-        Z. B. ``3,2 KB`` oder ``812 B``.
+        E.g. ``3.2 KB`` or ``812 B``.
     """
-    return f"{size} B" if size < 1024 else f"{size / 1024:.1f} KB".replace(".", ",")
+    return f"{size} B" if size < 1024 else f"{size / 1024:.1f} KB"
 
 
 def placeholder(ref: ImageRef) -> str:
-    """Platzhalter für ein eingebettetes Bild.
+    """Placeholder for an embedded image.
 
     Args:
-        ref: Bild.
+        ref: Image.
 
     Returns:
-        Z. B. ``![Schaltplan](pkm-image:schaltplan "svg, 3,2 KB, sha:ab12cd")``.
+        E.g. ``![Circuit diagram](pkm-image:circuit-diagram "svg, 3.2 KB, sha:ab12cd")``.
     """
     data = ref.data()
     sha = hashlib.sha256(data).hexdigest()[:6]
@@ -330,13 +330,13 @@ def placeholder(ref: ImageRef) -> str:
 
 
 def to_placeholders(text: str) -> str:
-    """Eingebettete Bilder durch Platzhalter ersetzen (für ``read``).
+    """Replace embedded images by placeholders (for ``read``).
 
     Args:
         text: Markdown.
 
     Returns:
-        Text ohne Data-URIs.
+        Text without data URIs.
     """
     spans: list[tuple[int, int, str]] = []
     for ref in find_images(text):
@@ -352,31 +352,31 @@ def to_placeholders(text: str) -> str:
 
 
 def restore_placeholders(text: str, refs: list[ImageRef]) -> str:
-    """Platzhalter byte-genau durch die Originale ersetzen (für ``rewrite_document``/``edit_document``).
+    """Replace placeholders byte for byte by the originals (for ``rewrite_document``/``edit_document``).
 
     Args:
-        text: Neuer Text mit Platzhaltern.
-        refs: Bilder des bisherigen Dokuments.
+        text: New text with placeholders.
+        refs: Images of the previous document.
 
     Returns:
-        Text mit den ursprünglichen Bildern.
+        Text with the original images.
 
     Raises:
-        PkmError: ``unknown_image`` bei Platzhaltern ohne Bild.
+        PkmError: ``unknown_image`` for placeholders without an image.
     """
     by_name = {r.name: r for r in refs if r.inline}
     unknown = sorted({m.group("name") for m in TOKEN_RE.finditer(text)} - set(by_name))
     if unknown:
-        raise PkmError("unknown_image", "Unbekannte Bild-Platzhalter: " + ", ".join(unknown), images=unknown)
+        raise PkmError("unknown_image", "Unknown image placeholders: " + ", ".join(unknown), images=unknown)
 
     def full(m: re.Match[str]) -> str:
-        """Ganzen Platzhalter ersetzen.
+        """Replace a whole placeholder.
 
         Args:
-            m: Treffer.
+            m: Match.
 
         Returns:
-            Original bzw. Bild mit der ursprünglichen URI.
+            Original or image with the original URI.
         """
         ref = by_name[m.group("name")]
         return ref.raw if ref.full_placeholder else f"![{m.group('alt')}]({ref.link})"
@@ -386,15 +386,15 @@ def restore_placeholders(text: str, refs: list[ImageRef]) -> str:
 
 
 def image_summary(text: str, section_of: Any = None) -> list[dict[str, Any]]:
-    """Liste der Bilder für ``read``.
+    """List of the images for ``read``.
 
     Args:
         text: Markdown.
-        section_of: Funktion Position → Abschnittsschlüssel (optional).
+        section_of: Function position → section key (optional).
 
     Returns:
-        Je Bild Name, Alternativtext, Format, ``inline``/``file``, Größe, Hash (bei eingebetteten),
-        Verweis (bei Dateien) und Abschnitt.
+        Per image name, alt text, format, ``inline``/``file``, size, hash (for embedded ones),
+        reference (for files) and section.
     """
     result = []
     for ref in find_images(text):
@@ -411,15 +411,15 @@ def image_summary(text: str, section_of: Any = None) -> list[dict[str, Any]]:
     return result
 
 
-# Kodierung *******************************************************************
+# Encoding ********************************************************************
 def decode_data_uri(url: str) -> tuple[str, bytes]:
-    """Data-URI dekodieren.
+    """Decode a data URI.
 
     Args:
         url: ``data:image/…``.
 
     Returns:
-        Tupel aus (Format, Bytes); Bytes leer, wenn nicht dekodierbar.
+        Tuple of (format, bytes); bytes empty if not decodable.
     """
     head, _, payload = url.partition(",")
     data = b""
@@ -432,22 +432,22 @@ def decode_data_uri(url: str) -> tuple[str, bytes]:
 
 
 def png_data_uri(data: bytes) -> str:
-    """PNG als Base64-Data-URI.
+    """PNG as a Base64 data URI.
 
     Args:
-        data: PNG-Bytes.
+        data: PNG bytes.
 
     Returns:
-        ``data:image/png;base64,…`` ohne Zeilenumbrüche.
+        ``data:image/png;base64,…`` without line breaks.
     """
     return "data:image/png;base64," + base64.b64encode(data).decode("ascii")
 
 
 def svg_data_uri(svg: str) -> str:
-    """SVG als URL-kodierte Data-URI (4.9): doppelte Anführungszeichen in Attributen werden einfache.
+    """SVG as a URL-encoded data URI (4.9): double quotes in attributes become single quotes.
 
     Args:
-        svg: Bereinigtes, verkleinertes SVG.
+        svg: Sanitized, minified SVG.
 
     Returns:
         ``data:image/svg+xml,…``.
@@ -458,22 +458,22 @@ def svg_data_uri(svg: str) -> str:
 
 
 def svg_problems(svg: str) -> list[str]:
-    """Unsichere Bestandteile eines SVG finden (4.9, Sicherheit).
+    """Find unsafe parts of an SVG (4.9, security).
 
     Args:
-        svg: SVG-Text.
+        svg: SVG text.
 
     Returns:
-        Beschreibungen der Funde (leer, wenn sauber).
+        Descriptions of the findings (empty if clean).
     """
     return [label for rx, label in SVG_FORBIDDEN if rx.search(svg)]
 
 
 def _local(tag: str) -> str:
-    """Lokalen Namen eines Elements oder Attributs ohne Namensraum.
+    """Local name of an element or attribute without namespace.
 
     Args:
-        tag: ``{ns}name`` oder ``name``.
+        tag: ``{ns}name`` or ``name``.
 
     Returns:
         ``name``.
@@ -482,19 +482,19 @@ def _local(tag: str) -> str:
 
 
 def _clean_tree(root: ET.Element) -> None:
-    """Unsichere Elemente und Attribute entfernen (rekursiv).
+    """Remove unsafe elements and attributes (recursively).
 
     Args:
-        root: SVG-Wurzel.
+        root: SVG root.
 
     Raises:
-        PkmError: ``svg_too_complex`` bei eingebetteten Rastergrafiken.
+        PkmError: ``svg_too_complex`` for embedded raster images.
     """
     for parent in list(root.iter()):
         for child in list(parent):
             href = child.get(f"{{{XLINK_NS}}}href") or child.get("href") or ""
             if _local(child.tag) == "image" and href.startswith("data:") and "svg" not in href[:20]:
-                raise PkmError("svg_too_complex", "Das SVG enthält eingebettete Rastergrafiken; dafür PNG verwenden.")
+                raise PkmError("svg_too_complex", "The SVG contains embedded raster images; use PNG for that.")
             if _local(child.tag) in DROP_ELEMENTS or (_local(child.tag) == "style" and svg_problems(child.text or "")):
                 parent.remove(child)
         for key in list(parent.attrib):
@@ -506,28 +506,28 @@ def _clean_tree(root: ET.Element) -> None:
 
 
 def sanitize_svg(svg: str, max_kb: int) -> str:
-    """SVG bereinigen und verkleinern (4.9).
+    """Sanitize and minify an SVG (4.9).
 
     Args:
-        svg: SVG-Text.
-        max_kb: Komplexitätsgrenze nach der Bereinigung.
+        svg: SVG text.
+        max_kb: Complexity limit after sanitizing.
 
     Returns:
-        Bereinigtes SVG ohne Kommentare, Metadaten und überflüssigen Leerraum.
+        Sanitized SVG without comments, metadata and superfluous whitespace.
 
     Raises:
-        PkmError: ``invalid_image`` bei DOCTYPE/Entities oder ungültigem XML, ``svg_too_complex`` bei
-            Rastergrafiken oder Überschreiten der Grenze.
+        PkmError: ``invalid_image`` for DOCTYPE/entities or invalid XML, ``svg_too_complex`` for
+            raster images or exceeding the limit.
     """
     if re.search(r"<!DOCTYPE|<!ENTITY", svg, re.IGNORECASE):
-        raise PkmError("invalid_image", "SVG mit DOCTYPE oder Entities wird nicht angenommen (XXE-Schutz).")
+        raise PkmError("invalid_image", "SVG with DOCTYPE or entities is not accepted (XXE protection).")
     text = re.sub(r"<\?xml[^>]*\?>", "", svg).strip()
     try:
         root = ET.fromstring(text)
     except ET.ParseError as exc:
-        raise PkmError("invalid_image", f"Kein gültiges SVG: {exc}") from exc
+        raise PkmError("invalid_image", f"Not a valid SVG: {exc}") from exc
     if _local(root.tag) != "svg":
-        raise PkmError("invalid_image", "Die Wurzel ist kein <svg>-Element.")
+        raise PkmError("invalid_image", "The root is not an <svg> element.")
     _clean_tree(root)
     ET.register_namespace("", SVG_NS)
     ET.register_namespace("xlink", XLINK_NS)
@@ -535,26 +535,26 @@ def sanitize_svg(svg: str, max_kb: int) -> str:
     out = re.sub(r">\s+<", "><", re.sub(r"\s+", " ", out)).strip()
     problems = svg_problems(out)
     if problems:
-        raise PkmError("invalid_image", "SVG nicht bereinigbar: " + ", ".join(problems))
+        raise PkmError("invalid_image", "SVG cannot be sanitized: " + ", ".join(problems))
     if len(out.encode("utf-8")) > max_kb * 1024:
-        raise PkmError("svg_too_complex", f"Das SVG ist größer als {max_kb} KB; dafür PNG verwenden.")
+        raise PkmError("svg_too_complex", f"The SVG is larger than {max_kb} KB; use PNG for that.")
     return out
 
 
 def clean_png(data: bytes) -> bytes:
-    """Neues PNG prüfen und Textblöcke entfernen (4.9).
+    """Check a new PNG and remove text chunks (4.9).
 
     Args:
-        data: PNG-Bytes.
+        data: PNG bytes.
 
     Returns:
-        PNG ohne ``tEXt``/``iTXt``/``zTXt``.
+        PNG without ``tEXt``/``iTXt``/``zTXt``.
 
     Raises:
-        PkmError: ``invalid_image`` bei ungültiger Signatur, Struktur oder mehr als 8.000 × 8.000 Pixeln.
+        PkmError: ``invalid_image`` for an invalid signature, structure or more than 8,000 × 8,000 pixels.
     """
     if not data.startswith(PNG_SIGNATURE):
-        raise PkmError("invalid_image", "Keine PNG-Datei (Signatur fehlt).")
+        raise PkmError("invalid_image", "Not a PNG file (signature missing).")
     pos, chunks, width, height, ended = len(PNG_SIGNATURE), [PNG_SIGNATURE], 0, 0, False
     while pos + 12 <= len(data) and not ended:
         length, kind = struct.unpack(">I4s", data[pos:pos + 8])
@@ -568,20 +568,20 @@ def clean_png(data: bytes) -> bytes:
             chunks.append(chunk)
         pos += 12 + length
     if not ended or not width or not height:
-        raise PkmError("invalid_image", "PNG ist unvollständig oder beschädigt.")
+        raise PkmError("invalid_image", "PNG is incomplete or damaged.")
     if width > PNG_MAX_PIXELS or height > PNG_MAX_PIXELS:
-        raise PkmError("invalid_image", f"PNG ist größer als {PNG_MAX_PIXELS} × {PNG_MAX_PIXELS} Pixel.")
+        raise PkmError("invalid_image", f"PNG is larger than {PNG_MAX_PIXELS} × {PNG_MAX_PIXELS} pixels.")
     return b"".join(chunks)
 
 
 def _exif_orientation(tiff: bytes) -> int | None:
-    """Ausrichtung (Tag 0x0112) aus einem EXIF-TIFF-Block lesen.
+    """Read the orientation (tag 0x0112) from an EXIF TIFF block.
 
     Args:
-        tiff: Inhalt des EXIF-Blocks nach ``Exif\\0\\0``.
+        tiff: Content of the EXIF block after ``Exif\\0\\0``.
 
     Returns:
-        Wert 1–8 oder ``None``.
+        Value 1–8 or ``None``.
     """
     value = None
     try:
@@ -598,10 +598,10 @@ def _exif_orientation(tiff: bytes) -> int | None:
 
 
 def _orientation_segment(orientation: int) -> bytes:
-    """Minimalen EXIF-Block erzeugen, der nur die Ausrichtung enthält.
+    """Create a minimal EXIF block that only contains the orientation.
 
     Args:
-        orientation: Wert 2–8.
+        orientation: Value 2–8.
 
     Returns:
         APP1-Segment.
@@ -613,19 +613,19 @@ def _orientation_segment(orientation: int) -> bytes:
 
 
 def clean_jpeg(data: bytes) -> bytes:
-    """Neues JPEG prüfen und Metadaten entfernen (EXIF/XMP, IPTC, Kommentare); die Ausrichtung bleibt.
+    """Check a new JPEG and remove metadata (EXIF/XMP, IPTC, comments); the orientation is kept.
 
     Args:
-        data: JPEG-Bytes.
+        data: JPEG bytes.
 
     Returns:
-        JPEG ohne Metadaten, bei gedrehten Fotos mit einem EXIF-Block nur für die Ausrichtung.
+        JPEG without metadata, for rotated photos with an EXIF block for the orientation only.
 
     Raises:
-        PkmError: ``invalid_image`` bei ungültiger Struktur oder mehr als 8.000 × 8.000 Pixeln.
+        PkmError: ``invalid_image`` for an invalid structure or more than 8,000 × 8,000 pixels.
     """
     if not data.startswith(JPEG_SOI):
-        raise PkmError("invalid_image", "Keine JPEG-Datei (Signatur fehlt).")
+        raise PkmError("invalid_image", "Not a JPEG file (signature missing).")
     pos, segments, size, orientation, scan = 2, [JPEG_SOI], (0, 0), None, False
     while pos + 4 <= len(data) and not scan and data[pos] == 0xFF:
         marker = data[pos + 1]
@@ -642,84 +642,84 @@ def clean_jpeg(data: bytes) -> bytes:
             segments.append(segment)
         pos += 2 + length
     if not scan or not all(size):
-        raise PkmError("invalid_image", "JPEG ist unvollständig oder beschädigt.")
+        raise PkmError("invalid_image", "JPEG is incomplete or damaged.")
     if max(size) > PNG_MAX_PIXELS:
-        raise PkmError("invalid_image", f"JPEG ist größer als {PNG_MAX_PIXELS} × {PNG_MAX_PIXELS} Pixel.")
+        raise PkmError("invalid_image", f"JPEG is larger than {PNG_MAX_PIXELS} × {PNG_MAX_PIXELS} pixels.")
     if orientation and orientation != 1:
         at = 2 if len(segments) > 1 and segments[1][:2] == b"\xff\xe0" else 1
         segments.insert(at, _orientation_segment(orientation))
     return b"".join(segments)
 
 
-# Neue Bilder *****************************************************************
+# New images ******************************************************************
 def _source_bytes(spec: dict[str, Any], limits: Any) -> tuple[str, bytes]:
-    """Quelle eines neuen Bildes lesen (genau eine von ``svg``, ``png_base64``, ``import_path``).
+    """Read the source of a new image (exactly one of ``svg``, ``png_base64``, ``import_path``).
 
     Args:
-        spec: Bildangabe aus dem Werkzeugaufruf.
+        spec: Image specification from the tool call.
         limits: ``ImageConfig``.
 
     Returns:
-        Tupel aus (Format, Bytes).
+        Tuple of (format, bytes).
 
     Raises:
-        PkmError: ``invalid_argument``, ``too_large`` oder ``forbidden`` (Pfad außerhalb von
+        PkmError: ``invalid_argument``, ``too_large`` or ``forbidden`` (path outside of
             ``PKM_IMPORT_DIR``).
     """
     given = [k for k in ("svg", "png_base64", "import_path") if spec.get(k)]
     if len(given) != 1:
-        raise PkmError("invalid_argument", "Je Bild genau eine Quelle: svg, png_base64 oder import_path.")
+        raise PkmError("invalid_argument", "Exactly one source per image: svg, png_base64 or import_path.")
     if given[0] == "svg":
         result = ("svg", str(spec["svg"]).encode("utf-8"))
     elif given[0] == "png_base64":
         b64 = re.sub(r"\s+", "", str(spec["png_base64"]))
         if len(b64) > limits.param_max_kb * 1024:
-            raise PkmError("too_large", f"png_base64 ist größer als {limits.param_max_kb} KB; import_path verwenden.")
+            raise PkmError("too_large", f"png_base64 is larger than {limits.param_max_kb} KB; use import_path.")
         try:
             result = ("png", base64.b64decode(b64, validate=True))
         except (binascii.Error, ValueError) as exc:
-            raise PkmError("invalid_image", "png_base64 ist kein gültiges Base64.") from exc
+            raise PkmError("invalid_image", "png_base64 is not valid Base64.") from exc
     else:
         result = _import_file(str(spec["import_path"]), limits)
     return result
 
 
 def _import_file(path: str, limits: Any) -> tuple[str, bytes]:
-    """Bilddatei aus ``PKM_IMPORT_DIR`` lesen (kopieren, nie löschen).
+    """Read an image file from ``PKM_IMPORT_DIR`` (copy, never delete).
 
     Args:
-        path: Dateiname oder Pfad.
+        path: File name or path.
         limits: ``ImageConfig``.
 
     Returns:
-        Tupel aus (Format, Bytes).
+        Tuple of (format, bytes).
 
     Raises:
-        PkmError: ``forbidden`` außerhalb des Importordners, ``invalid_argument`` bei anderer Endung,
+        PkmError: ``forbidden`` outside the import folder, ``invalid_argument`` for another extension,
             ``not_found``.
     """
     base = Path(limits.import_dir).resolve() if limits.import_dir else None
     candidate = Path(path)
     full = (candidate if candidate.is_absolute() else (base or Path.cwd()) / candidate).resolve()
     if base is None or not full.is_relative_to(base):
-        raise PkmError("forbidden", "Bilddateien werden nur aus PKM_IMPORT_DIR übernommen.", path=path)
+        raise PkmError("forbidden", "Image files are only imported from PKM_IMPORT_DIR.", path=path)
     if full.suffix.lower() not in IMPORT_SUFFIXES:
-        raise PkmError("invalid_argument", "Nur .png, .svg, .jpg und .jpeg werden übernommen.", path=path)
+        raise PkmError("invalid_argument", "Only .png, .svg, .jpg and .jpeg are imported.", path=path)
     if not full.is_file():
-        raise PkmError("not_found", f"Datei nicht gefunden: {path}", path=path)
+        raise PkmError("not_found", f"File not found: {path}", path=path)
     return IMPORT_SUFFIXES[full.suffix.lower()], full.read_bytes()
 
 
 def prepare_image(spec: dict[str, Any], limits: Any, scratch: bool = False) -> PreparedImage:
-    """Neues Bild prüfen, bereinigen und Modus bestimmen (4.9).
+    """Check and sanitize a new image and determine its mode (4.9).
 
     Args:
-        spec: Bildangabe (``name``, ``alt``, Quelle, optional ``mode``).
+        spec: Image specification (``name``, ``alt``, source, optionally ``mode``).
         limits: ``ImageConfig``.
-        scratch: Ziel liegt in ``scratch/`` (dann immer eingebettet).
+        scratch: Target lies in ``scratch/`` (then always embedded).
 
     Returns:
-        Das vorbereitete Bild.
+        The prepared image.
 
     Raises:
         PkmError: ``invalid_argument``, ``invalid_image``, ``svg_too_complex``, ``too_large``,
@@ -729,60 +729,60 @@ def prepare_image(spec: dict[str, Any], limits: Any, scratch: bool = False) -> P
     alt = " ".join(str(spec.get("alt") or "").split()).replace("[", "(").replace("]", ")")
     mode = str(spec.get("mode") or "auto")
     if not NAME_RE.match(name):
-        raise PkmError("invalid_argument", f"Ungültiger Bildname {name!r} (Kleinbuchstaben, Ziffern, Bindestriche).")
+        raise PkmError("invalid_argument", f"Invalid image name {name!r} (lower case letters, digits, hyphens).")
     if not alt:
-        raise PkmError("invalid_argument", f"Bild {name}: Alternativtext fehlt.", image=name)
+        raise PkmError("invalid_argument", f"Image {name}: alt text missing.", image=name)
     if mode not in MODES:
-        raise PkmError("invalid_argument", f"mode muss eines von {', '.join(MODES)} sein.", image=name)
+        raise PkmError("invalid_argument", f"mode must be one of {', '.join(MODES)}.", image=name)
     fmt, data = _source_bytes(spec, limits)
     cleaners = {"svg": lambda d: sanitize_svg(d.decode("utf-8", "replace"), limits.svg_max_kb).encode("utf-8"),
                 "png": clean_png, "jpg": clean_jpeg}
     data = cleaners[fmt](data)
     if len(data) > limits.image_max_mb * 1024 * 1024:
-        raise PkmError("too_large", f"Bild {name} ist größer als {limits.image_max_mb} MB.", image=name)
+        raise PkmError("too_large", f"Image {name} is larger than {limits.image_max_mb} MB.", image=name)
     image = PreparedImage(name, alt, fmt, data, "inline")
     fits = len(image.data_uri()) <= limits.inline_max_kb * 1024
     if not scratch and mode == "inline" and not fits:
-        raise PkmError("too_large_for_inline", f"Bild {name} ist für das Einbetten zu groß "
-                       f"(> {limits.inline_max_kb} KB); mode auto oder file verwenden.", image=name)
+        raise PkmError("too_large_for_inline", f"Image {name} is too large for embedding "
+                       f"(> {limits.inline_max_kb} KB); use mode auto or file.", image=name)
     if not scratch and (mode == "file" or (mode == "auto" and not fits)):
         image.mode = "file"
     return image
 
 
 def check_new_names(text: str, images: list[PreparedImage], existing: list[ImageRef]) -> None:
-    """Platzhalter ``{{image:<name>}}`` und Bildnamen prüfen.
+    """Check placeholders ``{{image:<name>}}`` and image names.
 
     Args:
-        text: Neuer Text mit Platzhaltern.
-        images: Neue Bilder.
-        existing: Bilder, die im Dokument schon stehen.
+        text: New text with placeholders.
+        images: New images.
+        existing: Images that are already in the document.
 
     Raises:
-        PkmError: ``invalid_argument`` bei doppelten oder schon vergebenen Namen, ``unknown_image``
-            bei Platzhaltern ohne Bild, ``invalid_argument`` bei Bildern ohne Platzhalter.
+        PkmError: ``invalid_argument`` for duplicate or already assigned names, ``unknown_image``
+            for placeholders without an image, ``invalid_argument`` for images without a placeholder.
     """
     names = [i.name for i in images]
     used = {r.name for r in existing}
     wanted = [m.group("name") for m in NEW_IMAGE_RE.finditer(text)]
     if len(set(names)) != len(names) or set(names) & used:
-        raise PkmError("invalid_argument", "Bildnamen müssen im Dokument eindeutig sein.", images=names)
+        raise PkmError("invalid_argument", "Image names must be unique in the document.", images=names)
     if set(wanted) - set(names):
-        raise PkmError("unknown_image", "Platzhalter ohne Bild: " + ", ".join(sorted(set(wanted) - set(names))))
+        raise PkmError("unknown_image", "Placeholders without an image: " + ", ".join(sorted(set(wanted) - set(names))))
     if set(names) - set(wanted):
-        raise PkmError("invalid_argument", "Bilder ohne Platzhalter {{image:<name>}} im Text: "
+        raise PkmError("invalid_argument", "Images without a placeholder {{image:<name>}} in the text: "
                        + ", ".join(sorted(set(names) - set(wanted))))
 
 
 def insert_new_images(text: str, lines: dict[str, str]) -> str:
-    """Platzhalter ``{{image:<name>}}`` durch die Bildzeilen ersetzen.
+    """Replace placeholders ``{{image:<name>}}`` by the image lines.
 
     Args:
-        text: Text mit Platzhaltern.
-        lines: Bildname → Markdown des Bildes.
+        text: Text with placeholders.
+        lines: Image name → Markdown of the image.
 
     Returns:
-        Text mit Bildern.
+        Text with images.
     """
     return NEW_IMAGE_RE.sub(lambda m: lines[m.group("name")], text)
 

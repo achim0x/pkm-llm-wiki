@@ -1,8 +1,8 @@
-"""Prüfung und Korrektur von Bild-Data-URIs (Spezifikation 4.9, „Prüfung bei der Übernahme“).
+"""Checking and fixing image data URIs (specification 4.9, "check on import").
 
-``image_issues`` meldet Abweichungen mit Befundcodes und Vorschlag; ``fix_text`` schreibt die Bilder
-in der Form nach 4.9. Korrigiert wird nur nach Rückfrage; diese Funktionen ändern selbst keine Dateien,
-außer ``fix_text`` legt mit einem Writer Bilddateien in ``documents/_attachments/`` an.
+``image_issues`` reports deviations with finding codes and a proposal; ``fix_text`` writes the images
+in the form of 4.9. Fixes happen only after asking; these functions do not change files themselves,
+except that ``fix_text`` creates image files in ``documents/_attachments/`` with a writer.
 
     Author: Achim0x
 """
@@ -59,18 +59,18 @@ SVG_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTAL
 
 @dataclass
 class Analysis:  # pylint: disable=too-many-instance-attributes
-    """Prüfergebnis eines eingebetteten Bildes.
+    """Check result of an embedded image.
 
     Attributes:
-        ref: Bild.
-        problems: Befundcodes.
-        fmt: Format nach der Signatur (``png``, ``jpg``, ``svg``, ``gif``, ``webp`` oder leer).
-        data: Dekodierte Bytes.
-        legacy: Bestehendes Base64-PNG/JPEG (nur Schreibweise wird geprüft).
-        removed: Bei SVG die Teile, die die Bereinigung entfernt.
-        line: Zeilenindex (0-basiert) der Verwendung.
-        fixable: Ob eine Korrektur möglich ist.
-        note: Hinweis, warum keine Korrektur möglich ist.
+        ref: Image.
+        problems: Finding codes.
+        fmt: Format by signature (``png``, ``jpg``, ``svg``, ``gif``, ``webp`` or empty).
+        data: Decoded bytes.
+        legacy: Existing Base64 PNG/JPEG (only the notation is checked).
+        removed: For SVG the parts that sanitizing removes.
+        line: Line index (0-based) of the usage.
+        fixable: Whether a fix is possible.
+        note: Hint why no fix is possible.
     """
 
     ref: images.ImageRef
@@ -86,15 +86,15 @@ class Analysis:  # pylint: disable=too-many-instance-attributes
 # Functions *******************************************************************
 
 
-# Prüfen **********************************************************************
+# Checking ********************************************************************
 def _header(link: str) -> tuple[str, list[str], bool, str]:
-    """Kopf einer Data-URI zerlegen.
+    """Split the header of a data URI.
 
     Args:
-        link: Data-URI.
+        link: Data URI.
 
     Returns:
-        Tupel aus (Medientyp, Zusätze ohne ``base64``, Base64, Nutzdaten).
+        Tuple of (media type, parameters without ``base64``, Base64, payload).
     """
     head, _, payload = link.partition(",")
     parts = [p.strip().lower() for p in head[5:].split(";")]
@@ -102,13 +102,13 @@ def _header(link: str) -> tuple[str, list[str], bool, str]:
 
 
 def signature(data: bytes) -> str:
-    """Format an den ersten Bytes erkennen.
+    """Detect the format from the first bytes.
 
     Args:
         data: Bytes.
 
     Returns:
-        ``png``, ``jpg``, ``gif``, ``webp``, ``svg`` oder leer.
+        ``png``, ``jpg``, ``gif``, ``webp``, ``svg`` or empty.
     """
     head = data[:512].lstrip().lower()
     fmt = ""
@@ -126,13 +126,13 @@ def signature(data: bytes) -> str:
 
 
 def _decode(link: str) -> bytes:
-    """Data-URI dekodieren (auch mit Leerraum im Base64 und nicht kodiertem SVG).
+    """Decode a data URI (also with whitespace in the Base64 and unencoded SVG).
 
     Args:
-        link: Data-URI.
+        link: Data URI.
 
     Returns:
-        Bytes (leer, wenn nicht dekodierbar).
+        Bytes (empty if not decodable).
     """
     _, _, b64, payload = _header(link)
     try:
@@ -143,15 +143,15 @@ def _decode(link: str) -> bytes:
 
 
 def _own_line(text: str, ref: images.ImageRef, starts: list[int]) -> bool:
-    """Prüfen, ob ein Bild allein in seiner Zeile steht.
+    """Check whether an image stands alone in its line.
 
     Args:
         text: Markdown.
-        ref: Bild.
-        starts: Startpositionen aller Bilder.
+        ref: Image.
+        starts: Start positions of all images.
 
     Returns:
-        ``True``, wenn die Zeile außer dem Bild nur Leerraum enthält.
+        ``True`` if the line contains only whitespace besides the image.
     """
     line_start = text.rfind("\n", 0, ref.start) + 1
     line_end = text.find("\n", ref.end)
@@ -161,14 +161,14 @@ def _own_line(text: str, ref: images.ImageRef, starts: list[int]) -> bool:
 
 
 def _svg_checks(a: Analysis, payload: str, params: list[str], b64: bool, limits: ImageConfig) -> None:
-    """SVG-spezifische Befunde.
+    """SVG-specific findings.
 
     Args:
-        a: Prüfergebnis (wird ergänzt).
-        payload: Nutzdaten der URI.
-        params: Zusätze im Medientyp.
-        b64: Base64-kodiert.
-        limits: Bildgrenzen.
+        a: Check result (added to).
+        payload: Payload of the URI.
+        params: Parameters in the media type.
+        b64: Base64-encoded.
+        limits: Image limits.
     """
     if params:
         a.problems.append("svg_parameters")
@@ -183,8 +183,8 @@ def _svg_checks(a: Analysis, payload: str, params: list[str], b64: bool, limits:
     try:
         images.sanitize_svg(svg, limits.svg_max_kb)
     except PkmError as exc:
-        if exc.status == "svg_too_complex" and "Rastergrafik" in exc.message:
-            a.fixable, a.note = False, "SVG mit eingebetteter Rastergrafik; als PNG neu ablegen"
+        if exc.status == "svg_too_complex" and "raster image" in exc.message:
+            a.fixable, a.note = False, "SVG with an embedded raster image; store it again as PNG"
         elif exc.status == "svg_too_complex":
             a.problems.append("too_large_for_inline")
         else:
@@ -196,20 +196,20 @@ def analyze(  # pylint: disable=too-many-arguments
     text: str, ref: images.ImageRef, limits: ImageConfig, *, legacy: bool, scratch: bool, wiki: bool,
     starts: list[int], names: dict[str, int],
 ) -> Analysis:
-    """Ein eingebettetes Bild nach 4.9 prüfen.
+    """Check an embedded image per 4.9.
 
     Args:
         text: Markdown.
-        ref: Bild.
-        limits: Bildgrenzen.
-        legacy: Bestehende Base64-PNG/JPEG nur auf Schreibweise prüfen.
-        scratch: Ziel liegt in ``scratch/`` (keine Dateien).
-        wiki: Wiki-Seite (keine Dateien, keine Größengrenze).
-        starts: Startpositionen aller Bilder.
-        names: Anzahl je ausdrücklich gesetztem Bildnamen.
+        ref: Image.
+        limits: Image limits.
+        legacy: Check existing Base64 PNG/JPEG only for the notation.
+        scratch: Target lies in ``scratch/`` (no files).
+        wiki: Wiki page (no files, no size limit).
+        starts: Start positions of all images.
+        names: Count per explicitly set image name.
 
     Returns:
-        Das Prüfergebnis.
+        The check result.
     """
     occ = ref.occ
     mime, params, b64, payload = _header(ref.link)
@@ -223,7 +223,7 @@ def analyze(  # pylint: disable=too-many-arguments
     a.legacy = legacy and b64 and a.fmt in ("png", "jpg")
     if not a.data or not a.fmt:
         a.problems.append("invalid_data")
-        a.fixable, a.note = False, "nicht dekodierbar oder kein Bild"
+        a.fixable, a.note = False, "not decodable or not an image"
     elif a.fmt in ("png", "jpg") and b64 and re.search(r"\s", payload):
         a.problems.append("base64_whitespace")
     if a.data and a.fmt and declared != a.fmt:
@@ -243,15 +243,15 @@ def analyze(  # pylint: disable=too-many-arguments
 def _strict_checks(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     a: Analysis, text: str, limits: ImageConfig, no_files: bool, starts: list[int],
                    names: dict[str, int]) -> None:
-    """Prüfungen für neue Bilder: Zeile, Name, Alternativtext, Größe.
+    """Checks for new images: line, name, alt text, size.
 
     Args:
-        a: Prüfergebnis (wird ergänzt).
+        a: Check result (added to).
         text: Markdown.
-        limits: Bildgrenzen.
-        no_files: Keine Dateien möglich (``scratch/``, Wiki).
-        starts: Startpositionen aller Bilder.
-        names: Anzahl je ausdrücklich gesetztem Bildnamen.
+        limits: Image limits.
+        no_files: No files possible (``scratch/``, wiki).
+        starts: Start positions of all images.
+        names: Count per explicitly set image name.
     """
     ref = a.ref
     title = ref.occ.title if ref.occ is not None else None
@@ -271,13 +271,13 @@ def _strict_checks(  # pylint: disable=too-many-arguments,too-many-positional-ar
 
 
 def _conforming_uri(a: Analysis) -> str:
-    """Data-URI des Bildes in der Form nach 4.9.
+    """Data URI of the image in the form of 4.9.
 
     Args:
-        a: Prüfergebnis.
+        a: Check result.
 
     Returns:
-        Data-URI (SVG bereinigt; Rasterbilder mit unveränderten Bytes).
+        Data URI (SVG sanitized; raster images with unchanged bytes).
     """
     if a.fmt == "svg":
         svg = images.sanitize_svg(a.data.decode("utf-8", "replace"), 10 ** 6)
@@ -288,14 +288,14 @@ def _conforming_uri(a: Analysis) -> str:
 
 
 def _suggested_alt(a: Analysis, section_of: Any) -> str:
-    """Vorschlag für einen fehlenden Alternativtext.
+    """Proposal for a missing alt text.
 
     Args:
-        a: Prüfergebnis.
-        section_of: Funktion Position → Abschnitt.
+        a: Check result.
+        section_of: Function position → section.
 
     Returns:
-        Referenzname, SVG-``<title>`` oder umgebende Überschrift (leer, wenn nichts passt).
+        Reference name, SVG ``<title>`` or surrounding heading (empty if nothing fits).
     """
     occ = a.ref.occ
     title = SVG_TITLE_RE.search(a.data.decode("utf-8", "replace")) if a.fmt == "svg" else None
@@ -305,13 +305,13 @@ def _suggested_alt(a: Analysis, section_of: Any) -> str:
 
 
 def _issue(text: str, a: Analysis, section_of: Any, scratch: bool) -> dict[str, Any]:
-    """Eintrag für ``image_issues``.
+    """Entry for ``image_issues``.
 
     Args:
         text: Markdown.
-        a: Prüfergebnis.
-        section_of: Funktion Position → Abschnitt.
-        scratch: Ziel in ``scratch/``.
+        a: Check result.
+        section_of: Function position → section.
+        scratch: Target in ``scratch/``.
 
     Returns:
         ``ref``, ``line``, ``section``, ``format``, ``size``, ``problems``, ``fixable``, ``proposal``.
@@ -327,8 +327,8 @@ def _issue(text: str, a: Analysis, section_of: Any, scratch: bool) -> dict[str, 
                              else None, "format": a.fmt, "size": len(a.data), "problems": a.problems,
                              "fixable": a.fixable, "proposal": proposal}
     if many:
-        entry["note"] = "Referenz mehrfach verwendet: " + ", ".join(
-            str(text.count("\n", 0, s) + 1) for s, _ in occ.usages) + " (Zeilen); Bild nur an einer Stelle möglich"
+        entry["note"] = "Reference used more than once: " + ", ".join(
+            str(text.count("\n", 0, s) + 1) for s, _ in occ.usages) + " (lines); image possible in one place only"
     elif a.note:
         entry["note"] = a.note
     return entry
@@ -337,18 +337,18 @@ def _issue(text: str, a: Analysis, section_of: Any, scratch: bool) -> dict[str, 
 def analyses(  # pylint: disable=too-many-arguments
     text: str, limits: ImageConfig, *, legacy: bool = True, scratch: bool = False, wiki: bool = False,
              only_links: set[str] | None = None) -> list[Analysis]:
-    """Alle eingebetteten Bilder eines Textes prüfen.
+    """Check all embedded images of a text.
 
     Args:
         text: Markdown.
-        limits: Bildgrenzen.
-        legacy: Bestehende Base64-PNG/JPEG nur auf Schreibweise prüfen.
-        scratch: Ziel in ``scratch/``.
-        wiki: Wiki-Seite.
-        only_links: Nur Bilder mit diesen URIs prüfen (z. B. neue im übergebenen Text).
+        limits: Image limits.
+        legacy: Check existing Base64 PNG/JPEG only for the notation.
+        scratch: Target in ``scratch/``.
+        wiki: Wiki page.
+        only_links: Check only images with these URIs (e.g. new ones in the given text).
 
     Returns:
-        Prüfergebnisse aller geprüften Bilder (auch ohne Befund).
+        Check results of all checked images (also without findings).
     """
     refs = images.find_images(text)
     starts = [r.start for r in refs]
@@ -361,18 +361,18 @@ def analyses(  # pylint: disable=too-many-arguments
 
 
 def unused_definitions(text: str) -> list[dict[str, Any]]:
-    """Referenzdefinitionen mit Data-URI, die nirgends verwendet werden.
+    """Reference definitions with a data URI that are not used anywhere.
 
     Args:
         text: Markdown.
 
     Returns:
-        Einträge für ``image_issues`` (``problems: [unused_definition]``).
+        Entries for ``image_issues`` (``problems: [unused_definition]``).
     """
     out = []
     for occ in find_data_images(text):
         if occ.notation == "reference" and not occ.usages and occ.def_span is not None:
-            out.append({"ref": slugify(occ.label or "bild", 40), "line": text.count("\n", 0, occ.def_span[0]) + 1,
+            out.append({"ref": slugify(occ.label or "image", 40), "line": text.count("\n", 0, occ.def_span[0]) + 1,
                         "section": None, "format": "", "size": occ.uri_end - occ.uri_start,
                         "problems": ["unused_definition"], "fixable": True,
                         "proposal": {"name": None, "alt": "", "mode": "remove", "removed": ["definition"]}})
@@ -382,19 +382,19 @@ def unused_definitions(text: str) -> list[dict[str, Any]]:
 def image_issues(  # pylint: disable=too-many-arguments
     text: str, limits: ImageConfig, *, legacy: bool = True, scratch: bool = False, wiki: bool = False,
                  section_of: Any = None, only_links: set[str] | None = None) -> list[dict[str, Any]]:
-    """Befunde zu abweichenden Data-URIs (4.9).
+    """Findings for nonconforming data URIs (4.9).
 
     Args:
         text: Markdown.
-        limits: Bildgrenzen.
-        legacy: Bestehende Base64-PNG/JPEG nur auf Schreibweise prüfen.
-        scratch: Ziel in ``scratch/``.
-        wiki: Wiki-Seite.
-        section_of: Funktion Position → Abschnitt.
-        only_links: Nur Bilder mit diesen URIs prüfen.
+        limits: Image limits.
+        legacy: Check existing Base64 PNG/JPEG only for the notation.
+        scratch: Target in ``scratch/``.
+        wiki: Wiki page.
+        section_of: Function position → section.
+        only_links: Check only images with these URIs.
 
     Returns:
-        Je abweichendem Bild ein Eintrag, dazu unbenutzte Definitionen (nur ohne ``only_links``).
+        One entry per nonconforming image, plus unused definitions (only without ``only_links``).
     """
     found = [_issue(text, a, section_of, scratch)
              for a in analyses(text, limits, legacy=legacy, scratch=scratch, wiki=wiki, only_links=only_links)
@@ -402,16 +402,16 @@ def image_issues(  # pylint: disable=too-many-arguments
     return found + (unused_definitions(text) if only_links is None else [])
 
 
-# Korrigieren *****************************************************************
+# Fixing **********************************************************************
 def _unique(name: str, used: set[str]) -> str:
-    """Eindeutigen Namen bilden (Suffix ``-2``, ``-3``).
+    """Build a unique name (suffix ``-2``, ``-3``).
 
     Args:
-        name: Wunschname.
-        used: Vergebene Namen (wird ergänzt).
+        name: Desired name.
+        used: Assigned names (added to).
 
     Returns:
-        Der Name.
+        The name.
     """
     candidate, k = name, 1
     while candidate in used:
@@ -422,16 +422,16 @@ def _unique(name: str, used: set[str]) -> str:
 
 
 def _target_link(a: Analysis, writer: Writer | None, doc_rel: str, files: list[str]) -> str:
-    """Ablage als Datei in ``documents/_attachments/`` (bei Probeläufen nur der künftige Pfad).
+    """Storage as a file in ``documents/_attachments/`` (for dry runs only the future path).
 
     Args:
-        a: Prüfergebnis.
-        writer: Writer oder ``None`` (Vorschlag ohne Schreiben).
-        doc_rel: Pfad des Dokuments.
-        files: Neu geschriebene Dateien (wird ergänzt).
+        a: Check result.
+        writer: Writer or ``None`` (proposal without writing).
+        doc_rel: Path of the document.
+        files: Newly written files (added to).
 
     Returns:
-        Relativer Link auf die Datei.
+        Relative link to the file.
     """
     stem = slugify(a.ref.name, MAX_NAME)
     if writer is None:
@@ -444,14 +444,14 @@ def _target_link(a: Analysis, writer: Writer | None, doc_rel: str, files: list[s
 
 
 def _replacement(a: Analysis, ctx: dict[str, Any]) -> str:
-    """Bild in der Form nach 4.9.
+    """Image in the form of 4.9.
 
     Args:
-        a: Prüfergebnis.
+        a: Check result.
         ctx: ``writer``, ``doc_rel``, ``files``, ``used``, ``image_alt``, ``proposals``.
 
     Returns:
-        Markdown des Bildes (ohne Zeilenumbrüche).
+        Markdown of the image (without line breaks).
     """
     ref, occ = a.ref, a.ref.occ
     width = f"|{occ.width}" if occ is not None and occ.width else ""
@@ -476,18 +476,18 @@ def _replacement(a: Analysis, ctx: dict[str, Any]) -> str:
 
 
 def _line_wrapped(text: str, start: int, end: int, line: str) -> tuple[int, int, str]:
-    """Ersatz so einrahmen, dass das Bild in einer eigenen Zeile steht; der Text drumherum bleibt.
+    """Frame the replacement so that the image stands in its own line; the surrounding text stays.
 
-    Leerzeichen direkt vor bzw. nach dem Bild werden durch den Zeilenumbruch ersetzt.
+    Spaces directly before or after the image are replaced by the line break.
 
     Args:
         text: Markdown.
-        start: Beginn des Bildes.
-        end: Ende des Bildes.
-        line: Neues Bild.
+        start: Start of the image.
+        end: End of the image.
+        line: New image.
 
     Returns:
-        Tupel aus (Beginn, Ende, Ersatztext).
+        Tuple of (start, end, replacement text).
     """
     before = text[text.rfind("\n", 0, start) + 1:start]
     after_end = text.find("\n", end)
@@ -504,27 +504,27 @@ def fix_text(  # pylint: disable=too-many-arguments,too-many-locals
     image_alt: dict[str, str] | None = None, confirm_shortening: bool = False, legacy: bool = True,
     scratch: bool = False, wiki: bool = False, only_links: set[str] | None = None,
 ) -> tuple[str, list[str]]:
-    """Abweichende Data-URIs nach 4.9 korrigieren; der übrige Text bleibt byte-genau erhalten.
+    """Fix nonconforming data URIs per 4.9; the remaining text stays byte for byte.
 
     Args:
         text: Markdown.
-        limits: Bildgrenzen.
-        writer: Writer zum Anlegen von Bilddateien (``None``: nur Vorschlag, keine Dateien).
-        doc_rel: Pfad des Dokuments.
-        names: Nur diese Bilder (Namen aus ``image_issues``).
-        image_alt: Alternativtexte je Name.
-        confirm_shortening: Entfernen unbenutzter Definitionen bestätigt.
-        legacy: Bestehende Base64-PNG/JPEG nur in der Schreibweise korrigieren.
-        scratch: Ziel in ``scratch/``.
-        wiki: Wiki-Seite.
-        only_links: Nur Bilder mit diesen URIs.
+        limits: Image limits.
+        writer: Writer for creating image files (``None``: proposal only, no files).
+        doc_rel: Path of the document.
+        names: Only these images (names from ``image_issues``).
+        image_alt: Alt texts per name.
+        confirm_shortening: Removal of unused definitions confirmed.
+        legacy: Fix existing Base64 PNG/JPEG only in the notation.
+        scratch: Target in ``scratch/``.
+        wiki: Wiki page.
+        only_links: Only images with these URIs.
 
     Returns:
-        Tupel aus (neuer Text, neu geschriebene Bilddateien).
+        Tuple of (new text, newly written image files).
 
     Raises:
-        PkmError: ``ambiguous`` bei mehrfach verwendeten Referenzen, ``large_shortening`` bei
-            unbenutzten Definitionen ohne Bestätigung.
+        PkmError: ``ambiguous`` for references used more than once, ``large_shortening`` for
+            unused definitions without confirmation.
     """
     found = [a for a in analyses(text, limits, legacy=legacy, scratch=scratch, wiki=wiki, only_links=only_links)
              if a.problems and a.fixable and (names is None or a.ref.name in names)]
@@ -537,14 +537,14 @@ def fix_text(  # pylint: disable=too-many-arguments,too-many-locals
     for a in found:
         occ = a.ref.occ
         if occ is not None and len(occ.usages) > 1:
-            raise PkmError("ambiguous", f"Referenz [{occ.label}] wird mehrfach verwendet; Bildnamen sind eindeutig.",
+            raise PkmError("ambiguous", f"Reference [{occ.label}] is used more than once; image names are unique.",
                            lines=[text.count("\n", 0, s) + 1 for s, _ in occ.usages], image=a.ref.name)
         spans.append(_line_wrapped(text, a.ref.start, a.ref.end, _replacement(a, ctx)))
         if occ is not None and occ.def_span is not None:
             spans.append((occ.def_span[0], occ.def_span[1], ""))
     unused = [u for u in unused_definitions(text) if only_links is None and (names is None or u["ref"] in names)]
     if unused and not confirm_shortening:
-        raise PkmError("large_shortening", "Unbenutzte Bild-Definitionen würden entfernt; bitte bestätigen "
+        raise PkmError("large_shortening", "Unused image definitions would be removed; please confirm "
                        "(confirm_shortening).", removed_images=[u["ref"] for u in unused])
     for occ in find_data_images(text) if unused else []:
         if occ.notation == "reference" and not occ.usages and occ.def_span is not None:
@@ -556,20 +556,20 @@ def fix_text(  # pylint: disable=too-many-arguments,too-many-locals
     return "".join(out) + text[pos:], ctx["files"]
 
 
-# Vergleich *******************************************************************
+# Comparison ******************************************************************
 def canonical(text: str, limits: ImageConfig) -> tuple[str, list[str]]:
-    """Text für den Vergleich „nur Bildschreibweise geändert“ (4.9, Belege nach einer Korrektur).
+    """Text for the comparison "only the image notation changed" (4.9, citations after a fix).
 
-    Jedes eingebettete Bild wird zu ``![<alt>](pkm-image:<name>)``, Referenzdefinitionen entfallen,
-    Leerraum wird zusammengefasst. Dazu die Hashes der dekodierten Bilder (SVG nach der Bereinigung;
-    unsichere SVG bekommen einen eigenen Marker, damit sie als geändert gelten).
+    Every embedded image becomes ``![<alt>](pkm-image:<name>)``, reference definitions are dropped,
+    whitespace is collapsed. Plus the hashes of the decoded images (SVG after sanitizing;
+    unsafe SVG get a marker of their own so that they count as changed).
 
     Args:
-        text: Markdown (z. B. ein Abschnitt).
-        limits: Bildgrenzen.
+        text: Markdown (e.g. a section).
+        limits: Image limits.
 
     Returns:
-        Tupel aus (kanonischer Text, Bild-Hashes in Reihenfolge).
+        Tuple of (canonical text, image hashes in order).
     """
     spans: list[tuple[int, int, str]] = []
     digests: list[str] = []
@@ -596,29 +596,29 @@ def canonical(text: str, limits: ImageConfig) -> tuple[str, list[str]]:
 
 
 def body_notation_only(old: str, new: str, limits: ImageConfig) -> bool:
-    """Prüfen, ob sich zwei ganze Bodys nur in der Bildschreibweise unterscheiden.
+    """Check whether two whole bodies differ only in the image notation.
 
     Args:
-        old: Früherer Body.
-        new: Aktueller Body.
-        limits: Bildgrenzen.
+        old: Earlier body.
+        new: Current body.
+        limits: Image limits.
 
     Returns:
-        Wie ``notation_only`` für den ganzen Text (erfasst auch Referenzen über Abschnitte hinweg).
+        Like ``notation_only`` for the whole text (also covers references across sections).
     """
     return notation_only(old, new, limits)
 
 
 def notation_only(old: str, new: str, limits: ImageConfig) -> bool:
-    """Prüfen, ob sich zwei Texte nur in der Bildschreibweise unterscheiden.
+    """Check whether two texts differ only in the image notation.
 
     Args:
-        old: Früherer Text.
-        new: Aktueller Text.
-        limits: Bildgrenzen.
+        old: Earlier text.
+        new: Current text.
+        limits: Image limits.
 
     Returns:
-        ``True``, wenn sie verschieden sind, kanonisch aber gleich, und kein Bild unsicher war.
+        ``True`` if they differ but are canonically equal, and no image was unsafe.
     """
     a, b = canonical(old, limits), canonical(new, limits)
     return old != new and a == b and not any(d.startswith("unsafe:") for d in a[1])

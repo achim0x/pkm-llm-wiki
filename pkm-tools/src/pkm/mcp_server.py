@@ -1,6 +1,6 @@
-"""MCP-Server ``pkm-mcp`` (Spezifikation 7). Dünne Hülle über ``Service``.
+"""MCP server ``pkm-mcp`` (specification 7). Thin wrapper around ``Service``.
 
-Transport stdio. Keine Netzwerkzugriffe, keine LLM-Aufrufe, keine Hintergrundprozesse.
+Transport stdio. No network access, no LLM calls, no background processes.
 
     Author: Achim0x
 """
@@ -47,18 +47,18 @@ except ImportError:  # mcp 1.x
 # Variables *******************************************************************
 
 IMAGES_DOC = (
-    "images: Liste von Bildern {name, alt, svg | png_base64 | import_path, mode auto|inline|file}; im Text steht "
-    "an der Stelle {{image:<name>}}. Diagramme als SVG, Fotos/Screenshots als PNG/JPEG (Datei im Vault-Ordner "
-    "pkm_img_import/, import_path). Bis 24 KB eingebettet, sonst Datei; in scratch/ immer eingebettet. Keine "
-    "Data-URIs von Hand in Texte schreiben. nonconforming_image: Befunde (image_issues) und Vorschlag zeigen, nach "
-    "Bestätigung mit fix_images=true und image_alt {name: text} wiederholen. image_warnings: abweichende Bilder im "
-    "Bestand, Korrektur mit fix_images anbieten."
+    "images: list of images {name, alt, svg | png_base64 | import_path, mode auto|inline|file}; the text contains "
+    "{{image:<name>}} at the position. Diagrams as SVG, photos/screenshots as PNG/JPEG (file in the vault folder "
+    "pkm_img_import/, import_path). Up to 24 KB embedded, otherwise a file; in scratch/ always embedded. Never "
+    "write data URIs into texts by hand. nonconforming_image: show the findings (image_issues) and the proposal, "
+    "after confirmation repeat with fix_images=true and image_alt {name: text}. image_warnings: nonconforming images "
+    "in the existing text, offer a fix with fix_images."
 )
 
 INSTRUCTIONS = (
-    "Zugriff auf das persönliche Wissensmanagement (PKM). Das Wiki ist nur lesbar. "
-    "Dokumente werden nur nach gezeigtem und bestätigtem Entwurf angelegt oder geändert. "
-    "Jede Änderung braucht `expected_hash` aus `read` und ergibt eine neue Version mit Git-Commit. "
+    "Access to the personal knowledge management (PKM). The wiki is read-only. "
+    "Documents are created or changed only after a draft has been shown and confirmed. "
+    "Every change needs `expected_hash` from `read` and results in a new version with a Git commit. "
     + IMAGES_DOC
 )
 
@@ -70,13 +70,13 @@ _SERVICE: dict[str, Service] = {}
 
 
 def get_service() -> Service:
-    """Dienst beim ersten Aufruf aus der Umgebung anlegen.
+    """Create the service from the environment on the first call.
 
     Returns:
-        Den Dienst.
+        The service.
 
     Raises:
-        PkmError: ``config_error`` bei fehlender oder ungültiger Konfiguration.
+        PkmError: ``config_error`` for a missing or invalid configuration.
     """
     if "svc" not in _SERVICE:
         _SERVICE["svc"] = Service(Config.from_env())
@@ -84,17 +84,17 @@ def get_service() -> Service:
 
 
 def reset_service() -> None:
-    """Dienst verwerfen (z. B. in Tests nach geänderter Umgebung)."""
+    """Discard the service (e.g. in tests after a changed environment)."""
     _SERVICE.clear()
 
 
 def _log(tool: str, args: dict[str, Any], result: dict[str, Any]) -> None:
-    """Aufruf in ``.pkm/mcp.log`` protokollieren; Fehler beim Protokollieren werden ignoriert.
+    """Log a call in ``.pkm/mcp.log``; errors while logging are ignored.
 
     Args:
-        tool: Toolname.
-        args: Aufrufparameter.
-        result: Rückgabe des Tools.
+        tool: Tool name.
+        args: Call parameters.
+        result: Return value of the tool.
     """
     svc = _SERVICE.get("svc")
     if svc is not None:
@@ -111,19 +111,19 @@ def _log(tool: str, args: dict[str, Any], result: dict[str, Any]) -> None:
             with svc.cfg.log_path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
         except OSError:
-            pass  # Das Protokoll darf nie stören.
+            pass  # The log must never get in the way.
 
 
 def call(tool: str, fn: Callable[..., dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
-    """Tool ausführen; fachliche Fehler werden als Status zurückgegeben.
+    """Run a tool; domain errors are returned as a status.
 
     Args:
-        tool: Toolname (für das Protokoll).
-        fn: Funktion, die den Dienst als erstes Argument erhält (z. B. ``Service.read``).
-        **kwargs: Parameter des Tools.
+        tool: Tool name (for the log).
+        fn: Function that receives the service as first argument (e.g. ``Service.read``).
+        **kwargs: Parameters of the tool.
 
     Returns:
-        Rückgabe des Tools bzw. ``{status, message, …}`` bei fachlichen Fehlern.
+        Return value of the tool or ``{status, message, …}`` for domain errors.
     """
     try:
         result = fn(get_service(), **kwargs)
@@ -134,13 +134,13 @@ def call(tool: str, fn: Callable[..., dict[str, Any]], **kwargs: Any) -> dict[st
 
 
 def image_content(result: dict[str, Any]) -> list[TextContent | Image]:
-    """Rückgabe von ``read_image`` in MCP-Inhalte umwandeln.
+    """Convert the return value of ``read_image`` into MCP content.
 
     Args:
-        result: Ergebnis von ``Service.read_image`` bzw. Fehler.
+        result: Result of ``Service.read_image`` or an error.
 
     Returns:
-        Metadaten als JSON-Text, bei Rastergrafiken zusätzlich das Bild.
+        Metadata as JSON text, for raster images additionally the image.
     """
     data = result.pop("data", None)
     content: list[TextContent | Image] = [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
@@ -150,18 +150,18 @@ def image_content(result: dict[str, Any]) -> list[TextContent | Image]:
 
 
 def register_read_tools(server: Server) -> None:
-    """Lesende Tools (7.3) registrieren.
+    """Register the reading tools (7.3).
 
     Args:
-        server: MCP-Server.
+        server: MCP server.
     """
 
     @server.tool()
     def search(query: str, scope: str = "wiki", max_results: int = 8) -> dict:
-        """Volltextsuche (Präfixsuche, umlauttolerant). scope: wiki (Standard) | documents | scratch | all
-        (all = wiki + documents; scratch nur auf ausdrückliche Angabe).
-        max_results höchstens 25. Treffer mit id, version, path, title, type, summary, snippet,
-        score, updated und bei Dokumenten processed (ob im Wiki eingearbeitet)."""
+        """Full-text search (prefix search, umlaut-tolerant). scope: wiki (default) | documents | scratch | all
+        (all = wiki + documents; scratch only when given explicitly).
+        max_results at most 25. Hits with id, version, path, title, type, summary, snippet,
+        score, updated and for documents processed (whether incorporated into the wiki)."""
         return call("search", Service.search, query=query, scope=scope, max_results=max_results)
 
     @server.tool()
@@ -173,56 +173,56 @@ def register_read_tools(server: Server) -> None:
         max_chars: int | None = None,
         content: bool = True,
     ) -> dict:
-        """Dokument oder Wiki-Seite lesen. target: Pfad, Wikilink, id:d-… oder Kurzbezeichnung (short_citation).
-        Mit version eine frühere Version aus Git (nur lesend). Liefert hash für expected_hash und sections
-        (key, sha). Große Dokumente: content=false (nur Metadaten, sections, content_length), dann section
-        (ein Abschnitt) oder offset/max_chars (seitenweise, next_offset). Über 40000 Zeichen ohne diese
-        Angaben fehlt content (content_omitted)."""
+        """Read a document or wiki page. target: path, wikilink, id:d-… or short citation (short_citation).
+        With version an earlier version from Git (read-only). Returns hash for expected_hash and sections
+        (key, sha). Large documents: content=false (metadata, sections, content_length only), then section
+        (one section) or offset/max_chars (page by page, next_offset). Above 40000 characters without these
+        parameters content is left out (content_omitted)."""
         return call("read", Service.read, target=target, version=version, section=section, offset=offset,
                     max_chars=max_chars, content=content)
 
     @server.tool(name="read_image")
     def read_image_tool(target: str, image: str | None = None, as_: str = "auto") -> list[TextContent | Image]:
-        """Bild ansehen: image = Bildname im Dokument target (aus read: images), ohne image die Bilddatei target
-        selbst. PNG kommt als Bild, SVG als Text (as_ = svg_text, image nur mit PKM_SVG_RASTER). Base64 nie in
-        Texte übernehmen."""
+        """View an image: image = image name in document target (from read: images), without image the image file
+        target itself. PNG comes as an image, SVG as text (as_ = svg_text, image only with PKM_SVG_RASTER). Never
+        copy Base64 into texts."""
         return image_content(call("read_image", Service.read_image, target=target, image=image, as_=as_))
 
     @server.tool()
     def history(target: str, diff_from: int | None = None, diff_to: int | None = None) -> dict:
-        """Versionsverlauf eines Dokuments (version, date, source, note, commit).
-        Mit diff_from zusätzlich ein Unified Diff bis diff_to (Standard: aktuelle Version)."""
+        """Version history of a document (version, date, source, note, commit).
+        With diff_from additionally a unified diff up to diff_to (default: current version)."""
         return call("history", Service.history, target=target, diff_from=diff_from, diff_to=diff_to)
 
     @server.tool()
     def show_citations(target: str, statement: str | None = None, with_excerpt: bool = False) -> dict:
-        """Belege einer Wiki-Seite: Original (aktueller Pfad), Abschnitt/Seite, Zitat, belegte und
-        aktuelle Version, Status (ok | moved | newer_version | missing) und Obsidian-Link.
-        statement grenzt auf Absätze mit diesem Text ein. with_excerpt lädt den Abschnitt aus der
-        belegten und, falls abweichend, der aktuellen Version."""
+        """Citations of a wiki page: original (current path), section/page, quote, cited and
+        current version, status (ok | moved | newer_version | missing) and Obsidian link.
+        statement narrows to paragraphs containing this text. with_excerpt loads the section from the
+        cited and, if different, the current version."""
         return call("show_citations", Service.show_citations, target=target, statement=statement,
                     with_excerpt=with_excerpt)
 
     @server.tool()
     def read_index() -> dict:
-        """Gibt wiki/index.md zurück (Katalog aller Wiki-Seiten mit Kurzfassung)."""
+        """Returns wiki/index.md (catalog of all wiki pages with summary)."""
         return call("read_index", Service.read_index)
 
     @server.tool()
     def list_unprocessed() -> dict:
-        """Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist."""
+        """Documents whose current state is not yet incorporated into the wiki."""
         return call("list_unprocessed", Service.list_unprocessed)
 
 
 def _register_write_tools(server: Server) -> None:
-    """Schreibende Tools (7.2) registrieren.
+    """Register the writing tools (7.2).
 
-    Neuanlage nur in ``documents/_inbox/`` bzw. ``scratch/``, Änderungen nur an ``documents/**/*.md``
-    und ``scratch/**/*.md``. Jede Änderung in ``documents/`` ergibt eine neue Version mit Git-Commit,
-    in ``scratch/`` ohne Version und Commit. Löschen und Verschieben gibt es nicht.
+    New documents only in ``documents/_inbox/`` or ``scratch/``, changes only to ``documents/**/*.md``
+    and ``scratch/**/*.md``. Every change in ``documents/`` results in a new version with a Git commit,
+    in ``scratch/`` without version and commit. There is no deleting or moving.
 
     Args:
-        server: MCP-Server.
+        server: MCP server.
     """
 
     @server.tool()
@@ -243,11 +243,11 @@ def _register_write_tools(server: Server) -> None:
         fix_images: bool = False,
         image_alt: dict | None = None,
     ) -> dict:
-        """Neues Dokument in documents/_inbox/ anlegen (Version 1, Commit) oder mit area="scratch"
-        eine kurzlebige Notiz/Todo-Liste in scratch/[folder/] (ohne Version und Commit, nie im Wiki).
-        Nur nach gezeigtem und bestätigtem Entwurf. content ohne Frontmatter. tags: Kleinbuchstaben mit
-        Bindestrich. kind: note | standard | regulation | correction. toolchain: eigener Modellname plus
-        "(pkm-mcp)", wird zu toolchain_markdown. Bilder siehe images."""
+        """Create a new document in documents/_inbox/ (version 1, commit) or with area="scratch"
+        a short-lived note/todo list in scratch/[folder/] (without version and commit, never in the wiki).
+        Only after a draft has been shown and confirmed. content without frontmatter. tags: lower case with
+        hyphens. kind: note | standard | regulation | correction. toolchain: own model name plus
+        "(pkm-mcp)", becomes toolchain_markdown. Images see images."""
         return call("create_document", Service.create_document, title=title, content=content, tags=tags,
                     short_citation=short_citation, date_document=date_document, context=context, related=related,
                     kind=kind, toolchain=toolchain, note=note, area=area, folder=folder, images=images,
@@ -258,10 +258,10 @@ def _register_write_tools(server: Server) -> None:
         target: str, content: str, expected_hash: str, note: str | None = None, confirm_shortening: bool = False,
         images: list[dict] | None = None, fix_images: bool = False, image_alt: dict | None = None,
     ) -> dict:
-        """Gesamten Inhalt unterhalb des Frontmatters ersetzen (Normalfall bei Fortsetzungen).
-        Bei deutlicher Kürzung oder fehlenden Abschnitten Status large_shortening: Kürzung vom
-        Nutzer bestätigen lassen und mit confirm_shortening=true erneut aufrufen. Bild-Platzhalter aus read
-        (pkm-image:…) unverändert lassen; fehlende Bilder gelten als entfernt (large_shortening)."""
+        """Replace the entire content below the frontmatter (the normal case for continuations).
+        On a clear shortening or missing sections status large_shortening: have the user confirm the
+        shortening and call again with confirm_shortening=true. Leave image placeholders from read
+        (pkm-image:…) unchanged; missing images count as removed (large_shortening)."""
         return call("rewrite_document", Service.rewrite_document, target=target, content=content,
                     expected_hash=expected_hash, note=note, confirm_shortening=confirm_shortening, images=images,
                     fix_images=fix_images, image_alt=image_alt)
@@ -271,8 +271,8 @@ def _register_write_tools(server: Server) -> None:
         target: str, text: str, expected_hash: str, section: str | None = None, note: str | None = None,
         images: list[dict] | None = None, fix_images: bool = False, image_alt: dict | None = None,
     ) -> dict:
-        """Text anhängen: am Ende des Abschnitts section (Schlüssel, z. B. "Offene Punkte",
-        "Notizen#2" oder "_preamble"), neuer Abschnitt falls nicht vorhanden, ohne section am Dateiende."""
+        """Append text: at the end of section section (key, e.g. "Open points",
+        "Notes#2" or "_preamble"), a new section if it does not exist, without section at the end of the file."""
         return call("append_to_document", Service.append_to_document, target=target, text=text,
                     expected_hash=expected_hash, section=section, note=note, images=images, fix_images=fix_images,
                     image_alt=image_alt)
@@ -283,8 +283,8 @@ def _register_write_tools(server: Server) -> None:
         images: list[dict] | None = None, confirm_shortening: bool = False, fix_images: bool = False,
         image_alt: dict | None = None,
     ) -> dict:
-        """Textstelle old (muss genau einmal vorkommen, im Text mit Bild-Platzhaltern aus read) durch new ersetzen.
-        new darf leer sein. Entfernt die Änderung ein Bild: large_shortening, nach Bestätigung confirm_shortening."""
+        """Replace the passage old (must occur exactly once, in the text with image placeholders from read) by new.
+        new may be empty. If the change removes an image: large_shortening, after confirmation confirm_shortening."""
         return call("edit_document", Service.edit_document, target=target, old=old, new=new,
                     expected_hash=expected_hash, note=note, images=images, confirm_shortening=confirm_shortening,
                     fix_images=fix_images, image_alt=image_alt)
@@ -294,8 +294,8 @@ def _register_write_tools(server: Server) -> None:
         target: str, expected_hash: str, image: dict, section: str | None = None, caption: str | None = None,
         note: str | None = None,
     ) -> dict:
-        """Ein Bild in ein bestehendes Dokument einfügen, am Ende von section (sonst am Dateiende), optional mit
-        Bildunterschrift. image wie ein Eintrag von images. Nur nach gezeigtem und bestätigtem Entwurf."""
+        """Insert an image into an existing document, at the end of section (otherwise at the end of the file),
+        optionally with a caption. image like an entry of images. Only after a draft has been shown and confirmed."""
         return call("add_image", Service.add_image, target=target, expected_hash=expected_hash, image=image,
                     section=section, caption=caption, note=note)
 
@@ -304,10 +304,10 @@ def _register_write_tools(server: Server) -> None:
         target: str, expected_hash: str, images: list[str] | None = None, image_alt: dict | None = None,
         apply: bool = False, confirm_shortening: bool = False, note: str | None = None,
     ) -> dict:
-        """Schreibweise abweichender Bild-Data-URIs eines Dokuments in documents/ oder scratch/ nach 4.9
-        korrigieren. Ohne apply nur Vorschlag (status proposal, image_issues, Diff); erst nach ausdrücklicher
-        Bestätigung mit apply=true (neue Version, PKM-Fix: images). images: nur diese Bildnamen. image_alt:
-        Alternativtexte je Name. confirm_shortening: Entfernen unbenutzter Definitionen bestätigen."""
+        """Fix the notation of nonconforming image data URIs of a document in documents/ or scratch/ per 4.9.
+        Without apply only a proposal (status proposal, image_issues, diff); only after explicit
+        confirmation with apply=true (new version, PKM-Fix: images). images: only these image names. image_alt:
+        alt texts per name. confirm_shortening: confirm removing unused definitions."""
         return call("fix_images", Service.fix_images, target=target, expected_hash=expected_hash,
                     images_only=images, image_alt=image_alt, apply=apply, confirm_shortening=confirm_shortening,
                     note=note, source="chat")
@@ -321,25 +321,25 @@ def _register_write_tools(server: Server) -> None:
         remove: list[str] | None = None,
         note: str | None = None,
     ) -> dict:
-        """Frontmatter ändern: set (setzen), add (an Listen anhängen), remove (Felder entfernen).
-        Geschützt: id, version, date_markdown, date_updated, status_markdown. Kommentare im Frontmatter gehen
-        dabei verloren."""
+        """Change frontmatter: set (set), add (append to lists), remove (remove fields).
+        Protected: id, version, date_markdown, date_updated, status_markdown. Comments in the frontmatter are
+        lost in the process."""
         return call("update_frontmatter", Service.update_frontmatter, target=target, expected_hash=expected_hash,
                     set=set, add=add, remove=remove, note=note)
 
     @server.tool()
     def restore_document(target: str, version: int, expected_hash: str) -> dict:
-        """Inhalt einer früheren Version als neue Version zurückholen (Geschichte bleibt erhalten).
-        Für Dateien in scratch/ kommt not_versioned."""
+        """Restore the content of an earlier version as a new version (history is kept).
+        For files in scratch/ the result is not_versioned."""
         return call("restore_document", Service.restore_document, target=target, version=version,
                     expected_hash=expected_hash)
 
 
 def build_server() -> Server:
-    """MCP-Server mit allen Tools aufbauen (lesend inkl. ``read_image``, schreibend inkl. ``add_image``).
+    """Build the MCP server with all tools (reading incl. ``read_image``, writing incl. ``add_image``).
 
     Returns:
-        Der Server.
+        The server.
     """
     server = Server("pkm", instructions=INSTRUCTIONS)
     register_read_tools(server)
@@ -348,7 +348,7 @@ def build_server() -> Server:
 
 
 def main() -> None:
-    """Einstiegspunkt ``pkm-mcp``: Server über stdio starten."""
+    """Entry point ``pkm-mcp``: start the server via stdio."""
     build_server().run()
 
 # Main ************************************************************************

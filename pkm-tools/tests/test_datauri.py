@@ -107,7 +107,7 @@ def test_conforming_and_code_are_clean():
 def test_legacy_png_only_notation():
     """Bestehende Base64-PNG: nur Schreibweise; Name und Alternativtext werden nicht verlangt."""
     text = f'Text <img src="data:image/png;base64,{PNG_B64[:8]}\n{PNG_B64[8:]}">\n'
-    assert _problems(text)["bild-1"] == ["html_img", "base64_whitespace"]
+    assert _problems(text)["image-1"] == ["html_img", "base64_whitespace"]
     new, _ = fix_text(text, LIMITS)
     refs = images.find_images(new)
     assert refs[0].data() == make_png(text=False) and not refs[0].named and "pkm:" not in new
@@ -129,7 +129,7 @@ def test_reference_used_twice_and_unused_definition():
     """Mehrfach verwendete Referenz ergibt ambiguous; unbenutzte Definition nur mit Bestätigung."""
     twice = PRACTICE + "\nNochmal ![Plan][plan]\n"
     issue = image_issues(twice, LIMITS)[0]
-    assert "mehrfach" in issue["note"]
+    assert "more than once" in issue["note"]
     with pytest.raises(PkmError) as e:
         fix_text(twice, LIMITS)
     assert e.value.status == "ambiguous" and e.value.data["lines"] == [4, 8]
@@ -186,7 +186,7 @@ def test_fix_images_tool_proposal_and_apply(svc, isolated_env):
     out = svc.fix_images(target=doc["path"], expected_hash=h, apply=True, image_alt={"plan": "Plan"})
     assert out["status"] == "changed" and not out["image_issues"]
     body = git(isolated_env, "log", "-1", "--format=%B")
-    assert "PKM-Fix: images" in body and "Bilder nach 4.9 korrigiert" in body
+    assert "PKM-Fix: images" in body and "images fixed per 4.9" in body
     with pytest.raises(PkmError) as e:
         svc.fix_images(target="wiki/index", expected_hash="x")
     assert e.value.status == "forbidden"

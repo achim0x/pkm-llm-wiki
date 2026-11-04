@@ -1,4 +1,4 @@
-"""Hilfsfunktionen für ``append_to_document``: Text am Ende eines Abschnitts oder des Vorspanns einfügen.
+"""Helpers for ``append_to_document``: insert text at the end of a section or of the preamble.
 
     Author: Achim0x
 """
@@ -35,14 +35,14 @@ from .parse import PREAMBLE, Parsed, body_lines, normalize_key_input
 
 
 def count_overlapping(haystack: str, needle: str) -> int:
-    """Vorkommen zählen, auch überlappende.
+    """Count occurrences, including overlapping ones.
 
     Args:
         haystack: Text.
-        needle: Gesuchte Stelle (nicht leer).
+        needle: Text to find (not empty).
 
     Returns:
-        Anzahl der Vorkommen.
+        Number of occurrences.
     """
     n, start = 0, haystack.find(needle)
     while start >= 0:
@@ -52,15 +52,15 @@ def count_overlapping(haystack: str, needle: str) -> int:
 
 
 def _insert_block(lines: list[str], after: int, block: list[str]) -> list[str]:
-    """Block nach einer Zeile einfügen, mit Leerzeile davor und ggf. danach.
+    """Insert a block after a line, with a blank line before and, if needed, after it.
 
     Args:
-        lines: Body-Zeilen.
-        after: Index der Zeile, nach der eingefügt wird.
-        block: Einzufügende Zeilen.
+        lines: Body lines.
+        after: Index of the line after which to insert.
+        block: Lines to insert.
 
     Returns:
-        Neue Zeilenliste.
+        New list of lines.
     """
     head, tail = lines[: after + 1], lines[after + 1 :]
     out = head + ([""] if head and head[-1].strip() else []) + block
@@ -70,29 +70,29 @@ def _insert_block(lines: list[str], after: int, block: list[str]) -> list[str]:
 
 
 def _last_nonblank(lines: list[str], start: int, end: int) -> int:
-    """Letzte nicht leere Zeile in einem Bereich.
+    """Last non-empty line within a range.
 
     Args:
-        lines: Zeilen.
-        start: Erster Index.
-        end: Index nach dem Bereich.
+        lines: Lines.
+        start: First index.
+        end: Index after the range.
 
     Returns:
-        Index der letzten nicht leeren Zeile, sonst ``start``.
+        Index of the last non-empty line, otherwise ``start``.
     """
     return next((i for i in range(end - 1, start - 1, -1) if lines[i].strip()), start)
 
 
 def _append_to_preamble(lines: list[str], parsed: Parsed, block: list[str]) -> list[str]:
-    """Text am Ende des Vorspanns (vor der ersten Überschrift) einfügen.
+    """Insert text at the end of the preamble (before the first heading).
 
     Args:
-        lines: Body-Zeilen.
-        parsed: Zerlegtes Dokument.
-        block: Einzufügende Zeilen.
+        lines: Body lines.
+        parsed: Parsed document.
+        block: Lines to insert.
 
     Returns:
-        Neue Zeilenliste.
+        New list of lines.
     """
     sec = parsed.section(PREAMBLE)
     if sec is not None:
@@ -105,18 +105,18 @@ def _append_to_preamble(lines: list[str], parsed: Parsed, block: list[str]) -> l
 
 
 def append_lines(parsed: Parsed, block: list[str], section: str | None) -> list[str]:
-    """Body-Zeilen nach ``append_to_document`` berechnen.
+    """Compute the body lines after ``append_to_document``.
 
     Args:
-        parsed: Zerlegtes Dokument.
-        block: Einzufügende Zeilen.
-        section: Abschnittsschlüssel oder ``None`` (Dateiende).
+        parsed: Parsed document.
+        block: Lines to insert.
+        section: Section key or ``None`` (end of file).
 
     Returns:
-        Neue Body-Zeilen.
+        New body lines.
 
     Raises:
-        PkmError: ``ambiguous``, wenn der Schlüssel ohne Suffix auf doppelte Überschriften zeigt.
+        PkmError: ``ambiguous`` if the key without suffix points to duplicate headings.
     """
     lines = body_lines(parsed.body)
     key = normalize_key_input(section) if section is not None else None
@@ -132,7 +132,7 @@ def append_lines(parsed: Parsed, block: list[str], section: str | None) -> list[
         dups = [s.key for s in parsed.sections if s.level and s.base == key and s.key != key]
         if "#" not in key and dups:
             raise PkmError(
-                "ambiguous", f"Abschnitt „{key}“ kommt mehrfach vor. Bitte mit Suffix angeben.",
+                "ambiguous", f"Section \"{key}\" occurs more than once. Please give the key with suffix.",
                 candidates=[key, *dups],
             )
         out = _insert_block(lines, _last_nonblank(lines, sec.start, sec.end), block)

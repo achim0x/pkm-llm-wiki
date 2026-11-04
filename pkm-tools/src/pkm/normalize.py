@@ -1,4 +1,4 @@
-"""Textnormalisierung (Spezifikation 4.8, Schritt 1).
+"""Text normalization (specification 4.8, step 1).
 
     Author: Achim0x
 """
@@ -38,13 +38,13 @@ BOM = "﻿"
 
 
 def normalize_fragment(text: str) -> str:
-    """BOM entfernen, Zeilenenden auf LF und Unicode auf NFC bringen; das Ende bleibt unverändert.
+    """Remove a BOM, convert line endings to LF and Unicode to NFC; the end stays unchanged.
 
     Args:
-        text: Textstück, z. B. ``old``/``new`` von ``edit_document``.
+        text: Text fragment, e.g. ``old``/``new`` of ``edit_document``.
 
     Returns:
-        Normalisierter Text.
+        Normalized text.
     """
     if text.startswith(BOM):
         text = text[1:]
@@ -53,60 +53,60 @@ def normalize_fragment(text: str) -> str:
 
 
 def normalize_text(text: str) -> str:
-    """Datei-Text normalisieren: wie ``normalize_fragment`` plus genau ein LF am Ende.
+    """Normalize file text: like ``normalize_fragment`` plus exactly one LF at the end.
 
     Args:
-        text: Vollständiger Dateiinhalt.
+        text: Complete file content.
 
     Returns:
-        Normalisierter Text; eine leere Datei bleibt leer.
+        Normalized text; an empty file stays empty.
     """
     stripped = normalize_fragment(text).rstrip("\n")
     return stripped + "\n" if stripped else ""
 
 
 def decode(data: bytes) -> str:
-    """Bytes als UTF-8 dekodieren.
+    """Decode bytes as UTF-8.
 
     Args:
-        data: Dateiinhalt.
+        data: File content.
 
     Returns:
-        Der dekodierte Text.
+        The decoded text.
 
     Raises:
-        PkmError: ``invalid_encoding``, wenn die Bytes kein gültiges UTF-8 sind.
+        PkmError: ``invalid_encoding`` if the bytes are not valid UTF-8.
     """
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise PkmError("invalid_encoding", f"Datei ist kein gültiges UTF-8 ({exc.reason}).") from exc
+        raise PkmError("invalid_encoding", f"File is not valid UTF-8 ({exc.reason}).") from exc
     return text
 
 
 def normalize_bytes(data: bytes) -> str:
-    """Bytes dekodieren und normalisieren.
+    """Decode and normalize bytes.
 
     Args:
-        data: Dateiinhalt.
+        data: File content.
 
     Returns:
-        Normalisierter Text.
+        Normalized text.
 
     Raises:
-        PkmError: ``invalid_encoding`` bei ungültigem UTF-8.
+        PkmError: ``invalid_encoding`` for invalid UTF-8.
     """
     return normalize_text(decode(data))
 
 
 def encode(text: str) -> bytes:
-    """Text in die Schreibform bringen: UTF-8 ohne BOM, LF, NFC, ein abschließendes LF.
+    """Bring text into write form: UTF-8 without BOM, LF, NFC, one trailing LF.
 
     Args:
-        text: Zu schreibender Text.
+        text: Text to write.
 
     Returns:
-        Die zu schreibenden Bytes.
+        The bytes to write.
     """
     return normalize_text(text).encode("utf-8")
 

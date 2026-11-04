@@ -128,7 +128,7 @@ def test_orphaned_attachment_reported(fsvc):
     pend = m.pending()
     assert pend["orphaned_attachments"] == [image] and image not in [d["path"] for d in pend["new"]]
     build_status(fsvc)
-    assert "Verwaiste Anhänge (1)" in (fsvc.cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
+    assert "Orphaned attachments (1)" in (fsvc.cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
     assert "orphaned_attachment" in _checks(fsvc, image)
 
 

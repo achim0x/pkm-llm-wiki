@@ -1,8 +1,8 @@
-"""Cloud-Speicher: Konfliktkopien, Cloud-Ordner und Platzhalter für Dateien „nur online“ erkennen.
+"""Cloud storage: detect conflict copies, cloud folders and placeholders for online-only files.
 
-Der Vault kann in jedem Ordner liegen, den ein Cloud-Dienst synchronisiert (Nextcloud, ownCloud,
-OneDrive, Google Drive, Dropbox, iCloud Drive, Box, pCloud, Syncthing …). Diese Hilfen sind dienstneutral:
-Sie erkennen alle bekannten Muster automatisch.
+The vault can live in any folder a cloud service synchronizes (Nextcloud, ownCloud,
+OneDrive, Google Drive, Dropbox, iCloud Drive, Box, pCloud, Syncthing …). These helpers are service-neutral:
+they detect all known patterns automatically.
 
     Author: Achim0x
 """
@@ -37,20 +37,20 @@ from pathlib import Path, PurePosixPath
 
 # Variables *******************************************************************
 
-# Konfliktkopien am Namen (unabhängig von Groß-/Kleinschreibung).
+# Conflict copies by name (case-insensitive).
 CONFLICT_NAME_RES = (
-    re.compile(r"conflicted copy", re.IGNORECASE),  # Nextcloud, ownCloud, Dropbox, Box, Google Drive (älter)
-    re.compile(r"\((?:[^)]*\s)?conflict(?:ed)?\b[^)]*\)", re.IGNORECASE),  # „(conflict …)“, „(… conflicted …)“
+    re.compile(r"conflicted copy", re.IGNORECASE),  # Nextcloud, ownCloud, Dropbox, Box, Google Drive (older)
+    re.compile(r"\((?:[^)]*\s)?conflict(?:ed)?\b[^)]*\)", re.IGNORECASE),  # "(conflict …)", "(… conflicted …)"
     re.compile(r"\[conflict(?:ed)?\]", re.IGNORECASE),  # Google Drive, pCloud
     re.compile(r"\.sync-conflict-\d{8}-\d{6}", re.IGNORECASE),  # Syncthing
-    re.compile(r"case conflict", re.IGNORECASE),  # Dropbox (Groß-/Kleinschreibung)
-    re.compile(r"konflikt[- ]?kopie|in konflikt stehende kopie", re.IGNORECASE),  # deutsche Clients
+    re.compile(r"case conflict", re.IGNORECASE),  # Dropbox (upper/lower case)
+    re.compile(r"konflikt[- ]?kopie|in konflikt stehende kopie", re.IGNORECASE),  # German clients
     re.compile(r"\(konflikt[^)]*\)", re.IGNORECASE),
 )
-# Kopien, die nur zusammen mit dem Original und derselben Dokument-ID als Konfliktkopie gelten.
+# Copies that count as conflict copies only together with the original and the same document ID.
 NUMBERED_RE = re.compile(r"^(?P<base>.+?)(?: \((?P<n1>\d+)\)| (?P<n2>\d+))$")  # iCloud, Finder, Google Drive
 COPY_OF_RE = re.compile(r"^(?:copy of|kopie von) (?P<base>.+)$", re.IGNORECASE)  # Google Drive
-HOST_SUFFIX_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*$")  # OneDrive: „-RECHNERNAME“
+HOST_SUFFIX_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*$")  # OneDrive: "-COMPUTERNAME"
 CLOUD_DIR_RES = (
     ("Nextcloud", re.compile(r"nextcloud", re.IGNORECASE)),
     ("ownCloud", re.compile(r"owncloud", re.IGNORECASE)),
@@ -60,14 +60,14 @@ CLOUD_DIR_RES = (
     ("iCloud Drive", re.compile(r"icloud|^mobile documents$", re.IGNORECASE)),
     ("Box", re.compile(r"^box$|^box sync$", re.IGNORECASE)),
     ("pCloud", re.compile(r"pcloud", re.IGNORECASE)),
-    ("Cloud-Speicher (macOS)", re.compile(r"^cloudstorage$", re.IGNORECASE)),
+    ("cloud storage (macOS)", re.compile(r"^cloudstorage$", re.IGNORECASE)),
 )
 CLOUD_MARKERS = (
     ("Nextcloud/ownCloud", ".owncloudsync.log"),
     ("Dropbox", ".dropbox"),
     ("Syncthing", ".stfolder"),
 )
-DATALESS = 0x40000000  # macOS SF_DATALESS (Platzhalter von iCloud, OneDrive, Google Drive …)
+DATALESS = 0x40000000  # macOS SF_DATALESS (placeholders of iCloud, OneDrive, Google Drive …)
 WIN_ONLINE_ONLY = 0x00001000 | 0x00040000 | 0x00400000  # OFFLINE, RECALL_ON_OPEN, RECALL_ON_DATA_ACCESS
 
 # Classes *********************************************************************
@@ -76,26 +76,26 @@ WIN_ONLINE_ONLY = 0x00001000 | 0x00040000 | 0x00400000  # OFFLINE, RECALL_ON_OPE
 
 
 def is_conflict_copy(name: str) -> bool:
-    """Konfliktkopie eines Cloud-Dienstes am Dateinamen erkennen.
+    """Detect a conflict copy of a cloud service by its file name.
 
     Args:
-        name: Dateiname.
+        name: File name.
 
     Returns:
-        ``True`` bei bekannten Mustern (z. B. „conflicted copy“, „[Conflict]“, „.sync-conflict-…“,
-        „Konflikt-Kopie“).
+        ``True`` for known patterns (e.g. "conflicted copy", "[Conflict]", ".sync-conflict-…",
+        "Konflikt-Kopie").
     """
     return any(rx.search(name) for rx in CONFLICT_NAME_RES)
 
 
 def _base_candidates(stem: str) -> list[str]:
-    """Mögliche Originalnamen für eine Kopie ohne eindeutiges Konfliktmuster.
+    """Possible original names for a copy without a unique conflict pattern.
 
     Args:
-        stem: Dateiname ohne Endung.
+        stem: File name without extension.
 
     Returns:
-        Kandidaten: ohne „ (2)“ bzw. „ 2“, ohne „Copy of “/„Kopie von “, ohne angehängten Rechnernamen.
+        Candidates: without " (2)" or " 2", without "Copy of "/"Kopie von ", without an appended computer name.
     """
     out = []
     m = NUMBERED_RE.match(stem)
@@ -113,17 +113,17 @@ def _base_candidates(stem: str) -> list[str]:
 
 
 def sibling_conflicts(ids: dict[str, str | None]) -> set[str]:
-    """Konfliktkopien ohne eindeutiges Namensmuster erkennen (OneDrive, iCloud Drive, Google Drive).
+    """Detect conflict copies without a unique name pattern (OneDrive, iCloud Drive, Google Drive).
 
-    Eine Datei gilt als Kopie, wenn im selben Ordner ein Original mit abgeleitetem Namen liegt
-    (``notiz-MacBook.md``, ``notiz 2.md``, ``notiz (1).md``, ``Kopie von notiz.md`` → ``notiz.md``) und
-    beide **dieselbe Dokument-ID** tragen. Ohne gleiche ID ist es ein eigenes Dokument.
+    A file counts as a copy if an original with a derived name lies in the same folder
+    (``note-MacBook.md``, ``note 2.md``, ``note (1).md``, ``Copy of note.md`` → ``note.md``) and
+    both carry **the same document ID**. Without the same ID it is a document of its own.
 
     Args:
-        ids: Relativer Pfad → Dokument-ID (``None`` ohne ID).
+        ids: Relative path → document ID (``None`` without ID).
 
     Returns:
-        Pfade der Kopien.
+        Paths of the copies.
     """
     found: set[str] = set()
     for rel, doc_id in ids.items():
@@ -138,26 +138,26 @@ def sibling_conflicts(ids: dict[str, str | None]) -> set[str]:
 
 
 def conflict_copies(rels: Iterable[str], ids: dict[str, str | None]) -> set[str]:
-    """Alle Konfliktkopien: am Namen erkannte und Kopien mit gleicher ID neben dem Original.
+    """All conflict copies: detected by name, and copies with the same ID next to the original.
 
     Args:
-        rels: Relative Pfade.
-        ids: Pfad → Dokument-ID der Markdown-Dateien.
+        rels: Relative paths.
+        ids: Path → document ID of the Markdown files.
 
     Returns:
-        Pfade der Konfliktkopien.
+        Paths of the conflict copies.
     """
     return {r for r in rels if is_conflict_copy(PurePosixPath(r).name)} | sibling_conflicts(ids)
 
 
 def cloud_service(path: Path) -> str | None:
-    """Erkennen, ob ein Pfad in einem synchronisierten Cloud-Ordner liegt.
+    """Detect whether a path lies in a synchronized cloud folder.
 
     Args:
-        path: Zu prüfender Pfad.
+        path: Path to check.
 
     Returns:
-        Name des Dienstes (z. B. ``OneDrive``) oder ``None``.
+        Name of the service (e.g. ``OneDrive``) or ``None``.
     """
     found = None
     for p in [path, *path.parents]:
@@ -174,13 +174,13 @@ def cloud_service(path: Path) -> str | None:
 
 
 def is_online_only(path: Path) -> bool:
-    """Prüfen, ob eine Datei nur als Platzhalter vorliegt („nur online“, „Streamen“, „Dateien bei Bedarf“).
+    """Check whether a file exists only as a placeholder ("online only", "streaming", "files on demand").
 
     Args:
-        path: Datei.
+        path: File.
 
     Returns:
-        ``True``, wenn das Betriebssystem die Datei als nicht lokal vorhanden kennzeichnet.
+        ``True`` if the operating system marks the file as not available locally.
     """
     try:
         st = os.lstat(path)
@@ -195,14 +195,14 @@ def is_online_only(path: Path) -> bool:
 
 
 def online_only_files(root: Path, limit: int = 20) -> list[str]:
-    """Dateien im Vault, die nur online vorliegen (ohne versteckte Ordner).
+    """Files in the vault that exist only online (hidden folders excluded).
 
     Args:
-        root: Vault-Wurzel.
-        limit: Höchstzahl gemeldeter Dateien.
+        root: Vault root.
+        limit: Maximum number of reported files.
 
     Returns:
-        Relative Pfade (höchstens ``limit``).
+        Relative paths (at most ``limit``).
     """
     out: list[str] = []
     for dirpath, dirnames, filenames in os.walk(root):

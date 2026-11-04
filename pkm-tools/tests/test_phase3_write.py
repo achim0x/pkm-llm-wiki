@@ -176,7 +176,7 @@ def test_every_change_one_version_one_commit(doc, svc, isolated_env):
     assert len(commits(isolated_env)) == n + 1
     body, files, tr = last_commit(isolated_env)
     assert files == [doc["path"]] and tr["PKM-Version"] == "2" and tr["PKM-Source"] == "chat"
-    assert "Textstelle geändert" in body
+    assert "passage changed" in body
     cur = svc.read(doc["path"])
     assert cur["version"] == 2 and cur["hash"] == r["new_hash"]
     assert cur["frontmatter"]["date_updated"] >= cur["frontmatter"]["date_markdown"]
@@ -463,7 +463,7 @@ def test_restore(doc, svc):
     r3 = svc.restore_document(target=doc["path"], version=1, expected_hash=r2["new_hash"])
     assert r3["version"] == 3 and "Kabelweg" in svc.read(doc["path"])["content"]
     hist = svc.history(doc["path"])["versions"]
-    assert hist[-1]["note"] == "wiederhergestellt aus v1"
+    assert hist[-1]["note"] == "restored from v1"
     with pytest.raises(PkmError):
         svc.restore_document(target=doc["path"], version=9, expected_hash=r3["new_hash"])
 

@@ -1,4 +1,4 @@
-"""``pkm doctor`` (Spezifikation 8): Umgebung prüfen.
+"""``pkm doctor`` (specification 8): check the environment.
 
     Author: Achim0x
 """
@@ -47,10 +47,10 @@ if TYPE_CHECKING:
 # Variables *******************************************************************
 
 OBSIDIAN_EXPECTED = {
-    "alwaysUpdateLinks": (True, "Interne Links automatisch aktualisieren: an"),
-    "newLinkFormat": ("absolute", "Neues Link-Format: Absoluter Pfad im Vault"),
-    "useMarkdownLinks": (False, "Wikilinks verwenden: an"),
-    "attachmentFolderPath": ("documents/_attachments", "Anhang-Ordner: documents/_attachments"),
+    "alwaysUpdateLinks": (True, "Automatically update internal links: on"),
+    "newLinkFormat": ("absolute", "New link format: absolute path in vault"),
+    "useMarkdownLinks": (False, "Use [[Wikilinks]]: on"),
+    "attachmentFolderPath": ("documents/_attachments", "Attachment folder: documents/_attachments"),
 }
 
 # Classes *********************************************************************
@@ -59,66 +59,66 @@ OBSIDIAN_EXPECTED = {
 
 
 def _check(name: str, ok: bool, ok_message: str, bad_message: str, severity: str = "error") -> dict[str, Any]:
-    """Prüfergebnis bilden.
+    """Build a check result.
 
     Args:
-        name: Name der Prüfung.
-        ok: Ergebnis.
-        ok_message: Meldung bei Erfolg.
-        bad_message: Meldung bei Fehlschlag.
-        severity: Schweregrad bei Fehlschlag (``error`` oder ``warning``).
+        name: Name of the check.
+        ok: Result.
+        ok_message: Message on success.
+        bad_message: Message on failure.
+        severity: Severity on failure (``error`` or ``warning``).
 
     Returns:
-        ``check``, ``ok``, ``severity`` (``ok`` bei Erfolg) und ``message``.
+        ``check``, ``ok``, ``severity`` (``ok`` on success) and ``message``.
     """
     return {"check": name, "ok": ok, "severity": "ok" if ok else severity, "message": ok_message if ok else bad_message}
 
 
 def _git_checks(svc: Service) -> list[dict[str, Any]]:
-    """Prüfungen rund um Git.
+    """Checks around git.
 
     Args:
-        svc: Dienst.
+        svc: Service.
 
     Returns:
-        Prüfergebnisse.
+        Check results.
     """
     cfg, git = svc.cfg, svc.git
     git_dir_problem = cfg.git_dir_problem()
     git_cloud = cloud_service(cfg.git_dir)
     repo = git.installed() and git.is_repo()
     checks = [
-        _check("git_installed", git.installed(), "git gefunden.", "git nicht im PATH."),
-        _check("git_dir_outside", git_dir_problem is None, "Git-Verzeichnis liegt außerhalb des Vaults.",
+        _check("git_installed", git.installed(), "git found.", "git not in PATH."),
+        _check("git_dir_outside", git_dir_problem is None, "Git directory is outside the vault.",
                git_dir_problem or ""),
-        _check("git_dir_cloud", git_cloud is None, "Git-Verzeichnis liegt nicht in einem Cloud-Ordner.",
-               f"Git-Verzeichnis {cfg.git_dir} liegt offenbar in einem Cloud-Ordner ({git_cloud}); "
-               "Git-Dateien dürfen nicht synchronisiert werden."),
-        _check("git_repo", repo, "Git-Repo erreichbar.", f"Kein Git-Repo unter {cfg.git_dir} (pkm init)."),
-        _check("no_dotgit_in_vault", not (cfg.root / ".git").exists(), "Kein .git im Vault.",
-               "Im Vault liegt ein .git (5.5)."),
+        _check("git_dir_cloud", git_cloud is None, "Git directory is not in a cloud folder.",
+               f"Git directory {cfg.git_dir} seems to be in a cloud folder ({git_cloud}); "
+               "git files must not be synchronized."),
+        _check("git_repo", repo, "Git repo reachable.", f"No Git repo at {cfg.git_dir} (pkm init)."),
+        _check("no_dotgit_in_vault", not (cfg.root / ".git").exists(), "No .git in the vault.",
+               "The vault contains a .git (5.5)."),
     ]
     if repo:
         name, email = git.config_get("user.name"), git.config_get("user.email")
         signing = (git.config_get("commit.gpgsign") or "").lower() == "true"
         checks += [
-            _check("git_identity", bool(name and email), f"Git-Identität: {name} <{email}>.",
-                   "user.name/user.email fehlen."),
-            _check("git_signing", not signing, "Commit-Signierung aus.",
-                   "commit.gpgsign ist an: Commits schlagen fehl, wenn die Signatur in Claude Desktop nicht "
-                   "verfügbar ist.", "warning"),
+            _check("git_identity", bool(name and email), f"Git identity: {name} <{email}>.",
+                   "user.name/user.email missing."),
+            _check("git_signing", not signing, "Commit signing off.",
+                   "commit.gpgsign is on: commits fail if signing is not available in Claude Desktop "
+                   "(signing key not reachable).", "warning"),
         ]
     return checks
 
 
 def _conflicts(svc: Service) -> list[str]:
-    """Konfliktkopien aller Cloud-Dienste im Vault (am Namen und als Kopie mit gleicher ID).
+    """Conflict copies of all cloud services in the vault (by name and as copies with the same ID).
 
     Args:
-        svc: Dienst.
+        svc: Service.
 
     Returns:
-        Sortierte Pfade.
+        Sorted paths.
     """
     rels = list(svc.vault.iter_files())
     ids: dict[str, str | None] = {}
@@ -132,13 +132,13 @@ def _conflicts(svc: Service) -> list[str]:
 
 
 def _path_checks(svc: Service) -> list[dict[str, Any]]:
-    """Prüfungen für Vault, Suchindex, Schreibrechte, Konfliktkopien und ``scratch/`` in ``.gitignore``.
+    """Checks for vault, search index, write permissions, conflict copies and ``scratch/`` in ``.gitignore``.
 
     Args:
-        svc: Dienst.
+        svc: Service.
 
     Returns:
-        Prüfergebnisse.
+        Check results.
     """
     cfg = svc.cfg
     cache_problem = cfg.cache_dir_problem()
@@ -147,45 +147,45 @@ def _path_checks(svc: Service) -> list[dict[str, Any]]:
     vault_cloud = cloud_service(cfg.root)
     online_only = online_only_files(cfg.root)
     checks = [
-        _check("vault", cfg.root.is_dir(), f"Vault {cfg.root} vorhanden.", f"Vault fehlt: {cfg.root}"),
-        _check("cache_dir_outside", cache_problem is None, "PKM_CACHE_DIR liegt außerhalb des Vaults.",
+        _check("vault", cfg.root.is_dir(), f"Vault {cfg.root} exists.", f"Vault missing: {cfg.root}"),
+        _check("cache_dir_outside", cache_problem is None, "PKM_CACHE_DIR is outside the vault.",
                cache_problem or ""),
-        _check("cache_dir_cloud", cache_cloud is None, "PKM_CACHE_DIR liegt nicht in einem Cloud-Ordner.",
-               f"PKM_CACHE_DIR {cfg.cache_dir} liegt offenbar in einem Cloud-Ordner ({cache_cloud}); "
-               "SQLite darf nicht synchronisiert werden."),
-        _check("vault_cloud", True, f"Vault liegt in: {vault_cloud or 'kein erkannter Cloud-Ordner'}.", ""),
-        _check("vault_online_only", not online_only, "Alle Dateien des Vaults liegen lokal vor.",
-               f"Dateien nur online (Platzhalter): {', '.join(online_only)}. Den Vault-Ordner im Cloud-Dienst "
-               "immer lokal halten (OneDrive „Immer auf diesem Gerät behalten“, Google Drive „Spiegeln“, iCloud "
-               "„Heruntergeladen behalten“, Nextcloud virtuelle Dateien aus).", "warning"),
+        _check("cache_dir_cloud", cache_cloud is None, "PKM_CACHE_DIR is not in a cloud folder.",
+               f"PKM_CACHE_DIR {cfg.cache_dir} seems to be in a cloud folder ({cache_cloud}); "
+               "SQLite must not be synchronized."),
+        _check("vault_cloud", True, f"Vault is in: {vault_cloud or 'no recognized cloud folder'}.", ""),
+        _check("vault_online_only", not online_only, "All files of the vault are available locally.",
+               f"Online-only files (placeholders): {', '.join(online_only)}. Always keep the vault folder local "
+               "in the cloud service (OneDrive \"Always keep on this device\", Google Drive \"Mirror files\", iCloud "
+               "\"Keep Downloaded\", Nextcloud virtual files off).", "warning"),
     ]
     for label, path in (("vault_writable", cfg.root), ("cache_writable", cfg.cache_dir)):
         ok = path.is_dir() and os.access(path, os.W_OK)
-        checks.append(_check(label, ok, f"{path} beschreibbar.", f"{path} fehlt oder ist nicht beschreibbar."))
-    checks.append(_check("conflict_copies", not conflicts, "Keine Konfliktkopien des Cloud-Speichers.",
-                         f"Konfliktkopien: {', '.join(conflicts)}"))
+        checks.append(_check(label, ok, f"{path} writable.", f"{path} missing or not writable."))
+    checks.append(_check("conflict_copies", not conflicts, "No conflict copies of the cloud storage.",
+                         f"Conflict copies: {', '.join(conflicts)}"))
     import_problem = cfg.import_dir_problem()
-    checks.append(_check("import_dir", import_problem is None, f"Importordner für Bilder: {cfg.images.import_dir}.",
+    checks.append(_check("import_dir", import_problem is None, f"Import folder for images: {cfg.images.import_dir}.",
                          import_problem or ""))
     gitignore = cfg.root / ".gitignore"
     text = gitignore.read_text(encoding="utf-8") if gitignore.is_file() else ""
-    checks.append(_check("scratch_ignored", scratch_ignored(text), "scratch/ steht in .gitignore.",
-                         "scratch/ fehlt in .gitignore (pkm init ergänzt es)."))
+    checks.append(_check("scratch_ignored", scratch_ignored(text), "scratch/ is listed in .gitignore.",
+                         "scratch/ missing in .gitignore (pkm init adds it)."))
     if cfg.import_in_vault:
         checks.append(_check("import_ignored", folder_ignored(text, IMPORT_FOLDER),
-                             f"{IMPORT_FOLDER}/ steht in .gitignore.",
-                             f"{IMPORT_FOLDER}/ fehlt in .gitignore (pkm init ergänzt es)."))
+                             f"{IMPORT_FOLDER}/ is listed in .gitignore.",
+                             f"{IMPORT_FOLDER}/ missing in .gitignore (pkm init adds it)."))
     return checks
 
 
 def _obsidian_checks(root: Path) -> list[dict[str, Any]]:
-    """Obsidian-Einstellungen aus ``.obsidian/app.json`` prüfen (13).
+    """Check Obsidian settings from ``.obsidian/app.json`` (13).
 
     Args:
-        root: Vault-Wurzel.
+        root: Vault root.
 
     Returns:
-        Prüfergebnisse (Abweichungen als Warnung).
+        Check results (deviations as warnings).
     """
     app = root / ".obsidian" / "app.json"
     data: dict[str, Any] | None = None
@@ -196,54 +196,54 @@ def _obsidian_checks(root: Path) -> list[dict[str, Any]]:
             data = None
     if not app.is_file():
         checks = [_check("obsidian_settings", True,
-                         "Keine .obsidian/app.json gefunden (Obsidian-Einstellungen nicht geprüft).", "")]
+                         "No .obsidian/app.json found (Obsidian settings not checked).", "")]
     elif data is None:
-        checks = [_check("obsidian_settings", False, "", ".obsidian/app.json nicht lesbar.", "warning")]
+        checks = [_check("obsidian_settings", False, "", ".obsidian/app.json cannot be read.", "warning")]
     else:
         checks = [
             _check(f"obsidian_{key}", data.get(key) == expected, f"{label}.",
-                   f"Obsidian: {label} (aktuell {data.get(key)!r}).", "warning")
+                   f"Obsidian: {label} (currently {data.get(key)!r}).", "warning")
             for key, (expected, label) in OBSIDIAN_EXPECTED.items()
         ]
         ignored = any(str(f).strip("/") == ".pkm" for f in data.get("userIgnoreFilters") or [])
-        checks.append(_check("obsidian_ignore_pkm", ignored, ".pkm/ ist in Obsidian ausgeschlossen.",
-                             "Obsidian: .pkm/ unter „Ausgeschlossene Dateien“ eintragen.", "warning"))
+        checks.append(_check("obsidian_ignore_pkm", ignored, ".pkm/ is excluded in Obsidian.",
+                             "Obsidian: add .pkm/ to \"Excluded files\".", "warning"))
     return checks
 
 
 def _property_type_check(root: Path) -> dict[str, Any]:
-    """Obsidian-Property-Typen aus ``.obsidian/types.json`` prüfen.
+    """Check Obsidian property types from ``.obsidian/types.json``.
 
     Args:
-        root: Vault-Wurzel.
+        root: Vault root.
 
     Returns:
-        Prüfergebnis (fehlende oder abweichende Typen als Warnung).
+        Check result (missing or differing types as a warning).
     """
     data = read_property_types(root)
     if data is None:
-        check = _check("obsidian_property_types", False, "", f"{TYPES_FILE} nicht lesbar.", "warning")
+        check = _check("obsidian_property_types", False, "", f"{TYPES_FILE} cannot be read.", "warning")
     else:
         types = data.get("types") or {}
         missing = [k for k in PROPERTY_TYPES if k not in types]
         conflicts = property_type_conflicts(types)
-        problems = [f"{k} fehlt" for k in missing] + [
-            f"{k}={v} (erwartet {PROPERTY_TYPES[k]})" for k, v in conflicts.items()]
-        check = _check("obsidian_property_types", not problems, "Obsidian-Property-Typen passen zum Schema.",
-                       "Obsidian-Property-Typen: " + ", ".join(problems)
-                       + ". Fehlende ergänzt `pkm init` (Obsidian danach neu starten).", "warning")
+        problems = [f"{k} missing" for k in missing] + [
+            f"{k}={v} (expected {PROPERTY_TYPES[k]})" for k, v in conflicts.items()]
+        check = _check("obsidian_property_types", not problems, "Obsidian property types match the schema.",
+                       "Obsidian property types: " + ", ".join(problems)
+                       + ". `pkm init` adds missing ones (restart Obsidian afterwards).", "warning")
     return check
 
 
 def doctor(svc: Service, short: bool = False) -> dict[str, Any]:
-    """``pkm doctor``: Umgebung prüfen.
+    """``pkm doctor``: check the environment.
 
     Args:
-        svc: Dienst.
-        short: Nur Fehler ausgeben.
+        svc: Service.
+        short: Output errors only.
 
     Returns:
-        ``status`` (``error``, wenn es Fehler gibt), Anzahl Fehler und Warnungen und die Prüfungen.
+        ``status`` (``error`` if there are errors), number of errors and warnings, and the checks.
     """
     checks = _path_checks(svc) + _git_checks(svc) + _obsidian_checks(svc.cfg.root)
     checks.append(_property_type_check(svc.cfg.root))

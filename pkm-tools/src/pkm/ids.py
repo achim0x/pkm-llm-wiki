@@ -1,4 +1,4 @@
-"""Dokument-IDs ``d-YYYYMMDD-HHMM-xxxx`` (Spezifikation 4.1).
+"""Document IDs ``d-YYYYMMDD-HHMM-xxxx`` (specification 4.1).
 
     Author: Achim0x
 """
@@ -41,22 +41,22 @@ MAX_ATTEMPTS = 50
 
 
 def is_valid_id(value: object) -> bool:
-    """Prüfen, ob ein Wert eine gültige Dokument-ID ist.
+    """Check whether a value is a valid document ID.
 
     Args:
-        value: Beliebiger Wert, z. B. aus dem Frontmatter.
+        value: Any value, e.g. from the frontmatter.
 
     Returns:
-        ``True``, wenn ``value`` ein String im Format ``d-YYYYMMDD-HHMM-xxxx`` ist.
+        ``True`` if ``value`` is a string in the format ``d-YYYYMMDD-HHMM-xxxx``.
     """
     return isinstance(value, str) and bool(ID_RE.match(value))
 
 
 def _random_suffix() -> str:
-    """Vier Zufallszeichen aus dem ID-Alphabet erzeugen.
+    """Generate four random characters from the ID alphabet.
 
     Returns:
-        Zufälliger Suffix für eine neue ID.
+        Random suffix for a new ID.
     """
     return "".join(secrets.choice(ALPHABET) for _ in range(4))
 
@@ -67,26 +67,26 @@ def new_id(
     rand: Callable[[], str] | None = None,
     attempts: int = MAX_ATTEMPTS,
 ) -> str:
-    """Neue, noch nicht vergebene ID erzeugen.
+    """Generate a new ID that is not yet in use.
 
     Args:
-        now: Zeitpunkt der Vergabe (in ``PKM_TZ``).
-        exists: Prüft, ob eine ID schon vergeben ist.
-        rand: Liefert den Zufallsteil; ohne Angabe sichere Zufallszeichen.
-        attempts: Höchstzahl an Versuchen.
+        now: Time of assignment (in ``PKM_TZ``).
+        exists: Checks whether an ID is already in use.
+        rand: Returns the random part; secure random characters by default.
+        attempts: Maximum number of attempts.
 
     Returns:
-        Eine freie ID.
+        A free ID.
 
     Raises:
-        RuntimeError: Wenn nach ``attempts`` Versuchen keine freie ID gefunden wurde.
+        RuntimeError: If no free ID was found after ``attempts`` attempts.
     """
     rand = rand or _random_suffix
     stamp = now.strftime("d-%Y%m%d-%H%M")
     candidates = (f"{stamp}-{rand()}" for _ in range(attempts))
     found = next((c for c in candidates if not exists(c)), None)
     if found is None:
-        raise RuntimeError("Keine freie ID gefunden.")
+        raise RuntimeError("No free ID found.")
     return found
 
 # Main ************************************************************************

@@ -1,4 +1,4 @@
-"""Plattformunabhängige Dateioperationen: Sperre und atomares Ersetzen (macOS, Linux, Windows).
+"""Platform-independent file operations: locking and atomic replacement (macOS, Linux, Windows).
 
     Author: Achim0x
 """
@@ -51,10 +51,10 @@ RETRY_DELAY = 0.1
 
 
 def _lock_windows(fd: int) -> None:
-    """Erstes Byte der Sperrdatei unter Windows sperren; wartet, bis die Sperre frei ist.
+    """Lock the first byte of the lock file on Windows; waits until the lock is free.
 
     Args:
-        fd: Dateideskriptor der Sperrdatei.
+        fd: File descriptor of the lock file.
     """
     locked = False
     while not locked:
@@ -68,13 +68,13 @@ def _lock_windows(fd: int) -> None:
 
 @contextlib.contextmanager
 def file_lock(path: Path) -> Iterator[None]:
-    """Exklusive Sperre über eine Sperrdatei (``fcntl`` bzw. ``msvcrt``).
+    """Exclusive lock via a lock file (``fcntl`` or ``msvcrt``).
 
     Args:
-        path: Pfad der Sperrdatei (wird angelegt).
+        path: Path of the lock file (created if needed).
 
     Yields:
-        Nichts; die Sperre gilt innerhalb des ``with``-Blocks.
+        Nothing; the lock holds inside the ``with`` block.
     """
     with open(path, "a+b") as fh:
         if fcntl is not None:
@@ -92,18 +92,18 @@ def file_lock(path: Path) -> Iterator[None]:
 
 
 def replace_file(src: Path, dst: Path, attempts: int = REPLACE_ATTEMPTS) -> None:
-    """Datei atomar ersetzen; unter Windows bei kurzzeitig gesperrtem Ziel wiederholen.
+    """Replace a file atomically; on Windows retry while the target is briefly locked.
 
-    Obsidian, Nextcloud oder ein Virenscanner können eine Datei unter Windows kurz geöffnet
-    halten. ``os.replace`` schlägt dann mit ``PermissionError`` fehl.
+    Obsidian, a sync client or a virus scanner may keep a file open on Windows for a moment;
+    ``os.replace`` then fails with ``PermissionError``.
 
     Args:
-        src: Temporäre Datei.
-        dst: Ziel.
-        attempts: Anzahl der Versuche.
+        src: Temporary file.
+        dst: Target.
+        attempts: Number of attempts.
 
     Raises:
-        PermissionError: Wenn das Ziel nach allen Versuchen noch gesperrt ist.
+        PermissionError: If the target is still locked after all attempts.
     """
     for attempt in range(attempts):
         try:
@@ -116,11 +116,11 @@ def replace_file(src: Path, dst: Path, attempts: int = REPLACE_ATTEMPTS) -> None
 
 
 def write_bytes_atomic(path: Path, data: bytes) -> None:
-    """Bytes atomar schreiben (temporäre Datei im selben Ordner, dann ersetzen).
+    """Write bytes atomically (temporary file in the same folder, then replace).
 
     Args:
-        path: Ziel.
-        data: Inhalt.
+        path: Target.
+        data: Content.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".pkm-tmp-{os.getpid()}-{path.name}")

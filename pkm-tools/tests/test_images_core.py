@@ -151,7 +151,7 @@ def test_find_images_names_and_kinds():
             '![extern](https://example.org/x.png)\n')
     refs = images.find_images(text)
     assert [(r.name, r.inline, r.named) for r in refs] == [
-        ("display", True, False), ("foto-einstieg", False, True), ("bild-3", False, False)]
+        ("display", True, False), ("foto-einstieg", False, True), ("image-3", False, False)]
     assert images.link_target(refs[1], "documents/_inbox/notiz.md") == "documents/_attachments/foto.png"
 
 

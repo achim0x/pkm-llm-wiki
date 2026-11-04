@@ -1,4 +1,4 @@
-"""Pfadprüfung, Unicode-NFC und plattformfeste Dateinamen (Spezifikation 5.5, 7.5).
+"""Path checks, Unicode NFC and platform-safe file names (specification 5.5, 7.5).
 
     Author: Achim0x
 """
@@ -49,102 +49,102 @@ UMLAUTS = {"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue
 
 
 def nfc(s: str) -> str:
-    """Text in Unicode-Normalform NFC bringen.
+    """Convert text to Unicode normal form NFC.
 
     Args:
-        s: Beliebiger Text, z. B. ein Dateiname in NFD von macOS.
+        s: Any text, e.g. a file name in NFD from macOS.
 
     Returns:
-        Der Text in NFC.
+        The text in NFC.
     """
     return unicodedata.normalize("NFC", s)
 
 
 def transliterate(s: str) -> str:
-    """Umlaute und ß ausschreiben (ä → ae, ß → ss).
+    """Spell out umlauts and ß (ä → ae, ß → ss).
 
     Args:
-        s: Beliebiger Text.
+        s: Any text.
 
     Returns:
-        Der Text mit ausgeschriebenen Umlauten.
+        The text with spelled-out umlauts.
     """
     return "".join(UMLAUTS.get(ch, ch) for ch in s)
 
 
 def safe_resolve(root: Path, rel: str) -> Path:
-    """Relativen Pfad prüfen und unterhalb des Vaults auflösen.
+    """Check a relative path and resolve it inside the vault.
 
-    Erlaubt sind weder ``..`` noch absolute Pfade noch Symlinks, die aus dem Vault zeigen.
+    Neither ``..`` nor absolute paths nor symlinks pointing out of the vault are allowed.
 
     Args:
-        root: Vault-Wurzel (aufgelöst).
-        rel: Relativer Pfad, ``\\`` wird als ``/`` behandelt.
+        root: Vault root (resolved).
+        rel: Relative path; ``\\`` is treated as ``/``.
 
     Returns:
-        Den Pfad im Vault (nicht aufgelöst, damit der Name erhalten bleibt).
+        The path in the vault (not resolved, so that the name is kept).
 
     Raises:
-        PkmError: ``invalid_path`` bei leeren, absoluten oder ausbrechenden Pfaden.
+        PkmError: ``invalid_path`` for empty, absolute or escaping paths.
     """
     rel = nfc(rel.strip().replace("\\", "/"))
     if not rel:
-        raise PkmError("invalid_path", "Leerer Pfad.")
+        raise PkmError("invalid_path", "Empty path.")
     pure = PurePosixPath(rel)
     if pure.is_absolute() or re.match(r"^[A-Za-z]:", rel):
-        raise PkmError("invalid_path", "Absolute Pfade sind nicht erlaubt.", path=rel)
+        raise PkmError("invalid_path", "Absolute paths are not allowed.", path=rel)
     if any(part == ".." for part in pure.parts):
-        raise PkmError("invalid_path", "`..` ist in Pfaden nicht erlaubt.", path=rel)
+        raise PkmError("invalid_path", "`..` is not allowed in paths.", path=rel)
     candidate = root.joinpath(*pure.parts)
     try:
         candidate.resolve().relative_to(root)
     except ValueError as exc:
-        raise PkmError("invalid_path", "Pfad zeigt aus dem Vault heraus.", path=rel) from exc
+        raise PkmError("invalid_path", "Path points out of the vault.", path=rel) from exc
     return candidate
 
 
 def slugify(title: str, max_len: int = 80) -> str:
-    """Dateinamenstauglichen Slug bilden: Kleinbuchstaben, Bindestriche, Umlaute ausgeschrieben.
+    """Build a slug suitable for file names: lower case, hyphens, umlauts spelled out.
 
     Args:
-        title: Titel des Dokuments.
-        max_len: Höchstlänge des Slugs.
+        title: Title of the document.
+        max_len: Maximum length of the slug.
 
     Returns:
-        Slug, der auf macOS und Windows gültig ist (nie leer, nie ein reservierter Name).
+        Slug that is valid on macOS and Windows (never empty, never a reserved name).
     """
     s = transliterate(nfc(title))
     s = unicodedata.normalize("NFKD", s)
     s = "".join(ch for ch in s if not unicodedata.combining(ch)).lower()
     s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
-    s = s[:max_len].rstrip("-") or "dokument"
+    s = s[:max_len].rstrip("-") or "document"
     if s.split(".", maxsplit=1)[0] in WINDOWS_RESERVED:
         s = f"{s}-doc"
     return s
 
 
 def fit_stem(stem: str, rest: str) -> str:
-    """Namensstamm so kürzen, dass ``stem + rest`` höchstens ``MAX_NAME`` Zeichen hat.
+    """Shorten a name stem so that ``stem + rest`` has at most ``MAX_NAME`` characters.
 
     Args:
         stem: Slug.
-        rest: Fester Rest des Namens (Suffix, Datum, Endung), wird nie gekürzt.
+        rest: Fixed rest of the name (suffix, date, extension); never shortened.
 
     Returns:
-        Gekürzter Slug ohne Bindestrich am Ende (mindestens ein Zeichen).
+        Shortened slug without a trailing hyphen (at least one character).
     """
     room = max(1, MAX_NAME - len(rest))
     return stem[:room].rstrip("-") or stem[:1]
 
 
 def is_platform_safe_name(name: str) -> bool:
-    """Prüfen, ob ein Datei- oder Ordnername auf macOS und Windows gültig ist (5.5).
+    """Check whether a file or folder name is valid on macOS and Windows (5.5).
 
     Args:
-        name: Einzelner Namensbestandteil ohne ``/``.
+        name: Single name component without ``/``.
 
     Returns:
-        ``True``, wenn der Name zulässig ist.
+        ``True`` if the name is allowed.
     """
     return bool(
         name
@@ -156,13 +156,13 @@ def is_platform_safe_name(name: str) -> bool:
 
 
 def case_collisions(paths: Iterable[str]) -> list[list[str]]:
-    """Pfade finden, die sich nur in Groß-/Kleinschreibung unterscheiden.
+    """Find paths that differ only in upper/lower case.
 
     Args:
-        paths: Relative Pfade.
+        paths: Relative paths.
 
     Returns:
-        Gruppen (sortiert) kollidierender Pfade; leer, wenn es keine gibt.
+        Groups (sorted) of colliding paths; empty if there are none.
     """
     groups: dict[str, list[str]] = defaultdict(list)
     for p in paths:

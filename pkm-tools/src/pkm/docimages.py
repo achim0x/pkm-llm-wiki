@@ -1,5 +1,5 @@
-"""Bilder in Dokumenten schreiben und lesen (Spezifikation 4.9, 7.2, 7.3): Einsetzen neuer Bilder,
-Ablage als Datei, Platzhalter in ``read`` und ``read_image``.
+"""Write and read images in documents (specification 4.9, 7.2, 7.3): inserting new images,
+storing them as files, placeholders in ``read`` and ``read_image``.
 
     Author: Achim0x
 """
@@ -51,15 +51,15 @@ MIME = {"png": "png", "jpg": "jpeg", "gif": "gif", "webp": "webp"}
 # Functions *******************************************************************
 
 
-# Schreiben *******************************************************************
+# Writing *********************************************************************
 def has_image_markers(text: str) -> bool:
-    """Prüfen, ob ein Text Platzhalter für neue Bilder enthält.
+    """Check whether a text contains placeholders for new images.
 
     Args:
-        text: Neuer Text.
+        text: New text.
 
     Returns:
-        ``True`` bei ``{{image:…}}``.
+        ``True`` for ``{{image:…}}``.
     """
     return bool(images.NEW_IMAGE_RE.search(text))
 
@@ -67,23 +67,23 @@ def has_image_markers(text: str) -> bool:
 def check_text_images(
     writer: Writer, doc: Doc, text: str, fix: dict[str, Any] | None
 ) -> tuple[str, list[str], list[dict[str, Any]]]:
-    """Data-URIs im neuen Text prüfen (4.9, Prüfung bei der Übernahme; 7.2).
+    """Check data URIs in the new text (4.9, check on import; 7.2).
 
-    Neue Data-URIs (nicht schon im Dokument) müssen der Form nach 4.9 entsprechen, sonst kommt
-    ``nonconforming_image``. Mit ``fix_images`` werden sie korrigiert. Abweichende Bilder, die schon im
-    Dokument stehen, blockieren nicht und werden als Warnungen geliefert.
+    New data URIs (not already in the document) must conform to the form of 4.9, otherwise the result is
+    ``nonconforming_image``. With ``fix_images`` they are fixed. Nonconforming images that are already in the
+    document do not block and are returned as warnings.
 
     Args:
         writer: Writer.
-        doc: Dokument (vorher).
-        text: Neuer Gesamttext.
-        fix: ``fix_images`` und ``image_alt`` aus dem Aufruf.
+        doc: Document (before).
+        text: New full text.
+        fix: ``fix_images`` and ``image_alt`` from the call.
 
     Returns:
-        Tupel aus (ggf. korrigierter Text, neue Bilddateien, ``image_warnings``).
+        Tuple of (possibly fixed text, new image files, ``image_warnings``).
 
     Raises:
-        PkmError: ``nonconforming_image`` mit ``image_issues``.
+        PkmError: ``nonconforming_image`` with ``image_issues``.
     """
     fix = fix or {}
     limits, scratch = writer.cfg.images, not doc.versioned
@@ -93,9 +93,9 @@ def check_text_images(
         else []
     files: list[str] = []
     if issues and (not fix.get("fix_images") or not all(i["fixable"] for i in issues)):
-        raise PkmError("nonconforming_image", "Der Text enthält Bild-Data-URIs, die nicht der Form nach 4.9 "
-                       "entsprechen. Befunde und Vorschlag dem Nutzer zeigen; nach Bestätigung mit fix_images=true "
-                       "(und image_alt) wiederholen oder Bilder über images übergeben.", image_issues=issues)
+        raise PkmError("nonconforming_image", "The text contains image data URIs that do not conform to the form "
+                       "of 4.9. Show the findings and the proposal to the user; after confirmation repeat with "
+                       "fix_images=true (and image_alt) or pass the images via images.", image_issues=issues)
     if issues:
         text, files = imagefix.fix_text(text, limits, writer=writer, doc_rel=doc.rel, image_alt=fix.get("image_alt"),
                                         legacy=False, scratch=scratch, only_links=new_links)
@@ -108,22 +108,22 @@ def check_text_images(
 def place_images(
     writer: Writer, doc: Doc, text: str, specs: list[dict[str, Any]] | None
 ) -> tuple[str, list[str], list[dict[str, Any]]]:
-    """Neue Bilder prüfen und an den Platzhaltern ``{{image:<name>}}`` einsetzen.
+    """Check new images and insert them at the placeholders ``{{image:<name>}}``.
 
-    Eingebettete Bilder werden Data-URIs, große bzw. ``mode: file`` werden Dateien in
-    ``documents/_attachments/`` (in ``scratch/`` immer eingebettet).
+    Embedded images become data URIs, large ones or ``mode: file`` become files in
+    ``documents/_attachments/`` (always embedded in ``scratch/``).
 
     Args:
-        writer: Writer (für Konfiguration, Vault und freie Dateinamen).
-        doc: Dokument (vorher), bestimmt Ort und Bereich.
-        text: Neuer Gesamttext mit Platzhaltern.
-        specs: Bildangaben aus dem Werkzeugaufruf.
+        writer: Writer (for configuration, vault and free file names).
+        doc: Document (before), determines location and area.
+        text: New full text with placeholders.
+        specs: Image specifications from the tool call.
 
     Returns:
-        Tupel aus (Text mit Bildern, neu geschriebene Bilddateien, Infos je Bild).
+        Tuple of (text with images, newly written image files, info per image).
 
     Raises:
-        PkmError: Fehler aus ``images.prepare_image`` und ``images.check_new_names``.
+        PkmError: Errors from ``images.prepare_image`` and ``images.check_new_names``.
     """
     files: list[str] = []
     infos: list[dict[str, Any]] = []
@@ -150,99 +150,99 @@ def place_images(
 
 
 def remove_files(writer: Writer, files: list[str]) -> None:
-    """Neu geschriebene Bilddateien wieder entfernen (nach einem Fehler).
+    """Remove newly written image files again (after an error).
 
     Args:
         writer: Writer.
-        files: Relative Pfade.
+        files: Relative paths.
     """
     for rel in files:
         writer.vault.path(rel).unlink(missing_ok=True)
 
 
 def restore_body(old_body: str, new_body: str) -> str:
-    """Platzhalter eingebetteter Bilder im neuen Body durch die Originale ersetzen.
+    """Replace placeholders of embedded images in the new body by the originals.
 
     Args:
-        old_body: Bisheriger Body.
-        new_body: Neuer Body mit Platzhaltern.
+        old_body: Previous body.
+        new_body: New body with placeholders.
 
     Returns:
-        Body mit den ursprünglichen Bildern.
+        Body with the original images.
     """
     return images.restore_placeholders(new_body, images.find_images(old_body))
 
 
 def removed_images(old_body: str, new_body: str) -> list[str]:
-    """Bilder, die im neuen Body fehlen.
+    """Images that are missing in the new body.
 
     Args:
-        old_body: Bisheriger Body.
-        new_body: Neuer Body (Originale bereits eingesetzt).
+        old_body: Previous body.
+        new_body: New body (originals already inserted).
 
     Returns:
-        Namen der entfernten Bilder.
+        Names of the removed images.
     """
     new_keys = {r.link if r.inline else r.raw for r in images.find_images(new_body)}
     return [r.name for r in images.find_images(old_body) if (r.link if r.inline else r.raw) not in new_keys]
 
 
 def edit_view(body: str, old: str, new: str) -> str:
-    """``edit_document`` auf dem Text mit Platzhaltern ausführen und die Bilder wieder einsetzen.
+    """Run ``edit_document`` on the text with placeholders and insert the images again.
 
     Args:
-        body: Bisheriger Body.
-        old: Textstelle (genau einmal in der Platzhalter-Ansicht).
-        new: Ersatz.
+        body: Previous body.
+        old: Passage (exactly once in the placeholder view).
+        new: Replacement.
 
     Returns:
-        Neuer Body mit den ursprünglichen Bildern.
+        New body with the original images.
 
     Raises:
-        PkmError: ``not_found`` oder ``ambiguous``.
+        PkmError: ``not_found`` or ``ambiguous``.
     """
     view = images.to_placeholders(body)
     n = count_overlapping(view, old)
     if n == 0:
-        raise PkmError("not_found", "Die Textstelle `old` kommt im Dokument nicht vor.")
+        raise PkmError("not_found", "The passage `old` does not occur in the document.")
     if n > 1:
-        raise PkmError("ambiguous", f"Die Textstelle `old` kommt {n}-mal vor.", count=n)
+        raise PkmError("ambiguous", f"The passage `old` occurs {n} times.", count=n)
     return restore_body(body, view.replace(old, new, 1))
 
 
-# Korrigieren ****************************************************************
+# Fixing **********************************************************************
 def fix_document(  # pylint: disable=too-many-arguments,too-many-locals
     writer: Writer, target: str, expected_hash: str | None, *, images_only: list[str] | None = None,
     image_alt: dict[str, str] | None = None, apply: bool = False, confirm_shortening: bool = False,
     note: str | None = None, source: str = "chat", areas: tuple[str, ...] = ("documents/", "scratch/"),
 ) -> dict[str, Any]:
-    """Tool ``fix_images``: Schreibweise abweichender Bild-Data-URIs eines Dokuments korrigieren (4.9, 7.2).
+    """Tool ``fix_images``: fix the notation of nonconforming image data URIs of a document (4.9, 7.2).
 
-    Ohne ``apply`` nur Vorschlag (``proposal``) mit Befunden und Diff in Platzhalter-Schreibweise. Mit
-    ``apply`` eine neue Version, in der sich nur die Bildschreibweise ändert (Commit mit ``PKM-Fix: images``).
+    Without ``apply`` only a proposal (``proposal``) with findings and a diff in placeholder notation. With
+    ``apply`` a new version in which only the image notation changes (commit with ``PKM-Fix: images``).
 
     Args:
         writer: Writer.
-        target: Dokument.
-        expected_hash: Hash aus ``read``.
-        images_only: Nur diese Bilder (Namen aus ``image_issues``).
-        image_alt: Alternativtexte je Name.
-        apply: Schreiben statt nur vorschlagen.
-        confirm_shortening: Entfernen unbenutzter Definitionen bestätigt.
-        note: Änderungsnotiz.
-        source: ``chat``, ``agent`` oder ``user``.
-        areas: Erlaubte Bereiche.
+        target: Document.
+        expected_hash: Hash from ``read``.
+        images_only: Only these images (names from ``image_issues``).
+        image_alt: Alt texts per name.
+        apply: Write instead of only proposing.
+        confirm_shortening: Removal of unused definitions confirmed.
+        note: Change note.
+        source: ``chat``, ``agent`` or ``user``.
+        areas: Allowed areas.
 
     Returns:
-        ``proposal``/``unchanged``/Rückgabe von ``finish`` mit ``image_issues`` (verbleibende Befunde).
+        ``proposal``/``unchanged``/return value of ``finish`` with ``image_issues`` (remaining findings).
 
     Raises:
-        PkmError: ``forbidden`` außerhalb der Bereiche, ``conflict``, ``ambiguous``, ``large_shortening``.
+        PkmError: ``forbidden`` outside the areas, ``conflict``, ``ambiguous``, ``large_shortening``.
     """
     with writer.lock():
         doc = writer.editable_doc(target)
         if not doc.rel.startswith(areas):
-            raise PkmError("forbidden", "fix_images ist hier nur für " + ", ".join(areas) + " erlaubt.", path=doc.rel)
+            raise PkmError("forbidden", "fix_images is only allowed here for " + ", ".join(areas) + ".", path=doc.rel)
         if doc.versioned and apply:
             writer.git.require_ok()
         writer.check_hash(doc, expected_hash)
@@ -258,14 +258,14 @@ def fix_document(  # pylint: disable=too-many-arguments,too-many-locals
             new_body, _ = imagefix.fix_text(body, limits, **opts)
             result: dict[str, Any] = {
                 "status": "proposal" if new_body != body else "unchanged", "path": doc.rel, "image_issues": issues,
-                "diff": unified_diff(images.to_placeholders(body), images.to_placeholders(new_body), "vorher",
-                                     "nachher", 200),
+                "diff": unified_diff(images.to_placeholders(body), images.to_placeholders(new_body), "before",
+                                     "after", 200),
             }
         else:
             new_body, files = imagefix.fix_text(body, limits, writer=writer, **opts)
             try:
                 text = doc.parsed.frontmatter_text + new_body
-                result = (writer.finish(doc, text, note or "Bilder nach 4.9 korrigiert", source, files,
+                result = (writer.finish(doc, text, note or "images fixed per 4.9", source, files,
                                         "PKM-Fix: images") if doc.versioned else writer.finish_scratch(doc, text))
             except PkmError:
                 remove_files(writer, files)
@@ -274,27 +274,27 @@ def fix_document(  # pylint: disable=too-many-arguments,too-many-locals
     return result
 
 
-# Lesen ***********************************************************************
+# Reading *********************************************************************
 def section_of(doc: Doc, text: str) -> Any:
-    """Funktion Textposition → Abschnittsschlüssel für den Body eines Dokuments.
+    """Function text position → section key for the body of a document.
 
     Args:
-        doc: Dokument.
+        doc: Document.
         text: Body.
 
     Returns:
-        Funktion, die zu einer Position den Schlüssel liefert (``None`` ohne Abschnitte).
+        Function that returns the key for a position (``None`` without sections).
     """
     sections = list(doc.parsed.sections) if doc.parsed is not None else []
 
     def lookup(pos: int) -> str | None:
-        """Abschnitt zu einer Position.
+        """Section at a position.
 
         Args:
-            pos: Zeichenposition im Body.
+            pos: Character position in the body.
 
         Returns:
-            Abschnittsschlüssel oder ``None``.
+            Section key or ``None``.
         """
         line = text.count("\n", 0, pos)
         return next((s.key for s in sections if s.start <= line < s.end), None)
@@ -305,16 +305,16 @@ def section_of(doc: Doc, text: str) -> Any:
 def read_view(
     doc: Doc, text: str, section: str | None = None, limits: Any = None
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Text für ``read``: eingebettete Bilder als Platzhalter, dazu die Bildliste.
+    """Text for ``read``: embedded images as placeholders, plus the image list.
 
     Args:
-        doc: Dokument.
-        text: Gelesener Text (Body oder ein Abschnitt).
-        section: Schlüssel, wenn nur ein Abschnitt gelesen wird.
-        limits: Bildgrenzen (``ImageConfig``) für ``conforming`` und ``problems``.
+        doc: Document.
+        text: Read text (body or one section).
+        section: Key if only one section is read.
+        limits: Image limits (``ImageConfig``) for ``conforming`` and ``problems``.
 
     Returns:
-        Tupel aus (Text mit Platzhaltern, Bildliste des Bodys bzw. des Abschnitts).
+        Tuple of (text with placeholders, image list of the body or the section).
     """
     body = doc.body or ""
     listed = images.image_summary(body, section_of(doc, body))
@@ -330,15 +330,15 @@ def read_view(
 
 
 def _resolve_file(svc: Any, doc_rel: str, ref: images.ImageRef) -> str:
-    """Bilddatei eines verlinkten Bildes im Vault finden.
+    """Find the image file of a linked image in the vault.
 
     Args:
-        svc: Dienst.
-        doc_rel: Pfad des Dokuments.
-        ref: Bild.
+        svc: Service.
+        doc_rel: Path of the document.
+        ref: Image.
 
     Returns:
-        Relativer Pfad der Datei.
+        Relative path of the file.
 
     Raises:
         PkmError: ``not_found``.
@@ -348,28 +348,28 @@ def _resolve_file(svc: Any, doc_rel: str, ref: images.ImageRef) -> str:
         matches = [r for r in svc.vault.iter_files(("documents",)) if PurePosixPath(r).name == target]
         target = matches[0] if len(matches) == 1 else target
     if not svc.vault.exists(target):
-        raise PkmError("not_found", f"Bilddatei nicht gefunden: {ref.link}", image=ref.name)
+        raise PkmError("not_found", f"Image file not found: {ref.link}", image=ref.name)
     return target
 
 
 def image_payload(svc: Any, target: str, image: str | None = None, as_: str = "auto") -> dict[str, Any]:
-    """Tool ``read_image``: Bild eines Dokuments bzw. eigenständige Bilddatei.
+    """Tool ``read_image``: image of a document or a standalone image file.
 
     Args:
-        svc: Dienst.
-        target: Dokument bzw. Bilddatei.
-        image: Bildname (bei eigenständigen Bildern weglassen).
-        as_: ``auto`` (PNG als Bild, SVG als Text), ``image`` oder ``svg_text``.
+        svc: Service.
+        target: Document or image file.
+        image: Image name (omit for standalone images).
+        as_: ``auto`` (PNG as image, SVG as text), ``image`` or ``svg_text``.
 
     Returns:
-        Name, Alternativtext, Format, Größe, Hash und je nach Format ``svg`` (Text) oder ``data``
-        (Bytes, vom MCP-Server als Bildinhalt geliefert).
+        Name, alt text, format, size, hash and depending on the format ``svg`` (text) or ``data``
+        (bytes, returned by the MCP server as image content).
 
     Raises:
-        PkmError: ``not_found``, ``invalid_argument`` (z. B. Rastern von SVG ohne ``PKM_SVG_RASTER``).
+        PkmError: ``not_found``, ``invalid_argument`` (e.g. rasterizing SVG without ``PKM_SVG_RASTER``).
     """
     if as_ not in AS_VALUES:
-        raise PkmError("invalid_argument", f"as muss eines von {', '.join(AS_VALUES)} sein.")
+        raise PkmError("invalid_argument", f"as must be one of {', '.join(AS_VALUES)}.")
     rel = svc.resolve(target)
     meta: dict[str, Any] = {"status": "ok", "path": rel}
     if image is None:
@@ -380,7 +380,7 @@ def image_payload(svc: Any, target: str, image: str | None = None, as_: str = "a
         doc = svc.vault.load(rel)
         ref = next((r for r in images.find_images(doc.body or "") if r.name == image), None)
         if ref is None:
-            raise PkmError("unknown_image", f"Bild nicht gefunden: {image}",
+            raise PkmError("unknown_image", f"Image not found: {image}",
                            images=[r.name for r in images.find_images(doc.body or "")])
         data = ref.data() if ref.inline else svc.vault.path(_resolve_file(svc, rel, ref)).read_bytes()
         meta.update(name=ref.name, alt=ref.alt, format=ref.fmt, mode="inline" if ref.inline else "file")
@@ -395,25 +395,25 @@ def image_payload(svc: Any, target: str, image: str | None = None, as_: str = "a
 
 
 def rasterize_svg(data: bytes, enabled: bool) -> bytes:
-    """SVG rastern (nur mit ``PKM_SVG_RASTER`` und installierter Bibliothek).
+    """Rasterize SVG (only with ``PKM_SVG_RASTER`` and the library installed).
 
     Args:
-        data: SVG-Bytes.
+        data: SVG bytes.
         enabled: ``PKM_SVG_RASTER``.
 
     Returns:
-        PNG-Bytes.
+        PNG bytes.
 
     Raises:
-        PkmError: ``invalid_argument``, wenn das Rastern nicht eingeschaltet oder nicht verfügbar ist.
+        PkmError: ``invalid_argument`` if rasterizing is not enabled or not available.
     """
     if not enabled:
-        raise PkmError("invalid_argument", "SVG-Rasterung ist nicht eingeschaltet (PKM_SVG_RASTER); as=svg_text "
-                       "verwenden.")
+        raise PkmError("invalid_argument", "SVG rasterizing is not enabled (PKM_SVG_RASTER); use "
+                       "as=svg_text.")
     try:
         import cairosvg  # type: ignore[import-not-found]  # pylint: disable=import-outside-toplevel,import-error
     except ImportError as exc:
-        raise PkmError("invalid_argument", "Für PKM_SVG_RASTER fehlt die Bibliothek cairosvg.") from exc
+        raise PkmError("invalid_argument", "PKM_SVG_RASTER requires the library cairosvg.") from exc
     return cairosvg.svg2png(bytestring=data)
 
 # Main ************************************************************************
