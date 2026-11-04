@@ -1,6 +1,12 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.24 (Entwurf zum Review) · **Stand:** 03.11.2026
+**Version:** 0.25 (Entwurf zum Review) · **Stand:** 04.11.2026
+
+> **Änderungen in 0.25**
+> - **Cloud-Speicher allgemein statt Nextcloud:** Der Vault kann in jedem Ordner liegen, den ein Cloud-Dienst als normalen lokalen Ordner synchronisiert (Nextcloud/ownCloud, OneDrive, Google Drive, Dropbox, iCloud Drive, Box, pCloud, Syncthing …). Alle Stellen, die bisher Nextcloud nannten, gelten für den Cloud-Ordner allgemein (2, 3, 5.3, 5.5, 7.1, 7.6, 8, 10, 12, 13, 16).
+> - **Konfliktkopien aller bekannten Dienste** werden erkannt: am Dateinamen (z. B. „conflicted copy“, „[Conflict]“, „.sync-conflict-…“, „Konflikt-Kopie“) und als Kopie neben dem Original mit derselben Dokument-ID (OneDrive „-RECHNERNAME“, iCloud „ 2“, „ (1)“, „Kopie von …“). Ohne gleiche ID ist eine solche Datei ein eigenes Dokument (5.3, 5.5).
+> - **Dateien „nur online“:** Der Vault muss vollständig lokal vorliegen. `pkm doctor` meldet Platzhalter-Dateien (`vault_online_only`) und erkennt Cloud-Ordner aller bekannten Dienste für Git-Verzeichnis und Suchindex (5.5, 8).
+> - Einstellungen je Dienst in 5.5; `.gitignore` enthält Hilfsdateien der verbreiteten Dienste (12).
 
 > **Änderungen in 0.24**
 > - **Prüfung von Data-URIs bei der Übernahme** (neuer Teil in 4.9): Jede Bild-Data-URI, die über ein Werkzeug, von Hand oder aus einer Wiki-Seite ins PKM kommt, wird auf Schreibweise, Kodierung, Bildnamen, Alternativtext, Größe und Sicherheit geprüft. Abweichungen werden mit Befundcodes und einem Korrekturvorschlag gemeldet. **Korrigiert wird nur nach Rückfrage**, nie automatisch und nie in unbeaufsichtigten Läufen. Anlass: SVG im Referenzstil mit nicht kodierten Zeichen (`[ref]: <data:image/svg+xml;utf8,<svg …>>`) zeigte Obsidian nicht an (4.9).
@@ -156,7 +162,7 @@ Ein persönliches Wissensmanagement (PKM), das
 └──────────┬───────────────────┘                        │
            ▼                                            ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Vault  <PKM_ROOT>  (Nextcloud-Ordner, in Obsidian geöffnet)         │
+│  Vault  <PKM_ROOT>  (Cloud-Ordner, in Obsidian geöffnet)             │
 │  documents/  (inkl. _inbox/)     wiki/     CLAUDE.md     .pkm/       │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -204,7 +210,7 @@ Ein persönliches Wissensmanagement (PKM), das
 ├── .obsidian/
 └── .gitignore                # kein .git im Vault, siehe 5.5
 
-Außerhalb der Nextcloud, nur auf dem PKM-Rechner (5.5):
+Außerhalb des Cloud-Ordners, nur auf dem PKM-Rechner (5.5):
 ~/Library/Application Support/pkm/      (Mac)
 %APPDATA%\pkm\                          (Windows)
 ├── git/                      # Git-Verzeichnis des Vaults (PKM_GIT_DIR)
@@ -225,7 +231,7 @@ Ein Dokument ist „unverarbeitet“, solange seine aktuelle Version nicht in `s
 
 **Bereich `scratch/`** (kurzlebige Notizen und Todo-Listen):
 - **Nie im Wiki:** Ingest, `pending`, Belege, Index und Status beachten `scratch/` nicht. Auch Lint ignoriert den Bereich vollständig, prüft aber weiterhin im Wiki, dass kein Beleg auf `scratch/` zeigt.
-- **Nicht in Git:** `scratch/` steht in `.gitignore` und wird nur über Nextcloud synchronisiert. Es gibt keine Versionsnummer, keinen Commit und keinen Verlauf. Als Rückfallebene für versehentliche Änderungen dienen die Dateiversionen der Nextcloud.
+- **Nicht in Git:** `scratch/` steht in `.gitignore` und wird nur über den Cloud-Speicher synchronisiert. Es gibt keine Versionsnummer, keinen Commit und keinen Verlauf. Als Rückfallebene für versehentliche Änderungen dienen die Dateiversionen des Cloud-Dienstes, sofern er welche anbietet.
 - **Frontmatter optional:** Dateien in `scratch/` brauchen weder `id` noch `version`. `pkm ids` und `pkm versions` fassen sie nicht an.
 - **Übernehmen ins Wiki:** Wird eine Notiz dauerhaft wichtig, verschiebt der Nutzer sie in Obsidian nach `documents/`. Beim nächsten Pflegelauf bekommt sie ID und `version: 1`, wird als neues Dokument committet und dann verarbeitet. Die umgekehrte Richtung (aus `documents/` nach `scratch/`) wirkt wie ein Löschen. Die Belege werden dann behandelt wie bei einem gelöschten Original (9.1).
 - **Aufräumen** übernimmt der Nutzer in Obsidian. Löschen ist auch hier über den MCP-Server nicht möglich.
@@ -687,7 +693,7 @@ Ist das Dokument gefunden, wird der Inhalt geprüft. Ist die Version im Beleg gl
 - `create_document` setzt `id` und `version: 1` sofort.
 - Für alle anderen Markdown-Dateien ohne ID schreibt `pkm ids` zu Beginn jedes Pflegelaufs `id` und `version: 1` ins Frontmatter. Fehlt ein Frontmatter, wird eines angelegt. Der übrige Inhalt bleibt byte-genau erhalten.
 - **Doppelte IDs** entstehen z. B. durch Kopieren einer Datei. Lint meldet sie. Der Agent gibt nach Rückfrage der jüngeren Kopie eine neue ID und setzt deren Version auf 1.
-- **Nextcloud-Konfliktkopien** (Dateiname enthält „conflicted copy“ bzw. „Konflikt“) tragen ebenfalls die ID des Originals. Sie werden **nicht** als neues Dokument behandelt. Der Agent verarbeitet sie nicht, sondern meldet sie, und der Nutzer führt die Fassungen in Obsidian zusammen (5.5).
+- **Konfliktkopien des Cloud-Speichers** tragen ebenfalls die ID des Originals. Erkannt werden sie am Dateinamen (Muster der bekannten Dienste, 5.5) oder als Kopie neben dem Original mit abgeleitetem Namen und **derselben** ID. Sie werden **nicht** als neues Dokument behandelt. Der Agent verarbeitet sie nicht, sondern meldet sie, und der Nutzer führt die Fassungen in Obsidian zusammen (5.5).
 
 ### 5.4 Versionen und Commits
 
@@ -717,7 +723,7 @@ Mehrere Änderungen von Hand zwischen zwei Commits werden also zu **einer** Vers
 
 **Voraussetzung:** Ein Git-Repo mit getrenntem Git-Verzeichnis (5.5) und gesetztem `user.name`/`user.email`. Fehlt Git, verweigert der Server alle schreibenden Tools mit einer klaren Fehlermeldung. Die lesenden Tools funktionieren weiter.
 
-### 5.5 Nextcloud, Mac und Windows
+### 5.5 Cloud-Speicher, Mac und Windows
 
 **PKM-Rechner:** Genau **ein** Rechner je Vault führt MCP-Server, Pflege-Agent, Git und Suchindex. Das kann ein Mac oder ein Windows-PC sein, beide Varianten sind gleichwertig. Alle anderen Rechner lesen und bearbeiten den Vault nur in Obsidian.
 
@@ -726,17 +732,24 @@ Mehrere Änderungen von Hand zwischen zwei Commits werden also zu **einer** Vers
 | PKM-Rechner (Mac **oder** Windows) | lesen, bearbeiten | **ja** (einziger Ort) |
 | weitere Rechner (Mac oder Windows) | lesen, bearbeiten | nein |
 
-**Git-Verzeichnis außerhalb der Nextcloud.** Ein `.git`-Ordner im synchronisierten Vault ist riskant. Nextcloud überträgt die vielen kleinen Git-Dateien einzeln und nicht atomar. Halbe Stände, Sperrdateien oder Konfliktkopien können das Repo beschädigen. Deshalb arbeitet Git mit getrenntem Verzeichnis:
+**Cloud-Speicher:** Der Vault liegt in einem Ordner, den ein Cloud-Dienst synchronisiert. Geeignet ist jeder Dienst, der einen **normalen lokalen Ordner** abgleicht, z. B. Nextcloud/ownCloud, OneDrive, Google Drive, Dropbox, iCloud Drive, Box, pCloud oder Syncthing. Die Werkzeuge sind dienstneutral; was sich je Dienst unterscheidet, steht unten unter „Einstellungen je Dienst“. Für alle Dienste gilt:
+- **Vault vollständig lokal halten.** Der Pflegelauf liest jede Datei. Dateien, die nur als Platzhalter vorliegen („nur online“, „Dateien bei Bedarf“, „Streamen“), lösen Downloads aus oder fehlen ohne Verbindung. `pkm doctor` meldet sie (`vault_online_only`; macOS-Kennzeichen `SF_DATALESS`, unter Windows die Attribute für Offline- bzw. Abruf-Dateien).
+- **Git-Verzeichnis und Suchindex nie im Cloud-Ordner** (siehe unten). `pkm doctor` erkennt Cloud-Ordner aller bekannten Dienste am Ordnernamen bzw. an ihren Markierungsdateien.
+- **Ein PKM-Rechner je Vault**, unabhängig vom Dienst.
+
+**Git-Verzeichnis außerhalb des Cloud-Ordners.** Ein `.git`-Ordner im synchronisierten Vault ist riskant. Cloud-Dienste übertragen die vielen kleinen Git-Dateien einzeln und nicht atomar. Halbe Stände, Sperrdateien oder Konfliktkopien können das Repo beschädigen. Deshalb arbeitet Git mit getrenntem Verzeichnis:
 
 ```
 git --git-dir="$PKM_GIT_DIR" --work-tree="$PKM_ROOT" …
 ```
 
-Im Vault gibt es kein `.git`, und die anderen Rechner sehen davon nichts. Aus demselben Grund liegt der Suchindex (SQLite) in `PKM_CACHE_DIR`. SQLite-Dateien eignen sich nicht für Dateisynchronisation. `PKM_CACHE_DIR` darf deshalb weder im Vault noch sonst im Nextcloud-Ordner liegen (7.1). Im Vault liegen nur zwei Dateien unter `.pkm/`: `state.json` ist klein, wird nur auf dem PKM-Rechner geschrieben und ist so in der Versionsgeschichte enthalten. `mcp.log` ist eine reine Textdatei, an die nur der PKM-Rechner anhängt. Sie wird mit synchronisiert, steht aber nicht in Git.
+Im Vault gibt es kein `.git`, und die anderen Rechner sehen davon nichts. Aus demselben Grund liegt der Suchindex (SQLite) in `PKM_CACHE_DIR`. SQLite-Dateien eignen sich nicht für Dateisynchronisation. `PKM_CACHE_DIR` darf deshalb weder im Vault noch sonst in einem Cloud-Ordner liegen (7.1). Im Vault liegen nur zwei Dateien unter `.pkm/`: `state.json` ist klein, wird nur auf dem PKM-Rechner geschrieben und ist so in der Versionsgeschichte enthalten. `mcp.log` ist eine reine Textdatei, an die nur der PKM-Rechner anhängt. Sie wird mit synchronisiert, steht aber nicht in Git.
 
 **Sync-Verzögerung und Konflikte**
 - Änderungen von anderen Rechnern erreichen den PKM-Rechner erst nach dem Sync. Sobald sie angekommen sind, verhindert der Hash-Schutz, dass ein Chat einen veralteten Stand überschreibt.
-- Schreibt ein Chat, *während* eine Änderung derselben Datei von einem anderen Rechner noch unterwegs ist, legt Nextcloud eine Konfliktkopie an. `pkm lint` erkennt sie am Dateinamen und an der doppelten ID und meldet sie (5.3). Der Nutzer führt die Fassungen in Obsidian zusammen.
+- Schreibt ein Chat, *während* eine Änderung derselben Datei von einem anderen Rechner noch unterwegs ist, legt der Cloud-Dienst eine Konfliktkopie an. `pkm lint` und `pending` erkennen sie und melden sie (5.3), der Pflegelauf verarbeitet sie nicht. Der Nutzer führt die Fassungen in Obsidian zusammen und löscht die Kopie.
+- **Erkennung am Namen** (ohne Rücksicht auf Groß- und Kleinschreibung): „conflicted copy“ (Nextcloud/ownCloud, Dropbox, Box, ältere Google-Drive-Clients), „(… conflict …)“, „[Conflict]“ bzw. „[Conflicted]“ (Google Drive, pCloud), „.sync-conflict-JJJJMMTT-HHMMSS“ (Syncthing), „case conflict“ (Dropbox), „Konflikt-Kopie“, „in Konflikt stehende Kopie“ und „(Konflikt …)“ (deutschsprachige Clients). Ein bloßes „Konflikt“ irgendwo im Namen genügt nicht, damit z. B. „Konfliktmanagement.md“ kein Fehlalarm ist.
+- **Erkennung als Kopie neben dem Original:** Manche Dienste vergeben keinen eindeutigen Namen, sondern hängen etwas an (OneDrive „notiz-RECHNERNAME.md“, iCloud Drive „notiz 2.md“, Finder/Google Drive „notiz (1).md“, Google Drive „Kopie von notiz.md“). Eine solche Datei gilt nur dann als Konfliktkopie, wenn im selben Ordner das Original liegt **und beide dieselbe Dokument-ID tragen**. Sonst ist sie ein eigenes Dokument.
 - Empfehlung: dasselbe Dokument nicht gleichzeitig auf einem anderen Rechner bearbeiten und per Chat ändern lassen.
 
 **Plattformfeste Dateien**
@@ -749,11 +762,22 @@ Im Vault gibt es kein `.git`, und die anderen Rechner sehen davon nichts. Aus de
 
 **Windows als PKM-Rechner:**
 - Git wird nach <https://git-scm.com/install/> installiert (Option „Git from the command line and also from 3rd-party software“, dann steht Git im System-`PATH`). `pkm init` schaltet `core.autocrlf` für das PKM-Repo ab, damit Git Zeilenenden nie umwandelt.
-- Schreibsperre über `msvcrt` statt `fcntl`. Atomares Ersetzen wiederholt `os.replace`, wenn eine Datei kurz gesperrt ist (Virenscanner, Nextcloud-Client, Indexdienst).
+- Schreibsperre über `msvcrt` statt `fcntl`. Atomares Ersetzen wiederholt `os.replace`, wenn eine Datei kurz gesperrt ist (Virenscanner, Sync-Client des Cloud-Dienstes, Indexdienst).
 - Die Zeitzonendaten kommen aus dem Paket `tzdata`, weil Windows keine IANA-Datenbank mitbringt.
 - Die automatischen Tests laufen auch unter Windows.
 
-**Nextcloud-Einstellungen:** Es sind keine Ausnahmen nötig, weil Git und Cache außerhalb liegen. Optional lassen sich `.obsidian/workspace*.json` ausschließen, da diese Dateien geräteabhängig sind.
+**Einstellungen je Dienst:** Ausnahmen von der Synchronisation sind nicht nötig, weil Git und Cache außerhalb liegen. Optional lassen sich `.obsidian/workspace*.json` ausschließen, da diese Dateien geräteabhängig sind. Wichtig ist, dass der Vault-Ordner dauerhaft lokal vorliegt:
+
+| Dienst | Einstellung | Konfliktkopie (Beispiel) |
+|---|---|---|
+| Nextcloud / ownCloud | „Virtuelle Dateien“ für den Vault-Ordner aus. Dateiversionen dienen als Rückfallebene für `scratch/` | `notiz (conflicted copy 2026-11-04 120000).md` |
+| OneDrive | „Dateien bei Bedarf“: Vault-Ordner auf „Immer auf diesem Gerät behalten“. Unter Windows wird „Dokumente“ oft automatisch nach OneDrive verschoben; das Git-Verzeichnis nie dorthin legen | `notiz-RECHNERNAME.md` (nur bei gleicher ID) |
+| Google Drive | „Dateien spiegeln“ statt „Streamen“ bzw. Ordner offline verfügbar. Alte Dateiversionen nur begrenzt | `notiz [Conflict].md`, `notiz (1).md`, `Kopie von notiz.md` |
+| Dropbox | Ordner nicht auf „Nur online“ | `notiz (Name's conflicted copy 2026-11-04).md` |
+| iCloud Drive | „Mac-Speicher optimieren“ kann auslagern: Vault-Ordner „Heruntergeladen behalten“. Unter Windows nur eingeschränkt nutzbar | `notiz 2.md` (nur bei gleicher ID) |
+| Syncthing | keine Platzhalter; synchronisiert nur, wenn beide Geräte gleichzeitig online sind | `notiz.sync-conflict-20261104-120000-ABCDEFG.md` |
+
+Auf dem Mac verwalten OneDrive, Google Drive und iCloud Drive ihre Ordner über macOS (`~/Library/CloudStorage/…` bzw. `~/Library/Mobile Documents/…`). `PKM_ROOT` zeigt dann auf diesen Pfad.
 
 ---
 
@@ -817,9 +841,9 @@ Diese Form ist nie Standard. Der Skill schlägt sie auch nicht von sich aus vor.
 - Abhängigkeiten: `mcp`, `pyyaml`. Sonst Standardbibliothek (`sqlite3` mit FTS5, `subprocess` für `git`)
 - Plattform: **macOS oder Windows**, je nach PKM-Rechner (5.5). Voraussetzung ist `git` (macOS: Xcode Command Line Tools, Homebrew oder git-scm.com; Windows: git-scm.com). Die Standardpfade richten sich nach dem Betriebssystem; alle Pfade sind per Umgebungsvariable überschreibbar, damit die automatischen Tests auch unter Linux laufen
 - Konfiguration über Umgebungsvariablen:
-  - `PKM_ROOT` (Pflicht): absoluter Pfad zum Vault im Nextcloud-Ordner
-  - `PKM_GIT_DIR` (Standard macOS `~/Library/Application Support/pkm/git`, Windows `%APPDATA%\pkm\git`): Git-Verzeichnis außerhalb der Nextcloud
-  - `PKM_CACHE_DIR` (Standard macOS `~/Library/Application Support/pkm`, Windows `%APPDATA%\pkm`): Suchindex. Muss außerhalb von `PKM_ROOT` und des Nextcloud-Ordners liegen. Liegt es nach `resolve()` innerhalb von `PKM_ROOT`, legt der Server keinen Index an und meldet einen Fehler. `search` ist dann nicht verfügbar, die übrigen lesenden Tools funktionieren weiter
+  - `PKM_ROOT` (Pflicht): absoluter Pfad zum Vault im Cloud-Ordner
+  - `PKM_GIT_DIR` (Standard macOS `~/Library/Application Support/pkm/git`, Windows `%APPDATA%\pkm\git`): Git-Verzeichnis außerhalb des Cloud-Ordners
+  - `PKM_CACHE_DIR` (Standard macOS `~/Library/Application Support/pkm`, Windows `%APPDATA%\pkm`): Suchindex. Muss außerhalb von `PKM_ROOT` und jedes Cloud-Ordners liegen. Liegt es nach `resolve()` innerhalb von `PKM_ROOT`, legt der Server keinen Index an und meldet einen Fehler. `search` ist dann nicht verfügbar, die übrigen lesenden Tools funktionieren weiter
   - `PKM_TZ` (Standard `Europe/Berlin`)
   - `PKM_MAX_KB` (Standard 200): Grenze für ein Dokument bzw. für den Text einer einzelnen Änderung
   - `PKM_VAULT_NAME` (optional): Name des Obsidian-Vaults, um klickbare `obsidian://`-Links zu liefern
@@ -827,7 +851,7 @@ Diese Form ist nie Standard. Der Skill schlägt sie auch nicht von sich aus vor.
   - `PKM_SVG_MAX_KB` (Standard 200): Komplexitätsgrenze für SVG
   - `PKM_IMAGE_MAX_MB` (Standard 5): Obergrenze je Bild
   - `PKM_IMAGE_PARAM_MAX_KB` (Standard 512): Obergrenze für `png_base64` in einem Aufruf
-  - `PKM_IMPORT_DIR` (Standard `<PKM_ROOT>/pkm_img_import`): einziger Ordner, aus dem der Server Bilddateien übernimmt (`import_path`). Im Vault ist nur `pkm_img_import/` erlaubt (in `.gitignore`, von allen Pflegebefehlen ausgenommen wie `scratch/`); alternativ ein Ordner außerhalb des Vaults. Nur `.png`, `.svg`, `.jpg` und `.jpeg`, die Quelle wird kopiert, nicht gelöscht. Über Nextcloud lassen sich Bilder so auch von anderen Geräten (z. B. dem Smartphone) übergeben
+  - `PKM_IMPORT_DIR` (Standard `<PKM_ROOT>/pkm_img_import`): einziger Ordner, aus dem der Server Bilddateien übernimmt (`import_path`). Im Vault ist nur `pkm_img_import/` erlaubt (in `.gitignore`, von allen Pflegebefehlen ausgenommen wie `scratch/`); alternativ ein Ordner außerhalb des Vaults. Nur `.png`, `.svg`, `.jpg` und `.jpeg`, die Quelle wird kopiert, nicht gelöscht. Über den Cloud-Speicher lassen sich Bilder so auch von anderen Geräten (z. B. dem Smartphone) übergeben
   - `PKM_SVG_RASTER` (Standard `false`): SVG für `read_image` mit `as: image` rastern (zusätzliche Bibliothek, z. B. `resvg`)
   - `PKM_GIT_AUTHOR` (Standard `pkm-mcp <pkm@localhost>`): Autor der MCP-Commits, damit sie sich im Verlauf von denen des Nutzers unterscheiden
 - Kein Netzwerk, keine LLM-Aufrufe, keine Hintergrundprozesse
@@ -1045,7 +1069,7 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 - `PKM_CACHE_DIR/index.db`, FTS5 mit `unicode61 remove_diacritics 2`
 - Bilder: nur ihr Alternativtext wird indexiert, nie Base64 oder SVG-Inhalt (4.9)
 - Gewichte: Titel 5, Aliase/Tags/Themen 3, Kurzfassung 2, Text 1. Zusätzlich eine Tabelle `id → path, version` für die Auflösung nach 5.2
-- `index.db` liegt in `PKM_CACHE_DIR`, nie im Vault oder im Nextcloud-Ordner (7.1)
+- `index.db` liegt in `PKM_CACHE_DIR`, nie im Vault oder in einem Cloud-Ordner (7.1)
 - Der Index umfasst `wiki/`, `documents/` und `scratch/`. Welcher Bereich durchsucht wird, bestimmt `scope`
 - Vor jeder Anfrage werden geänderte Dateien nachindexiert (Vergleich von `mtime` und Größe)
 - Fehlt der Index oder ist er beschädigt, baut der Server ihn automatisch neu auf
@@ -1070,7 +1094,7 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
       "command": "<HOME>/.local/bin/uvx",
       "args": ["--from", "<PFAD_ZUM_PAKET>/pkm-tools", "pkm-mcp"],
       "env": {
-        "PKM_ROOT": "<HOME>/Nextcloud/<VAULT>",
+        "PKM_ROOT": "<HOME>/<CLOUD-ORDNER>/<VAULT>",
         "PKM_GIT_DIR": "<HOME>/Library/Application Support/pkm/git",
         "PKM_VAULT_NAME": "<VAULT>",
         "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
@@ -1080,7 +1104,7 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
       "command": "<HOME>/.local/bin/uvx",
       "args": ["--from", "<PFAD_ZUM_PAKET>/pkm-tools", "pkm-pflege-mcp"],
       "env": {
-        "PKM_ROOT": "<HOME>/Nextcloud/<VAULT>",
+        "PKM_ROOT": "<HOME>/<CLOUD-ORDNER>/<VAULT>",
         "PKM_GIT_DIR": "<HOME>/Library/Application Support/pkm/git",
         "PKM_VAULT_NAME": "<VAULT>",
         "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
@@ -1090,7 +1114,7 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 }
 ```
 
-Die Datei liegt unter macOS in `~/Library/Application Support/Claude/claude_desktop_config.json`, unter Windows in `%APPDATA%\Claude\claude_desktop_config.json`. Platzhalter in spitzen Klammern sind durch absolute Pfade zu ersetzen (`<HOME>` = Home-Verzeichnis bzw. Benutzerordner, `<VAULT>` = Ordner- bzw. Vault-Name). JSON kennt weder `~` noch Umgebungsvariablen. `uvx` steht mit absolutem Pfad und `git` muss über `PATH` erreichbar sein, weil Claude Desktop MCP-Server mit minimaler Umgebung startet. Die Server sind erreichbar, solange die Desktop-App auf dem PKM-Rechner läuft, auch aus Cowork. Im `PATH` genügt unter macOS der Ordner, in dem `git` liegt, plus `/usr/bin:/bin`.
+Die Datei liegt unter macOS in `~/Library/Application Support/Claude/claude_desktop_config.json`, unter Windows in `%APPDATA%\Claude\claude_desktop_config.json`. Platzhalter in spitzen Klammern sind durch absolute Pfade zu ersetzen (`<HOME>` = Home-Verzeichnis bzw. Benutzerordner, `<CLOUD-ORDNER>` = vom Cloud-Dienst synchronisierter Ordner, z. B. `Nextcloud`, `Dropbox` oder `Library/CloudStorage/OneDrive-Persönlich`, `<VAULT>` = Ordner- bzw. Vault-Name). JSON kennt weder `~` noch Umgebungsvariablen. `uvx` steht mit absolutem Pfad und `git` muss über `PATH` erreichbar sein, weil Claude Desktop MCP-Server mit minimaler Umgebung startet. Die Server sind erreichbar, solange die Desktop-App auf dem PKM-Rechner läuft, auch aus Cowork. Im `PATH` genügt unter macOS der Ordner, in dem `git` liegt, plus `/usr/bin:/bin`.
 
 **Windows:** In JSON wird jeder Backslash verdoppelt. Die Programme heißen `pkm-mcp.exe` bzw. `pkm-pflege-mcp.exe` (nach `uv tool install` in `<HOME>\.local\bin`) bzw. `uvx.exe`. `PKM_GIT_DIR` entfällt, wenn der Standard `%APPDATA%\pkm\git` gilt. `PATH` ist normalerweise nicht nötig, weil der Git-Installer Git in den System-`PATH` einträgt; sonst `C:\\Program Files\\Git\\cmd;C:\\Windows\\System32` (Trennzeichen `;`).
 
@@ -1100,14 +1124,14 @@ Die Datei liegt unter macOS in `~/Library/Application Support/Claude/claude_desk
     "pkm": {
       "command": "C:\\Users\\<NAME>\\.local\\bin\\pkm-mcp.exe",
       "env": {
-        "PKM_ROOT": "C:\\Users\\<NAME>\\Nextcloud\\<VAULT>",
+        "PKM_ROOT": "C:\\Users\\<NAME>\\<CLOUD-ORDNER>\\<VAULT>",
         "PKM_VAULT_NAME": "<VAULT>"
       }
     },
     "pkm-pflege": {
       "command": "C:\\Users\\<NAME>\\.local\\bin\\pkm-pflege-mcp.exe",
       "env": {
-        "PKM_ROOT": "C:\\Users\\<NAME>\\Nextcloud\\<VAULT>",
+        "PKM_ROOT": "C:\\Users\\<NAME>\\<CLOUD-ORDNER>\\<VAULT>",
         "PKM_VAULT_NAME": "<VAULT>"
       }
     }
@@ -1199,13 +1223,13 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 | `pkm mark <id>… --pages <page>…` | Trägt verarbeitete Dokumente mit Version und Abschnitts-Hashes in `state.json` ein |
 | `pkm index` | Erzeugt `wiki/index.md` neu |
 | `pkm status` | Erzeugt `wiki/_status.md` neu, inklusive Einsortier-Vorschlägen für verarbeitete Dokumente im Eingang Meldet außerdem verwaiste Anhänge (Bilddateien ohne Verweis, 4.9). |
-| `pkm lint` | JSON-Bericht. **Struktur:** kaputte Links, verwaiste Wiki-Seiten, fehlende Kurzfassung, fehlerhaftes Frontmatter, häufige Begriffe ohne Seite. **Belege:** Ziel fehlt oder verschoben, Anker fehlt, Zitat nicht in der belegten Version, Status `newer_version`, Beleg zeigt auf Wiki-Seite, Absatz ohne Fußnote (`statement_without_citation`, nicht für Zwischenüberschriften, reine Hervorhebungs- und Link-Zeilen und für Tabellen mit Fußnote direkt darunter, 4.2), Beleg auf einen Abschnitt ohne eigenen Text (`citation_empty_section`), Fußnote ohne Definition, `sources` nicht synchron. **Dokumente:** ohne ID oder Version, doppelte IDs, ungültiges YAML durch fehlende Anführungszeichen (Fehler, mit Hinweis auf `pkm fix-frontmatter`), fehlende Felder `date_markdown`/`toolchain_markdown` (Hinweis), Feld `short citation` mit Leerzeichen (Hinweis), umgewandeltes Dokument ohne `kind` (Hinweis), unbekannter Wert in `kind` (Fehler), Datumsfelder weder im Format `YYYY-MM-DDTHH:MM:SS` noch `YYYY-MM-DD` oder mit Zeitzonen-Angabe, `tags` mit Leerzeichen, `version` passt nicht zum Commit-Verlauf. **Plattform:** Nextcloud-Konfliktkopien, nicht plattformfeste Dateinamen, Namen, die sich nur in Groß- und Kleinschreibung unterscheiden. **Überschriften (4.8):** Duplikate, Zeichen, die Anker brechen, Text auf `#` plus Ziffern (`heading_suffix_like` als Warnung, `heading_suffix_collision` als Fehler) **Bilder (4.9):** `[img:<name>]` in Belegen ohne Bild in der belegten Version, Bilder ohne Alternativtext (Hinweis, nicht bei bestehenden Base64-PNG), doppelte Bildnamen im Dokument, unbereinigtes SVG (Fehler), verwaiste Anhänge (Hinweis), abweichende Data-URIs `nonconforming_image` mit den Befundcodes (Warnung; Fehler bei `svg_unsafe` und `invalid_data`; mit Hinweis auf `pkm fix-images`). |
+| `pkm lint` | JSON-Bericht. **Struktur:** kaputte Links, verwaiste Wiki-Seiten, fehlende Kurzfassung, fehlerhaftes Frontmatter, häufige Begriffe ohne Seite. **Belege:** Ziel fehlt oder verschoben, Anker fehlt, Zitat nicht in der belegten Version, Status `newer_version`, Beleg zeigt auf Wiki-Seite, Absatz ohne Fußnote (`statement_without_citation`, nicht für Zwischenüberschriften, reine Hervorhebungs- und Link-Zeilen und für Tabellen mit Fußnote direkt darunter, 4.2), Beleg auf einen Abschnitt ohne eigenen Text (`citation_empty_section`), Fußnote ohne Definition, `sources` nicht synchron. **Dokumente:** ohne ID oder Version, doppelte IDs, ungültiges YAML durch fehlende Anführungszeichen (Fehler, mit Hinweis auf `pkm fix-frontmatter`), fehlende Felder `date_markdown`/`toolchain_markdown` (Hinweis), Feld `short citation` mit Leerzeichen (Hinweis), umgewandeltes Dokument ohne `kind` (Hinweis), unbekannter Wert in `kind` (Fehler), Datumsfelder weder im Format `YYYY-MM-DDTHH:MM:SS` noch `YYYY-MM-DD` oder mit Zeitzonen-Angabe, `tags` mit Leerzeichen, `version` passt nicht zum Commit-Verlauf. **Plattform:** Konfliktkopien des Cloud-Speichers (5.5), nicht plattformfeste Dateinamen, Namen, die sich nur in Groß- und Kleinschreibung unterscheiden. **Überschriften (4.8):** Duplikate, Zeichen, die Anker brechen, Text auf `#` plus Ziffern (`heading_suffix_like` als Warnung, `heading_suffix_collision` als Fehler) **Bilder (4.9):** `[img:<name>]` in Belegen ohne Bild in der belegten Version, Bilder ohne Alternativtext (Hinweis, nicht bei bestehenden Base64-PNG), doppelte Bildnamen im Dokument, unbereinigtes SVG (Fehler), verwaiste Anhänge (Hinweis), abweichende Data-URIs `nonconforming_image` mit den Befundcodes (Warnung; Fehler bei `svg_unsafe` und `invalid_data`; mit Hinweis auf `pkm fix-images`). |
 | `pkm restore <target> --version <n>` | Wie `restore_document` |
 | `pkm reindex` | Baut den Suchindex neu auf |
 | `pkm fix-frontmatter <target>… [--all]` | Repariert das Frontmatter zeilengenau, sonst ändert sich nichts: setzt Werte mit `: ` oder führenden YAML-Sonderzeichen in doppelte Anführungszeichen und benennt `short citation` in `short_citation` um. **Nur auf ausdrückliche Anweisung des Nutzers.** Ohne Ziel listet der Befehl nur die betroffenen Dateien auf. Jede geänderte Datei wird als neue Version committet (`PKM-Source: user`, weil der Nutzer es veranlasst hat) |
 | `pkm fix-images <target>… [--all] [--apply] [--alt <name>=<text>]` | Korrigiert die Schreibweise abweichender Bild-Data-URIs nach 4.9, sonst ändert sich nichts. **Nur auf ausdrückliche Anweisung des Nutzers.** Ohne `--apply` zeigt der Befehl Befunde, Vorschläge und Diff, ohne Ziel listet er nur die betroffenen Dateien. Mit `--apply` wird jede geänderte Datei als neue Version committet (`PKM-Source: user`, `PKM-Fix: images`) |
 | `pkm commit-wiki --message "<text>"` | Agenten-Commit am Ende eines Pflegelaufs (12). Committet ausschließlich `wiki/` und `.pkm/state.json`. Offene Änderungen in `documents/` bleiben unberührt |
-| `pkm doctor` | Prüft die Umgebung: Git-Verzeichnis außerhalb des Vaults und erreichbar, `PKM_CACHE_DIR` außerhalb des Vaults und des Nextcloud-Ordners, kein `.git` im Vault, `user.name`/`user.email`, Schreibrechte, Nextcloud-Konfliktkopien, Obsidian-Einstellungen aus Abschnitt 13 (soweit in `.obsidian/app.json` lesbar). Mit `--short` nur Fehler Prüft außerdem, dass `PKM_IMPORT_DIR` entweder `pkm_img_import/` im Vault (dann in `.gitignore`) oder ein Ordner außerhalb des Vaults ist. |
+| `pkm doctor` | Prüft die Umgebung: Git-Verzeichnis außerhalb des Vaults und erreichbar, `PKM_CACHE_DIR` außerhalb des Vaults, beide außerhalb jedes Cloud-Ordners (alle bekannten Dienste), kein `.git` im Vault, `user.name`/`user.email`, Schreibrechte, Konfliktkopien des Cloud-Speichers, Dateien „nur online“ im Vault (`vault_online_only`, Warnung), erkannter Dienst des Vaults (`vault_cloud`, Hinweis), Obsidian-Einstellungen aus Abschnitt 13 (soweit in `.obsidian/app.json` lesbar). Mit `--short` nur Fehler Prüft außerdem, dass `PKM_IMPORT_DIR` entweder `pkm_img_import/` im Vault (dann in `.gitignore`) oder ein Ordner außerhalb des Vaults ist. |
 
 ---
 
@@ -1301,7 +1325,7 @@ Korrigiert wird erst nach **ausdrücklicher Bestätigung**: `read` → `hash` �
 **Bilder (4.9):**
 - Diagramme, Skizzen und Schaltpläne zeichnet der Chat als **SVG**. Fotos und Screenshots bleiben PNG.
 - Neue Bilder werden über `images` bzw. `add_image` abgelegt, immer mit Alternativtext und erst nach Entwurf und Bestätigung. Im Entwurf zeigt der Chat das Bild mit.
-- **Im Chat hochgeladene Fotos oder Screenshots** kann der Chat nicht byte-genau weitergeben. Er bittet, die Datei in den Importordner `pkm_img_import/` im Vault zu legen (z. B. per Finder bzw. Explorer oder über die Nextcloud-App), und übernimmt sie mit `import_path`. Bei einfachen Grafiken bietet er alternativ eine SVG-Nachzeichnung an, gekennzeichnet als „nachgezeichnet“.
+- **Im Chat hochgeladene Fotos oder Screenshots** kann der Chat nicht byte-genau weitergeben. Er bittet, die Datei in den Importordner `pkm_img_import/` im Vault zu legen (z. B. per Finder bzw. Explorer oder über die App des Cloud-Dienstes), und übernimmt sie mit `import_path`. Bei einfachen Grafiken bietet er alternativ eine SVG-Nachzeichnung an, gekennzeichnet als „nachgezeichnet“.
 - Zum Ansehen eines Bildes dient `read_image`. Base64 wird nie in den Text übernommen.
 - **Keine Data-URIs von Hand in den Text schreiben**, Bilder immer über `images` bzw. `add_image`.
 - **`nonconforming_image`:** Befunde und Vorschlag aus `image_issues` dem Nutzer zeigen (bei SVG das Bild), fehlende Alternativtexte erfragen und erst nach Bestätigung den Aufruf mit `fix_images: true` (und `image_alt`) wiederholen, oder die Fassung mit `images` neu aufbauen.
@@ -1360,8 +1384,8 @@ Git ist Pflicht und übernimmt zwei Aufgaben: die **Versionsgeschichte jedes Dok
 
 So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. Ein `git revert` auf einen Agenten-Commit trifft nur das Wiki.
 
-- Das Git-Verzeichnis liegt außerhalb der Nextcloud (5.5). Die Versionsgeschichte existiert damit **nur auf dem PKM-Rechner** und muss dort gesichert werden. **macOS:** Time Machine, denn `~/Library/Application Support/pkm/` ist darin enthalten. **Windows:** Der Dateiversionsverlauf sichert `%APPDATA%` standardmäßig nicht. `%APPDATA%\pkm\git` wird deshalb ausdrücklich in die Datensicherung aufgenommen, oder `PKM_GIT_DIR` zeigt von Anfang an auf einen gesicherten Ordner außerhalb der Nextcloud (und außerhalb von OneDrive). Der Suchindex ist ein Cache und muss nicht gesichert werden.
-- `.gitignore`: `scratch/`, `pkm_img_import/`, `.obsidian/workspace*`, `.pkm/mcp.log`, Nextcloud-Hilfsdateien (`.sync_*`, `.owncloudsync.log`, `*.part`)
+- Das Git-Verzeichnis liegt außerhalb des Cloud-Ordners (5.5). Die Versionsgeschichte existiert damit **nur auf dem PKM-Rechner** und muss dort gesichert werden. **macOS:** Time Machine, denn `~/Library/Application Support/pkm/` ist darin enthalten. **Windows:** Der Dateiversionsverlauf sichert `%APPDATA%` standardmäßig nicht. `%APPDATA%\pkm\git` wird deshalb ausdrücklich in die Datensicherung aufgenommen, oder `PKM_GIT_DIR` zeigt von Anfang an auf einen gesicherten Ordner außerhalb jedes Cloud-Ordners. Der Suchindex ist ein Cache und muss nicht gesichert werden.
+- `.gitignore`: `scratch/`, `pkm_img_import/`, `.obsidian/workspace*`, `.pkm/mcp.log`, Hilfsdateien der Cloud-Dienste und Programme (Nextcloud/ownCloud `.sync_*`, `.owncloudsync.log`, `*.part`; Dropbox `.dropbox`, `.dropbox.attr`; Syncthing `.stfolder`, `.stversions/`; Google Drive `.tmp.drivedownload/`, `.tmp.driveupload/`; iCloud `*.icloud`; Windows `desktop.ini`; Office-Sperrdateien `~$*`, `.~lock.*`; `.DS_Store`)
 - Obsidian Git wird nicht verwendet. Das Plugin fände das Repo auch gar nicht, weil kein `.git` im Vault liegt.
 - Kein Remote. Ein Push auf ein privates Remote (z. B. Gitea auf dem Homeserver) lässt sich später ohne Änderung am Konzept nachrüsten.
 
@@ -1379,7 +1403,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 - **Web Clipper:** Zielordner `documents/_inbox/`. Die Vorlage des Clippers wird an 4.1 angepasst: `title` (Seitentitel), `source` (URL, wird von den Werkzeugen nicht ausgewertet), `date_document` (Veröffentlichungsdatum der Seite, falls vorhanden), `date_markdown` (Zeitpunkt des Clippens im Format `YYYY-MM-DDTHH:MM:SS`), `toolchain_markdown: Obsidian Web Clipper`, `tags`. Die Standardvorlage des Clippers verwendet teils andere Namen. Maßgeblich ist, was in den Einstellungen des Clippers eingestellt ist.
 - **Property-Typen:** `pkm init` legt sie in `.obsidian/types.json` an bzw. ergänzt fehlende, ohne vom Nutzer gesetzte Typen zu ändern; `pkm doctor` meldet Abweichungen. Von Hand in Obsidian über das Symbol neben dem Feldnamen im Eigenschaften-Bereich einer Notiz: `date_markdown` und `date_updated` als **Datum & Uhrzeit**, `version` als **Zahl**, `related` und `sources` als **Liste**, alle übrigen eigenen Felder als **Text**. `tags` und `aliases` sind Obsidian-Standard.
 - Optional: Dataview für Abfragen über das Frontmatter, Graph View (eingebaut)
-- **Alle Rechner** (Mac und Windows) nutzen denselben Vault über Nextcloud. Die Einstellungen in `.obsidian/` werden mitsynchronisiert und gelten überall.
+- **Alle Rechner** (Mac und Windows) nutzen denselben Vault über den Cloud-Speicher. Die Einstellungen in `.obsidian/` werden mitsynchronisiert und gelten überall.
 - Auf den **anderen Rechnern** (nicht PKM-Rechner) wird nur in Obsidian gelesen und bearbeitet. Änderungen von dort werden beim nächsten MCP-Zugriff auf die Datei bzw. beim nächsten Pflegelauf als Version mit `PKM-Source: user` übernommen.
 
 ---
@@ -1448,7 +1472,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 
 | # | Thema | Entscheidung | Umgesetzt in |
 |---|---|---|---|
-| 1 | Speicherort und Plattform | Vault in einem Nextcloud-Ordner. Gelesen und bearbeitet auf Mac und Windows, Agent und MCP nur auf dem PKM-Rechner (seit 0.22 Mac oder Windows, Entscheidung 36). In der Spezifikation stehen Platzhalter statt konkreter Pfade | 5.5, 7.1, 7.6, 12, 13 |
+| 1 | Speicherort und Plattform | Vault in einem Cloud-Ordner (seit 0.25 jeder Dienst, der einen lokalen Ordner synchronisiert, Entscheidung 39; vorher Nextcloud). Gelesen und bearbeitet auf Mac und Windows, Agent und MCP nur auf dem PKM-Rechner (seit 0.22 Mac oder Windows, Entscheidung 36). In der Spezifikation stehen Platzhalter statt konkreter Pfade | 5.5, 7.1, 7.6, 12, 13 |
 | 2 | Ordnernamen | Englisch | 3 und überall |
 | 3 | Standardbereich der Chat-Suche | `wiki` | 7.3 |
 | 4 | Bestätigung | Immer erst einen Entwurf zeigen, ohne Ausnahme | 10 |
@@ -1463,7 +1487,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 
 | # | Thema | Entscheidung | Umgesetzt in |
 |---|---|---|---|
-| 11 | Suchindex und Protokoll | Index in `PKM_CACHE_DIR` außerhalb von Vault und Nextcloud, geprüft von Server und `doctor`. Protokoll in `.pkm/mcp.log`, nicht in Git | 3, 5.5, 7.1, 7.2, 7.4, 8, 12 |
+| 11 | Suchindex und Protokoll | Index in `PKM_CACHE_DIR` außerhalb von Vault und Cloud-Ordner, geprüft von Server und `doctor`. Protokoll in `.pkm/mcp.log`, nicht in Git | 3, 5.5, 7.1, 7.2, 7.4, 8, 12 |
 | 12 | Quelle bei Änderungen von Hand | `user` | 5.4, 7.3 |
 | 13 | Commits von `pkm ids` | Je Dokument ein Commit, kein Sammel-Commit | 5.4, 8, 12 |
 | 14 | Hashes und Abschnitte | Festgelegt in 4.8 | 4.8 |
@@ -1496,6 +1520,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 36 | Windows als PKM-Rechner | Gleichwertig zum Mac, genau ein PKM-Rechner je Vault. Git von git-scm.com, Standardordner `%APPDATA%\pkm`, Datensicherung des Git-Verzeichnisses ausdrücklich einrichten | 5.5, 7.1, 7.6, 12, 13 |
 | 37 | Importordner und JPEG | Importordner `pkm_img_import/` im Vault (nicht in Git, von der Pflege ausgenommen), Ordner außerhalb weiter möglich. JPEG wird übernommen, Metadaten entfernt, Ausrichtung erhalten | 3, 4.9, 7.1, 8, 10, 12 |
 | 38 | Data-URIs bei der Übernahme | Jede Bild-Data-URI wird geprüft (Werkzeuge, Pflegelauf, Lint, Wiki-Seiten). Abweichungen werden mit Befund und Vorschlag gemeldet und **nur nach Rückfrage** korrigiert (`fix_images: true`, Tool `fix_images`, `pkm fix-images`), nie unbeaufsichtigt. Nur die Bildschreibweise ändert sich, abgeleitete Namen bleiben, Belege werden angehoben. Bestehende Base64-PNG: nur Schreibweise, Bytes gleich, kein Name | 3, 4.7, 4.9, 5.4, 7.2, 7.3, 7.7, 8, 9.1, 9.2, 9.7, 10, 14 |
+| 39 | Cloud-Speicher allgemein | Jeder Dienst, der einen normalen lokalen Ordner synchronisiert. Vault vollständig lokal (keine Platzhalter), Git-Verzeichnis und Suchindex außerhalb jedes Cloud-Ordners. Konfliktkopien aller bekannten Dienste werden am Namen oder als Kopie mit gleicher ID neben dem Original erkannt und nicht verarbeitet | 5.3, 5.5, 7.1, 8, 12 |
 
 ### Noch offen
 
