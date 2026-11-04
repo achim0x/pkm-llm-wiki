@@ -29,8 +29,9 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .cloudsync import cloud_service, conflict_copies, online_only_files
 from .config import IMPORT_FOLDER
-from .paths import is_conflict_copy
+from .errors import PkmError
 from .vaultinit import (
     PROPERTY_TYPES,
     TYPES_FILE,
@@ -55,31 +56,6 @@ OBSIDIAN_EXPECTED = {
 # Classes *********************************************************************
 
 # Functions *******************************************************************
-
-
-def looks_like_nextcloud(path: Path) -> bool:
-    """Prüfen, ob ein Pfad in einem Nextcloud-Ordner liegt.
-
-    Args:
-        path: Zu prüfender Pfad.
-
-    Returns:
-        ``True``, wenn ein Ordnername „nextcloud“ enthält oder ein übergeordneter Ordner
-        Nextcloud-Sync-Dateien (``.owncloudsync.log``, ``.sync_*.db``) enthält.
-    """
-    found = False
-    for p in [path, *path.parents]:
-        try:
-            found = (
-                "nextcloud" in p.name.casefold()
-                or (p / ".owncloudsync.log").exists()
-                or any(p.glob(".sync_*.db"))
-            )
-        except OSError:
-            found = False
-        if found:
-            break
-    return found
 
 
 def _check(name: str, ok: bool, ok_message: str, bad_message: str, severity: str = "error") -> dict[str, Any]:
@@ -109,14 +85,15 @@ def _git_checks(svc: Service) -> list[dict[str, Any]]:
     """
     cfg, git = svc.cfg, svc.git
     git_dir_problem = cfg.git_dir_problem()
-    in_nextcloud = looks_like_nextcloud(cfg.git_dir)
+    git_cloud = cloud_service(cfg.git_dir)
     repo = git.installed() and git.is_repo()
     checks = [
         _check("git_installed", git.installed(), "git gefunden.", "git nicht im PATH."),
         _check("git_dir_outside", git_dir_problem is None, "Git-Verzeichnis liegt außerhalb des Vaults.",
                git_dir_problem or ""),
-        _check("git_dir_nextcloud", not in_nextcloud, "Git-Verzeichnis liegt nicht in einem Nextcloud-Ordner.",
-               f"Git-Verzeichnis {cfg.git_dir} liegt offenbar in einem Nextcloud-Ordner."),
+        _check("git_dir_cloud", git_cloud is None, "Git-Verzeichnis liegt nicht in einem Cloud-Ordner.",
+               f"Git-Verzeichnis {cfg.git_dir} liegt offenbar in einem Cloud-Ordner ({git_cloud}); "
+               "Git-Dateien dürfen nicht synchronisiert werden."),
         _check("git_repo", repo, "Git-Repo erreichbar.", f"Kein Git-Repo unter {cfg.git_dir} (pkm init)."),
         _check("no_dotgit_in_vault", not (cfg.root / ".git").exists(), "Kein .git im Vault.",
                "Im Vault liegt ein .git (5.5)."),
@@ -134,6 +111,26 @@ def _git_checks(svc: Service) -> list[dict[str, Any]]:
     return checks
 
 
+def _conflicts(svc: Service) -> list[str]:
+    """Konfliktkopien aller Cloud-Dienste im Vault (am Namen und als Kopie mit gleicher ID).
+
+    Args:
+        svc: Dienst.
+
+    Returns:
+        Sortierte Pfade.
+    """
+    rels = list(svc.vault.iter_files())
+    ids: dict[str, str | None] = {}
+    for rel in rels:
+        if rel.startswith("documents/") and rel.lower().endswith(".md"):
+            try:
+                ids[rel] = svc.vault.load(rel).id
+            except PkmError:
+                ids[rel] = None
+    return sorted(conflict_copies(rels, ids))
+
+
 def _path_checks(svc: Service) -> list[dict[str, Any]]:
     """Prüfungen für Vault, Suchindex, Schreibrechte, Konfliktkopien und ``scratch/`` in ``.gitignore``.
 
@@ -145,20 +142,27 @@ def _path_checks(svc: Service) -> list[dict[str, Any]]:
     """
     cfg = svc.cfg
     cache_problem = cfg.cache_dir_problem()
-    in_nextcloud = looks_like_nextcloud(cfg.cache_dir)
-    conflicts = [rel for rel in svc.vault.iter_files() if is_conflict_copy(Path(rel).name)]
+    cache_cloud = cloud_service(cfg.cache_dir)
+    conflicts = _conflicts(svc)
+    vault_cloud = cloud_service(cfg.root)
+    online_only = online_only_files(cfg.root)
     checks = [
         _check("vault", cfg.root.is_dir(), f"Vault {cfg.root} vorhanden.", f"Vault fehlt: {cfg.root}"),
         _check("cache_dir_outside", cache_problem is None, "PKM_CACHE_DIR liegt außerhalb des Vaults.",
                cache_problem or ""),
-        _check("cache_dir_nextcloud", not in_nextcloud, "PKM_CACHE_DIR liegt nicht in einem Nextcloud-Ordner.",
-               f"PKM_CACHE_DIR {cfg.cache_dir} liegt offenbar in einem Nextcloud-Ordner "
-               "(SQLite darf nicht synchronisiert werden)."),
+        _check("cache_dir_cloud", cache_cloud is None, "PKM_CACHE_DIR liegt nicht in einem Cloud-Ordner.",
+               f"PKM_CACHE_DIR {cfg.cache_dir} liegt offenbar in einem Cloud-Ordner ({cache_cloud}); "
+               "SQLite darf nicht synchronisiert werden."),
+        _check("vault_cloud", True, f"Vault liegt in: {vault_cloud or 'kein erkannter Cloud-Ordner'}.", ""),
+        _check("vault_online_only", not online_only, "Alle Dateien des Vaults liegen lokal vor.",
+               f"Dateien nur online (Platzhalter): {', '.join(online_only)}. Den Vault-Ordner im Cloud-Dienst "
+               "immer lokal halten (OneDrive „Immer auf diesem Gerät behalten“, Google Drive „Spiegeln“, iCloud "
+               "„Heruntergeladen behalten“, Nextcloud virtuelle Dateien aus).", "warning"),
     ]
     for label, path in (("vault_writable", cfg.root), ("cache_writable", cfg.cache_dir)):
         ok = path.is_dir() and os.access(path, os.W_OK)
         checks.append(_check(label, ok, f"{path} beschreibbar.", f"{path} fehlt oder ist nicht beschreibbar."))
-    checks.append(_check("conflict_copies", not conflicts, "Keine Nextcloud-Konfliktkopien.",
+    checks.append(_check("conflict_copies", not conflicts, "Keine Konfliktkopien des Cloud-Speichers.",
                          f"Konfliktkopien: {', '.join(conflicts)}"))
     import_problem = cfg.import_dir_problem()
     checks.append(_check("import_dir", import_problem is None, f"Importordner für Bilder: {cfg.images.import_dir}.",

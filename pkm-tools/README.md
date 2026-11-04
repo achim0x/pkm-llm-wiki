@@ -99,6 +99,13 @@ ohne diese Angaben fehlt `content` (`content_omitted`).
 - `fix-citations` schreibt bei verschobenen Originalen auch Wikilinks im Seitentext um. Wird in
   Obsidian verschoben, aktualisiert Obsidian die Links selbst; dann meldet `fix-citations`
   zu Recht `pages_changed: 0`.
+- **Cloud-Speicher (`cloudsync.py`):** Konfliktkopien werden für alle bekannten Dienste erkannt – am
+  Namen (Nextcloud/ownCloud, Dropbox, Google Drive, Syncthing, pCloud, Box, deutsche Clients) und als Kopie
+  neben dem Original mit derselben Dokument-ID (OneDrive `-RECHNER`, iCloud ` 2`, ` (1)`, `Kopie von`).
+  Das frühere Muster „Konflikt“ irgendwo im Namen ist enger gefasst (keine Fehlalarme bei
+  „Konfliktmanagement.md“). `pkm doctor` erkennt Cloud-Ordner aller Dienste (`git_dir_cloud`,
+  `cache_dir_cloud`, `vault_cloud`) und Dateien „nur online“ (`vault_online_only`, macOS `SF_DATALESS`,
+  Windows Offline-/Recall-Attribute).
 - **Importordner:** Standard ist `pkm_img_import/` im Vault (in `.gitignore`, von allen Pflegebefehlen
   ausgenommen, weil `iter_files` nur `documents/`, `wiki/` und `scratch/` durchläuft). JPEG wird übernommen,
   EXIF/XMP, IPTC und Kommentare entfernt, die Ausrichtung als minimaler EXIF-Block behalten.

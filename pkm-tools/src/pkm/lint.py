@@ -31,12 +31,13 @@ from typing import TYPE_CHECKING, Any
 
 from . import hashes
 from .citations import CONTENT_SECTIONS, Citation, Resolution, Resolver, expected_sources, norm_ws, parse_page
+from .cloudsync import conflict_copies
 from .errors import PkmError
 from .frontmatter import fix_frontmatter_text
 from .imagelint import check_images, has_image, image_quote
 from .parse import Section, body_lines, find_setext
 from .parse import parse as parse_text
-from .paths import case_collisions, is_conflict_copy, is_platform_safe_name
+from .paths import case_collisions, is_platform_safe_name
 from .schema import (
     DATE_FIELDS,
     KINDS,
@@ -97,7 +98,7 @@ class Report:
         return {"status": "ok", "summary": {s: counts.get(s, 0) for s in SEVERITIES}, "findings": self.findings}
 
 
-class Linter:
+class Linter:  # pylint: disable=too-many-instance-attributes
     """Führt alle Prüfungen aus Spezifikation 8 und 4.8 aus."""
 
     def __init__(self, svc: Service) -> None:
@@ -125,6 +126,7 @@ class Linter:
                     self.docs.append(self.vault.load(rel))
                 except PkmError:
                     continue
+        self.conflicts = conflict_copies(self.all_files, {d.rel: d.id for d in self.docs if d.kind == "md"})
 
     def run(self) -> dict[str, Any]:
         """Alle Prüfungen ausführen.
@@ -144,9 +146,9 @@ class Linter:
     def platform(self) -> None:
         """Konfliktkopien, nicht plattformfeste Namen und Groß-/Kleinschreibungs-Kollisionen."""
         for rel in self.all_files:
-            if is_conflict_copy(PurePosixPath(rel).name):
+            if rel in self.conflicts:
                 self.r.add("conflict_copy", "error", rel,
-                           "Nextcloud-Konfliktkopie; Fassungen in Obsidian zusammenführen.")
+                           "Konfliktkopie des Cloud-Speichers; Fassungen in Obsidian zusammenführen.")
             bad = next((part for part in PurePosixPath(rel).parts if not is_platform_safe_name(part)), None)
             if bad is not None:
                 self.r.add("unsafe_filename", "warning", rel, f"Name „{bad}“ ist nicht auf allen Systemen gültig.")
@@ -163,7 +165,7 @@ class Linter:
         for doc in self.docs:
             if doc.kind == "md" and doc.error:
                 self.r.add(doc.error, "error", doc.rel, _error_message(doc))
-            elif doc.kind == "md" and not is_conflict_copy(PurePosixPath(doc.rel).name):
+            elif doc.kind == "md" and doc.rel not in self.conflicts:
                 self._document(doc, git_ok)
                 if doc.id:
                     by_id[doc.id].append(doc.rel)

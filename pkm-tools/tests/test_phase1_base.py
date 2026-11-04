@@ -30,7 +30,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from pkm import paths
+from pkm import cloudsync, paths
 from pkm.config import Config
 from pkm.errors import PkmError
 from pkm.frontmatter import dump_meta, format_scalar, set_fields_linewise
@@ -126,10 +126,10 @@ def test_platform_safe(name, ok):
 
 
 def test_conflict_copy():
-    """Nextcloud-Konfliktkopien werden am Namen erkannt."""
-    assert paths.is_conflict_copy("notiz (conflicted copy 2026-11-01 120000).md")
-    assert paths.is_conflict_copy("notiz (Konflikt).md")
-    assert not paths.is_conflict_copy("notiz.md")
+    """Konfliktkopien werden am Namen erkannt."""
+    assert cloudsync.is_conflict_copy("notiz (conflicted copy 2026-11-01 120000).md")
+    assert cloudsync.is_conflict_copy("notiz (Konflikt).md")
+    assert not cloudsync.is_conflict_copy("notiz.md")
 
 
 def test_case_collisions():

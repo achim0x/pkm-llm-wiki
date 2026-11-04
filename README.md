@@ -13,8 +13,9 @@ Ein persönliches Wissensmanagement (PKM) aus reinem Markdown, das Claude für d
 - Für Kurzlebiges wie **Notizen und Todo-Listen** gibt es den Bereich `scratch/`: aus Chats
   beschreibbar, aber ohne Versionen und nie im Wiki.
 
-Alles bleibt lesbares Markdown in einem normalen Ordner. Obsidian ist das Frontend, aber keine
-Voraussetzung.
+Alles bleibt lesbares Markdown in einem normalen Ordner, der über einen **Cloud-Speicher** auf
+deine Rechner synchronisiert wird (Nextcloud, OneDrive, Google Drive, Dropbox, iCloud Drive …).
+Obsidian ist das Frontend, aber keine Voraussetzung.
 
 > **Installation:** siehe [docs/einrichtung.md](docs/einrichtung.md). Diese README beschreibt,
 > was das System kann und wie du es danach benutzt.
@@ -34,8 +35,9 @@ Voraussetzung.
 6. [Belege verstehen](#belege-verstehen)
 7. [Regeln auf einen Blick](#regeln-auf-einen-blick)
 8. [CLI-Referenz](#cli-referenz)
-9. [Wenn etwas nicht stimmt](#wenn-etwas-nicht-stimmt)
-10. [Projektstruktur und Entwicklung](#projektstruktur-und-entwicklung)
+9. [Cloud-Speicher: Stolpersteine](#cloud-speicher-stolpersteine)
+10. [Wenn etwas nicht stimmt](#wenn-etwas-nicht-stimmt)
+11. [Projektstruktur und Entwicklung](#projektstruktur-und-entwicklung)
 
 ---
 
@@ -87,7 +89,7 @@ Voraussetzung.
 - „Notier mir kurz …“, „setz das auf meine Todo-Liste“, „hak … ab“: Claude legt Notizen in
   `scratch/` an und ändert sie, ebenfalls erst nach einem Entwurf.
 - `scratch/` wird **nie ins Wiki übernommen**, hat **keine Versionen und keine Commits** und steht
-  nicht in Git (nur in der Nextcloud, deren Dateiversionen als Rückfallebene dienen). Lint,
+  nicht in Git (nur im Cloud-Speicher, dessen Dateiversionen als Rückfallebene dienen). Lint,
   Pflegelauf und Belege ignorieren den Bereich.
 - Wird eine Notiz dauerhaft wichtig, verschiebst du sie in Obsidian nach `documents/`. Beim nächsten
   Pflegelauf ist sie ein ganz normales Dokument mit ID und Version 1.
@@ -99,7 +101,7 @@ Voraussetzung.
   (Data-URI), größere Bilder landen in `documents/_attachments/`. In `scratch/` wird immer
   eingebettet.
 - **Fotos aus dem Chat:** Claude kann hochgeladene Bilder nicht byte-genau weitergeben. Du legst die
-  Datei (PNG oder JPEG) in den Ordner `pkm_img_import/` im Vault, auch vom Smartphone per Nextcloud;
+  Datei (PNG oder JPEG) in den Ordner `pkm_img_import/` im Vault, auch vom Smartphone über die App deines Cloud-Speichers;
   Claude übernimmt sie von dort. Bei JPEG entfernt der Server GPS- und Kameradaten.
 - Bilder gehören zu ihrem Dokument und werden mit ihm versioniert. Claude sieht sie sich mit
   `read_image` an; Base64 landet nie im Chat. Im Wiki werden Bilder in Worten übernommen und mit
@@ -116,14 +118,20 @@ Voraussetzung.
   Ein Klick auf den `obsidian://`-Link öffnet das Dokument.
 - Dokumente, die noch nicht ins Wiki eingearbeitet sind, werden als „noch nicht im Wiki“ erwähnt.
 
-### Robust für Nextcloud, Mac und Windows
-- Der Vault liegt in der Nextcloud. Gelesen und bearbeitet wird auf Mac **und** Windows.
+### Robust für Cloud-Speicher, Mac und Windows
+- Der Vault liegt in einem Cloud-Speicher deiner Wahl. Gelesen und bearbeitet wird auf Mac **und**
+  Windows; MCP-Server, Pflege und Git laufen auf genau einem PKM-Rechner (Mac oder Windows).
 - Git-Verzeichnis und Suchindex liegen **außerhalb** des synchronisierten Ordners, also kein
-  `.git` im Vault.
-- **Was das System unter Windows und bei Nextcloud abfängt:**
+  `.git` im Vault. `pkm doctor` warnt, wenn sie doch in einem Cloud-Ordner liegen.
+- **Was das System unter Windows und bei Cloud-Speichern abfängt:**
   - Zeilenenden von Windows (CRLF) und Umlaute in Dateinamen (NFC/NFD) gelten nicht als Änderung.
   - Dateinamen sind auf allen Systemen gültig.
-  - Nextcloud-Konfliktkopien werden erkannt und nie verarbeitet.
+  - **Konfliktkopien aller bekannten Dienste** werden automatisch erkannt und nie verarbeitet:
+    am Namen (Nextcloud, ownCloud, Dropbox, Google Drive, Syncthing, pCloud, Box) und als Kopie
+    neben dem Original mit derselben Dokument-ID (OneDrive, iCloud Drive, Google Drive).
+  - Dateien, die nur online als Platzhalter vorliegen, meldet `pkm doctor`.
+
+Was je Dienst zu beachten ist, steht unter [Cloud-Speicher: Stolpersteine](#cloud-speicher-stolpersteine).
 
 ### Sicher by Design
 - Aus Chats ist das Wiki **nur lesbar**.
@@ -157,10 +165,10 @@ flowchart LR
         M["pkm-mcp<br/>(MCP-Server)"]
         P["pkm-pflege-mcp<br/>(MCP-Server Pflege)"]
         C["pkm<br/>(CLI, Einrichtung)"]
-        G[("Git-Verlauf<br/>außerhalb der Nextcloud")]
+        G[("Git-Verlauf<br/>außerhalb des Cloud-Speichers")]
         I[("Suchindex<br/>(Cache)")]
     end
-    subgraph Vault["Vault in der Nextcloud"]
+    subgraph Vault["Vault im Cloud-Speicher"]
         D["documents/<br/>gehört dir"]
         W["wiki/<br/>gehört dem Agenten"]
         X["scratch/<br/>Notizen, nicht versioniert"]
@@ -370,8 +378,8 @@ Chat reicht es, das Thema zu nennen.
 
   `pkm lint` weist darauf hin.
 - **Nicht gleichzeitig** dasselbe Dokument auf Windows bearbeiten und per Chat ändern lassen.
-  Entsteht doch eine Nextcloud-Konfliktkopie, führst du die Fassungen in Obsidian zusammen und
-  löschst die Kopie.
+  Entsteht doch eine Konfliktkopie, führst du die Fassungen in Obsidian zusammen und löschst die
+  Kopie.
 
 ### Im Pflegeprojekt
 
@@ -488,7 +496,7 @@ Status, den Claude bei „Woher stammt das?“ nennt:
 - `wiki/` von Hand bearbeiten (Korrekturen per Chat als Korrektur-Dokument)
 - `id`, `version`, `date_markdown`, `date_updated` oder `status_markdown` im Frontmatter ändern
 - dasselbe Dokument gleichzeitig auf Windows und per Chat ändern
-- `.git`, Suchindex oder Git-Verzeichnis in die Nextcloud legen
+- `.git`, Suchindex oder Git-Verzeichnis in den Cloud-Speicher legen
 - Dateien kopieren, ohne die ID der Kopie zu ändern (Lint meldet doppelte IDs)
 
 ---
@@ -522,6 +530,36 @@ Ziele können ein Pfad (`documents/haus/zisterne.md`), ein Wikilink (`[[zisterne
 
 ---
 
+## Cloud-Speicher: Stolpersteine
+
+Das PKM funktioniert mit jedem Dienst, der einen **normalen lokalen Ordner** synchronisiert. Für
+alle gilt:
+
+1. **Vault vollständig lokal halten.** Der Pflegelauf liest jede Datei. Liegen Dateien nur als
+   Platzhalter vor („nur online“), lösen sie Downloads aus oder fehlen ohne Verbindung.
+   `pkm doctor` meldet solche Dateien (`vault_online_only`).
+2. **Git-Verzeichnis und Suchindex nie in den Cloud-Ordner.** Der Standard
+   (`~/Library/Application Support/pkm` bzw. `%APPDATA%\pkm`) liegt außerhalb; `pkm doctor` prüft
+   das für alle bekannten Dienste.
+3. **Konfliktkopien zusammenführen.** Sie werden erkannt und nicht verarbeitet; du führst die
+   Fassungen in Obsidian zusammen und löschst die Kopie.
+4. **Ein PKM-Rechner je Vault**, egal welcher Dienst.
+
+| Dienst | Worauf achten | Konfliktkopie heißt z. B. |
+|---|---|---|
+| **Nextcloud / ownCloud** | „Virtuelle Dateien“ für den Vault-Ordner ausschalten. Dateiversionen dienen als Rückfallebene für `scratch/`. | `notiz (conflicted copy 2026-11-04 120000).md` |
+| **OneDrive** | „Dateien bei Bedarf“: Vault-Ordner auf **„Immer auf diesem Gerät behalten“**. Unter Windows wird „Dokumente“ oft automatisch in OneDrive verschoben – das Git-Verzeichnis nie dorthin legen. Auf dem Mac liegt der Ordner unter `~/Library/CloudStorage/OneDrive-…`. | `notiz-RECHNERNAME.md` (erkannt, wenn die Kopie dieselbe ID trägt) |
+| **Google Drive** | In den Einstellungen **„Dateien spiegeln“** statt „Streamen“ (oder den Ordner offline verfügbar machen). Auf dem Mac `~/Library/CloudStorage/GoogleDrive-…/My Drive`. Alte Dateiversionen hebt Google Drive nur begrenzt auf. | `notiz [Conflict].md`, `notiz (1).md`, `Kopie von notiz.md` |
+| **Dropbox** | Ordner nicht auf „Nur online“ stellen. | `notiz (Name's conflicted copy 2026-11-04).md` |
+| **iCloud Drive** | „Mac-Speicher optimieren“ kann Dateien auslagern: den Vault-Ordner im Finder dauerhaft geladen halten (Kontextmenü „Heruntergeladen behalten“ bzw. „Keep Downloaded“). Nur auf Apple-Geräten gut nutzbar; unter Windows über die iCloud-App eingeschränkt. | `notiz 2.md` (erkannt, wenn die Kopie dieselbe ID trägt) |
+| **Syncthing** | Keine Platzhalter; synchronisiert nur, wenn beide Geräte gleichzeitig online sind. | `notiz.sync-conflict-20261104-120000-ABCDEFG.md` |
+
+Auf dem Mac verwalten OneDrive, Google Drive und iCloud ihre Ordner über macOS
+(`~/Library/CloudStorage/…`). Obsidian und das PKM arbeiten damit, der Zugriff ist aber etwas
+träger als bei einem normalen Ordner. `PKM_ROOT` zeigt dann auf diesen Pfad.
+
+---
+
 ## Wenn etwas nicht stimmt
 
 | Situation | Was tun |
@@ -529,6 +567,7 @@ Ziele können ein Pfad (`documents/haus/zisterne.md`), ein Wikilink (`[[zisterne
 | Claude meldet `conflict` | Normal, wenn du die Datei gerade bearbeitet hast. Claude liest neu und baut die Änderung neu auf. |
 | Claude meldet `large_shortening` | Claude fragt, ob wirklich gekürzt werden soll. Nur bestätigen, wenn das gewollt ist. |
 | Pflegelauf bricht wegen Konfliktkopie ab | Fassungen in Obsidian zusammenführen, Kopie löschen, Lauf wiederholen. |
+| `pkm doctor` meldet `vault_online_only` | Vault-Ordner im Cloud-Dienst lokal halten (siehe [Stolpersteine](#cloud-speicher-stolpersteine)). |
 | Suche findet Neues nicht | `pkm reindex` |
 | Tools fehlen in Claude Desktop oder `git_unavailable` | `pkm doctor` und [Einrichtung, Abschnitt 11](docs/einrichtung.md#11-fehlersuche) |
 

@@ -212,7 +212,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
         if _is_within(self.cache_dir, self.root):
             problem = (
                 f"PKM_CACHE_DIR ({self.cache_dir}) liegt im Vault. Der Suchindex darf nicht im "
-                "Nextcloud-Ordner liegen; bitte einen Ordner außerhalb wählen."
+                "Cloud-Ordner (Nextcloud, OneDrive, Google Drive …) liegen; bitte einen Ordner außerhalb wählen."
             )
         return problem
 
@@ -250,7 +250,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
         if _is_within(self.git_dir, self.root):
             problem = (
                 f"PKM_GIT_DIR ({self.git_dir}) liegt im Vault. Das Git-Verzeichnis muss außerhalb "
-                "des Nextcloud-Ordners liegen (5.5)."
+                "des Cloud-Ordners liegen (5.5)."
             )
         return problem
 

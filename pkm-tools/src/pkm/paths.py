@@ -42,7 +42,6 @@ WINDOWS_RESERVED = {
 }
 INVALID_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 UMLAUTS = {"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue", "ß": "ss", "ẞ": "SS"}
-CONFLICT_RE = re.compile(r"conflicted copy|konflikt", re.IGNORECASE)
 
 # Classes *********************************************************************
 
@@ -154,18 +153,6 @@ def is_platform_safe_name(name: str) -> bool:
         and not name.endswith((".", " "))
         and name.split(".", maxsplit=1)[0].lower() not in WINDOWS_RESERVED
     )
-
-
-def is_conflict_copy(name: str) -> bool:
-    """Nextcloud-Konfliktkopie am Dateinamen erkennen.
-
-    Args:
-        name: Dateiname.
-
-    Returns:
-        ``True``, wenn der Name „conflicted copy“ oder „Konflikt“ enthält.
-    """
-    return bool(CONFLICT_RE.search(name))
 
 
 def case_collisions(paths: Iterable[str]) -> list[list[str]]:

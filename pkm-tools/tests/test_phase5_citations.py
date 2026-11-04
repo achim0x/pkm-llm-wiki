@@ -400,10 +400,10 @@ def test_doctor_problems(svc, cfg, isolated_env):
 
 @pytest.mark.usefixtures("cfg")
 def test_doctor_cache_in_nextcloud(isolated_env, monkeypatch):
-    """doctor erkennt PKM_CACHE_DIR in einem Nextcloud-Ordner."""
+    """doctor erkennt PKM_CACHE_DIR in einem Cloud-Ordner (hier Nextcloud)."""
     monkeypatch.setenv("PKM_CACHE_DIR", str(isolated_env["root"].parent / "cache"))
     res = doctor(Service(Config.from_env()))
-    assert any(c["check"] == "cache_dir_nextcloud" and not c["ok"] for c in res["checks"])
+    assert any(c["check"] == "cache_dir_cloud" and not c["ok"] for c in res["checks"])
 
 
 def test_doctor_obsidian(svc, cfg):

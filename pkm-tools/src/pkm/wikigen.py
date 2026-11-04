@@ -278,7 +278,7 @@ def _problem_lines(pend: dict[str, Any]) -> list[str]:
     lines = []
     for p in pend["problems"]:
         if p["problem"] == "conflict_copy":
-            lines.append(f"- Nextcloud-Konfliktkopie: {p['path']} (bitte in Obsidian zusammenführen)")
+            lines.append(f"- Konfliktkopie des Cloud-Speichers: {p['path']} (bitte in Obsidian zusammenführen)")
         elif p["problem"] == "duplicate_id":
             lines.append(f"- Doppelte ID {p['id']}: {', '.join(p['paths'])}")
         elif p["problem"] == "case_collision":

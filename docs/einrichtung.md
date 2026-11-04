@@ -383,7 +383,12 @@ auf die anderen Rechner übertragen. Kein Obsidian-Git-Plugin verwenden.
 
 `pkm doctor` prüft die Einstellungen aus `.obsidian/app.json`.
 
-## 9. Nextcloud
+## 9. Nextcloud bzw. anderer Cloud-Speicher
+
+Statt Nextcloud funktioniert jeder Dienst, der einen lokalen Ordner synchronisiert (OneDrive, Google
+Drive, Dropbox, iCloud Drive, Syncthing …). Was je Dienst zu beachten ist (vor allem: Vault-Ordner
+immer lokal halten), steht in der README unter „Cloud-Speicher: Stolpersteine“.
+
 
 Keine Ausnahmen nötig, weil Git und Suchindex außerhalb liegen. Optional
 `.obsidian/workspace*.json` in Nextcloud ignorieren (geräteabhängige Dateien).

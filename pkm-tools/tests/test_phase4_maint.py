@@ -372,7 +372,7 @@ def test_status(svc, m, cfg, created):
     build_status(svc)
     text = (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
     assert f"## Noch nicht verarbeitet (2)\n- [[{created['path'][:-3]}]] – neu (v1)" in text
-    assert "Konfliktkopie: documents/n (conflicted copy).md" in text
+    assert "Konfliktkopie des Cloud-Speichers: documents/n (conflicted copy).md" in text
     m.mark([created["id"], "d-20261031-2340-abcd"])
     build_status(svc, ["Wohin mit dem Sensor-Dokument?"])
     text = (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")

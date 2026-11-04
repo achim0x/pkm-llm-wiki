@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any
 
 from . import docimages, hashes, imagefix
 from .assets import AssetMap, asset_changes, known_assets
+from .cloudsync import is_conflict_copy, sibling_conflicts
 from .errors import PkmError
 from .frontmatter import fix_frontmatter_text, set_fields_linewise
 from .fsutil import write_bytes_atomic
@@ -38,7 +39,7 @@ from .gitlayer import build_message
 from .ids import is_valid_id, new_id
 from .normalize import encode
 from .parse import normalize_key_input
-from .paths import case_collisions, is_conflict_copy
+from .paths import case_collisions
 from .state import FORMAT, classify, load_state, state_key
 from .vault import Doc, is_markdown, load_text_doc
 
@@ -68,6 +69,7 @@ class Maintenance:
         self.vault = svc.vault
         self.git = svc.git
         self.writer = svc.writer
+        self.conflicts: set[str] = set()
 
     # Bestand ******************************************************************
 
@@ -93,6 +95,10 @@ class Maintenance:
             if doc.error:
                 problems.append({"problem": doc.error, "path": rel, "message": doc.error_message})
             docs.append(doc)
+        siblings = sibling_conflicts({d.rel: d.id for d in docs if d.kind == "md"})
+        self.conflicts = {p["path"] for p in problems if p["problem"] == "conflict_copy"} | siblings
+        problems.extend({"problem": "conflict_copy", "path": rel} for rel in sorted(siblings))
+        docs = [d for d in docs if d.rel not in siblings]
         problems.extend({"problem": "case_collision", "paths": group} for group in case_collisions(rels))
         return docs, problems
 
@@ -275,7 +281,7 @@ class Maintenance:
             ``conflict_copy``, ``invalid_*``, ``missing_id``, ``duplicate_id`` oder ``None``.
         """
         reason = None
-        if is_conflict_copy(PurePosixPath(rel).name):
+        if is_conflict_copy(PurePosixPath(rel).name) or rel in self.conflicts:
             reason = "conflict_copy"
         elif doc.error:
             reason = doc.error

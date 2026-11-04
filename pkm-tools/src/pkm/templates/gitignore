@@ -7,3 +7,14 @@ pkm_img_import/
 .owncloudsync.log
 *.part
 .DS_Store
+# Hilfsdateien anderer Cloud-Speicher und Programme
+.dropbox
+.dropbox.attr
+.stfolder
+.stversions/
+.tmp.drivedownload/
+.tmp.driveupload/
+*.icloud
+desktop.ini
+~$*
+.~lock.*
