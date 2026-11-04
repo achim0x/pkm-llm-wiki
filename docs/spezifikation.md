@@ -1,13 +1,17 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.25 (Entwurf zum Review) · **Stand:** 04.11.2026
+**Version:** 0.26 (Entwurf zum Review) · **Stand:** 04.11.2026
+
+> **Änderungen in 0.26**
+> - **Git ist optional.** Ohne Git läuft das PKM ohne Versionsverwaltung: Dokumente bekommen weiter IDs und Versionsnummern, geschrieben wird ohne Commit, Änderungen von Hand erkennt der Pflegelauf über die Hashes in `state.json`. Verlauf, Diff, alte Versionen und Wiederherstellen gibt es dann nicht (`not_versioned`). Nachrüsten: Git installieren und `pkm setup` erneut ausführen (5.4, 7.1–7.3, 8, 12, 16).
+> - **Einfachere Installation umgesetzt** (15.1): Installer `install.sh`/`install.ps1`, Assistent `pkm setup`, Konfigurationsdatei `config.toml`, Obsidian-Einstellungen durch `pkm init`, Skill-ZIPs im Paket und an jeder Release. Abweichend vom Plan installiert der Installer Git nicht, sondern weist nur darauf hin, und lädt das Paket als ZIP-Archiv (funktioniert ohne Git) (7.1, 7.6, 8, 13, 15.1).
 
 > **Änderungen in 0.25**
 > - **Cloud-Speicher allgemein statt Nextcloud:** Der Vault kann in jedem Ordner liegen, den ein Cloud-Dienst als normalen lokalen Ordner synchronisiert (Nextcloud/ownCloud, OneDrive, Google Drive, Dropbox, iCloud Drive, Box, pCloud, Syncthing …). Alle Stellen, die bisher Nextcloud nannten, gelten für den Cloud-Ordner allgemein (2, 3, 5.3, 5.5, 7.1, 7.6, 8, 10, 12, 13, 16).
 > - **Konfliktkopien aller bekannten Dienste** werden erkannt: am Dateinamen (z. B. „conflicted copy“, „[Conflict]“, „.sync-conflict-…“, „Konflikt-Kopie“) und als Kopie neben dem Original mit derselben Dokument-ID (OneDrive „-RECHNERNAME“, iCloud „ 2“, „ (1)“, „Kopie von …“). Ohne gleiche ID ist eine solche Datei ein eigenes Dokument (5.3, 5.5).
 > - **Dateien „nur online“:** Der Vault muss vollständig lokal vorliegen. `pkm doctor` meldet Platzhalter-Dateien (`vault_online_only`) und erkennt Cloud-Ordner aller bekannten Dienste für Git-Verzeichnis und Suchindex (5.5, 8).
 > - Einstellungen je Dienst in 5.5; `.gitignore` enthält Hilfsdateien der verbreiteten Dienste (12).
-> - **Geplant, noch nicht umgesetzt:** einfachere Installation mit `pkm setup`, eigener Konfigurationsdatei, Obsidian-Einstellungen durch `pkm init`, Installation ohne Klonen und Installationsskripten (15.1, Schritt 8).
+> - Geplant: einfachere Installation (15.1, Schritt 8; umgesetzt in 0.26).
 
 > **Änderungen in 0.24**
 > - **Prüfung von Data-URIs bei der Übernahme** (neuer Teil in 4.9): Jede Bild-Data-URI, die über ein Werkzeug, von Hand oder aus einer Wiki-Seite ins PKM kommt, wird auf Schreibweise, Kodierung, Bildnamen, Alternativtext, Größe und Sicherheit geprüft. Abweichungen werden mit Befundcodes und einem Korrekturvorschlag gemeldet. **Korrigiert wird nur nach Rückfrage**, nie automatisch und nie in unbeaufsichtigten Läufen. Anlass: SVG im Referenzstil mit nicht kodierten Zeichen (`[ref]: <data:image/svg+xml;utf8,<svg …>>`) zeigte Obsidian nicht an (4.9).
@@ -722,7 +726,15 @@ PKM-Source: chat
 
 Mehrere Änderungen von Hand zwischen zwei Commits werden also zu **einer** Version zusammengefasst. Das ist gewollt, weil Obsidian Zwischenstände beim Tippen speichert.
 
-**Voraussetzung:** Ein Git-Repo mit getrenntem Git-Verzeichnis (5.5) und gesetztem `user.name`/`user.email`. Fehlt Git, verweigert der Server alle schreibenden Tools mit einer klaren Fehlermeldung. Die lesenden Tools funktionieren weiter.
+**Voraussetzung:** Ein Git-Repo mit getrenntem Git-Verzeichnis (5.5) und gesetztem `user.name`/`user.email`. Ist die Versionsverwaltung eingeschaltet und fehlt Git, verweigert der Server alle schreibenden Tools mit einer klaren Fehlermeldung (`git_unavailable`). Die lesenden Tools funktionieren weiter.
+
+**Ohne Versionsverwaltung (Git optional):** `pkm setup` prüft, ob Git installiert ist. Fehlt es, gibt der Assistent einen Hinweis aus und schaltet die Versionsverwaltung ab (`PKM_VERSIONING = false` in `config.toml`, 7.1). Das PKM läuft dann so:
+- Schreibende Tools schreiben atomar wie sonst, aber ohne Commit (`commit: null`). `version` steigt bei jeder Änderung über die Tools weiter um 1, `id` und `version: 1` vergeben Server und `pkm ids` wie sonst.
+- Änderungen von Hand bekommen keine eigene Version; `pkm versions` und `pkm commit-wiki` tun nichts. `pending` erkennt Änderungen wie immer über die Hashes in `state.json` (4.8).
+- `history`, `read` mit `version`, `pkm show` und `restore_document` liefern `not_versioned` mit einem Hinweis, wie die Versionsverwaltung einzuschalten ist.
+- Belege: Den Wortlaut einer älteren Version gibt es nicht. Nennt ein Beleg die aktuelle Version oder ist der belegte Abschnitt unverändert (`sha:`), prüft Lint gegen den aktuellen Text; sonst gilt der Status `newer_version` ohne Inhaltsprüfung. `cited_version_missing` entfällt.
+- Die Schreibsperre liegt in `PKM_CACHE_DIR`. `pkm doctor` meldet die abgeschaltete Versionsverwaltung als Hinweis, nicht als Fehler.
+- **Nachrüsten:** Git installieren und `pkm setup` erneut ausführen. Der Assistent schaltet die Versionsverwaltung ein, legt das Repo an und committet den aktuellen Stand als Ausgangspunkt; ein Verlauf für die Zeit davor entsteht nicht.
 
 ### 5.5 Cloud-Speicher, Mac und Windows
 
@@ -840,9 +852,11 @@ Diese Form ist nie Standard. Der Skill schlägt sie auch nicht von sich aus vor.
 
 - Python ≥ 3.11, offizielles `mcp`-SDK (FastMCP), Transport stdio
 - Abhängigkeiten: `mcp`, `pyyaml`. Sonst Standardbibliothek (`sqlite3` mit FTS5, `subprocess` für `git`)
-- Plattform: **macOS oder Windows**, je nach PKM-Rechner (5.5). Voraussetzung ist `git` (macOS: Xcode Command Line Tools, Homebrew oder git-scm.com; Windows: git-scm.com). Die Standardpfade richten sich nach dem Betriebssystem; alle Pfade sind per Umgebungsvariable überschreibbar, damit die automatischen Tests auch unter Linux laufen
-- Konfiguration über Umgebungsvariablen:
+- Plattform: **macOS oder Windows**, je nach PKM-Rechner (5.5). `git` ist optional (5.4; macOS: Xcode Command Line Tools, Homebrew oder git-scm.com; Windows: git-scm.com). Die Standardpfade richten sich nach dem Betriebssystem; alle Pfade sind per Umgebungsvariable überschreibbar, damit die automatischen Tests auch unter Linux laufen
+- Konfiguration über die Datei `config.toml` im Standardordner (macOS `~/Library/Application Support/pkm/`, Windows `%APPDATA%\pkm\`, andere Datei über `PKM_CONFIG`), geschrieben von `pkm setup`, mit flachen Schlüsseln wie die Umgebungsvariablen unten. Gesetzte Umgebungsvariablen haben Vorrang vor der Datei. Werte:
   - `PKM_ROOT` (Pflicht): absoluter Pfad zum Vault im Cloud-Ordner
+  - `PKM_VERSIONING` (Standard `true`): Versionsverwaltung mit Git; `pkm setup` setzt `false`, wenn Git fehlt (5.4)
+  - `PKM_GIT` (optional): Pfad des Git-Programms. Ohne Angabe wird Git im `PATH` und an den üblichen Orten gesucht (`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, `C:\Program Files\Git\cmd`); es zählt nur ein Git, das läuft (der Platzhalter `/usr/bin/git` auf macOS ohne Developer Tools zählt nicht)
   - `PKM_GIT_DIR` (Standard macOS `~/Library/Application Support/pkm/git`, Windows `%APPDATA%\pkm\git`): Git-Verzeichnis außerhalb des Cloud-Ordners
   - `PKM_CACHE_DIR` (Standard macOS `~/Library/Application Support/pkm`, Windows `%APPDATA%\pkm`): Suchindex. Muss außerhalb von `PKM_ROOT` und jedes Cloud-Ordners liegen. Liegt es nach `resolve()` innerhalb von `PKM_ROOT`, legt der Server keinen Index an und meldet einen Fehler. `search` ist dann nicht verfügbar, die übrigen lesenden Tools funktionieren weiter
   - `PKM_TZ` (Standard `Europe/Berlin`)
@@ -1088,59 +1102,18 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 
 ### 7.6 Einbindung in Claude Desktop
 
-```json
-{
-  "mcpServers": {
-    "pkm": {
-      "command": "<HOME>/.local/bin/uvx",
-      "args": ["--from", "<PFAD_ZUM_PAKET>/pkm-tools", "pkm-mcp"],
-      "env": {
-        "PKM_ROOT": "<HOME>/<CLOUD-ORDNER>/<VAULT>",
-        "PKM_GIT_DIR": "<HOME>/Library/Application Support/pkm/git",
-        "PKM_VAULT_NAME": "<VAULT>",
-        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-      }
-    },
-    "pkm-pflege": {
-      "command": "<HOME>/.local/bin/uvx",
-      "args": ["--from", "<PFAD_ZUM_PAKET>/pkm-tools", "pkm-pflege-mcp"],
-      "env": {
-        "PKM_ROOT": "<HOME>/<CLOUD-ORDNER>/<VAULT>",
-        "PKM_GIT_DIR": "<HOME>/Library/Application Support/pkm/git",
-        "PKM_VAULT_NAME": "<VAULT>",
-        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-      }
-    }
-  }
-}
-```
-
-Die Datei liegt unter macOS in `~/Library/Application Support/Claude/claude_desktop_config.json`, unter Windows in `%APPDATA%\Claude\claude_desktop_config.json`. Platzhalter in spitzen Klammern sind durch absolute Pfade zu ersetzen (`<HOME>` = Home-Verzeichnis bzw. Benutzerordner, `<CLOUD-ORDNER>` = vom Cloud-Dienst synchronisierter Ordner, z. B. `Nextcloud`, `Dropbox` oder `Library/CloudStorage/OneDrive-Persönlich`, `<VAULT>` = Ordner- bzw. Vault-Name). JSON kennt weder `~` noch Umgebungsvariablen. `uvx` steht mit absolutem Pfad und `git` muss über `PATH` erreichbar sein, weil Claude Desktop MCP-Server mit minimaler Umgebung startet. Die Server sind erreichbar, solange die Desktop-App auf dem PKM-Rechner läuft, auch aus Cowork. Im `PATH` genügt unter macOS der Ordner, in dem `git` liegt, plus `/usr/bin:/bin`.
-
-**Windows:** In JSON wird jeder Backslash verdoppelt. Die Programme heißen `pkm-mcp.exe` bzw. `pkm-pflege-mcp.exe` (nach `uv tool install` in `<HOME>\.local\bin`) bzw. `uvx.exe`. `PKM_GIT_DIR` entfällt, wenn der Standard `%APPDATA%\pkm\git` gilt. `PATH` ist normalerweise nicht nötig, weil der Git-Installer Git in den System-`PATH` einträgt; sonst `C:\\Program Files\\Git\\cmd;C:\\Windows\\System32` (Trennzeichen `;`).
+`pkm setup` trägt beide Server in `claude_desktop_config.json` ein (macOS `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\`). Andere Einträge bleiben unverändert, vorher entsteht eine Sicherungskopie, ein abweichender Eintrag `pkm` oder `pkm-pflege` wird erst nach Bestätigung ersetzt. Weil Vault-Pfad, Git und alle übrigen Werte in `config.toml` stehen, braucht ein Eintrag nur den absoluten Pfad des Programms:
 
 ```json
 {
   "mcpServers": {
-    "pkm": {
-      "command": "C:\\Users\\<NAME>\\.local\\bin\\pkm-mcp.exe",
-      "env": {
-        "PKM_ROOT": "C:\\Users\\<NAME>\\<CLOUD-ORDNER>\\<VAULT>",
-        "PKM_VAULT_NAME": "<VAULT>"
-      }
-    },
-    "pkm-pflege": {
-      "command": "C:\\Users\\<NAME>\\.local\\bin\\pkm-pflege-mcp.exe",
-      "env": {
-        "PKM_ROOT": "C:\\Users\\<NAME>\\<CLOUD-ORDNER>\\<VAULT>",
-        "PKM_VAULT_NAME": "<VAULT>"
-      }
-    }
+    "pkm": { "command": "<HOME>/.local/bin/pkm-mcp" },
+    "pkm-pflege": { "command": "<HOME>/.local/bin/pkm-pflege-mcp" }
   }
 }
 ```
 
-**`pkm-pflege` nur zur Pflege einschalten.** Claude Desktop gibt einen MCP-Server allen Unterhaltungen frei und kann ihn nicht auf ein Projekt beschränken. `pkm-pflege` wird deshalb in normalen Unterhaltungen ausgeschaltet und nur in Pflege-Unterhaltungen eingeschaltet. Die Regel „Wiki aus Chats nur lesbar“ ist damit für `pkm-pflege` organisatorisch abgesichert, nicht technisch. Zusätzlich schreibt der Server nur in den Grenzen aus 7.7, und jeder Pflegelauf ist ein eigener Agenten-Commit, der sich mit `git revert` zurücknehmen lässt.
+Unter Windows heißen die Programme `pkm-mcp.exe` und `pkm-pflege-mcp.exe` (in JSON jeden Backslash verdoppeln). JSON kennt weder `~` noch Umgebungsvariablen, deshalb absolute Pfade. Ein `env`-Block ist weiter möglich und hat Vorrang; `pkm setup` schreibt `PKM_CONFIG` nur hinein, wenn die Konfigurationsdatei nicht im Standardordner liegt. Die Server sind erreichbar, solange die Desktop-App auf dem PKM-Rechner läuft, auch aus Cowork.
 
 ### 7.7 MCP-Server `pkm-pflege-mcp`
 
@@ -1212,7 +1185,8 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 
 | Befehl | Funktion |
 |---|---|
-| `pkm init` | Legt Struktur, `CLAUDE.md`, `wiki/index.md`, `log.md`, `_status.md`, `state.json`, `.gitignore`, den Importordner `pkm_img_import/` und `.obsidian/types.json` (Property-Typen, 13) an, initialisiert das Git-Verzeichnis außerhalb des Vaults, falls nötig (idempotent) |
+| `pkm setup` | Geführte Einrichtung (15.1): Vault-Ordner, Git-Prüfung (ohne Git Hinweis und Betrieb ohne Versionsverwaltung, 5.4), Git-Identität für das PKM-Repo, `config.toml`, `pkm init`, Einträge in Claude Desktop (7.6), Skill-ZIPs, Projektanweisung, `pkm doctor`. Wiederholbar; Optionen `--vault`, `--vault-name`, `--git-name`, `--git-email`, `--yes`, `--claude-config`, `--no-claude`, `--skills-dir`, `--json` |
+| `pkm init` | Legt Struktur, `CLAUDE.md`, `wiki/index.md`, `log.md`, `_status.md`, `state.json`, `.gitignore`, den Importordner `pkm_img_import/`, `.obsidian/types.json` (Property-Typen, 13) und `.obsidian/app.json` (Einstellungen aus 13; fehlende Werte ergänzt, abweichende gemeldet) an und initialisiert mit Versionsverwaltung das Git-Verzeichnis außerhalb des Vaults, falls nötig (idempotent) |
 | `pkm ids` | Trägt fehlende `id`/`version` in Markdown-Dokumente ein und committet **je Dokument einzeln** (`doc: <title> v1`, `PKM-Source: agent`). Meldet doppelte IDs |
 | `pkm versions` | Committet alle von Hand geänderten Dokumente als neue Version (je Dokument eine, `PKM-Source: user`). Erkennt auch Verschiebungen (Markdown über die ID, PDF/Bild über den Hash) und committet sie mit: ein Commit enthält dann alten und neuen Pfad. Eine neue Version entsteht nur, wenn sich `body_hash` oder `meta_hash` geändert hat (4.8). Reines Verschieben ergibt den Commit `doc: <title> moved` ohne Versionssprung. Eine von Hand geänderte `CLAUDE.md` wird als eigener Commit `pkm: CLAUDE.md geändert` mit `PKM-Source: user` erfasst Ändert sich eine verlinkte Bilddatei, erhält jedes Dokument, das sie verwendet, eine neue Version im selben Commit wie das Bild (4.9). Zugehörige Bilddateien werden nicht als eigenständige Dokumente geführt. |
 | `pkm pending` | JSON-Liste der zu verarbeitenden Dokumente: `new`, `changed` (mit `processed_version` → `version` und geänderten Abschnitten), `moved` (alt → neu), `deleted` (mit betroffenen Wiki-Seiten) |
@@ -1370,7 +1344,7 @@ Korrigiert wird erst nach **ausdrücklicher Bestätigung**: `read` → `hash` �
 
 ## 12. Git
 
-Git ist Pflicht und übernimmt zwei Aufgaben: die **Versionsgeschichte jedes Dokuments** und die **Nachvollziehbarkeit der Agentenarbeit**.
+Git ist optional (seit 0.26, 5.4) und übernimmt, wenn vorhanden, zwei Aufgaben: die **Versionsgeschichte jedes Dokuments** und die **Nachvollziehbarkeit der Agentenarbeit**. Ohne Git entfallen alle Commits dieses Abschnitts.
 
 **Commits nach Herkunft** (alle mit den Zeilen aus 5.4):
 
@@ -1380,7 +1354,7 @@ Git ist Pflicht und übernimmt zwei Aufgaben: die **Versionsgeschichte jedes Dok
 | `doc: <title> v<n>` (Quelle `user`) | pkm-mcp bzw. `pkm versions` | vor einer MCP-Änderung bzw. zu Beginn eines Pflegelaufs | genau ein von Hand geändertes Dokument |
 | `doc: <title> v1` (Quelle `agent`) | `pkm ids` (über `begin_maintenance`) | im Pflegelauf, falls nötig | genau ein Dokument, nur Frontmatter-Felder `id`/`version` |
 | `doc: <title> v<n>` (Quelle `agent`) | `set_document_metadata` | nach Bestätigung des Nutzers | genau ein Dokument, nur `title`, `context`, `tags`, `kind`, `short_citation` |
-| `pkm: CLAUDE.md geändert` (Quelle `user`) | `pkm versions` | zu Beginn eines Pflegelaufs | nur `CLAUDE.md` |
+| `pkm: CLAUDE.md changed` (Quelle `user`) | `pkm versions` | zu Beginn eines Pflegelaufs | nur `CLAUDE.md` |
 | `pkm: ingest <n> documents` / `pkm: lint` / `pkm: fix` | Pflege-Agent über `finish_maintenance` (intern `commit-wiki`) | am Ende eines Laufs | nur `wiki/` und `.pkm/state.json` |
 
 So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. Ein `git revert` auf einen Agenten-Commit trifft nur das Wiki.
@@ -1393,6 +1367,8 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 ---
 
 ## 13. Obsidian-Einstellungen
+
+`pkm init` trägt die folgenden Einstellungen in `.obsidian/app.json` ein, soweit sie fehlen; abweichende Werte bleiben und werden gemeldet. Obsidian liest die Datei nach einem Neustart.
 
 - **Dateien & Links:**
   - „Interne Links automatisch aktualisieren“: **an** (Grundlage von 5.1)
@@ -1464,24 +1440,23 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 6 | Skills `pkm-access` und `pkm-wiki`, Projekt | Erster echter Ingest-Lauf |
 | 6a | MCP-Server `pkm-pflege-mcp` (7.7), Skill `pkm-wiki` darauf umgestellt | Pflege aus Claude Desktop bzw. Cowork ohne Shell |
 | 7 | Später: geplante Aufgabe | Automatische Verarbeitung, erst auf Anweisung des Nutzers |
-| 8 | Später: einfachere Installation (15.1) | Einrichtung mit einem Skript und `pkm setup` statt rund zehn Handschritten |
+| 8 | Einfachere Installation (15.1, umgesetzt in 0.26) | Einrichtung mit einem Skript und `pkm setup` statt rund zehn Handschritten |
 
-### 15.1 Geplant: einfachere Installation (noch nicht umgesetzt)
+### 15.1 Einfachere Installation (umgesetzt in 0.26)
 
-Heute braucht die Einrichtung rund zehn Handschritte (Git und uv installieren, Repository klonen, `uv tool install`, Git-Identität, `PKM_ROOT`, `pkm init`, JSON-Konfiguration von Claude Desktop von Hand, Skills packen, Obsidian einstellen, Projekt anlegen). Vorgesehen sind fünf Vereinfachungen, umgesetzt in der Reihenfolge 1–3 zusammen, dann 4 und 5. Ergebnis: Skript ausführen, `pkm setup` beantworten, zwei ZIP-Dateien hochladen, Projekt anlegen, Claude Desktop neu starten.
+Vorher brauchte die Einrichtung rund zehn Handschritte. Jetzt: Installer ausführen, `pkm setup` beantworten, zwei ZIP-Dateien hochladen, Projekt anlegen, Claude Desktop und Obsidian neu starten.
 
-1. **Assistent `pkm setup`** (interaktiv, idempotent, auf Mac und Windows):
-   - fragt den Vault-Ordner ab und erkennt den Cloud-Dienst (5.5); warnt bei Dateien „nur online“;
-   - prüft Git; fehlt die Identität, fragt er Name und E-Mail ab und setzt sie;
-   - führt `pkm init` aus und schaltet `commit.gpgsign` für das PKM-Repo ab;
-   - schreibt bzw. ergänzt die Konfiguration von Claude Desktop (7.6) mit den Einträgen `pkm` und `pkm-pflege`: absolute Pfade, bestehende Server bleiben unverändert, vorher eine Sicherungskopie der Datei, Abweichungen werden angezeigt und erst nach Bestätigung überschrieben;
-   - baut die ZIP-Dateien der Skills `pkm-access` und `pkm-wiki` und nennt, wo sie hochzuladen sind (das Hochladen selbst bleibt Handarbeit);
-   - gibt die Projektanweisung für „PKM-Pflege“ zum Kopieren aus (11);
-   - endet mit `pkm doctor`.
-2. **Eigene Konfigurationsdatei statt Umgebungsvariablen:** `pkm setup` schreibt `config.toml` nach `~/Library/Application Support/pkm/` (Mac) bzw. `%APPDATA%\pkm\` (Windows) mit `PKM_ROOT`, `PKM_VAULT_NAME` und ggf. weiteren Werten aus 7.1. Server und CLI lesen sie; gesetzte Umgebungsvariablen haben Vorrang. Der Eintrag in Claude Desktop braucht dann nur noch `command`, kein `env`. Der Server sucht Git zusätzlich an den üblichen Orten (`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, `C:\Program Files\Git\cmd`), sodass auch `PATH` entfällt. `pkm doctor` zeigt, woher jeder Wert stammt.
-3. **Obsidian-Einstellungen durch `pkm init`:** Die Werte aus 13 (Links automatisch aktualisieren, absolutes Link-Format, Wikilinks, Anhang-Ordner `documents/_attachments`, ausgeschlossener Ordner `.pkm/`) trägt `pkm init` in `.obsidian/app.json` ein, wie heute schon die Property-Typen in `types.json`. Fehlende Werte werden ergänzt, abweichende bleiben und werden gemeldet. Obsidian liest die Datei nach einem Neustart.
-4. **Installation ohne Klonen:** direkt aus GitHub mit `uv tool install "git+https://github.com/achim0x/pkm-llm-wiki#subdirectory=pkm-tools"`, Aktualisieren mit `uv tool upgrade pkm-tools`. Die Skill-ZIPs liegen zusätzlich fertig als Anhang jeder GitHub-Release. Später optional Veröffentlichung auf PyPI.
-5. **Installationsskripte** `install.sh` (Mac) und `install.ps1` (Windows), als Einzeiler aufrufbar: installiert uv, bei Bedarf Git (Mac `xcode-select --install`, Windows `winget install Git.Git`), dann das Paket (4), und startet `pkm setup`. Das Skript ändert nichts ohne Rückfrage außer der Installation von uv und dem Paket.
+1. **Assistent `pkm setup`** (interaktiv, idempotent, auf Mac und Windows, Optionen in 8):
+   - fragt den Vault-Ordner ab (legt ihn nach Bestätigung an) und erkennt den Cloud-Dienst (5.5); warnt bei Dateien „nur online“;
+   - prüft Git. **Fehlt Git, gibt er einen Hinweis aus und schaltet die Versionsverwaltung ab** (5.4). Ist Git da und fehlt die Identität, fragt er Name und E-Mail ab und setzt sie nur für das PKM-Repo; die Commit-Signierung schaltet er für das PKM-Repo ab;
+   - schreibt `config.toml` (7.1; andere Schlüssel in der Datei bleiben) und führt `pkm init` aus;
+   - schreibt bzw. ergänzt die Konfiguration von Claude Desktop (7.6): Sicherungskopie, bestehende Server bleiben, Abweichungen werden angezeigt und erst nach Bestätigung überschrieben;
+   - baut die ZIP-Dateien der Skills `pkm-access` und `pkm-wiki` nach `<Standardordner>/skills/` (das Hochladen bleibt Handarbeit);
+   - gibt die Projektanweisung für „PKM-Pflege“ aus (11) und endet mit `pkm doctor`.
+2. **Konfigurationsdatei statt Umgebungsvariablen** (7.1): Der Eintrag in Claude Desktop braucht nur `command`, kein `env`; Git wird über `PKM_GIT` bzw. an den üblichen Orten gefunden, sodass auch `PATH` entfällt. `pkm doctor` nennt, welches Git verwendet wird und ob die Versionsverwaltung an ist.
+3. **Obsidian-Einstellungen durch `pkm init`** (13): in `.obsidian/app.json`, wie die Property-Typen in `types.json`.
+4. **Installation ohne Klonen:** Die Skills liegen im Paket (`pkm/skills/`). Der Installer lädt das ZIP-Archiv des Repositorys von GitHub und installiert daraus; das funktioniert ohne Git (`uv tool install git+…` bräuchte Git). Mit Git geht alternativ `uv tool install "git+https://github.com/achim0x/pkm-llm-wiki#subdirectory=pkm-tools"` (Aktualisieren mit `uv tool upgrade pkm-tools`). Jede GitHub-Release (Tag `v*`) enthält die Skill-ZIPs und das Paket als Wheel. PyPI bleibt optional für später.
+5. **Installationsskripte** `install.sh` (Mac, auch Linux) und `install.ps1` (Windows), als Einzeiler aufrufbar: installieren uv, falls es fehlt, prüfen Git und geben **nur einen Hinweis** aus, wenn es fehlt (Git wird nicht installiert), installieren das Paket (4) und starten `pkm setup`. Außer uv und dem Paket ändern sie nichts ohne Rückfrage. Aktualisieren: Installer erneut ausführen. Die CI führt beide Installer auf macOS, Linux und Windows aus.
 
 Nicht vorgesehen: eine reine Python-Git-Bibliothek statt Git (zu tiefer Eingriff in 5.4). Ein Erweiterungspaket (`.mcpb`) für Claude Desktop wird erst nach einer Prüfung der Unterstützung für Python-Server erwogen.
 
@@ -1542,7 +1517,8 @@ Nicht vorgesehen: eine reine Python-Git-Bibliothek statt Git (zu tiefer Eingriff
 | 37 | Importordner und JPEG | Importordner `pkm_img_import/` im Vault (nicht in Git, von der Pflege ausgenommen), Ordner außerhalb weiter möglich. JPEG wird übernommen, Metadaten entfernt, Ausrichtung erhalten | 3, 4.9, 7.1, 8, 10, 12 |
 | 38 | Data-URIs bei der Übernahme | Jede Bild-Data-URI wird geprüft (Werkzeuge, Pflegelauf, Lint, Wiki-Seiten). Abweichungen werden mit Befund und Vorschlag gemeldet und **nur nach Rückfrage** korrigiert (`fix_images: true`, Tool `fix_images`, `pkm fix-images`), nie unbeaufsichtigt. Nur die Bildschreibweise ändert sich, abgeleitete Namen bleiben, Belege werden angehoben. Bestehende Base64-PNG: nur Schreibweise, Bytes gleich, kein Name | 3, 4.7, 4.9, 5.4, 7.2, 7.3, 7.7, 8, 9.1, 9.2, 9.7, 10, 14 |
 | 39 | Cloud-Speicher allgemein | Jeder Dienst, der einen normalen lokalen Ordner synchronisiert. Vault vollständig lokal (keine Platzhalter), Git-Verzeichnis und Suchindex außerhalb jedes Cloud-Ordners. Konfliktkopien aller bekannten Dienste werden am Namen oder als Kopie mit gleicher ID neben dem Original erkannt und nicht verarbeitet | 5.3, 5.5, 7.1, 8, 12 |
+| 40 | Git optional, einfachere Installation | Fehlt Git, läuft das PKM ohne Versionsverwaltung (IDs und Versionsnummern ja, Commits, Verlauf und Wiederherstellen nein); nachrüsten durch Git installieren und `pkm setup` erneut ausführen. Installation mit Installer und `pkm setup`, Konfiguration in `config.toml`, Obsidian-Einstellungen durch `pkm init`, Skills im Paket | 5.4, 7.1, 7.6, 8, 13, 15.1 |
 
 ### Noch offen
 
-Keine Entscheidung offen. Geplant, aber noch nicht umgesetzt: einfachere Installation (15.1).
+Keine.

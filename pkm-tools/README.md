@@ -42,19 +42,39 @@ status, lint, commit-wiki).
 `read` (both servers) supports `section`, `offset`/`max_chars` and `content: false`; above 40,000 characters
 without these parameters `content` is left out (`content_omitted`).
 
-**CLI:** `pkm init`, `ids`, `versions`, `pending`, `mark <id>… [--pages <page>…] [--remove]`,
+**CLI:** `pkm setup`, `init`, `ids`, `versions`, `pending`, `mark <id>… [--pages <page>…] [--remove]`,
 `sha <target> [--section <key>] [--full]`, `index`, `status [--question <text>]…`,
 `commit-wiki -m <text>`, `fix-frontmatter [<target>…] [--all]`, `fix-images [<target>…] [--all] [--apply]`,
 `history <target> [--diff <from> [<to>]]`, `show <target> --version <n> [--section <key>]`,
 `restore <target> --version <n>`, `reindex`, `fix-citations [<page>…]`, `sync-citations [<page>…]`,
 `lint [--report]`, `doctor [--short]`.
 
-**Skills:** `skills/pkm-access/SKILL.md` (normal chats), `skills/pkm-wiki/SKILL.md` (maintenance project).
+**Skills:** `src/pkm/skills/pkm-access/SKILL.md` (normal chats), `src/pkm/skills/pkm-wiki/SKILL.md`
+(maintenance project); part of the package, `pkm setup` packs them as ZIP files.
+
+**Installation (15.1):** `install.sh` / `install.ps1` in the repository root install uv and the package
+from the GitHub archive (works without Git) and start `pkm setup` (`setupwiz.py`): vault folder, Git
+check, `config.toml`, `pkm init`, entries in `claude_desktop_config.json` (backup, replacements only after
+confirmation), skill ZIPs, project instructions, `pkm doctor`. The workflow `release.yml` attaches the
+skill ZIPs and the wheel to every release tag `v*`.
 **Setup:** [docs/einrichtung.md](../docs/einrichtung.md). **Acceptance:** [docs/abnahme.md](../docs/abnahme.md)
 (simulation of steps 1–9 and 11: `tests/test_acceptance_simulation.py`; step 10 and all
 `scratch/` cases: `tests/test_scratch.py`).
 
 ## Deviations from and additions to the specification
+
+- **Version control is optional** (`PKM_VERSIONING`, set by `pkm setup` depending on whether Git is
+  installed). Without it writing tools write without commit (`commit: null`) but still count `version` up,
+  `history`, `read` with `version`, `show` and `restore_document` return `not_versioned`, `pkm versions`
+  and `commit-wiki` do nothing, manual changes are found by `pending` via the hashes, citations of an
+  older version are checked against the current text if the cited section is unchanged, and the write
+  lock lives in `PKM_CACHE_DIR`.
+- **Configuration file** `config.toml` in the app folder (or `PKM_CONFIG`) with the keys of the
+  environment variables; environment variables take precedence. `PKM_GIT` names the Git program;
+  otherwise it is searched in `PATH` and at the usual locations (only a Git that runs counts, so the
+  macOS stub `/usr/bin/git` without developer tools does not).
+- `pkm init` also writes the Obsidian settings of specification 13 to `.obsidian/app.json` (adds
+  missing values, reports differing ones).
 
 - **Language:** all output of the tools is English – messages, CLI help, MCP tool descriptions, commit
   notes, the generated files `wiki/index.md`, `wiki/_status.md`, `wiki/log.md` and lint reports, the

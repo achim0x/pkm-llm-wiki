@@ -89,7 +89,7 @@ Vorgesehen ist ein Ultraschallsensor am Deckel.[^b1]
 [^b1]: {b1}
 """
 
-SKILLS = Path(__file__).resolve().parents[1] / "skills"
+SKILLS = Path(__file__).resolve().parents[1] / "src" / "pkm" / "skills"
 
 SPEC_TOOLS = {"create_document", "rewrite_document", "append_to_document", "edit_document",
               "update_frontmatter", "restore_document", "search", "read", "history", "show_citations",

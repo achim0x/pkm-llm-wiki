@@ -2,9 +2,9 @@ name: pkm-tools
 
 on:
   push:
-    paths: ["pkm-tools/**", ".github/workflows/pkm-tools.yml"]
+    paths: ["pkm-tools/**", "install.sh", "install.ps1", ".github/workflows/pkm-tools.yml"]
   pull_request:
-    paths: ["pkm-tools/**", ".github/workflows/pkm-tools.yml"]
+    paths: ["pkm-tools/**", "install.sh", "install.ps1", ".github/workflows/pkm-tools.yml"]
 
 jobs:
   test:
@@ -31,3 +31,30 @@ jobs:
       - run: '"$PY" -m ruff check .'
       - run: '"$PY" -m pylint --rcfile=.pylintrc src tests'
       - run: '"$PY" -m pytest -q'
+
+  installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Archive of this commit (stands in for the GitHub download)
+        shell: bash
+        run: git archive --format=zip --prefix=pkm-llm-wiki-main/ -o "$RUNNER_TEMP/pkm.zip" HEAD
+      - name: install.sh (macOS, Linux)
+        if: runner.os != 'Windows'
+        run: |
+          PKM_ARCHIVE="file://$RUNNER_TEMP/pkm.zip" sh install.sh --yes --no-claude --vault "$RUNNER_TEMP/vault" \
+            --git-name CI --git-email ci@example.org
+          "$HOME/.local/bin/pkm" doctor --short
+      - name: install.ps1 (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $env:PKM_ARCHIVE = "$env:RUNNER_TEMP\pkm.zip"
+          $env:PKM_SETUP_ARGS = "--yes --no-claude --vault $env:RUNNER_TEMP\vault --git-name CI --git-email ci@example.org"
+          .\install.ps1
+          & "$env:USERPROFILE\.local\bin\pkm.exe" doctor --short
+          if ($LASTEXITCODE -ne 0) { exit 1 }

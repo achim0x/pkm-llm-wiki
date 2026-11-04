@@ -33,6 +33,7 @@ from .cloudsync import cloud_service, conflict_copies, online_only_files
 from .config import IMPORT_FOLDER
 from .errors import PkmError
 from .vaultinit import (
+    OBSIDIAN_EXPECTED,
     PROPERTY_TYPES,
     TYPES_FILE,
     folder_ignored,
@@ -45,13 +46,6 @@ if TYPE_CHECKING:
     from .service import Service
 
 # Variables *******************************************************************
-
-OBSIDIAN_EXPECTED = {
-    "alwaysUpdateLinks": (True, "Automatically update internal links: on"),
-    "newLinkFormat": ("absolute", "New link format: absolute path in vault"),
-    "useMarkdownLinks": (False, "Use [[Wikilinks]]: on"),
-    "attachmentFolderPath": ("documents/_attachments", "Attachment folder: documents/_attachments"),
-}
 
 # Classes *********************************************************************
 
@@ -81,6 +75,26 @@ def _git_checks(svc: Service) -> list[dict[str, Any]]:
         svc: Service.
 
     Returns:
+        Check results; without version control only a note and the check for ``.git`` in the vault.
+    """
+    cfg = svc.cfg
+    checks = [_check("no_dotgit_in_vault", not (cfg.root / ".git").exists(), "No .git in the vault.",
+                     "The vault contains a .git (5.5).")]
+    if svc.versioning:
+        checks += _git_ready_checks(svc)
+    else:
+        checks.append(_check("versioning", True, "Version control is off (Git not installed). To turn it on, "
+                             "install Git (https://git-scm.com/install/) and run `pkm setup` again.", ""))
+    return checks
+
+
+def _git_ready_checks(svc: Service) -> list[dict[str, Any]]:
+    """Checks around git when version control is on.
+
+    Args:
+        svc: Service.
+
+    Returns:
         Check results.
     """
     cfg, git = svc.cfg, svc.git
@@ -88,15 +102,14 @@ def _git_checks(svc: Service) -> list[dict[str, Any]]:
     git_cloud = cloud_service(cfg.git_dir)
     repo = git.installed() and git.is_repo()
     checks = [
-        _check("git_installed", git.installed(), "git found.", "git not in PATH."),
+        _check("git_installed", git.installed(), f"git found ({git.exe}).",
+               "git not found: install Git or run `pkm setup` again to turn version control off."),
         _check("git_dir_outside", git_dir_problem is None, "Git directory is outside the vault.",
                git_dir_problem or ""),
         _check("git_dir_cloud", git_cloud is None, "Git directory is not in a cloud folder.",
                f"Git directory {cfg.git_dir} seems to be in a cloud folder ({git_cloud}); "
                "git files must not be synchronized."),
         _check("git_repo", repo, "Git repo reachable.", f"No Git repo at {cfg.git_dir} (pkm init)."),
-        _check("no_dotgit_in_vault", not (cfg.root / ".git").exists(), "No .git in the vault.",
-               "The vault contains a .git (5.5)."),
     ]
     if repo:
         name, email = git.config_get("user.name"), git.config_get("user.email")

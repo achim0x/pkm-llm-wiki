@@ -9,7 +9,7 @@ Ein persönliches Wissensmanagement (PKM) aus reinem Markdown, das Claude für d
   Abschnitt, wörtliches Zitat, Version.
 - Aus **jedem Chat** kannst du das Wiki abfragen, dir die Quellen nennen lassen und Dokumente
   fortschreiben. Jede Änderung wird eine **neue Version mit Git-Commit** und ist jederzeit
-  umkehrbar.
+  umkehrbar. Git ist optional: ohne Git läuft das PKM ohne Versionsverwaltung.
 - Für Kurzlebiges wie **Notizen und Todo-Listen** gibt es den Bereich `scratch/`: aus Chats
   beschreibbar, aber ohne Versionen und nie im Wiki.
 
@@ -17,8 +17,14 @@ Alles bleibt lesbares Markdown in einem normalen Ordner, der über einen **Cloud
 deine Rechner synchronisiert wird (Nextcloud, OneDrive, Google Drive, Dropbox, iCloud Drive …).
 Obsidian ist das Frontend, aber keine Voraussetzung.
 
-> **Installation:** siehe [docs/einrichtung.md](docs/einrichtung.md). Diese README beschreibt,
-> was das System kann und wie du es danach benutzt.
+> **Installation:** ein Befehl, danach führt `pkm setup` durch die Einrichtung.
+>
+> Mac: `curl -LsSf https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.sh | sh`
+>
+> Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.ps1 | iex"`
+>
+> Einzelheiten in [docs/einrichtung.md](docs/einrichtung.md). Diese README beschreibt, was das System
+> kann und wie du es danach benutzt.
 
 ---
 
@@ -64,7 +70,12 @@ Obsidian ist das Frontend, aber keine Voraussetzung.
   - Würde eine Neufassung viel Text oder ganze Abschnitte verlieren, fragt Claude ausdrücklich
     nach (`large_shortening`).
 
-### Vollständiger Verlauf in Git
+### Vollständiger Verlauf in Git (optional)
+
+Ist Git installiert, schaltet `pkm setup` die Versionsverwaltung ein. Ohne Git läuft das PKM ohne
+sie: IDs, Versionsnummern, Pflegelauf und Belege funktionieren weiter, nur Verlauf, Diff und
+Wiederherstellen fehlen. Nachrüsten: Git installieren und `pkm setup` erneut ausführen.
+
 - Jede Änderung, ob aus dem Chat, von dir in Obsidian oder vom Agenten, ergibt **eine Version und
   einen Commit**. Der Commit enthält nur die betroffene Datei und eine Änderungsnotiz.
 - „Was hat sich geändert?“ zeigt Verlauf und Diff. „Wie war das vorher?“ zeigt eine alte Version.
@@ -505,12 +516,13 @@ Status, den Claude bei „Woher stammt das?“ nennt:
 
 Der Pflege-Agent braucht die CLI nicht; er nutzt `pkm-pflege-mcp`, das dieselben Befehle bündelt.
 Für dich sind `init`, `doctor`, `lint`, `history`, `show`, `fix-frontmatter` und `fix-images` nützlich.
-Ausgabe ist immer JSON. Im Vault-Ordner findet die CLI den Vault selbst, sonst
-`PKM_ROOT` setzen.
+Ausgabe ist JSON (außer bei `pkm setup`). Den Vault kennt die CLI aus der Konfigurationsdatei von
+`pkm setup`; sonst findet sie ihn im Vault-Ordner selbst.
 
 | Befehl | Zweck |
 |---|---|
-| `pkm init` | Struktur und Git-Verzeichnis anlegen (idempotent) |
+| `pkm setup` | geführte Einrichtung: Vault, Git-Prüfung, Claude Desktop, Skills (wiederholbar) |
+| `pkm init` | Struktur, Obsidian-Einstellungen und (mit Git) Git-Verzeichnis anlegen (idempotent) |
 | `pkm doctor [--short]` | Umgebung prüfen |
 | `pkm lint [--report]` | Prüfbericht (mit `--report` nach `wiki/_lint/`) |
 | `pkm versions` | Änderungen von Hand als Versionen committen |
@@ -569,7 +581,7 @@ träger als bei einem normalen Ordner. `PKM_ROOT` zeigt dann auf diesen Pfad.
 | Pflegelauf bricht wegen Konfliktkopie ab | Fassungen in Obsidian zusammenführen, Kopie löschen, Lauf wiederholen. |
 | `pkm doctor` meldet `vault_online_only` | Vault-Ordner im Cloud-Dienst lokal halten (siehe [Stolpersteine](#cloud-speicher-stolpersteine)). |
 | Suche findet Neues nicht | `pkm reindex` |
-| Tools fehlen in Claude Desktop oder `git_unavailable` | `pkm doctor` und [Einrichtung, Abschnitt 11](docs/einrichtung.md#11-fehlersuche) |
+| Tools fehlen in Claude Desktop oder `git_unavailable` | `pkm setup` erneut ausführen, `pkm doctor` und [Einrichtung, Fehlersuche](docs/einrichtung.md#10-fehlersuche) |
 
 Protokoll aller Chat-Zugriffe: `<Vault>/.pkm/mcp.log`.
 
@@ -586,8 +598,9 @@ pkm-llm-wiki/
 │   └── abnahme.md           ← Abnahmeprotokoll
 └── pkm-tools/               ← Python-Paket: pkm-mcp, pkm-pflege-mcp und pkm
     ├── src/pkm/
-    ├── skills/              ← pkm-access, pkm-wiki
+    │   └── skills/          ← pkm-access, pkm-wiki
     └── tests/
+install.sh, install.ps1      ← Installer (Mac/Linux, Windows)
 ```
 
 Entwicklung und Tests: siehe [pkm-tools/README.md](pkm-tools/README.md). Die Tests laufen auf

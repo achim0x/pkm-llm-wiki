@@ -22,6 +22,10 @@ Language of all content: **English**.
 
 ## Fixed rules
 
+- Version control with Git is optional. Without it (`history` and `read` with `version` return
+  `not_versioned`, `finish_maintenance` makes no commit) the flows stay the same; old versions
+  simply cannot be read.
+
 - `wiki/` belongs to you. `documents/` belongs to the user: change, move or delete **nothing**
   there. `id`/`version` are set by `begin_maintenance`. The only other exception: `title`,
   `context`, `tags`, `kind`, `short_citation` – only after **explicit confirmation** by the
@@ -187,7 +191,9 @@ deliver the list as `log_entry`:
       to `write_wiki_page` (always write the whole page content). On `conflict` read
       again.
 3. **`changed`**: process only the reported sections. Read the diff:
-   `history` with `diff_from: <processed_version>`.
+   `history` with `diff_from: <processed_version>`. Without version control (`not_versioned`)
+   there is no diff: read the reported sections in their current version and compare them with
+   the wiki pages.
    - `changed`/`added`: bring the affected statements up to date, citations of the **new
      version**.
    - Changed decision or fact: keep the earlier state as "Up to version n: …" with a citation of
@@ -204,7 +210,7 @@ deliver the list as `log_entry`:
    changed): process nothing, only list it in `processed`; `finish_maintenance` raises the citations.
 5. **`deleted`**: **do not delete** the affected statements (see `wiki_pages`), but note under
    "Contradictions / open questions": "Original no longer exists (last state in
-   Git, v<n>)", `confidence: low`, question in the report. List the key in `removed`.
+   Git, v<n>; without version control: last processed v<n>)", `confidence: low`, question in the report. List the key in `removed`.
 6. **Corrections** (`kind: correction` in the frontmatter): the user's correction takes precedence over
    older sources and counts as a citation itself. Adjust the affected page (see `related`), note the
    old statement as replaced in the log. If the correction contradicts a **newer** source

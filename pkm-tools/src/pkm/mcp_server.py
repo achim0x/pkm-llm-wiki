@@ -58,7 +58,8 @@ IMAGES_DOC = (
 INSTRUCTIONS = (
     "Access to the personal knowledge management (PKM). The wiki is read-only. "
     "Documents are created or changed only after a draft has been shown and confirmed. "
-    "Every change needs `expected_hash` from `read` and results in a new version with a Git commit. "
+    "Every change needs `expected_hash` from `read` and results in a new version (with a Git commit if version "
+    "control is on; without it history/restore return not_versioned). "
     + IMAGES_DOC
 )
 
@@ -218,7 +219,7 @@ def _register_write_tools(server: Server) -> None:
     """Register the writing tools (7.2).
 
     New documents only in ``documents/_inbox/`` or ``scratch/``, changes only to ``documents/**/*.md``
-    and ``scratch/**/*.md``. Every change in ``documents/`` results in a new version with a Git commit,
+    and ``scratch/**/*.md``. Every change in ``documents/`` results in a new version (with Git a commit),
     in ``scratch/`` without version and commit. There is no deleting or moving.
 
     Args:

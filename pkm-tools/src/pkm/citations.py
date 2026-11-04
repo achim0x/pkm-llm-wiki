@@ -322,6 +322,8 @@ class Resolver:
         else:
             doc, moved = self._find_markdown(cit)
             cited = self.version_doc(cit.doc_id, cit.version) if cit.doc_id and cit.version else None
+            if cited is None and doc is not None and not self.svc.versioning:
+                cited = _current_as_cited(doc, cit)
             cited_text = section_text(cited, cit.section_key) if cited else None
             cited_sections = cited.hashes.sections if cited and cited.hashes else None
             if doc is None:
@@ -357,6 +359,23 @@ class Resolver:
         return result
 
 # Functions *******************************************************************
+
+
+def _current_as_cited(doc: Doc, cit: Citation) -> Doc | None:
+    """Without version control: the current document stands in for the cited version.
+
+    This holds if the citation names the current version or the cited section is unchanged (``sha``).
+
+    Args:
+        doc: Current original.
+        cit: Markdown citation.
+
+    Returns:
+        The current document or ``None`` if the cited state is unknown.
+    """
+    current = doc.hashes.sections.get(cit.section_key or "") if doc.hashes else None
+    same = cit.version == doc.version or bool(current and cit.sha and hashes.matches(current, cit.sha))
+    return doc if same else None
 
 
 def _strip_quote(part: str) -> str | None:

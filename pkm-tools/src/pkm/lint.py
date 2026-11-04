@@ -161,7 +161,7 @@ class Linter:  # pylint: disable=too-many-instance-attributes
     def documents(self) -> None:
         """ID, version, comparison with the history, duplicate IDs, encoding, frontmatter, headings."""
         by_id: dict[str, list[str]] = defaultdict(list)
-        git_ok = self.svc.git.problem() is None
+        git_ok = self.svc.versioning and self.svc.git.problem() is None
         for doc in self.docs:
             if doc.kind == "md" and doc.error:
                 self.r.add(doc.error, "error", doc.rel, _error_message(doc))
@@ -441,7 +441,7 @@ class Linter:  # pylint: disable=too-many-instance-attributes
         """
         key = cit.section_key
         if res.cited_sections is None:
-            if cit.doc_id and cit.version and res.status != "missing":
+            if cit.doc_id and cit.version and res.status != "missing" and self.svc.versioning:
                 self.r.add("cited_version_missing", "error", page.rel,
                            f"[^{cit.label}] v{cit.version} of {cit.doc_id} not in the history.", footnote=cit.label)
         elif key not in res.cited_sections:

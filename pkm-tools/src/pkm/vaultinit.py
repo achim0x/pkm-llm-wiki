@@ -52,6 +52,15 @@ DIRS = [
 SCRATCH_IGNORE = "scratch/"
 IGNORED_FOLDERS = ("scratch", IMPORT_FOLDER)
 TYPES_FILE = ".obsidian/types.json"
+APP_FILE = ".obsidian/app.json"
+# Obsidian settings from specification 13: key → (value, description).
+OBSIDIAN_EXPECTED = {
+    "alwaysUpdateLinks": (True, "Automatically update internal links: on"),
+    "newLinkFormat": ("absolute", "New link format: absolute path in vault"),
+    "useMarkdownLinks": (False, "Use [[Wikilinks]]: on"),
+    "attachmentFolderPath": ("documents/_attachments", "Attachment folder: documents/_attachments"),
+}
+PKM_IGNORE_FILTER = ".pkm/"
 # Obsidian property types (vault-wide per field name); values as in Obsidian's types.json.
 PROPERTY_TYPES = {
     "title": "text",
@@ -233,6 +242,49 @@ def ensure_property_types(root: Path) -> dict[str, Any]:
     return result
 
 
+def ensure_obsidian_settings(root: Path) -> dict[str, Any]:
+    """Add the Obsidian settings of specification 13 to ``.obsidian/app.json``.
+
+    Missing values are added, ``.pkm/`` is added to the excluded files; differing values stay
+    unchanged and are reported. If Obsidian is open, it reads the file only after a restart.
+
+    Args:
+        root: Vault root.
+
+    Returns:
+        ``created`` (new file), ``added`` (added keys), ``conflicts`` (differing values)
+        and ``warning`` (text or ``None``).
+    """
+    path = root / APP_FILE
+    existed = path.is_file()
+    data: dict[str, Any] | None = {}
+    if existed:
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            data = loaded if isinstance(loaded, dict) else None
+        except (OSError, ValueError):
+            data = None
+    result: dict[str, Any] = {"created": False, "added": [], "conflicts": {}, "warning": None}
+    if data is None:
+        result["warning"] = f"{APP_FILE} cannot be read; Obsidian settings not added."
+    else:
+        added = [k for k in OBSIDIAN_EXPECTED if k not in data]
+        conflicts = {k: data[k] for k, (v, _) in OBSIDIAN_EXPECTED.items() if k in data and data[k] != v}
+        data.update({k: OBSIDIAN_EXPECTED[k][0] for k in added})
+        filters = list(data.get("userIgnoreFilters") or [])
+        if not any(str(f).strip("/") == PKM_IGNORE_FILTER.strip("/") for f in filters):
+            data["userIgnoreFilters"] = [*filters, PKM_IGNORE_FILTER]
+            added.append("userIgnoreFilters")
+        if added:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            write_bytes_atomic(path, (json.dumps(data, indent=2) + "\n").encode("utf-8"))
+        if conflicts:
+            result["warning"] = "Obsidian settings differ from specification 13: " + ", ".join(
+                f"{k}={v!r} (expected {OBSIDIAN_EXPECTED[k][0]!r})" for k, v in conflicts.items())
+        result.update(created=bool(added) and not existed, added=added, conflicts=conflicts)
+    return result
+
+
 def init_vault(cfg: Config) -> dict[str, Any]:
     """``pkm init`` (idempotent).
 
@@ -253,26 +305,20 @@ def init_vault(cfg: Config) -> dict[str, Any]:
         raise PkmError("config_error", "The vault contains a `.git`. Git must live outside (5.5).")
     created_dirs, created_files = _create_structure(cfg)
     updated_files = [".gitignore"] if ".gitignore" not in created_files and ensure_scratch_ignored(cfg) else []
-    types = ensure_property_types(cfg.root)
-    if types["created"]:
-        created_files.append(TYPES_FILE)
-    elif types["added"]:
-        updated_files.append(TYPES_FILE)
-    git = Git(cfg.git_dir, cfg.root)
-    repo_created = git.init()
-    git.run("config", "core.autocrlf", "false")  # Git for Windows: never convert line endings
-    commit = None
-    warnings: list[str] = [types["warning"]] if types["warning"] else []
-    if not git.has_head():
-        if git.config_get("user.name") and git.config_get("user.email"):
-            paths = [rel for rel in [*initial_files(), TYPES_FILE] if (cfg.root / rel).exists()]
-            commit = git.commit_paths(paths, "pkm: init\n")
-        else:
-            warnings.append("Git identity missing (user.name/user.email); initial commit skipped.")
+    warnings: list[str] = []
+    for rel, info in ((TYPES_FILE, ensure_property_types(cfg.root)), (APP_FILE, ensure_obsidian_settings(cfg.root))):
+        if info["created"]:
+            created_files.append(rel)
+        elif info["added"]:
+            updated_files.append(rel)
+        if info["warning"]:
+            warnings.append(info["warning"])
+    repo_created, commit = (_init_repo(cfg, warnings) if cfg.versioning else (False, None))
     return {
         "status": "ok",
         "root": str(cfg.root),
-        "git_dir": str(cfg.git_dir),
+        "versioning": cfg.versioning,
+        "git_dir": str(cfg.git_dir) if cfg.versioning else None,
         "created_dirs": created_dirs,
         "created_files": created_files,
         "updated_files": updated_files,
@@ -280,5 +326,27 @@ def init_vault(cfg: Config) -> dict[str, Any]:
         "commit": commit,
         "warnings": warnings,
     }
+
+def _init_repo(cfg: Config, warnings: list[str]) -> tuple[bool, str | None]:
+    """Create the Git repo outside the vault and the initial commit.
+
+    Args:
+        cfg: Configuration.
+        warnings: Warnings (added to).
+
+    Returns:
+        Tuple of (repo newly created, hash of the initial commit or ``None``).
+    """
+    git = Git(cfg.git_dir, cfg.root, exe=cfg.git_exe)
+    repo_created = git.init()
+    git.run("config", "core.autocrlf", "false")  # Git for Windows: never convert line endings
+    commit = None
+    if not git.has_head():
+        if git.config_get("user.name") and git.config_get("user.email"):
+            paths = [rel for rel in [*initial_files(), TYPES_FILE, APP_FILE] if (cfg.root / rel).exists()]
+            commit = git.commit_paths(paths, "pkm: init\n")
+        else:
+            warnings.append("Git identity missing (user.name/user.email); initial commit skipped.")
+    return repo_created, commit
 
 # Main ************************************************************************

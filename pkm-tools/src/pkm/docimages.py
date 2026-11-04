@@ -244,7 +244,7 @@ def fix_document(  # pylint: disable=too-many-arguments,too-many-locals
         if not doc.rel.startswith(areas):
             raise PkmError("forbidden", "fix_images is only allowed here for " + ", ".join(areas) + ".", path=doc.rel)
         if doc.versioned and apply:
-            writer.git.require_ok()
+            writer.require_git()
         writer.check_hash(doc, expected_hash)
         if doc.versioned and apply:
             doc = writer.commit_user_state(doc)

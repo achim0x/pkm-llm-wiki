@@ -39,6 +39,7 @@ from .errors import PkmError
 from .lint import lint, write_report
 from .maint import Maintenance
 from .service import Service
+from .setupwiz import Setup, SetupOptions
 from .vaultinit import init_vault
 from .wikigen import build_index, build_status
 
@@ -350,6 +351,41 @@ def _add(sub: Any, name: str, help_text: str, func: Callable[[Service, argparse.
     return parser
 
 
+def cmd_setup(args: argparse.Namespace) -> dict[str, Any]:
+    """``pkm setup``: guided installation (15.1); without Git the PKM runs without version control.
+
+    Args:
+        args: Answers given in advance (``vault``, ``vault_name``, ``git_name``, ``git_email``, ``yes``,
+            ``claude_config``, ``no_claude``, ``skills_dir``).
+
+    Returns:
+        Result of ``Setup.run``.
+    """
+    opts = SetupOptions(vault=args.vault, vault_name=args.vault_name, git_name=args.git_name,
+                        git_email=args.git_email, yes=args.yes, claude_config=args.claude_config,
+                        no_claude=args.no_claude, skills_dir=args.skills_dir)
+    say = (lambda text: print(text, file=sys.stderr)) if args.json else print
+    return Setup(opts, say=say).run()
+
+
+def _add_setup(sub: Any) -> None:
+    """Add the subcommand ``setup``.
+
+    Args:
+        sub: Subparser collection.
+    """
+    se = _add(sub, "setup", "Guided installation: vault, Git check, Claude Desktop, skills (repeatable)", cmd_init)
+    se.add_argument("--vault", help="vault folder (absolute path)")
+    se.add_argument("--vault-name", help="name of the Obsidian vault (default: folder name)")
+    se.add_argument("--git-name", help="Git user name for the PKM repo if none is set")
+    se.add_argument("--git-email", help="Git e-mail address for the PKM repo if none is set")
+    se.add_argument("--yes", action="store_true", help="accept defaults and confirmations without asking")
+    se.add_argument("--claude-config", help="path of claude_desktop_config.json")
+    se.add_argument("--no-claude", action="store_true", help="do not change the Claude Desktop configuration")
+    se.add_argument("--skills-dir", help="target folder for the skill ZIP files")
+    se.add_argument("--json", action="store_true", help="print the result as JSON")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Argument parser with all subcommands.
 
@@ -358,6 +394,7 @@ def build_parser() -> argparse.ArgumentParser:
     """
     p = argparse.ArgumentParser(prog="pkm", description="PKM tools (maintenance)")
     sub = p.add_subparsers(dest="command", required=True)
+    _add_setup(sub)
     _add(sub, "init", "Create structure and Git directory (idempotent)", cmd_init)
     _add(sub, "reindex", "Rebuild the search index", cmd_reindex)
     h = _add(sub, "history", "Versions of a document", cmd_history)
@@ -421,11 +458,17 @@ def main(argv: list[str] | None = None) -> int:
     """
     args = build_parser().parse_args(argv)
     try:
-        cfg = Config.from_env(search_from=None if args.command == "init" else Path.cwd())
-        result = args.func(Service(cfg), args)
+        if args.command == "setup":
+            result = cmd_setup(args)
+        else:
+            cfg = Config.from_env(search_from=None if args.command == "init" else Path.cwd())
+            result = args.func(Service(cfg), args)
     except PkmError as exc:
         result = exc.to_dict()
-    _print(result)
+    if args.command != "setup" or args.json:
+        _print(result)
+    elif result.get("status") not in OK_STATUSES and "message" in result:
+        print(f"Error: {result['message']}")
     failed = isinstance(result, dict) and result.get("status") not in OK_STATUSES
     return 1 if failed else 0
 

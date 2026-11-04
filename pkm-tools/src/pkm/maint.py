@@ -127,7 +127,7 @@ class Maintenance:
             Assigned IDs, duplicate IDs, skipped files and problems.
         """
         with self.writer.lock():
-            self.git.require_ok()
+            self.writer.require_git()
             docs, problems = self.documents()
             known = {d.id for d in docs if d.id}
             assigned, skipped = [], []
@@ -165,7 +165,7 @@ class Maintenance:
         text = set_fields_linewise(doc.text or "", fields)
         msg = build_message(doc.title, "v1", "ID assigned", doc_id, 1, "agent")
         sha = self.writer.write_and_commit(doc.rel, text, msg)
-        return {"path": doc.rel, "id": doc_id, "commit": sha[:10]}
+        return {"path": doc.rel, "id": doc_id, "commit": sha[:10] or None}
 
     # versions *****************************************************************
 
@@ -174,6 +174,20 @@ class Maintenance:
 
         Moves are committed along with them; attachments and deleted files as well, so that
         the working tree stays clean.
+
+        Without version control there is nothing to commit: manual changes are detected by
+        ``pending`` via the hashes in ``state.json``.
+
+        Returns:
+            Committed and skipped files (``versioning: false`` without version control).
+        """
+        result: dict[str, Any] = {"status": "ok", "versioning": False, "committed": [], "skipped": []}
+        if self.svc.versioning:
+            result = self._versions_git()
+        return result
+
+    def _versions_git(self) -> dict[str, Any]:
+        """``pkm versions`` with version control.
 
         Returns:
             Committed and skipped files.
@@ -594,7 +608,7 @@ class Maintenance:
         dry_run = not targets and not all_documents
         with self.writer.lock():
             if not dry_run:
-                self.git.require_ok()
+                self.writer.require_git()
             if targets:
                 docs = [self.vault.load(self.svc.resolve(t, ("documents",))) for t in targets]
             else:
@@ -622,7 +636,7 @@ class Maintenance:
         self.writer.write_atomic(rel, new_text)
         doc = self.vault.load(rel)
         result: dict[str, Any] = {"committed": False}
-        if doc.id and not doc.error:
+        if doc.id and not doc.error and self.svc.versioning:
             new_doc = self.writer.commit_user_state(doc)
             result = {"committed": True, "version": new_doc.version,
                       "commit": self.git.out("rev-parse", "HEAD").strip()[:10]}
@@ -647,11 +661,11 @@ class Maintenance:
             raise PkmError("invalid_argument", "--message is missing.")
         if not message.startswith("pkm:"):
             message = f"pkm: {message}"
+        result: dict[str, Any] = {"status": "unchanged", "commit": None, "versioning": self.svc.versioning}
         with self.writer.lock():
-            self.git.require_ok()
+            self.writer.require_git()
             paths = [p for p in WIKI_COMMIT_PATHS if (self.cfg.root / p).exists()]
-            result: dict[str, Any] = {"status": "unchanged", "commit": None}
-            if self.git.has_changes(*paths):
+            if self.svc.versioning and self.git.has_changes(*paths):
                 files = [p for _xy, p in self.git.status_entries(*paths)]
                 sha = self.git.commit_paths(paths, f"{message}\n\nPKM-Source: agent\n")
                 result = {"status": "ok", "commit": sha[:10], "files": files}

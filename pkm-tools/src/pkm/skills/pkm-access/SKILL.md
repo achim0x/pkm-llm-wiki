@@ -8,7 +8,8 @@ description: Use the personal knowledge management (PKM) from normal chats – v
 The PKM consists of `documents/` (the user's documents) and `wiki/` (a wiki with citations
 compiled by the maintenance agent). From chats the wiki is **read-only**. Documents are created
 and changed with the tools of the MCP server `pkm`; every change results in a new version
-with a Git commit.
+with a Git commit. Version control is optional: without Git the version number still counts up,
+but there is no commit, no history and nothing to restore (`commit: null`, see `not_versioned`).
 
 ## Basic rule – without exception
 
@@ -87,7 +88,7 @@ original with `edit_document`:
 | `ambiguous` | Name the candidates and ask (for sections: use the key with suffix) |
 | `not_found` | Check the target or passage, possibly `search` |
 | `forbidden` | The target cannot be changed (e.g. `wiki/`); for wiki errors create a correction document |
-| `not_versioned` | The file lies in `scratch/`: there is no history and nothing to restore |
+| `not_versioned` | The file lies in `scratch/`, or version control is off (Git not installed): there is no history and nothing to restore. Say so; to turn it on the user installs Git and runs `pkm setup` again |
 | `git_unavailable`, `commit_failed`, `invalid_frontmatter`, `invalid_encoding` | Report to the user; do not work around it |
 
 ## History

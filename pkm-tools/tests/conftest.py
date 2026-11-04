@@ -73,8 +73,10 @@ def fixture_isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dic
     monkeypatch.setenv("PKM_GIT_DIR", str(app / "git"))
     monkeypatch.setenv("PKM_CACHE_DIR", str(app))
     monkeypatch.setenv("PKM_TZ", "Europe/Berlin")
+    monkeypatch.setenv("PKM_CONFIG", str(app / "config.toml"))
     for var in ("PKM_MAX_KB", "PKM_VAULT_NAME", "PKM_GIT_AUTHOR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
-                "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_IMPORT_DIR", "PKM_SVG_RASTER"):
+                "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_IMPORT_DIR", "PKM_SVG_RASTER", "PKM_VERSIONING",
+                "PKM_GIT"):
         monkeypatch.delenv(var, raising=False)
     return {"root": root, "git_dir": app / "git", "cache_dir": app, "home": home, "gitconfig": gitconfig}
 

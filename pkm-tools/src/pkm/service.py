@@ -31,7 +31,7 @@ from typing import Any
 from . import citations, docimages
 from .config import Config
 from .diffs import unified_diff
-from .errors import PkmError
+from .errors import NO_VERSIONING, PkmError
 from .gitlayer import Commit, Git
 from .ids import is_valid_id
 from .index import SearchIndex, query_terms, snippet
@@ -64,7 +64,8 @@ class Service:  # pylint: disable=too-many-public-methods
         """
         self.cfg = cfg
         self.vault = Vault(cfg)
-        self.git = Git(cfg.git_dir, cfg.root, cfg.git_author)
+        self.git = Git(cfg.git_dir, cfg.root, cfg.git_author, cfg.git_exe)
+        self.versioning = cfg.versioning
         self._index: SearchIndex | None = None
 
     # Helpers ******************************************************************
@@ -217,9 +218,9 @@ class Service:  # pylint: disable=too-many-public-methods
             doc_id: Document ID.
 
         Returns:
-            Commits, oldest first.
+            Commits, oldest first; empty without version control.
         """
-        return [c for c in self.git.log_for_id(doc_id) if c.version is not None]
+        return [c for c in self.git.log_for_id(doc_id) if c.version is not None] if self.versioning else []
 
     def commit_for_version(self, doc_id: str, version: int) -> Commit:
         """Commit for a version (the last one if there are several, e.g. after a pure move).
@@ -248,7 +249,12 @@ class Service:  # pylint: disable=too-many-public-methods
 
         Returns:
             Tuple of (path at that time, text).
+
+        Raises:
+            PkmError: ``not_versioned`` without version control, ``not_found`` for an unknown version.
         """
+        if not self.versioning:
+            raise PkmError("not_versioned", NO_VERSIONING, version=version)
         c = self.commit_for_version(doc_id, version)
         return c.path or "", self.git.show_file(c.sha, c.path or "").decode("utf-8", "replace")
 
@@ -263,8 +269,10 @@ class Service:  # pylint: disable=too-many-public-methods
 
         Raises:
             PkmError: ``not_found`` if the target is missing or has no ID; ``not_versioned``
-                for files in ``scratch/``.
+                for files in ``scratch/`` and without version control.
         """
+        if not self.versioning:
+            raise PkmError("not_versioned", NO_VERSIONING, target=target)
         t = target.strip()
         try:
             doc = self.load(t)

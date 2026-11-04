@@ -25,7 +25,10 @@
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 import sys
+import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,6 +42,12 @@ DEFAULT_AUTHOR = "pkm-mcp <pkm@localhost>"
 DEFAULT_MAX_KB = 200
 DEFAULT_TZ = "Europe/Berlin"
 IMPORT_FOLDER = "pkm_img_import"
+CONFIG_FILE = "config.toml"
+FALSE_VALUES = ("0", "false", "no", "off", "nein", "aus")
+GIT_CANDIDATES = (
+    "/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git",
+    r"C:\Program Files\Git\cmd\git.exe", r"C:\Program Files (x86)\Git\cmd\git.exe",
+)
 IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX_MB": 5,
                   "PKM_IMAGE_PARAM_MAX_KB": 512}
 
@@ -109,6 +118,9 @@ class Config:  # pylint: disable=too-many-instance-attributes
         vault_name: Name of the Obsidian vault for ``obsidian://`` links (``PKM_VAULT_NAME``).
         git_author: Author of the MCP commits (``PKM_GIT_AUTHOR``).
         images: Image settings (4.9).
+        versioning: Version control with Git (``PKM_VERSIONING``; off if Git is not installed, 5.4).
+        git_exe: Git program (``PKM_GIT``, otherwise found in ``PATH`` or the usual locations).
+        config_file: Configuration file that was read, or ``None``.
     """
 
     root: Path
@@ -119,13 +131,18 @@ class Config:  # pylint: disable=too-many-instance-attributes
     vault_name: str | None = None
     git_author: str = DEFAULT_AUTHOR
     images: ImageConfig = field(default_factory=ImageConfig)
+    versioning: bool = True
+    git_exe: str = "git"
+    config_file: Path | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None, search_from: Path | None = None) -> Config:
         """Read the configuration from the environment.
 
-        If ``PKM_ROOT`` is missing and ``search_from`` is set (CLI), the vault is searched upwards
-        from that folder: it is the first folder that contains ``.pkm/state.json``.
+        Values come from the environment, otherwise from the configuration file ``config.toml``
+        (``PKM_CONFIG`` or the default folder, written by ``pkm setup``). If ``PKM_ROOT`` is missing in both
+        and ``search_from`` is set (CLI), the vault is searched upwards from that folder: it is the first
+        folder that contains ``.pkm/state.json``.
 
         Args:
             env: Environment variables; ``os.environ`` if omitted.
@@ -138,9 +155,12 @@ class Config:  # pylint: disable=too-many-instance-attributes
             PkmError: ``config_error`` for missing or invalid settings.
         """
         env = os.environ if env is None else env
-        root = _root_from_env(env, search_from)
         home = Path(env["HOME"]) if env.get("HOME") else None
         app = default_app_dir(home)
+        config_path = Path(env.get("PKM_CONFIG") or app / CONFIG_FILE).expanduser()
+        file_values = read_config_file(config_path)
+        env = {**file_values, **env}
+        root = _root_from_env(env, search_from)
         git_dir = Path(env.get("PKM_GIT_DIR") or app / "git").expanduser()
         cache_dir = Path(env.get("PKM_CACHE_DIR") or app).expanduser()
         try:
@@ -160,6 +180,9 @@ class Config:  # pylint: disable=too-many-instance-attributes
             vault_name=env.get("PKM_VAULT_NAME") or None,
             git_author=env.get("PKM_GIT_AUTHOR") or DEFAULT_AUTHOR,
             images=ImageConfig.from_env(env, root.resolve()),
+            versioning=(env.get("PKM_VERSIONING") or "on").strip().lower() not in FALSE_VALUES,
+            git_exe=env.get("PKM_GIT") or find_git() or "git",
+            config_file=config_path if file_values else None,
         )
 
     # Derived paths ************************************************************
@@ -277,6 +300,73 @@ def default_app_dir(home: Path | None = None) -> Path:
         base = os.environ.get("XDG_DATA_HOME")
         app = Path(base) / "pkm" if base else home / ".local" / "share" / "pkm"
     return app
+
+
+def read_config_file(path: Path) -> dict[str, str]:
+    """Read the configuration file (``config.toml``, flat keys like the environment variables).
+
+    Args:
+        path: Path of the file.
+
+    Returns:
+        Keys and values as strings (booleans as ``true``/``false``); empty if the file is missing.
+
+    Raises:
+        PkmError: ``config_error`` if the file is not valid TOML.
+    """
+    values: dict[str, str] = {}
+    if path.is_file():
+        try:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            raise PkmError("config_error", f"Configuration file {path} cannot be read: {exc}") from exc
+        values = {str(k): (str(v).lower() if isinstance(v, bool) else str(v)) for k, v in data.items()
+                  if isinstance(v, (str, int, bool))}
+    return values
+
+
+def write_config_file(path: Path, values: dict[str, str | bool]) -> None:
+    """Write the configuration file (flat TOML, keys sorted).
+
+    Args:
+        path: Path of the file.
+        values: Keys and values.
+    """
+    lines = ["# PKM configuration, written by `pkm setup`. Environment variables take precedence.", ""]
+    for key in sorted(values):
+        value = values[key]
+        text = ("true" if value else "false") if isinstance(value, bool) else '"' + str(value).replace(
+            "\\", "\\\\").replace('"', '\\"') + '"'
+        lines.append(f"{key} = {text}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(("\n".join(lines) + "\n").encode("utf-8"))
+
+
+def find_git() -> str | None:
+    """Find the Git program in ``PATH`` or at the usual locations.
+
+    Returns:
+        Absolute path of a working Git or ``None`` if Git is not installed.
+    """
+    candidates = [c for c in (shutil.which("git"), *GIT_CANDIDATES) if c and Path(c).is_file()]
+    found = next((c for c in dict.fromkeys(candidates) if git_works(c)), None)
+    return str(Path(found).absolute()) if found else None
+
+
+def git_works(exe: str) -> bool:
+    """Check whether a Git program runs (on macOS ``/usr/bin/git`` is only a stub without the developer tools).
+
+    Args:
+        exe: Path of the program.
+
+    Returns:
+        ``True`` if ``git --version`` succeeds.
+    """
+    try:
+        ok = subprocess.run([exe, "--version"], capture_output=True, timeout=20, check=False).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        ok = False
+    return ok
 
 
 def find_vault(start: Path) -> Path | None:

@@ -99,17 +99,19 @@ class Commit:  # pylint: disable=too-many-instance-attributes
 class Git:
     """Git calls for the vault with a separate Git directory."""
 
-    def __init__(self, git_dir: Path, work_tree: Path, author: str | None = None) -> None:
+    def __init__(self, git_dir: Path, work_tree: Path, author: str | None = None, exe: str = "git") -> None:
         """Create the Git access.
 
         Args:
             git_dir: Git directory outside the vault.
             work_tree: Vault root.
             author: Author for commits (``Name <mail>``); ``None`` uses the Git identity.
+            exe: Git program (name in ``PATH`` or absolute path).
         """
         self.git_dir = git_dir
         self.work_tree = work_tree
         self.author = author
+        self.exe = exe
 
     # Basics *******************************************************************
 
@@ -123,7 +125,7 @@ class Git:
             Command line with ``--git-dir``/``--work-tree`` and fixed options.
         """
         return [
-            "git",
+            self.exe,
             f"--git-dir={self.git_dir}",
             f"--work-tree={self.work_tree}",
             "-c", "core.quotepath=false",
@@ -170,14 +172,13 @@ class Git:
         """
         return self.run(*args).stdout.decode("utf-8", "replace")
 
-    @staticmethod
-    def installed() -> bool:
+    def installed(self) -> bool:
         """Check whether Git is installed.
 
         Returns:
-            ``True`` if ``git`` is in ``PATH``.
+            ``True`` if the Git program exists (absolute path or found in ``PATH``).
         """
-        return shutil.which("git") is not None
+        return Path(self.exe).is_file() or shutil.which(self.exe) is not None
 
     def is_repo(self) -> bool:
         """Check whether the Git directory is a repo.

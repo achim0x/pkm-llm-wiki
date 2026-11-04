@@ -1,0 +1,27 @@
+name: release
+
+# For every tag v* a GitHub release with the skill ZIP files and the wheel of pkm-tools.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build the wheel and the skill ZIP files
+        run: |
+          python -m pip install build
+          python -m build --wheel --outdir dist pkm-tools
+          cd pkm-tools/src/pkm/skills
+          for s in pkm-access pkm-wiki; do zip -r "$GITHUB_WORKSPACE/dist/$s.zip" "$s"; done
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

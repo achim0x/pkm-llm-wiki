@@ -28,6 +28,9 @@ from typing import Any
 
 # Variables *******************************************************************
 
+NO_VERSIONING = ("Version control is off because Git is not installed (or PKM_VERSIONING is off). "
+                 "Install Git and run `pkm setup` again to turn it on.")
+
 # Classes *********************************************************************
 
 

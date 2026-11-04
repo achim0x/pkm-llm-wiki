@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING, Any
 from . import docimages
 from .appendtext import append_lines
 from .diffs import unified_diff
-from .errors import PkmError
+from .errors import NO_VERSIONING, PkmError
 from .frontmatter import PROTECTED, dump_meta, set_fields_linewise
 from .fsutil import file_lock, replace_file
 from .gitlayer import Commit, build_message
@@ -107,11 +107,24 @@ class Writer:
         Yields:
             Nothing; the lock holds within the ``with`` block.
         """
-        if not self.cfg.git_dir.is_dir():
-            yield
-        else:
+        if self.cfg.git_dir.is_dir():
             with file_lock(self.cfg.git_dir / "pkm.lock"):
                 yield
+        elif not self.svc.versioning:
+            self.cfg.cache_dir.mkdir(parents=True, exist_ok=True)
+            with file_lock(self.cfg.cache_dir / "pkm.lock"):
+                yield
+        else:
+            yield
+
+    def require_git(self) -> None:
+        """Make sure Git is ready for writing, if version control is on.
+
+        Raises:
+            PkmError: ``git_unavailable`` with the reason.
+        """
+        if self.svc.versioning:
+            self.git.require_ok()
 
     def now_stamp(self) -> str:
         """Current time for date fields: local time without time zone (4.1).
@@ -170,7 +183,7 @@ class Writer:
             as_user: Commit with the user's Git identity.
 
         Returns:
-            Hash of the commit.
+            Hash of the commit; empty without version control (then only written).
 
         Raises:
             PkmError: ``commit_failed`` (the file is then back in its old state).
@@ -178,14 +191,16 @@ class Writer:
         p = self.vault.path(rel)
         old = p.read_bytes() if p.exists() else None
         self.write_atomic(rel, text)
-        try:
-            sha = self.git.commit_paths([rel, *(extra_paths or [])], message, as_user=as_user)
-        except PkmError as exc:
-            if old is None:
-                p.unlink(missing_ok=True)
-            else:
-                p.write_bytes(old)
-            raise PkmError("commit_failed", f"Commit failed, file reset. {exc.message}") from exc
+        sha = ""
+        if self.svc.versioning:
+            try:
+                sha = self.git.commit_paths([rel, *(extra_paths or [])], message, as_user=as_user)
+            except PkmError as exc:
+                if old is None:
+                    p.unlink(missing_ok=True)
+                else:
+                    p.write_bytes(old)
+                raise PkmError("commit_failed", f"Commit failed, file reset. {exc.message}") from exc
         return sha
 
     def editable_doc(self, target: str) -> Doc:
@@ -241,10 +256,12 @@ class Writer:
         Args:
             doc: Current document.
 
+        Without version control only a missing ID is assigned (version 1, without commit).
+
         Returns:
             The (possibly reloaded) document after the commit.
         """
-        if not doc.id or self.git.is_dirty(doc.rel):
+        if not doc.id or (self.svc.versioning and self.git.is_dirty(doc.rel)):
             plan = self._plan_user_version(doc)
             text = set_fields_linewise(doc.text or "", plan.fields) if plan.fields else doc.text or ""
             msg = build_message(doc.title, plan.label, plan.note, plan.doc_id, plan.version, "user")
@@ -348,7 +365,7 @@ class Writer:
             sha = self.write_and_commit(doc.rel, new_text, msg, extra_paths)
             result = {
                 "id": doc.id, "path": doc.rel, "status": "changed", "version": version,
-                "new_hash": new_doc.hashes.file_hash if new_doc.hashes else None, "commit": sha[:10],
+                "new_hash": new_doc.hashes.file_hash if new_doc.hashes else None, "commit": sha[:10] or None,
                 "diff": unified_diff(old_text, new_text, f"v{doc.version}", f"v{version}", DIFF_LINES),
             }
         return result
@@ -375,7 +392,7 @@ class Writer:
         with self.lock():
             doc = self.editable_doc(target)
             if doc.versioned:
-                self.git.require_ok()
+                self.require_git()
             self.check_hash(doc, expected_hash)
             if doc.versioned:
                 doc = self.commit_user_state(doc)
@@ -512,7 +529,7 @@ class Writer:
         """
         title = values["title"]
         with self.lock():
-            self.git.require_ok()
+            self.require_git()
             now = self.svc.now()
             doc_id = new_id(now, exists=lambda i: i in self.svc.known_ids())
             meta = _ordered_meta({**values, "date_markdown": stamp(now), "id": doc_id, "version": 1})
@@ -547,7 +564,7 @@ class Writer:
         doc = self.vault.load(rel)
         return {
             "id": doc_id, "path": rel, "status": "created", "version": 1,
-            "new_hash": doc.hashes.file_hash if doc.hashes else None, "commit": sha[:10],
+            "new_hash": doc.hashes.file_hash if doc.hashes else None, "commit": sha[:10] or None,
             "diff": unified_diff("", text, "/dev/null", rel, DIFF_LINES),
         }
 
@@ -827,6 +844,8 @@ class Writer:
         Raises:
             PkmError: ``not_versioned`` for files in ``scratch/``.
         """
+        if not self.svc.versioning:
+            raise PkmError("not_versioned", NO_VERSIONING, target=target)
         if not self.vault.load(self.svc.resolve(target)).versioned:
             raise PkmError("not_versioned", "Files in scratch/ have no versions.", target=target)
 
