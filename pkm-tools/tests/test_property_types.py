@@ -1,4 +1,4 @@
-"""Tests: ``pkm init`` legt Obsidians ``.obsidian/types.json`` an bzw. ergänzt sie.
+"""Tests: ``pkm init`` creates Obsidian's ``.obsidian/types.json`` or adds to it.
 
     Author: Achim0x
 """
@@ -36,31 +36,31 @@ from pkm.vaultinit import PROPERTY_TYPES, TYPES_FILE, ensure_property_types, ini
 
 
 def _types(root):
-    """Inhalt von types.json lesen.
+    """Read the content of types.json.
 
     Args:
-        root: Vault-Wurzel.
+        root: Vault root.
 
     Returns:
-        Abschnitt ``types``.
+        Section ``types``.
     """
     return json.loads((root / TYPES_FILE).read_text(encoding="utf-8"))["types"]
 
 
 def _check(svc):
-    """Doctor-Prüfung der Property-Typen holen.
+    """Get the doctor check of the property types.
 
     Args:
-        svc: Dienst.
+        svc: Service.
 
     Returns:
-        Prüfergebnis.
+        Check result.
     """
     return next(c for c in doctor(svc)["checks"] if c["check"] == "obsidian_property_types")
 
 
 def test_init_creates_types_json(svc, cfg):
-    """Nach pkm init stehen alle Schema-Felder mit ihrem Typ in types.json; doctor ist zufrieden."""
+    """After pkm init all schema fields are in types.json with their type; doctor is satisfied."""
     assert _types(cfg.root) == PROPERTY_TYPES
     assert _types(cfg.root)["date_markdown"] == "datetime"
     assert _types(cfg.root)["version"] == "number"
@@ -69,7 +69,7 @@ def test_init_creates_types_json(svc, cfg):
 
 
 def test_init_merges_and_keeps_user_types(svc, cfg):
-    """Vorhandene Einträge bleiben, fehlende werden ergänzt, Abweichungen gemeldet."""
+    """Existing entries stay, missing ones are added, deviations reported."""
     p = cfg.root / TYPES_FILE
     p.write_text(json.dumps({"types": {"rating": "number", "version": "text"}}), encoding="utf-8", newline="\n")
     assert not _check(svc)["ok"]
@@ -83,7 +83,7 @@ def test_init_merges_and_keeps_user_types(svc, cfg):
 
 
 def test_init_idempotent_types(cfg):
-    """Ein zweiter Lauf ändert types.json nicht."""
+    """A second run does not change types.json."""
     before = (cfg.root / TYPES_FILE).read_bytes()
     res = ensure_property_types(cfg.root)
     assert not res["added"] and not res["created"]
@@ -91,7 +91,7 @@ def test_init_idempotent_types(cfg):
 
 
 def test_unreadable_types_json_untouched(svc, cfg):
-    """Eine kaputte types.json wird nicht überschrieben, sondern gemeldet."""
+    """A broken types.json is not overwritten but reported."""
     p = cfg.root / TYPES_FILE
     p.write_text("{kaputt", encoding="utf-8", newline="\n")
     res = ensure_property_types(cfg.root)

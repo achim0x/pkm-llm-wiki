@@ -1,176 +1,175 @@
 ---
 name: pkm-access
-description: Das persönliche Wissensmanagement (PKM) aus normalen Chats nutzen – über die MCP-Tools des Servers „pkm“. Verwenden bei „leg das ins PKM“, „speicher das Ergebnis“, „führ das im Dokument zu … weiter“, „aktualisier mein Dokument …“, „was weiß mein Wiki über …“, „woher stammt das?“, „was hat sich geändert?“, „mach das rückgängig“, „korrigier im Wiki …“, „notier mir kurz …“, „setz das auf meine Todo-Liste“, „hak … ab“, „was steht auf meiner Liste?“.
+description: Use the personal knowledge management (PKM) from normal chats – via the MCP tools of the server "pkm". Use for "put this into the PKM", "save the result", "continue this in the document about …", "update my document …", "what does my wiki know about …", "where does this come from?", "what has changed?", "undo that", "correct in the wiki …", "make a quick note …", "put this on my todo list", "tick off …", "what is on my list?".
 ---
 
-# PKM aus Chats nutzen
+# Using the PKM from chats
 
-Das PKM besteht aus `documents/` (Dokumente des Nutzers) und `wiki/` (vom Pflege-Agenten
-kompiliertes Wiki mit Belegen). Aus Chats ist das Wiki **nur lesbar**. Dokumente werden über
-die Tools des MCP-Servers `pkm` angelegt und geändert; jede Änderung ergibt eine neue Version
-mit Git-Commit.
+The PKM consists of `documents/` (the user's documents) and `wiki/` (a wiki with citations
+compiled by the maintenance agent). From chats the wiki is **read-only**. Documents are created
+and changed with the tools of the MCP server `pkm`; every change results in a new version
+with a Git commit.
 
-## Grundregel – ohne Ausnahme
+## Basic rule – without exception
 
-**Jeder schreibende Aufruf** (`create_document`, `rewrite_document`, `append_to_document`,
-`edit_document`, `update_frontmatter`, `add_image`, `fix_images`, `restore_document`) erfolgt erst, **nachdem ein Entwurf
-gezeigt und vom Nutzer bestätigt wurde**. Das gilt auch, wenn der Nutzer „direkt“, „einfach
-speichern“ o. Ä. sagt: Dann den Entwurf knapp zeigen und kurz bestätigen lassen.
+**Every writing call** (`create_document`, `rewrite_document`, `append_to_document`,
+`edit_document`, `update_frontmatter`, `add_image`, `fix_images`, `restore_document`) happens only **after a draft
+has been shown and confirmed by the user**. This also applies when the user says "directly", "just
+save it" or similar: then show the draft briefly and have it confirmed quickly.
 
-Ziele (`target`) können ein Pfad, ein Wikilink, `id:d-…` oder eine Kurzbezeichnung aus
-`short_citation` (z. B. `EN 61000-4-6:2014`) sein. Nach dem ersten Kontakt
-mit einem Dokument immer die **ID** verwenden – der Ablageort kann sich ändern.
+Targets (`target`) can be a path, a wikilink, `id:d-…` or a short citation from
+`short_citation` (e.g. `EN 61000-4-6:2014`). After the first contact with a document
+always use the **ID** – the location can change.
 
-## Neu ablegen
+## Filing something new
 
-1. Ergebnis verdichten in die Abschnitte:
-   `## Ergebnis`, `## Entscheidungen`, `## Offene Punkte`, `## Kontext / Begründung`.
-   Nur Belastbares aufnehmen, Hypothesen als solche kennzeichnen.
-2. Titel, `tags` (Kleinbuchstaben, Bindestriche) und ggf. `related` vorschlagen. Beim Anlegen
-   `toolchain` mit dem eigenen Modellnamen und `pkm-mcp` übergeben, z. B.
-   `"Claude Opus 5.5 (pkm-mcp)"`. Bei Normen oder Gesetzen `kind` (`standard`/`regulation`) und,
-   falls bekannt, `short_citation` und `date_document` mitgeben.
-3. Vorher prüfen, ob es schon ein Dokument gibt: `search` mit `scope: "documents"`.
-   Gibt es eines zur selben Fragestellung, fragen, ob es aktualisiert werden soll (siehe unten).
-4. **Entwurf zeigen**, nach Bestätigung `create_document` (`content` ohne Frontmatter,
-   `context` z. B. „Chat: <Thema>“).
-5. Dem Nutzer ID, Pfad und Version nennen. Die ID im Chatverlauf behalten.
+1. Condense the result into the sections:
+   `## Result`, `## Decisions`, `## Open points`, `## Context / rationale`.
+   Include only what is reliable, mark hypotheses as such.
+2. Propose a title, `tags` (lower case, hyphens) and possibly `related`. When creating, pass
+   `toolchain` with your own model name and `pkm-mcp`, e.g.
+   `"Claude Opus 5.5 (pkm-mcp)"`. For standards or laws pass `kind` (`standard`/`regulation`) and,
+   if known, `short_citation` and `date_document`.
+3. First check whether a document already exists: `search` with `scope: "documents"`.
+   If there is one on the same question, ask whether it should be updated (see below).
+4. **Show the draft**, after confirmation `create_document` (`content` without frontmatter,
+   `context` e.g. "Chat: <topic>").
+5. Tell the user ID, path and version. Keep the ID in the chat history.
 
-## Fortgeführte Diskussion (Standard: Dokument aktualisieren)
+## Continued discussion (default: update the document)
 
-1. Dokument finden: ID aus diesem Chat verwenden, sonst `search` (`scope: "documents"`).
-   Ein Treffer → kurz bestätigen lassen; mehrere → nachfragen. Unklar, ob Fortsetzung oder
-   neues Thema → nachfragen. Faustregel: gleiche Fragestellung = aktualisieren, neues
-   Teilthema = neues Dokument mit `related` auf das alte.
-2. `read(id:…)` – liefert Inhalt, `version` und `hash`.
-   Großes Dokument (`content_omitted`, oder vorab mit `content: false` an `content_length`
-   erkannt): Abschnitte einzeln mit `section` lesen und nur mit `edit_document` bzw.
-   `append_to_document` ändern, **nie** `rewrite_document` mit einem Teil des Inhalts.
-3. Neue Fassung erstellen, die den **aktuellen Gesamtstand** zeigt:
-   - „Ergebnis“ neu formulieren.
-   - „Entscheidungen“: geänderte ersetzen, neue ergänzen. Kein „überholt“ stehen lassen.
-   - „Offene Punkte“: erledigte entfernen, neue ergänzen.
-   - „Kontext / Begründung“: Begründung für Änderungen ergänzen, soweit nötig.
-4. **Vorher/Nachher je Abschnitt** zeigen plus eine einzeilige Änderungsnotiz
-   (z. B. „Sensor: Schwimmerschalter statt Ultraschall“). Bestätigen lassen.
-5. Mehrere Abschnitte betroffen → **ein** `rewrite_document` mit `expected_hash` und `note`.
-   Kleine, gezielte Änderung → `edit_document` bzw. `append_to_document`.
-6. Neue Version und Diff kurz nennen.
+1. Find the document: use the ID from this chat, otherwise `search` (`scope: "documents"`).
+   One hit → have it confirmed briefly; several → ask. Unclear whether continuation or
+   new topic → ask. Rule of thumb: same question = update, new
+   subtopic = new document with `related` to the old one.
+2. `read(id:…)` – returns content, `version` and `hash`.
+   Large document (`content_omitted`, or recognized beforehand with `content: false` from `content_length`):
+   read sections one by one with `section` and change them only with `edit_document` or
+   `append_to_document`, **never** `rewrite_document` with a part of the content.
+3. Create a new version that shows the **current overall state**:
+   - Rephrase "Result".
+   - "Decisions": replace changed ones, add new ones. Do not leave anything "outdated".
+   - "Open points": remove done ones, add new ones.
+   - "Context / rationale": add the reasons for changes where needed.
+4. Show **before/after per section** plus a one-line change note
+   (e.g. "Sensor: float switch instead of ultrasound"). Have it confirmed.
+5. Several sections affected → **one** `rewrite_document` with `expected_hash` and `note`.
+   Small, targeted change → `edit_document` or `append_to_document`.
+6. Briefly name the new version and the diff.
 
-**Datierter Fortsetzungsabschnitt** (`## Fortsetzung YYYY-MM-DD`) nur, wenn der Nutzer das
-**ausdrücklich** verlangt („als Fortsetzung dokumentieren“, „mit Verlauf im Dokument“). Nie
-von sich aus vorschlagen. Dann: `append_to_document` mit dem Abschnitt (Kontext, Ergebnis,
-Entscheidungen, Offene Punkte; am selben Tag Zusatz „(2)“), revidierte Entscheidungen im
-Original per `edit_document` markieren:
-` — *überholt am YYYY-MM-DD, siehe [[#Fortsetzung YYYY-MM-DD]]*`.
+**Dated continuation section** (`## Continuation YYYY-MM-DD`) only if the user **explicitly**
+asks for it ("document it as a continuation", "with history in the document"). Never
+propose it on your own. Then: `append_to_document` with the section (context, result,
+decisions, open points; on the same day suffix "(2)"), mark revised decisions in the
+original with `edit_document`:
+` — *outdated on YYYY-MM-DD, see [[#Continuation YYYY-MM-DD]]*`.
 
-## Kleine Änderungen
+## Small changes
 
-`read` → `edit_document` / `append_to_document` / `update_frontmatter` → Vorher/Nachher zeigen
-→ bestätigen lassen → ausführen → Version und Diff nennen.
+`read` → `edit_document` / `append_to_document` / `update_frontmatter` → show before/after
+→ have it confirmed → run → name version and diff.
 
-- `append_to_document` mit `section`: Abschnittsschlüssel, z. B. `"Offene Punkte"`,
-  `"_preamble"` (Text vor der ersten Überschrift) oder bei doppelten Überschriften `"Notizen#2"`.
-- `edit_document`: `old` muss genau einmal vorkommen; ausreichend Kontext mitgeben.
-- `update_frontmatter`: `id`, `version`, `date_markdown`, `date_updated` und `status_markdown`
-  sind geschützt. Achtung:
-  Kommentare im Frontmatter gehen dabei verloren – bei Dokumenten mit Kommentaren vorher erwähnen.
+- `append_to_document` with `section`: section key, e.g. `"Open points"`,
+  `"_preamble"` (text before the first heading) or for duplicate headings `"Notes#2"`.
+- `edit_document`: `old` must occur exactly once; include enough context.
+- `update_frontmatter`: `id`, `version`, `date_markdown`, `date_updated` and `status_markdown`
+  are protected. Caution:
+  comments in the frontmatter are lost – mention this beforehand for documents with comments.
 
-## Rückmeldungen der Tools
+## Tool responses
 
-| `status` | Vorgehen |
+| `status` | What to do |
 |---|---|
-| `created` / `changed` | Version (und ggf. ID, Pfad) nennen |
-| `unchanged` | Es gab nichts zu ändern; so mitteilen |
-| `conflict` | Datei wurde inzwischen geändert (z. B. in Obsidian). **Neu lesen**, Fassung auf dem aktuellen Stand neu aufbauen, erneut Entwurf zeigen. Nie blind wiederholen |
-| `large_shortening` | Die genannten `missing_sections` bzw. die Kürzung dem Nutzer nennen und **ausdrücklich** bestätigen lassen, dann erneut mit `confirm_shortening: true` |
-| `ambiguous` | Kandidaten nennen und nachfragen (bei Abschnitten: Schlüssel mit Suffix verwenden) |
-| `not_found` | Ziel oder Textstelle prüfen, ggf. `search` |
-| `forbidden` | Ziel ist nicht änderbar (z. B. `wiki/`); bei Wiki-Fehlern Korrektur-Dokument anlegen |
-| `not_versioned` | Datei liegt in `scratch/`: es gibt keinen Verlauf und nichts wiederherzustellen |
-| `git_unavailable`, `commit_failed`, `invalid_frontmatter`, `invalid_encoding` | Dem Nutzer melden; nicht umgehen |
+| `created` / `changed` | Name the version (and possibly ID, path) |
+| `unchanged` | There was nothing to change; say so |
+| `conflict` | The file was changed in the meantime (e.g. in Obsidian). **Read it again**, rebuild the version on the current state, show the draft again. Never repeat blindly |
+| `large_shortening` | Tell the user the listed `missing_sections` or the shortening and have it **explicitly** confirmed, then call again with `confirm_shortening: true` |
+| `ambiguous` | Name the candidates and ask (for sections: use the key with suffix) |
+| `not_found` | Check the target or passage, possibly `search` |
+| `forbidden` | The target cannot be changed (e.g. `wiki/`); for wiki errors create a correction document |
+| `not_versioned` | The file lies in `scratch/`: there is no history and nothing to restore |
+| `git_unavailable`, `commit_failed`, `invalid_frontmatter`, `invalid_encoding` | Report to the user; do not work around it |
 
-## Verlauf
+## History
 
-- „Was hat sich geändert?“ → `history` mit dem Dokument als `target`, bei Bedarf mit `diff_from` (und `diff_to`).
-- „Wie war das vorher?“ → `read(target, version: n)`.
-- „Mach das rückgängig“ → vorherige Version bestimmen, Entwurf (welche Version wird
-  zurückgeholt) zeigen, nach Bestätigung `restore_document`. Die Geschichte bleibt erhalten.
+- "What has changed?" → `history` with the document as `target`, if needed with `diff_from` (and `diff_to`).
+- "What was it like before?" → `read(target, version: n)`.
+- "Undo that" → determine the previous version, show the draft (which version is
+  restored), after confirmation `restore_document`. The history is kept.
 
-## Abfragen
+## Queries
 
-1. Breite Frage → `read_index`; sonst `search` (Standard-`scope` ist `wiki`).
-2. Die besten Treffer mit `read` öffnen und mit Verweis auf die Wiki-Seiten antworten
+1. Broad question → `read_index`; otherwise `search` (default `scope` is `wiki`).
+2. Open the best hits with `read` and answer with references to the wiki pages
    (`[[wiki/…]]`).
-3. Dokumente zum Thema mit `processed: false` (über `search` mit `scope: "documents"` oder
-   `list_unprocessed`) als „noch nicht im Wiki“ erwähnen.
-4. **Auf Nachfrage nach Quellen** („woher stammt das?“): `show_citations` mit der Wiki-Seite
-   und der Aussage als `statement`, bei Bedarf `with_excerpt: true`. Je Aussage nennen:
-   Original, Abschnitt/Seite, Zitat, belegte und aktuelle Version, Status, Obsidian-Link.
-   Bei `newer_version` den aktuellen Wortlaut dazu zeigen; bei `missing` sagen, dass das
-   Original nicht mehr da ist (Wortlaut stammt aus dem Verlauf).
-5. Ohne Nachfrage genügen die Wiki-Seiten. Die Originale anbieten, wenn die Antwort für eine
-   Entscheidung gebraucht wird.
+3. Mention documents on the topic with `processed: false` (via `search` with `scope: "documents"` or
+   `list_unprocessed`) as "not yet in the wiki".
+4. **When asked for sources** ("where does this come from?"): `show_citations` with the wiki page
+   and the statement as `statement`, if needed `with_excerpt: true`. Per statement name:
+   original, section/page, quote, cited and current version, status, Obsidian link.
+   For `newer_version` show the current wording as well; for `missing` say that the
+   original no longer exists (the wording comes from the history).
+5. Without being asked, the wiki pages are enough. Offer the originals when the answer is needed
+   for a decision.
 
-## Bilder
+## Images
 
-- **Format:** Diagramme, Skizzen, Ablauf- und Schaltpläne, Messwert-Diagramme und eigene Grafiken
-  zeichnest du als **SVG**. Fotos, Screenshots und Scans bleiben **PNG**. Fotos nie vektorisieren.
-- **Ablegen:** beim Anlegen oder Ändern über den Parameter `images` (`create_document`,
-  `rewrite_document`, `append_to_document`, `edit_document`), in ein bestehendes Dokument auch mit
-  `add_image`. Im Text steht an der Stelle `{{image:<name>}}`. Je Bild: `name` (klein,
-  Bindestriche, eindeutig), `alt` (Alternativtext, eine Zeile, **immer**) und genau eine Quelle:
-  `svg` (Text), `png_base64` oder `import_path`. `mode` meist weglassen (`auto`: bis 24 KB
-  eingebettet, sonst Datei in `_attachments/`; in `scratch/` immer eingebettet).
-- **Erst Entwurf, dann schreiben:** Im Entwurf das Bild mit zeigen (SVG direkt darstellen).
-- **Im Chat hochgeladene Fotos oder Screenshots** kannst du nicht byte-genau weitergeben. Bitte den
-  Nutzer, die Datei (PNG oder JPEG) in den Ordner `pkm_img_import/` im Vault zu legen (Finder,
-  Explorer oder Nextcloud-App), und übernimm sie mit `import_path` (Dateiname genügt). Bei einfachen
-  Grafiken alternativ eine SVG-Nachzeichnung anbieten, im Alternativtext als „nachgezeichnet“
-  gekennzeichnet.
-- **Lesen:** `read` zeigt eingebettete Bilder als Platzhalter `![…](pkm-image:<name> "…")` und
-  listet sie unter `images`. Ansehen mit `read_image` (`target`, `image`). Base64 oder SVG-Inhalt
-  nie in einen Text übernehmen.
-- **Ändern:** Platzhalter in `rewrite_document`/`edit_document` unverändert stehen lassen, der
-  Server setzt die Originale wieder ein. Fehlt ein Bild in der neuen Fassung, kommt
-  `large_shortening` mit `removed_images` – nur nach Bestätigung mit `confirm_shortening`
-  entfernen. `unknown_image`: Platzhaltername stimmt nicht.
-- **Keine Data-URIs von Hand in den Text schreiben**, Bilder immer über `images` bzw. `add_image`.
-- **`nonconforming_image`:** Der Text enthielt eine Data-URI, die nicht der Form entspricht (Befunde
-  in `image_issues`, z. B. `reference_style`, `unencoded_chars`, `missing_name`, `missing_alt`).
-  Befunde und Vorschlag dem Nutzer zeigen (bei SVG das Bild), fehlende Alternativtexte erfragen und
-  erst nach Bestätigung den Aufruf mit `fix_images: true` und `image_alt` (`{name: text}`)
-  wiederholen – oder die Fassung mit `images` neu aufbauen.
-- **Abweichende Bilder im Bestand** (`image_warnings` beim Schreiben, `conforming: false` in `read`):
-  dem Nutzer nennen und die Korrektur anbieten. Nach Bestätigung `fix_images` ohne `apply`
-  (Vorschlag und Diff zeigen), dann mit `apply: true`. Nie von sich aus korrigieren.
-- Bestehende eingebettete PNG bleiben unverändert; bei ihnen wird nach Bestätigung höchstens die
-  Schreibweise korrigiert. Fehler: `svg_too_complex` (dann PNG),
-  `too_large_for_inline` (dann `mode: auto`), `invalid_image`, `forbidden` (`import_path`
-  außerhalb des Importordners).
+- **Format:** draw diagrams, sketches, flow charts and circuit diagrams, measurement charts and your own graphics
+  as **SVG**. Photos, screenshots and scans stay **PNG**. Never vectorize photos.
+- **Filing:** when creating or changing via the parameter `images` (`create_document`,
+  `rewrite_document`, `append_to_document`, `edit_document`), into an existing document also with
+  `add_image`. The text contains `{{image:<name>}}` at the position. Per image: `name` (lower case,
+  hyphens, unique), `alt` (alt text, one line, **always**) and exactly one source:
+  `svg` (text), `png_base64` or `import_path`. Usually omit `mode` (`auto`: up to 24 KB
+  embedded, otherwise a file in `_attachments/`; in `scratch/` always embedded).
+- **Draft first, then write:** show the image in the draft (render SVG directly).
+- **Photos or screenshots uploaded in the chat** cannot be passed on byte for byte. Ask the
+  user to put the file (PNG or JPEG) into the folder `pkm_img_import/` in the vault (Finder,
+  Explorer or the cloud storage app) and import it with `import_path` (the file name is enough). For simple
+  graphics alternatively offer an SVG redrawing, marked as "redrawn" in the alt text.
+- **Reading:** `read` shows embedded images as placeholders `![…](pkm-image:<name> "…")` and
+  lists them under `images`. View them with `read_image` (`target`, `image`). Never copy Base64 or SVG content
+  into a text.
+- **Changing:** leave placeholders in `rewrite_document`/`edit_document` unchanged, the
+  server inserts the originals again. If an image is missing in the new version, the result is
+  `large_shortening` with `removed_images` – remove it only after confirmation with `confirm_shortening`.
+  `unknown_image`: the placeholder name is wrong.
+- **Never write data URIs into the text by hand**, always pass images via `images` or `add_image`.
+- **`nonconforming_image`:** the text contained a data URI that does not conform to the form (findings
+  in `image_issues`, e.g. `reference_style`, `unencoded_chars`, `missing_name`, `missing_alt`).
+  Show the findings and the proposal to the user (for SVG the image), ask for missing alt texts and
+  repeat the call with `fix_images: true` and `image_alt` (`{name: text}`) only after confirmation
+  – or rebuild the version with `images`.
+- **Nonconforming images in the existing text** (`image_warnings` when writing, `conforming: false` in `read`):
+  tell the user and offer the fix. After confirmation `fix_images` without `apply`
+  (show proposal and diff), then with `apply: true`. Never fix on your own.
+- Existing embedded PNGs stay unchanged; for them at most the notation is fixed after
+  confirmation. Errors: `svg_too_complex` (then PNG),
+  `too_large_for_inline` (then `mode: auto`), `invalid_image`, `forbidden` (`import_path`
+  outside the import folder).
 
-## Notizen und Todo-Listen (`scratch/`)
+## Notes and todo lists (`scratch/`)
 
-Für Kurzlebiges gibt es den Bereich `scratch/`: Er wird **nie ins Wiki übernommen** und **nicht
-versioniert** (kein Commit, kein Verlauf).
+For short-lived things there is the area `scratch/`: it is **never taken into the wiki** and **not
+versioned** (no commit, no history).
 
-- Auslöser: „notier mir kurz …“, „setz das auf meine Todo-Liste“, „hak … ab“, „was steht auf
-  meiner Liste?“.
-- **Neue Notiz:** `create_document` mit `area: "scratch"` (optional `folder`, z. B. `"todo"`).
-- **Bestehende Liste ändern:** `append_to_document` bzw. `edit_document`, z. B. beim Abhaken
-  `- [ ]` → `- [x]`. Ist unklar, welche Liste gemeint ist: `search` mit `scope: "scratch"`, bei
-  mehreren Treffern nachfragen.
-- **Auch hier gilt die Grundregel:** erst Entwurf bzw. Vorher/Nachher zeigen, dann nach
-  Bestätigung schreiben.
-- Darauf hinweisen, dass Inhalte in `scratch/` nicht ins Wiki kommen. Soll etwas dauerhaft
-  festgehalten werden, stattdessen ein Dokument in `documents/` vorschlagen (oder die Notiz in
-  Obsidian nach `documents/` verschieben lassen).
-- Für Dateien in `scratch/` **keine Version und keinen Commit nennen**. `history` und
-  `restore_document` liefern dort `not_versioned`.
-- `search` durchsucht `scratch/` nur mit `scope: "scratch"`.
+- Triggers: "make a quick note …", "put this on my todo list", "tick off …", "what is on
+  my list?".
+- **New note:** `create_document` with `area: "scratch"` (optionally `folder`, e.g. `"todo"`).
+- **Change an existing list:** `append_to_document` or `edit_document`, e.g. when ticking off
+  `- [ ]` → `- [x]`. If it is unclear which list is meant: `search` with `scope: "scratch"`, for
+  several hits ask.
+- **The basic rule applies here too:** show the draft or before/after first, then write after
+  confirmation.
+- Point out that content in `scratch/` does not go into the wiki. If something should be kept
+  permanently, propose a document in `documents/` instead (or have the note moved to
+  `documents/` in Obsidian).
+- For files in `scratch/` **do not name a version or a commit**. `history` and
+  `restore_document` return `not_versioned` there.
+- `search` searches `scratch/` only with `scope: "scratch"`.
 
-## Korrekturen am Wiki
+## Corrections to the wiki
 
-Nie direkt. Immer als Dokument: Entwurf mit falscher Aussage, richtiger Aussage und
-Begründung zeigen, nach Bestätigung `create_document` mit `kind: "correction"` und
-`related: ["[[wiki/…]]"]` (betroffene Wiki-Seite). Der Pflege-Agent arbeitet sie ein.
+Never directly. Always as a document: show a draft with the wrong statement, the correct statement and
+the rationale, after confirmation `create_document` with `kind: "correction"` and
+`related: ["[[wiki/…]]"]` (affected wiki page). The maintenance agent incorporates it.

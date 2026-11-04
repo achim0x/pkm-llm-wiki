@@ -1,4 +1,4 @@
-"""Tests: Prüfung und Korrektur von Bild-Data-URIs bei der Übernahme (Spezifikation 0.24, 4.9).
+"""Tests: checking and fixing image data URIs on import (specification 0.24, 4.9).
 
     Author: Achim0x
 """
@@ -56,21 +56,21 @@ GOOD_SVG = images.svg_data_uri(images.sanitize_svg(SVG_RAW, 200))
 
 
 def _problems(text, **kw):
-    """Befundcodes je Bild.
+    """Finding codes per image.
 
     Args:
         text: Markdown.
-        **kw: Optionen für ``image_issues``.
+        **kw: Options for ``image_issues``.
 
     Returns:
-        Bildname → Befunde.
+        Image name → findings.
     """
     return {i["ref"]: i["problems"] for i in image_issues(text, LIMITS, **kw)}
 
 
-# Befunde *********************************************************************
+# Findings ********************************************************************
 def test_practice_vector():
-    """Referenzstil mit ;utf8 und nicht kodierten Zeichen (Fall aus der Praxis)."""
+    """Reference style with ;utf8 and unencoded characters (case from practice)."""
     probs = _problems(PRACTICE)["plan"]
     assert {"reference_style", "svg_parameters", "unencoded_chars", "not_own_line", "missing_name"} <= set(probs)
 
@@ -93,19 +93,19 @@ def test_practice_vector():
     (f'Text\n\n[unbenutzt]: <data:image/svg+xml,{GOOD_SVG[19:]}>\n', "unused_definition"),
 ])
 def test_problem_codes(text, code):
-    """Jeder Befundcode wird erkannt."""
+    """Every finding code is detected."""
     assert any(code in p for p in _problems(text, legacy=False).values()), _problems(text, legacy=False)
 
 
 def test_conforming_and_code_are_clean():
-    """Konforme Bilder und Data-URIs in Code ergeben keine Befunde; zu groß nur über der Grenze."""
+    """Conforming images and data URIs in code give no findings; too large only above the limit."""
     good = f'![Plan]({GOOD_SVG} "pkm:plan")\n\n```\n![x](data:image/png;base64, kaputt)\n```\n\n`![y](data:a b)`\n'
     assert not image_issues(good, LIMITS, legacy=False)
     assert "too_large_for_inline" in image_issues(good, ImageConfig(inline_max_kb=0), legacy=False)[0]["problems"]
 
 
 def test_legacy_png_only_notation():
-    """Bestehende Base64-PNG: nur Schreibweise; Name und Alternativtext werden nicht verlangt."""
+    """Existing Base64 PNG: only the notation; name and alt text are not required."""
     text = f'Text <img src="data:image/png;base64,{PNG_B64[:8]}\n{PNG_B64[8:]}">\n'
     assert _problems(text)["image-1"] == ["html_img", "base64_whitespace"]
     new, _ = fix_text(text, LIMITS)
@@ -115,18 +115,18 @@ def test_legacy_png_only_notation():
 
 
 def test_fix_practice_vector_keeps_text_and_name():
-    """Korrektur: Bild in eigene Zeile, Definition entfernt, Name bleibt, übriger Text unverändert."""
+    """Fix: image in its own line, definition removed, name stays, the rest of the text unchanged."""
     new, _ = fix_text(PRACTICE, LIMITS, image_alt={"plan": "Aufbauplan"})
     assert "Der Aufbau:\n![Aufbauplan](data:image/svg+xml," in new and '"pkm:plan")\nsiehe oben.' in new
     assert "[plan]:" not in new and new.startswith("# Notiz\n\n## Aufbau\n")
     assert not image_issues(new, LIMITS)
-    assert not notation_only(PRACTICE, new, LIMITS)  # Alternativtext geändert
+    assert not notation_only(PRACTICE, new, LIMITS)  # alt text changed
     same_alt, _ = fix_text(PRACTICE, LIMITS)
     assert notation_only(PRACTICE, same_alt, LIMITS)
 
 
 def test_reference_used_twice_and_unused_definition():
-    """Mehrfach verwendete Referenz ergibt ambiguous; unbenutzte Definition nur mit Bestätigung."""
+    """A reference used more than once gives ambiguous; an unused definition only with confirmation."""
     twice = PRACTICE + "\nNochmal ![Plan][plan]\n"
     issue = image_issues(twice, LIMITS)[0]
     assert "more than once" in issue["note"]
@@ -140,9 +140,9 @@ def test_reference_used_twice_and_unused_definition():
     assert fix_text(unused, LIMITS, confirm_shortening=True)[0] == "Text\n\n"
 
 
-# Werkzeuge *******************************************************************
+# Tools ***********************************************************************
 def test_read_placeholders_any_notation(svc):
-    """read zeigt für jede Schreibweise Platzhalter; rewrite stellt sie byte-genau wieder her."""
+    """read shows placeholders for every notation; rewrite restores them byte for byte."""
     doc = svc.create_document(title="Alt", content="Text")
     write(svc.cfg, doc["path"], (svc.cfg.root / doc["path"]).read_text(encoding="utf-8") + "\n" + PRACTICE)
     data = svc.read(doc["path"])
@@ -157,7 +157,7 @@ def test_read_placeholders_any_notation(svc):
 
 
 def test_write_tools_reject_then_fix(svc):
-    """Abweichende Data-URI im Text: nonconforming_image ohne Schreiben; mit fix_images korrekt."""
+    """Nonconforming data URI in the text: nonconforming_image without writing; correct with fix_images."""
     with pytest.raises(PkmError) as e:
         svc.create_document(title="Neu", content=PRACTICE)
     assert e.value.status == "nonconforming_image" and e.value.data["image_issues"][0]["ref"] == "plan"
@@ -168,7 +168,7 @@ def test_write_tools_reject_then_fix(svc):
 
 
 def test_image_warnings_do_not_block(svc):
-    """Abweichende Bilder im Bestand blockieren nicht, sondern kommen als image_warnings."""
+    """Nonconforming images in the existing text do not block, they come as image_warnings."""
     doc = svc.create_document(title="Alt", content="Text")
     write(svc.cfg, doc["path"], (svc.cfg.root / doc["path"]).read_text(encoding="utf-8") + "\n" + PRACTICE)
     out = svc.append_to_document(target=doc["path"], text="Neue Zeile", expected_hash=svc.read(doc["path"])["hash"])
@@ -176,7 +176,7 @@ def test_image_warnings_do_not_block(svc):
 
 
 def test_fix_images_tool_proposal_and_apply(svc, isolated_env):
-    """fix_images: ohne apply nur Vorschlag; mit apply eine Version mit PKM-Fix: images."""
+    """fix_images: without apply only a proposal; with apply a version with PKM-Fix: images."""
     doc = svc.create_document(title="Alt", content="Text")
     write(svc.cfg, doc["path"], (svc.cfg.root / doc["path"]).read_text(encoding="utf-8") + "\n" + PRACTICE)
     h = svc.read(doc["path"])["hash"]
@@ -192,9 +192,9 @@ def test_fix_images_tool_proposal_and_apply(svc, isolated_env):
     assert e.value.status == "forbidden"
 
 
-# Pflege **********************************************************************
+# Maintenance *****************************************************************
 def test_pending_issues_notation_only_and_raised_citation(svc, cfg):
-    """begin_maintenance meldet Befunde; nach der Korrektur image_notation_only, Belege werden angehoben."""
+    """begin_maintenance reports findings; after the fix image_notation_only, citations are raised."""
     write(cfg, "documents/notiz.md", PRACTICE)
     begin = maintrun.begin_maintenance(svc)
     doc_id = begin["ids"]["assigned"][0]["id"]
@@ -216,7 +216,7 @@ def test_pending_issues_notation_only_and_raised_citation(svc, cfg):
 
 
 def test_write_wiki_page_checks_and_restores(svc):
-    """write_wiki_page lehnt abweichende Data-URIs ab, korrigiert mit fix_images und erhält Platzhalter."""
+    """write_wiki_page rejects nonconforming data URIs, fixes with fix_images and keeps placeholders."""
     page = "wiki/syntheses/plan"
     content = f"---\ntype: synthesis\n---\n## Inhalt\nPlan: ![Plan][p]\n\n[p]: <data:image/svg+xml;utf8,{SVG_RAW}>\n"
     with pytest.raises(PkmError) as e:
@@ -231,7 +231,7 @@ def test_write_wiki_page_checks_and_restores(svc):
 
 
 def test_lint_and_cli(svc, cfg, capsys):
-    """Lint meldet nonconforming_image und unsupported_type; pkm fix-images ohne --apply ändert nichts."""
+    """Lint reports nonconforming_image and unsupported_type; pkm fix-images without --apply changes nothing."""
     write(cfg, "documents/notiz.md", PRACTICE + "\n[Seite](data:text/html,<b>x</b>)\n")
     checks = [f["check"] for f in lint(svc)["findings"] if f.get("path") == "documents/notiz.md"]
     assert "nonconforming_image" in checks and "unsupported_type" in checks

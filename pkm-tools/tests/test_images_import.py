@@ -1,4 +1,4 @@
-"""Tests: JPEG-Übernahme und Importordner ``pkm_img_import/`` im Vault (Spezifikation 4.9).
+"""Tests: JPEG import and import folder ``pkm_img_import/`` in the vault (specification 4.9).
 
     Author: Achim0x
 """
@@ -45,30 +45,30 @@ from .test_images_core import make_png
 
 
 def _segment(marker, payload):
-    """JPEG-Segment bilden.
+    """Build a JPEG segment.
 
     Args:
-        marker: Markerbyte.
+        marker: Marker byte.
         payload: Inhalt.
 
     Returns:
-        Bytes des Segments.
+        Bytes of the segment.
     """
     return bytes([0xFF, marker]) + struct.pack(">H", len(payload) + 2) + payload
 
 
 def make_jpeg(width=4, height=3, orientation=6):
-    """Strukturell gültiges JPEG mit EXIF (Ausrichtung, GPS-Platzhalter) und Kommentar erzeugen.
+    """Create a structurally valid JPEG with EXIF (orientation, GPS placeholder) and a comment.
 
     Args:
-        width: Breite.
-        height: Höhe.
-        orientation: EXIF-Ausrichtung oder ``None``.
+        width: Width.
+        height: Height.
+        orientation: EXIF orientation or ``None``.
 
     Returns:
         JPEG-Bytes.
     """
-    entries = [(0x8825, 4, 1, 0)]  # GPS-IFD-Verweis als Beispiel für zu entfernende Daten
+    entries = [(0x8825, 4, 1, 0)]  # GPS IFD pointer as an example of data to remove
     if orientation:
         entries.insert(0, (0x0112, 3, 1, orientation << 16))
     ifd = struct.pack(">H", len(entries)) + b"".join(struct.pack(">HHII", *e) for e in entries) + struct.pack(">I", 0)
@@ -80,7 +80,7 @@ def make_jpeg(width=4, height=3, orientation=6):
 
 
 def test_clean_jpeg_strips_metadata_keeps_orientation():
-    """EXIF, GPS und Kommentare verschwinden; die Ausrichtung bleibt als minimaler EXIF-Block."""
+    """EXIF, GPS and comments disappear; the orientation stays as a minimal EXIF block."""
     cleaned = images.clean_jpeg(make_jpeg())
     assert b"geheim" not in cleaned and cleaned.startswith(b"\xff\xd8\xff\xe0")
     start = cleaned.index(b"Exif\x00\x00") + 6
@@ -90,7 +90,7 @@ def test_clean_jpeg_strips_metadata_keeps_orientation():
 
 
 def test_clean_jpeg_rejects_invalid():
-    """Ungültige Struktur und zu große Bilder werden abgelehnt."""
+    """Invalid structure and too large images are rejected."""
     for bad in (b"\x89PNG", make_jpeg()[:40], make_jpeg(9000, 10)):
         with pytest.raises(PkmError) as e:
             images.clean_jpeg(bad)
@@ -98,7 +98,7 @@ def test_clean_jpeg_rejects_invalid():
 
 
 def test_init_creates_ignored_import_folder(svc, cfg):
-    """pkm init legt pkm_img_import/ an, trägt ihn in .gitignore ein; doctor ist zufrieden."""
+    """pkm init creates pkm_img_import/, adds it to .gitignore; doctor is satisfied."""
     assert cfg.images.import_dir == cfg.root / IMPORT_FOLDER and (cfg.root / IMPORT_FOLDER).is_dir()
     assert f"{IMPORT_FOLDER}/" in (cfg.root / ".gitignore").read_text(encoding="utf-8")
     checks = {c["check"]: c for c in doctor(svc)["checks"]}
@@ -106,7 +106,7 @@ def test_init_creates_ignored_import_folder(svc, cfg):
 
 
 def test_import_folder_is_ignored_by_maintenance(svc, cfg, isolated_env):
-    """Dateien im Importordner sind keine Dokumente, nicht in Git, nicht im Lint und nicht in der Suche."""
+    """Files in the import folder are no documents, not in Git, not in lint and not in the search."""
     (cfg.root / IMPORT_FOLDER / "foto.png").write_bytes(make_png(text=False))
     (cfg.root / IMPORT_FOLDER / "notiz.md").write_text("# Notiz\nGeheimwort\n", encoding="utf-8", newline="\n")
     m = Maintenance(svc)
@@ -118,7 +118,7 @@ def test_import_folder_is_ignored_by_maintenance(svc, cfg, isolated_env):
 
 
 def test_create_document_imports_jpeg_from_vault_folder(svc, cfg, isolated_env):
-    """JPEG aus pkm_img_import/ wird übernommen (kopiert, bereinigt), klein eingebettet, groß als .jpg-Datei."""
+    """JPEG from pkm_img_import/ is imported (copied, cleaned), small ones embedded, large ones as a .jpg file."""
     (cfg.root / IMPORT_FOLDER / "foto.jpg").write_bytes(make_jpeg())
     res = svc.create_document(title="Foto", content="{{image:foto}}",
                               images=[{"name": "foto", "alt": "Foto", "import_path": "foto.jpg"}])

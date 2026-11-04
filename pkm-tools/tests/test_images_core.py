@@ -1,4 +1,4 @@
-"""Tests: Bildmodul (Spezifikation 4.9) – Erkennen, Platzhalter, SVG-Bereinigung, PNG-Prüfung.
+"""Tests: image module (specification 4.9) – detection, placeholders, SVG sanitizing, PNG check.
 
     Author: Achim0x
 """
@@ -44,25 +44,25 @@ SVG = ('<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="10
 
 
 def make_png(width=2, height=2, text=True):
-    """Kleines gültiges PNG erzeugen.
+    """Create a small valid PNG.
 
     Args:
-        width: Breite.
-        height: Höhe.
-        text: Mit tEXt-Block.
+        width: Width.
+        height: Height.
+        text: With a tEXt chunk.
 
     Returns:
         PNG-Bytes.
     """
     def chunk(kind, data):
-        """PNG-Block bilden.
+        """Build a PNG chunk.
 
         Args:
-            kind: Blocktyp.
+            kind: Chunk type.
             data: Inhalt.
 
         Returns:
-            Bytes des Blocks.
+            Bytes of the chunk.
         """
         return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
 
@@ -75,11 +75,11 @@ def make_png(width=2, height=2, text=True):
 
 
 def limits(tmp_path=None, **kw):
-    """Bildgrenzen für Tests.
+    """Image limits for tests.
 
     Args:
-        tmp_path: Importordner.
-        **kw: Abweichende Werte.
+        tmp_path: Import folder.
+        **kw: Different values.
 
     Returns:
         ``ImageConfig``.
@@ -88,7 +88,7 @@ def limits(tmp_path=None, **kw):
 
 
 def test_sanitize_svg_minifies_and_keeps_shapes():
-    """Kommentare, Metadaten und XML-Kopf verschwinden, Formen bleiben."""
+    """Comments, metadata and XML header disappear, shapes stay."""
     out = images.sanitize_svg(SVG, 200)
     assert out.startswith("<svg") and "<rect" in out and "Kommentar" not in out and "metadata" not in out
 
@@ -101,13 +101,13 @@ def test_sanitize_svg_minifies_and_keeps_shapes():
     '<use xlink:href="http://evil/x.svg#a"/><a href="https://x">t</a></svg>',
 ])
 def test_sanitize_svg_removes_unsafe_parts(bad):
-    """Script, Ereignis-Attribute, foreignObject und externe Verweise werden entfernt."""
+    """Script, event attributes, foreignObject and external references are removed."""
     out = images.sanitize_svg(bad, 200)
     assert not images.svg_problems(out) and "alert" not in out and "evil" not in out
 
 
 def test_sanitize_svg_rejects_xxe_raster_and_size():
-    """DOCTYPE/Entities, eingebettete Rastergrafiken und zu große SVG werden abgelehnt."""
+    """DOCTYPE/entities, embedded raster images and too large SVG are rejected."""
     xxe = '<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg">&x;</svg>'
     raster = '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,AAAA"/></svg>'
     big = '<svg xmlns="http://www.w3.org/2000/svg">' + "<rect/>" * 400 + "</svg>"
@@ -119,7 +119,7 @@ def test_sanitize_svg_rejects_xxe_raster_and_size():
 
 
 def test_svg_data_uri_is_markdown_safe():
-    """Die URL-Kodierung bricht keine Markdown-Syntax und lässt sich zurücklesen."""
+    """The URL encoding breaks no Markdown syntax and can be read back."""
     svg = images.sanitize_svg('<svg xmlns="http://www.w3.org/2000/svg"><text x="1">a (b) [c] "d"</text></svg>', 200)
     uri = images.svg_data_uri(svg)
     assert not any(ch in uri for ch in ' ()[]"#<>')
@@ -132,7 +132,7 @@ def test_svg_data_uri_is_markdown_safe():
 
 
 def test_clean_png_strips_text_and_checks_size():
-    """PNG: Textblöcke entfernt, Signatur und Größe geprüft."""
+    """PNG: text chunks removed, signature and size checked."""
     png = make_png()
     cleaned = images.clean_png(png)
     assert b"geheim" not in cleaned and cleaned.startswith(images.PNG_SIGNATURE)
@@ -143,7 +143,7 @@ def test_clean_png_strips_text_and_checks_size():
 
 
 def test_find_images_names_and_kinds():
-    """Namen aus pkm:, sonst aus Alternativtext oder bild-<n>; Dateien und Obsidian-Einbettungen."""
+    """Names from pkm:, otherwise from the alt text or image-<n>; files and Obsidian embeds."""
     b64 = base64.b64encode(make_png()).decode()
     text = (f'![Display](data:image/png;base64,{b64})\n'
             f'![Foto Einstieg](../_attachments/foto.png "pkm:foto-einstieg")\n'
@@ -156,7 +156,7 @@ def test_find_images_names_and_kinds():
 
 
 def test_placeholders_roundtrip_byte_exact():
-    """Platzhalter ersetzen Base64; die Rückübersetzung ist byte-genau, Unbekanntes wird abgelehnt."""
+    """Placeholders replace Base64; translating back is byte-exact, unknown ones are rejected."""
     b64 = base64.b64encode(make_png()).decode()
     text = f"Text\n![Display|300](data:image/png;base64,{b64})\nmehr\n"
     shown = images.to_placeholders(text)
@@ -169,7 +169,7 @@ def test_placeholders_roundtrip_byte_exact():
 
 
 def test_prepare_image_modes_and_sources(tmp_path):
-    """auto bettet kleine Bilder ein, große werden Datei; inline zu groß wird abgelehnt; scratch immer inline."""
+    """auto embeds small images, large ones become files; inline too large is rejected; scratch always inline."""
     small = images.prepare_image({"name": "a", "alt": "A", "svg": SVG}, limits())
     assert small.mode == "inline" and small.fmt == "svg"
     png = make_png(200, 200, text=False)
@@ -197,7 +197,7 @@ def test_prepare_image_modes_and_sources(tmp_path):
 
 
 def test_new_image_placeholders():
-    """{{image:<name>}} muss zu den Bildern passen."""
+    """{{image:<name>}} must match the images."""
     img = images.prepare_image({"name": "a", "alt": "A", "svg": SVG}, limits())
     images.check_new_names("x {{image:a}}", [img], [])
     for text, status in (("x", "invalid_argument"), ("{{image:a}} {{image:b}}", "unknown_image")):

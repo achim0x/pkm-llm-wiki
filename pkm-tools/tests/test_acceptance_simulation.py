@@ -1,7 +1,7 @@
-"""Abnahme (Spezifikation 14) als Simulation: jeder Schritt mit den echten Tools und der CLI.
+"""Acceptance (specification 14) as a simulation: every step with the real tools and the CLI.
 
-Die Aufrufe des Chats bzw. Pflege-Agenten werden hier direkt ausgeführt. Geprüft wird, dass die
-Werkzeuge jeden Schritt tragen; das Verhalten des LLM prüft die manuelle Abnahme (docs/abnahme.md).
+The calls of the chat or the maintenance agent are run directly here. It is checked that the
+tools support every step; the behaviour of the LLM is checked by the manual acceptance (docs/abnahme.md).
 
     Author: Achim0x
 """
@@ -58,14 +58,14 @@ SECOND = ("## Ergebnis\nDer Überlauf wird per Schwimmerschalter erkannt.\n\n"
 
 @dataclass
 class _Run:
-    """Kontext des Abnahme-Ablaufs.
+    """Context of the acceptance flow.
 
     Attributes:
-        cfg: Konfiguration.
-        env: Isolierte Umgebung.
-        capsys: pytest-Fixture für CLI-Ausgaben.
-        svc: Dienst (Aufrufe des Chats).
-        path: Aktueller Pfad des Dokuments.
+        cfg: Configuration.
+        env: Isolated environment.
+        capsys: pytest fixture for CLI output.
+        svc: Service (calls of the chat).
+        path: Current path of the document.
     """
 
     cfg: Config
@@ -78,14 +78,14 @@ class _Run:
 
 
 def cli(capsys, *argv):
-    """CLI-Befehl ausführen und das JSON-Ergebnis zurückgeben.
+    """Run a CLI command and return the JSON result.
 
     Args:
-        capsys: pytest-Fixture zum Lesen der Ausgabe.
-        *argv: Argumente für ``pkm``.
+        capsys: pytest fixture for reading the output.
+        *argv: Arguments for ``pkm``.
 
     Returns:
-        Das ausgegebene JSON-Objekt.
+        The printed JSON object.
     """
     code = main(list(argv))
     out = json.loads(capsys.readouterr().out)
@@ -94,31 +94,31 @@ def cli(capsys, *argv):
 
 
 def cite(sha, link, key, quote):
-    """Beleg-Zeile (ohne Fußnotennamen) bilden.
+    """Build a citation line (without footnote name).
 
     Args:
-        sha: Ergebnis von ``pkm sha`` mit ``id``, ``version`` und ``sha``.
-        link: Dokumentpfad ohne ``.md``.
-        key: Abschnittsschlüssel.
-        quote: Wörtliches Zitat.
+        sha: Result of ``pkm sha`` with ``id``, ``version`` and ``sha``.
+        link: Document path without ``.md``.
+        key: Section key.
+        quote: Literal quote.
 
     Returns:
-        Der Belegtext nach Spezifikation 4.2.
+        The citation text per specification 4.2.
     """
     return f"[[{link}#{key}]] · „{quote}“ · id:{sha['id']} · v:{sha['version']} · sha:{sha['sha']}"
 
 
 def write_wiki(cfg, capsys, link, lines_extra=""):
-    """Themen- und Zusammenfassungsseite so schreiben, wie es der Pflege-Agent tun würde.
+    """Write the topic and summary page the way the maintenance agent would.
 
     Args:
-        cfg: Konfiguration.
-        capsys: pytest-Fixture für die CLI-Aufrufe.
-        link: Aktueller Dokumentpfad ohne ``.md``.
-        lines_extra: Zusätzliche Zeilen im Abschnitt „Inhalt“.
+        cfg: Configuration.
+        capsys: pytest fixture for the CLI calls.
+        link: Current document path without ``.md``.
+        lines_extra: Additional lines in the section "Content".
 
     Returns:
-        Ergebnis von ``pkm sha`` für den Abschnitt „Entscheidungen“.
+        Result of ``pkm sha`` for the section "Entscheidungen".
     """
     ent = cli(capsys, "sha", f"[[{link}]]", "--section", "Entscheidungen")
     ctx = cli(capsys, "sha", f"[[{link}]]", "--section", "Kontext / Begründung")
@@ -169,12 +169,12 @@ Entschieden: {quote_ent}.[^b1]
 
 
 def finish_run(capsys, doc_id, message):
-    """Pflegelauf abschließen: sync-citations, mark, index, status, lint, commit-wiki.
+    """Finish a maintenance run: sync-citations, mark, index, status, lint, commit-wiki.
 
     Args:
-        capsys: pytest-Fixture für die CLI-Aufrufe.
-        doc_id: Verarbeitetes Dokument.
-        message: Commit-Betreff.
+        capsys: pytest fixture for the CLI calls.
+        doc_id: Processed document.
+        message: Commit subject.
     """
     cli(capsys, "sync-citations")
     cli(capsys, "mark", doc_id, "--pages", "wiki/topics/zisterne", "wiki/summaries/ueberlaufsensor")
@@ -186,13 +186,13 @@ def finish_run(capsys, doc_id, message):
 
 
 def _step_1_create(run: _Run) -> str:
-    """Schritt 1: Ablegen aus dem Chat (nach Suche und bestätigtem Entwurf).
+    """Step 1: filing from the chat (after search and a confirmed draft).
 
     Args:
-        run: Ablaufkontext.
+        run: Flow context.
 
     Returns:
-        Die neue Dokument-ID.
+        The new document ID.
     """
     assert not run.svc.search("Überlaufsensor", scope="documents")["results"]
     doc = run.svc.create_document(title="Zisterne – Überlaufsensor", content=FIRST, tags=["zisterne"],
@@ -204,11 +204,11 @@ def _step_1_create(run: _Run) -> str:
 
 
 def _step_2_first_run(run: _Run, doc_id: str) -> None:
-    """Schritt 2: erster Pflegelauf; der Agenten-Commit enthält nur wiki/ und state.json.
+    """Step 2: first maintenance run; the agent commit contains only wiki/ and state.json.
 
     Args:
-        run: Ablaufkontext.
-        doc_id: Dokument-ID.
+        run: Flow context.
+        doc_id: Document ID.
     """
     assert cli(run.capsys, "doctor", "--short")["status"] == "ok"
     cli(run.capsys, "versions")
@@ -221,10 +221,10 @@ def _step_2_first_run(run: _Run, doc_id: str) -> None:
 
 
 def _step_3_sort_in(run: _Run) -> None:
-    """Schritt 3: in Obsidian einsortieren; Obsidian schreibt die Links um.
+    """Step 3: file in Obsidian; Obsidian rewrites the links.
 
     Args:
-        run: Ablaufkontext.
+        run: Flow context.
     """
     root = run.cfg.root
     (root / "documents/haus").mkdir()
@@ -237,11 +237,11 @@ def _step_3_sort_in(run: _Run) -> None:
 
 
 def _step_4_5_continue(run: _Run, doc_id: str) -> None:
-    """Schritte 4 und 5: Fortsetzung in neuem Chat (finden, lesen, neu fassen) und Verlauf.
+    """Steps 4 and 5: continuation in a new chat (find, read, rewrite) and history.
 
     Args:
-        run: Ablaufkontext.
-        doc_id: Dokument-ID.
+        run: Flow context.
+        doc_id: Document ID.
     """
     hits = run.svc.search("Überlaufsensor", scope="documents")["results"]
     assert hits[0]["id"] == doc_id and hits[0]["path"] == SORTED
@@ -256,11 +256,11 @@ def _step_4_5_continue(run: _Run, doc_id: str) -> None:
 
 
 def _write_wiki_with_old_version(run: _Run, doc_id: str) -> None:
-    """Wiki mit „Bis Version 1: …“ und Beleg auf v1 schreiben und den Lauf abschließen.
+    """Write the wiki with "Up to version 1: …" and a citation of v1 and finish the run.
 
     Args:
-        run: Ablaufkontext.
-        doc_id: Dokument-ID.
+        run: Flow context.
+        doc_id: Document ID.
     """
     shown = cli(run.capsys, "show", f"id:{doc_id}", "--version", "1", "--section", "Entscheidungen")
     old_ent = {"id": doc_id, "version": 1, "sha": shown["section_hash"][:6]}
@@ -272,11 +272,11 @@ def _write_wiki_with_old_version(run: _Run, doc_id: str) -> None:
 
 
 def _step_6_second_run(run: _Run, doc_id: str) -> None:
-    """Schritt 6: zweiter Pflegelauf; nur geänderte Abschnitte, „Bis Version 1“ mit Beleg auf v1.
+    """Step 6: second maintenance run; only changed sections, "up to version 1" with a citation of v1.
 
     Args:
-        run: Ablaufkontext.
-        doc_id: Dokument-ID.
+        run: Flow context.
+        doc_id: Document ID.
     """
     cli(run.capsys, "versions")
     changed = cli(run.capsys, "pending")["changed"][0]
@@ -287,11 +287,11 @@ def _step_6_second_run(run: _Run, doc_id: str) -> None:
 
 
 def _step_7_8_sources_and_dated(run: _Run, doc_id: str) -> None:
-    """Schritte 7 und 8: Quellen nennen; datierter Abschnitt nur auf Anweisung.
+    """Steps 7 and 8: name the sources; dated section only on instruction.
 
     Args:
-        run: Ablaufkontext.
-        doc_id: Dokument-ID.
+        run: Flow context.
+        doc_id: Document ID.
     """
     res = run.svc.show_citations("wiki/topics/zisterne", statement="Dachfläche beträgt", with_excerpt=True)
     c = res["citations"][0]
@@ -306,10 +306,10 @@ def _step_7_8_sources_and_dated(run: _Run, doc_id: str) -> None:
 
 
 def _step_9_windows(run: _Run) -> None:
-    """Schritt 9: Änderung auf Windows (CRLF, Obsidian) ergibt eine Version mit PKM-Source: user.
+    """Step 9: a change on Windows (CRLF, Obsidian) results in a version with PKM-Source: user.
 
     Args:
-        run: Ablaufkontext.
+        run: Flow context.
     """
     path = run.cfg.root / SORTED
     data = path.read_bytes().replace(b"- Kabelweg\n", b"- Kabelweg\n- Frostschutz\n")
@@ -322,11 +322,11 @@ def _step_9_windows(run: _Run) -> None:
 
 
 def _step_10_clean(run: _Run, doc_id: str) -> None:
-    """Schritt 10: nach dem Lauf melden doctor und lint keine Fehler, der Arbeitsbaum ist sauber.
+    """Step 10: after the run doctor and lint report no errors, the working tree is clean.
 
     Args:
-        run: Ablaufkontext.
-        doc_id: Dokument-ID.
+        run: Flow context.
+        doc_id: Document ID.
     """
     _write_wiki_with_old_version(run, doc_id)
     assert cli(run.capsys, "doctor")["errors"] == 0
@@ -336,7 +336,7 @@ def _step_10_clean(run: _Run, doc_id: str) -> None:
 
 
 def test_acceptance_steps_1_to_10(cfg, isolated_env, capsys, monkeypatch):
-    """Spielt die Abnahmeschritte 1–10 aus Spezifikation 14 mit Tools und CLI durch."""
+    """Plays through the acceptance steps 1–10 of specification 14 with tools and CLI."""
     monkeypatch.chdir(cfg.root)
     run = _Run(cfg, isolated_env, capsys, Service(cfg))
     doc_id = _step_1_create(run)

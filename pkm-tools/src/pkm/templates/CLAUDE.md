@@ -1,68 +1,68 @@
-# PKM – Schema und Regeln
+# PKM – schema and rules
 
-Dieser Ordner ist ein persönliches Wissensmanagement (PKM) mit LLM-Wiki. Die Pflege
-übernimmt der Skill `pkm-wiki` im Claude-Projekt „PKM-Pflege“. Änderungen an dieser Datei
-nur nach Zustimmung des Nutzers.
+This folder is a personal knowledge management (PKM) system with an LLM wiki. Maintenance is
+done by the skill `pkm-wiki` in the Claude project "PKM-Pflege". Change this file only with
+the user's consent.
 
-## Bereiche und Besitz
+## Areas and ownership
 
-| Bereich | Gehört | Wer schreibt |
+| Area | Owned by | Who writes |
 |---|---|---|
-| `documents/` (inkl. `_inbox/`, `_attachments/`) | Nutzer | Nutzer (Obsidian), pkm-mcp auf Anweisung des Nutzers; der Agent `id`/`version` über `pkm ids`/`pkm versions` sowie `title`, `context`, `tags`, `kind`, `short_citation` nach Bestätigung des Nutzers |
-| `wiki/` | Pflege-Agent | nur der Agent; aus Chats nur lesbar |
-| `scratch/` | Nutzer | Nutzer (Obsidian), pkm-mcp auf Anweisung; ohne Version und Commit, nie im Wiki, nicht in Git |
-| `.pkm/state.json` | Pflege-Agent | `pkm mark` |
-| `CLAUDE.md` | Nutzer | Agent nur nach Zustimmung; Änderungen erfasst `pkm versions` als Nutzer-Commit |
+| `documents/` (incl. `_inbox/`, `_attachments/`) | user | user (Obsidian), pkm-mcp on the user's instruction; the agent `id`/`version` via `pkm ids`/`pkm versions` as well as `title`, `context`, `tags`, `kind`, `short_citation` after the user's confirmation |
+| `wiki/` | maintenance agent | the agent only; read-only from chats |
+| `scratch/` | user | user (Obsidian), pkm-mcp on instruction; without version and commit, never in the wiki, not in Git |
+| `.pkm/state.json` | maintenance agent | `pkm mark` |
+| `CLAUDE.md` | user | the agent only with consent; `pkm versions` records changes as a user commit |
 
-Neue Dokumente aus Chats und vom Web Clipper landen in `documents/_inbox/`. Einsortiert wird
-frei in Obsidian; Dokumente werden über ihre ID gefunden, nicht über den Pfad.
+New documents from chats and from the Web Clipper land in `documents/_inbox/`. Filing is done
+freely in Obsidian; documents are found by their ID, not by their path.
 
-## Dokumente
+## Documents
 
-- Frontmatter-Pflichtfelder: `id` (`d-YYYYMMDD-HHMM-xxxx`) und `version` (ab 1).
-- Weitere Felder (Schema der digitalisierten Normen, zuerst in dieser Reihenfolge): `title`,
+- Required frontmatter fields: `id` (`d-YYYYMMDD-HHMM-xxxx`) and `version` (from 1).
+- Further fields (schema of the digitized standards, first in this order): `title`,
   `short_citation`, `date_document`, `status_markdown`, `date_markdown`, `toolchain_markdown`;
-  danach `id`, `version`, `date_updated`, `context`, `tags`, `related`,
+  then `id`, `version`, `date_updated`, `context`, `tags`, `related`,
   `kind` (`note` | `standard` | `regulation` | `correction`).
-- `id`, `version`, `date_markdown`, `date_updated` setzen nur pkm-mcp bzw. die `pkm`-CLI.
-  `status_markdown` wird unverändert übernommen und von keinem Werkzeug geändert.
-- `context`: eine Zeile „<Art>: <Inhalt>“ (Art: Chat, Podcast, Buch, Artikel, Recherche, Notiz).
-  `tags`: 4–8, klein, Bindestriche, Umlaute ausgeschrieben, vorhandene wiederverwenden.
-  Fehlen sie bei neuen Dokumenten, schlägt der Pflege-Agent Werte vor und trägt sie erst nach
-  Bestätigung ein.
-- Datumsfelder `date_markdown`/`date_updated`: `YYYY-MM-DDTHH:MM:SS` in Ortszeit ohne Zeitzone.
-- Feldnamen ohne Leerzeichen. Werte mit `: ` oder führendem YAML-Sonderzeichen in doppelte
-  Anführungszeichen setzen. `source` bleibt dem Web Clipper vorbehalten.
-- Jede Version ist genau ein Git-Commit mit den Zeilen `PKM-Id`, `PKM-Version`,
-  `PKM-Source` (`chat` | `user` | `agent`). Der Verlauf liegt in Git, nicht im Dokument.
-- Bilder (4.9): PNG, JPEG und SVG (Diagramme als SVG). Übergabe aus dem Chat über `pkm_img_import/`
-  (nicht in Git, nie im Wiki). Bis 24 KB eingebettet als Data-URI mit Titel
-  `"pkm:<name>"`, größere als Datei in `documents/_attachments/`. Jedes neue Bild hat einen
-  Alternativtext. Bestehende eingebettete PNG bleiben unverändert. Belege auf Bilder zitieren
+- `id`, `version`, `date_markdown`, `date_updated` are set only by pkm-mcp or the `pkm` CLI.
+  `status_markdown` is taken over unchanged and changed by no tool.
+- `context`: one line "<kind>: <content>" (kind: chat, podcast, book, article, research, note).
+  `tags`: 4–8, lower case, hyphens, umlauts spelled out, reuse existing ones.
+  If they are missing in new documents, the maintenance agent proposes values and enters them
+  only after confirmation.
+- Date fields `date_markdown`/`date_updated`: `YYYY-MM-DDTHH:MM:SS` in local time without time zone.
+- Field names without spaces. Put values with `: ` or a leading YAML special character in double
+  quotes. `source` is reserved for the Web Clipper.
+- Every version is exactly one Git commit with the lines `PKM-Id`, `PKM-Version`,
+  `PKM-Source` (`chat` | `user` | `agent`). The history lives in Git, not in the document.
+- Images (4.9): PNG, JPEG and SVG (diagrams as SVG). Handover from the chat via `pkm_img_import/`
+  (not in Git, never in the wiki). Up to 24 KB embedded as a data URI with the title
+  `"pkm:<name>"`, larger ones as a file in `documents/_attachments/`. Every new image has an
+  alt text. Existing embedded PNGs stay unchanged. Citations of images quote
   `[img:<name>]`.
-- Empfohlene Gliederung für Chat-Ergebnisse: `## Ergebnis`, `## Entscheidungen`,
-  `## Offene Punkte`, `## Kontext / Begründung`. Fortsetzungen aktualisieren diese Abschnitte.
-- Abschnitte sind Überschriften der Ebene 1 und 2 (`#`, `##`). Doppelte Überschriften, die
-  Zeichen `# ^ [ ] |` und Überschriften, die auf `#` plus Ziffern enden („Version#2“ →
-  besser „Version 2“), vermeiden.
+- Recommended structure for chat results: `## Result`, `## Decisions`,
+  `## Open points`, `## Context / rationale`. Continuations update these sections.
+- Sections are headings of level 1 and 2 (`#`, `##`). Avoid duplicate headings, the
+  characters `# ^ [ ] |` and headings that end in `#` plus digits ("Version#2" →
+  better "Version 2").
 
 ## Wiki
 
-- Seitentypen: `wiki/topics/` (topic), `wiki/entities/` (entity), `wiki/summaries/` (summary,
-  eine Seite je Dokument), `wiki/syntheses/` (synthesis).
-- Frontmatter: `type`, `title`, `aliases`, `tags`, `sources` (erzeugt), `date_updated`,
+- Page types: `wiki/topics/` (topic), `wiki/entities/` (entity), `wiki/summaries/` (summary,
+  one page per document), `wiki/syntheses/` (synthesis).
+- Frontmatter: `type`, `title`, `aliases`, `tags`, `sources` (generated), `date_updated`,
   `confidence` (`high` | `medium` | `low`).
-- Erste Zeile nach dem Frontmatter: `> **Kurzfassung:** …`
-- Jede Sachaussage in „Inhalt“ und „Widersprüche / offene Fragen“ endet mit einer Fußnote auf
-  ein Dokument in `documents/`:
-  `[^b1]: [[<pfad>#<anker>]] · „<zitat>“ · id:<id> · v:<version> · sha:<6 zeichen>`
-  (PDF/Bild: `[[<pfad>.pdf#page=<n>]] · „<zitat>“ · sha:<6 zeichen>`).
-- Wiki-Seiten gelten nicht als Beleg. Nichts erfinden, Lücken als offene Frage markieren.
-- Im Wiki wird nichts gelöscht; überholte Aussagen behalten ihren Beleg auf die alte Version.
-- Generiert, nicht von Hand ändern: `wiki/index.md`, `wiki/_status.md`, `sources`.
-- `wiki/log.md` wird nur angehängt.
+- First line after the frontmatter: `> **Summary:** …`
+- Every factual statement in "Content" and "Contradictions / open questions" ends with a
+  footnote to a document in `documents/`:
+  `[^b1]: [[<path>#<anchor>]] · "<quote>" · id:<id> · v:<version> · sha:<6 characters>`
+  (PDF/image: `[[<path>.pdf#page=<n>]] · "<quote>" · sha:<6 characters>`).
+- Wiki pages do not count as citations. Invent nothing, mark gaps as open questions.
+- Nothing is deleted in the wiki; outdated statements keep their citation of the old version.
+- Generated, do not change by hand: `wiki/index.md`, `wiki/_status.md`, `sources`.
+- `wiki/log.md` is append-only.
 
-## Sprache
+## Language
 
-Inhalte, Überschriften, Änderungsnotizen und Berichte: Deutsch. Schnittstellen (Felder,
-Werte, Tools, CLI): Englisch.
+Content, headings, change notes and reports: English. Interfaces (fields, values, tools,
+CLI): English.

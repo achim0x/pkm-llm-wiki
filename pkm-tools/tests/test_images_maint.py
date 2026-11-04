@@ -1,5 +1,5 @@
-"""Tests: Bilder in der Pflege (Spezifikation 4.9, 8) – zugehörige und eigenständige Bilder, Assets,
-geänderte Bilddateien, verwaiste Anhänge, Lint, Doctor, Suche.
+"""Tests: images in maintenance (specification 4.9, 8) – associated and standalone images, assets,
+changed image files, orphaned attachments, lint, doctor, search.
 
     Author: Achim0x
 """
@@ -52,14 +52,14 @@ PNG_B64 = base64.b64encode(PNG).decode()
 
 @pytest.fixture(name="fsvc")
 def fixture_fsvc(isolated_env, monkeypatch):
-    """Dienst, bei dem jedes Bild als Datei abgelegt wird.
+    """Service that stores every image as a file.
 
     Args:
-        isolated_env: Isolierte Umgebung.
-        monkeypatch: pytest-Fixture.
+        isolated_env: Isolated environment.
+        monkeypatch: pytest fixture.
 
     Returns:
-        Der Dienst.
+        The service.
     """
     del isolated_env
     monkeypatch.setenv("PKM_INLINE_MAX_KB", "0")
@@ -69,20 +69,20 @@ def fixture_fsvc(isolated_env, monkeypatch):
 
 
 def _checks(svc, path=None):
-    """Lint-Prüfnamen (optional nur für einen Pfad).
+    """Lint check names (optionally only for one path).
 
     Args:
-        svc: Dienst.
-        path: Pfad.
+        svc: Service.
+        path: Path.
 
     Returns:
-        Liste der Prüfnamen.
+        List of the check names.
     """
     return [f["check"] for f in lint(svc)["findings"] if path is None or f.get("path") == path]
 
 
 def test_referenced_image_is_not_a_document(fsvc):
-    """Zugehörige Bilddateien sind kein eigenes Dokument; eigenständige schon."""
+    """Associated image files are not a document of their own; standalone ones are."""
     res = fsvc.create_document(title="Foto", content="## Aufbau\n{{image:foto}}\n",
                                images=[{"name": "foto", "alt": "Foto", "png_base64": PNG_B64}])
     write(fsvc.cfg, "documents/_inbox/allein.png", "")
@@ -95,7 +95,7 @@ def test_referenced_image_is_not_a_document(fsvc):
 
 
 def test_changed_image_file_versions_document(fsvc, isolated_env):
-    """Ändert sich eine verlinkte Bilddatei, bekommt das Dokument eine neue Version im selben Commit."""
+    """If a linked image file changes, the document gets a new version in the same commit."""
     res = fsvc.create_document(title="Foto", content="## Aufbau\n{{image:foto}}\n",
                                images=[{"name": "foto", "alt": "Foto", "png_base64": PNG_B64}])
     image = res["images"][0]["path"]
@@ -116,7 +116,7 @@ def test_changed_image_file_versions_document(fsvc, isolated_env):
 
 
 def test_orphaned_attachment_reported(fsvc):
-    """Wird der letzte Verweis entfernt, ist die Bilddatei verwaist: Status und Lint melden sie."""
+    """If the last reference is removed, the image file is orphaned: status and lint report it."""
     res = fsvc.create_document(title="Foto", content="Text\n\n{{image:foto}}\n",
                                images=[{"name": "foto", "alt": "Foto", "png_base64": PNG_B64}])
     image = res["images"][0]["path"]
@@ -133,7 +133,7 @@ def test_orphaned_attachment_reported(fsvc):
 
 
 def test_lint_image_checks(svc):
-    """Unsicheres SVG, fehlender Alternativtext, doppelte Namen; bestehende Base64-PNG ohne Hinweis."""
+    """Unsafe SVG, missing alt text, duplicate names; existing Base64 PNG without a hint."""
     bad_svg = quote('<svg xmlns="http://www.w3.org/2000/svg"><script>x</script></svg>', safe="")
     text = (f'![Plan](data:image/svg+xml,{bad_svg} "pkm:plan")\n\n'
             f'![](data:image/png;base64,{PNG_B64} "pkm:a")\n\n![x](data:image/png;base64,{PNG_B64} "pkm:a")\n\n'
@@ -147,7 +147,7 @@ def test_lint_image_checks(svc):
 
 
 def test_image_citation_checked(svc):
-    """Ein Beleg [img:<name>] braucht das Bild im belegten Abschnitt."""
+    """A citation [img:<name>] needs the image in the cited section."""
     doc = svc.create_document(title="Plan", content="## Aufbau\n{{image:plan}}\n",
                               images=[{"name": "plan", "alt": "Plan", "png_base64": PNG_B64}])
     sha = next(s["sha"] for s in svc.read(doc["path"])["sections"] if s["key"] == "Aufbau")
@@ -161,7 +161,7 @@ def test_image_citation_checked(svc):
 
 
 def test_doctor_import_dir_and_search_alt_only(svc, cfg, monkeypatch):
-    """doctor prüft PKM_IMPORT_DIR; die Suche kennt nur den Alternativtext."""
+    """doctor checks PKM_IMPORT_DIR; the search only knows the alt text."""
     svc.create_document(title="Notiz", content="{{image:plan}}",
                         images=[{"name": "plan", "alt": "Zisternenpumpe Schema", "png_base64": PNG_B64}])
     assert svc.search("Zisternenpumpe", scope="documents")["results"]

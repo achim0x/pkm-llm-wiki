@@ -1,262 +1,265 @@
 ---
 name: pkm-wiki
-description: Pflege des PKM-Wikis über den MCP-Server „pkm-pflege“ (Projekt „PKM-Pflege“) – neue und geänderte Dokumente verarbeiten (Ingest), Lint, Wiki-Fragen im Pflegeprojekt, Schema anpassen. Verwenden bei „verarbeite neue Dokumente“, „Ingest“, „Lint“, „prüf das Wiki“, „was steht im Wiki zu …“ im Pflegeprojekt.
+description: Maintenance of the PKM wiki via the MCP server "pkm-pflege" (project "PKM-Pflege") – process new and changed documents (ingest), lint, wiki questions in the maintenance project, adjust the schema. Use for "process new documents", "ingest", "lint", "check the wiki", "what does the wiki say about …" in the maintenance project.
 ---
 
-# PKM-Wiki pflegen
+# Maintaining the PKM wiki
 
-Du arbeitest über die Tools des MCP-Servers **`pkm-pflege`**. Er läuft auf dem PKM-Rechner des
-Nutzers; eine Shell oder die CLI `pkm` brauchst du nicht (in Cowork gibt es dort keine).
+You work with the tools of the MCP server **`pkm-pflege`**. It runs on the user's PKM host;
+you need neither a shell nor the CLI `pkm` (there is none in Cowork).
 
-| Tool | Zweck |
+| Tool | Purpose |
 |---|---|
-| `begin_maintenance` | Vorlauf: Umgebung prüfen, Handänderungen als Versionen, fehlende IDs, `pending` (neue Dokumente mit `missing_fields`), `known_tags`, Belege auf verschobene Dokumente korrigieren |
-| `read`, `history`, `search`, `read_index`, `show_citations`, `list_unprocessed` | Dokumente, Versionen, Diffs und Wiki-Seiten lesen |
-| `read_image` | Bilder ansehen (PNG als Bild, SVG als Text) |
-| `write_wiki_page` | Wiki-Seite anlegen oder vollständig ersetzen (ohne Commit) |
-| `set_document_metadata` | Nur nach Bestätigung: `title`, `context`, `tags`, `kind`, `short_citation` eines Dokuments eintragen |
-| `fix_images` | Nur nach Bestätigung: Schreibweise abweichender Bild-Data-URIs eines Dokuments korrigieren |
-| `finish_maintenance` | Abschluss: Belege (verschoben, umbenannt, `v:` bei unveränderten Abschnitten angehoben), `sources`, Verarbeitungsstand, Log, Index, Status, Lint, Agenten-Commit |
+| `begin_maintenance` | Preparation: check the environment, manual changes as versions, missing IDs, `pending` (new documents with `missing_fields`), `known_tags`, fix citations of moved documents |
+| `read`, `history`, `search`, `read_index`, `show_citations`, `list_unprocessed` | Read documents, versions, diffs and wiki pages |
+| `read_image` | View images (PNG as an image, SVG as text) |
+| `write_wiki_page` | Create or completely replace a wiki page (without commit) |
+| `set_document_metadata` | Only after confirmation: enter `title`, `context`, `tags`, `kind`, `short_citation` of a document |
+| `fix_images` | Only after confirmation: fix the notation of nonconforming image data URIs of a document |
+| `finish_maintenance` | Finish: citations (moved, renamed, `v:` raised for unchanged sections), `sources`, processing state, log, index, status, lint, agent commit |
 
-Sprache aller Inhalte: **Deutsch**.
+Language of all content: **English**.
 
-## Feste Regeln
+## Fixed rules
 
-- `wiki/` gehört dir. `documents/` gehört dem Nutzer: dort **nichts** ändern, verschieben oder
-  löschen. `id`/`version` setzt `begin_maintenance`. Einzige weitere Ausnahme: `title`,
-  `context`, `tags`, `kind`, `short_citation` – nur nach **ausdrücklicher Bestätigung** des
-  Nutzers im Chat und nur mit `set_document_metadata` (siehe „Frontmatter-Vorschläge“). Die
-  Dokument-Tools des Servers `pkm` (`create_document`, `edit_document`, `update_frontmatter` …)
-  benutzt du in der Pflege nicht. Ebenso nur nach Bestätigung: die Bildschreibweise mit `fix_images`
-  (siehe „Korrektur von Data-URIs“).
-- `scratch/` (kurzlebige Notizen, Todo-Listen) wird **weder gelesen noch verarbeitet**. Kein
-  Beleg zeigt auf eine Datei dort. Wird eine Notiz nach `documents/` verschoben, ist sie beim
-  nächsten Lauf ein neues Dokument; aus `documents/` nach `scratch/` verschoben wirkt wie Löschen.
-- Im Wiki **nichts löschen**. Aussagen und Belege ergänzen, aktualisieren oder als überholt
-  kennzeichnen.
-- **Keine Aussage ohne Beleg** auf ein Dokument in `documents/`. Wiki-Seiten sind keine Belege.
-  Zitate **wörtlich** aus der genannten Version kopieren. Nichts erfinden; Lücken als offene
-  Frage markieren.
-- Eigene Schlussfolgerungen kennzeichnen: „(abgeleitet aus [^b1] und [^b4])“.
-- `CLAUDE.md` nur nach Zustimmung des Nutzers ändern.
-- `status_markdown` unverändert lassen. Der Wert spielt für die Verarbeitung keine Rolle.
-- Meldet Lint `invalid_frontmatter`, dem Nutzer den Befehl `pkm fix-frontmatter` vorschlagen
-  (er führt ihn selbst im Terminal aus).
-- Dokumente mit `kind: standard` oder `regulation` werden verarbeitet wie `note`. In Belegen und
-  Zusammenfassungen von Normen die Kurzbezeichnung (`short_citation`) nennen.
-- `wiki/index.md`, `wiki/_status.md`, `wiki/log.md` und `sources` im Frontmatter erzeugt
-  `finish_maintenance`; `write_wiki_page` lehnt diese Dateien ab.
+- `wiki/` belongs to you. `documents/` belongs to the user: change, move or delete **nothing**
+  there. `id`/`version` are set by `begin_maintenance`. The only other exception: `title`,
+  `context`, `tags`, `kind`, `short_citation` – only after **explicit confirmation** by the
+  user in the chat and only with `set_document_metadata` (see "Frontmatter proposals"). You do not
+  use the document tools of the server `pkm` (`create_document`, `edit_document`, `update_frontmatter` …)
+  in maintenance. Likewise only after confirmation: the image notation with `fix_images`
+  (see "Fixing data URIs").
+- `scratch/` (short-lived notes, todo lists) is **neither read nor processed**. No
+  citation points to a file there. If a note is moved to `documents/`, it is a new document in the
+  next run; moved from `documents/` to `scratch/` it acts like a deletion.
+- **Delete nothing** in the wiki. Add, update or mark statements and citations as
+  outdated.
+- **No statement without a citation** of a document in `documents/`. Wiki pages are not citations.
+  Copy quotes **literally** from the given version. Invent nothing; mark gaps as open
+  questions.
+- Mark your own conclusions: "(derived from [^b1] and [^b4])".
+- Change `CLAUDE.md` only with the user's consent.
+- Leave `status_markdown` unchanged. The value plays no role in processing.
+- If lint reports `invalid_frontmatter`, propose the command `pkm fix-frontmatter` to the user
+  (they run it themselves in the terminal).
+- Documents with `kind: standard` or `regulation` are processed like `note`. In citations and
+  summaries of standards name the short citation (`short_citation`).
+- `wiki/index.md`, `wiki/_status.md`, `wiki/log.md` and `sources` in the frontmatter are generated by
+  `finish_maintenance`; `write_wiki_page` rejects these files.
 
-## Frontmatter-Vorschläge
+## Frontmatter proposals
 
-Bei jedem **neuen** Dokument das Frontmatter prüfen (`missing_fields` aus `begin_maintenance`,
-auch dünne Werte). Vorschläge als YAML-Block im Bericht, **noch nichts eintragen**:
+For every **new** document check the frontmatter (`missing_fields` from `begin_maintenance`,
+also thin values). Proposals as a YAML block in the report, **do not enter anything yet**:
 
-- `title`: sprechender Titel.
-- `context`: eine Zeile `"<Art>: <Inhalt>"` (Art: Chat, Podcast, Buch, Artikel, Recherche, Notiz),
-  wegen `: ` in doppelten Anführungszeichen.
-- `tags`: 4–8 Stück, klein, Bindestriche, Umlaute ausgeschrieben; vorhandene Tags aus
-  `known_tags` wiederverwenden.
-- `kind`: `note` (Standard) | `standard` / `regulation` (dann auch `short_citation` vorschlagen) |
+- `title`: a descriptive title.
+- `context`: one line `"<kind>: <content>"` (kind: chat, podcast, book, article, research, note),
+  in double quotes because of `: `.
+- `tags`: 4–8, lower case, hyphens, umlauts spelled out; reuse existing tags from
+  `known_tags`.
+- `kind`: `note` (default) | `standard` / `regulation` (then also propose `short_citation`) |
   `correction`.
 
-Nach ausdrücklicher Bestätigung: `read` → `hash` → `set_document_metadata` (`set` mit den
-bestätigten Feldern, `add` nur für weitere `tags`). Vorhandene Werte nicht überschreiben;
-`overwrite: true` nur, wenn der Nutzer das ausdrücklich will. Bei `conflict` neu lesen und dem
-Nutzer melden; bei `field_exists` den vorhandenen Wert nennen und nachfragen. Jede Eintragung
-ist eine neue Version des Dokuments; beim nächsten Lauf erscheint es als `meta_changed`.
+After explicit confirmation: `read` → `hash` → `set_document_metadata` (`set` with the
+confirmed fields, `add` only for further `tags`). Do not overwrite existing values;
+`overwrite: true` only if the user explicitly wants it. On `conflict` read again and tell the
+user; on `field_exists` name the existing value and ask. Every entry
+is a new version of the document; in the next run it appears as `meta_changed`.
 
-## Korrektur von Data-URIs
+## Fixing data URIs
 
-`begin_maintenance` liefert bei neuen und geänderten Dokumenten `image_issues`, wenn eingebettete Bilder
-nicht der Form entsprechen (z. B. Referenzstil, nicht kodierte Zeichen im SVG, fehlender Name oder
-Alternativtext). Im Bericht je Bild nennen: Fundstelle (Abschnitt, Zeile), Befunde in Worten, Vorschlag
-(Name, Alternativtext, eingebettet oder Datei, bei SVG das bereinigte Bild und entfernte Teile) und
-fragen, ob korrigiert werden soll. Fehlt ein Alternativtext, einen vorschlagen und bestätigen lassen.
+For new and changed documents `begin_maintenance` returns `image_issues` if embedded images
+do not conform to the form (e.g. reference style, unencoded characters in the SVG, missing name or
+alt text). In the report name per image: location (section, line), findings in words, proposal
+(name, alt text, embedded or file, for SVG the sanitized image and the removed parts) and
+ask whether it should be fixed. If an alt text is missing, propose one and have it confirmed.
 
-Nach **ausdrücklicher Bestätigung**: `read` → `hash` → `fix_images` ohne `apply` (Vorschlag und Diff
-prüfen) → `fix_images` mit `apply: true` und `image_alt`. Bei `conflict` neu lesen und melden. Nicht
-korrigierbare Befunde (`fixable: false`) als offene Frage nennen. Die Korrektur ist eine neue Version;
-beim nächsten Lauf hat das Dokument `image_notation_only: true` und braucht keine Neuverarbeitung
-(trotzdem in `processed` angeben). Bestehende eingebettete PNG/JPEG: nur Schreibweise, Bytes bleiben,
-kein Name. **Unbeaufsichtigt nie korrigieren**, Vorschläge über `questions`.
+After **explicit confirmation**: `read` → `hash` → `fix_images` without `apply` (check proposal and diff)
+→ `fix_images` with `apply: true` and `image_alt`. On `conflict` read again and report. Name
+findings that cannot be fixed (`fixable: false`) as an open question. The fix is a new version;
+in the next run the document has `image_notation_only: true` and needs no reprocessing
+(still list it in `processed`). Existing embedded PNG/JPEG: notation only, the bytes stay,
+no name. **Never fix unattended**, proposals go via `questions`.
 
-Eigene Wiki-Seiten: Meldet `write_wiki_page` `nonconforming_image`, korrigierst du ohne Rückfrage mit
-`fix_images: true` oder baust das SVG neu auf. Platzhalter `pkm-image:…` aus `read` stehen lassen.
+Your own wiki pages: if `write_wiki_page` reports `nonconforming_image`, fix it without asking with
+`fix_images: true` or rebuild the SVG. Leave placeholders `pkm-image:…` from `read` in place.
 
-## Formate
+## Formats
 
-**Wiki-Seite** (`wiki/topics/`, `wiki/entities/`, `wiki/summaries/`, `wiki/syntheses/`;
-Dateiname klein, Bindestriche, Umlaute ausgeschrieben: `regenwasser-ertrag.md`):
+**Wiki page** (`wiki/topics/`, `wiki/entities/`, `wiki/summaries/`, `wiki/syntheses/`;
+file name lower case, hyphens, umlauts spelled out: `rainwater-yield.md`):
 
 ```markdown
 ---
 type: topic            # topic | entity | summary | synthesis
-title: Regenwasser-Ertrag
-aliases: [Regenertrag]
-tags: [zisterne, wasser]
-sources: []            # erzeugt finish_maintenance
-date_updated: 2026-11-02T21:10:00   # YYYY-MM-DDTHH:MM:SS, Ortszeit ohne Zeitzone
+title: Rainwater yield
+aliases: [Rain yield]
+tags: [cistern, water]
+sources: []            # generated by finish_maintenance
+date_updated: 2026-11-02T21:10:00   # YYYY-MM-DDTHH:MM:SS, local time without time zone
 confidence: high       # high | medium | low
 ---
 
-> **Kurzfassung:** Ein bis drei Sätze. Landet in index.md und in den Suchtreffern.
+> **Summary:** One to three sentences. Ends up in index.md and in the search hits.
 
-## Inhalt
-Die Dachfläche beträgt 92 m².[^b1]
-(Bis Version 2 war ein Ultraschallsensor vorgesehen.[^b3])
+## Content
+The roof area is 92 m².[^b1]
+(Up to version 2 an ultrasonic sensor was planned.[^b3])
 
-## Widersprüche / offene Fragen
-- Ältere Notiz nennt 85 m².[^b5] Neuere Angabe (92 m²) wird verwendet.
+## Contradictions / open questions
+- An older note says 85 m².[^b5] The newer value (92 m²) is used.
 
-## Siehe auch
+## See also
 - [[wiki/entities/tank-1]]
 
-## Belege
-[^b1]: [[documents/haus/zisterne#Dach]] · „Dachfläche laut Plan 92 m²“ · id:d-20261012-0915-x7mp · v:2 · sha:3f9a1c
-[^b4]: [[documents/haus/datenblatt-tank.pdf#page=2]] · „Nutzvolumen 6500 l“ · sha:c07d44
-[^b6]: [[documents/haus/notizen#Notizen]] §:Notizen#2 · „zweite Notiz“ · id:d-… · v:1 · sha:a6fd6c
+## Citations
+[^b1]: [[documents/house/cistern#Roof]] · "Roof area according to plan 92 m²" · id:d-20261012-0915-x7mp · v:2 · sha:3f9a1c
+[^b4]: [[documents/house/tank-datasheet.pdf#page=2]] · "Usable volume 6500 l" · sha:c07d44
+[^b6]: [[documents/house/notes#Notes]] §:Notes#2 · "second note" · id:d-… · v:1 · sha:a6fd6c
 ```
 
-Gliederung in „Inhalt“: Zwischenüberschriften (`###`), reine Fett-Zeilen und reine Link-Zeilen
-sind erlaubt und brauchen keinen Beleg. Eine Tabelle belegst du mit einer Fußnote in der
-Tabelle oder in einer Zeile direkt darunter (z. B. `[^b3]` oder `Quelle: [^b3]`).
+Structure in "Content": subheadings (`###`), pure bold lines and pure link lines
+are allowed and need no citation. Cite a table with a footnote in the
+table or in a line directly below it (e.g. `[^b3]` or `Source: [^b3]`).
 
-**Beleg-Zeile:** `[^b<n>]: [[<pfad>#<anker>]] · „<zitat>“ · id:<id> · v:<version> · sha:<6 zeichen>`
-- Pfad vollständig ab Vault-Wurzel, Markdown ohne `.md`, PDF/Bild mit Endung. Nur `documents/`.
-- Anker = Abschnittsschlüssel **ohne** Duplikat-Suffix; bei doppelten Überschriften zusätzlich
-  `§:<schlüssel>` direkt nach dem Link. Text vor der ersten Überschrift: kein Anker.
+**Citation line:** `[^b<n>]: [[<path>#<anchor>]] · "<quote>" · id:<id> · v:<version> · sha:<6 characters>`
+- Full path from the vault root, Markdown without `.md`, PDF/image with extension. Only `documents/`.
+- Anchor = section key **without** duplicate suffix; for duplicate headings additionally
+  `§:<key>` directly after the link. Text before the first heading: no anchor.
   PDF: `#page=<n>`.
-- Zitat ≤ 200 Zeichen, wörtlich aus genau dieser Version.
-- `id`, `v` und `sha` stehen in der Antwort von **`read`**: `id`, `version` und unter `sections`
-  je Abschnitt `key` und `sha`. Für eine ältere Version `read` mit `version`. Für PDF/Bild: die
-  ersten 6 Zeichen von `hash` aus `read`.
-- **Belege auf Bilder:** eingebettetes oder zugehöriges Bild → Abschnitt des Dokuments, als Zitat
-  der Bildverweis: `[[documents/…/notiz#Aufbau]] · „[img:schaltplan]“ · id:… · v:3 · sha:…`.
-  Eigenständiges Bild → Link auf die Datei und Datei-Hash.
-- **Bilder in Wiki-Seiten:** Bilder aus Dokumenten nur als Link auf die Bilddatei zeigen, mit
-  Fußnote auf das Dokument; eingebettete Bilder nicht kopieren. Eigene SVG-Diagramme darfst du
-  eingebettet setzen; sie gelten als Schlussfolgerung („abgeleitet aus [^b1], [^b3]“).
-- Abschnitte mit `empty: true` (z. B. die H1 direkt vor dem ersten `##`) haben keinen eigenen
-  Text: nicht belegen, sondern den Unterabschnitt mit dem Zitat.
-- Große Dokumente: `read` mit `content: false` (nur Metadaten, `sections`, `content_length`),
-  dann abschnittsweise mit `section` oder seitenweise mit `offset`/`max_chars`. Fehlt `content`
-  mit `content_omitted`, war das Dokument zu groß für einen Aufruf.
-- Jede Sachaussage in „Inhalt“ und „Widersprüche / offene Fragen“ endet mit mindestens einer
-  Fußnote (ein Absatz aus derselben Stelle: eine Fußnote am Absatzende genügt).
-- Überholte Aussagen behalten ihren Beleg auf die **alte** Version.
-- `confidence: low`, wenn Quellen sich widersprechen oder nur eine unsichere Quelle vorliegt.
+- Quote ≤ 200 characters, literally from exactly this version.
+- `id`, `v` and `sha` are in the response of **`read`**: `id`, `version` and under `sections`
+  per section `key` and `sha`. For an older version `read` with `version`. For PDF/image: the
+  first 6 characters of `hash` from `read`.
+- **Citations of images:** embedded or associated image → section of the document, with the image
+  reference as the quote: `[[documents/…/note#Setup]] · "[img:circuit-diagram]" · id:… · v:3 · sha:…`.
+  Standalone image → link to the file and file hash.
+- **Images in wiki pages:** show images from documents only as a link to the image file, with
+  a footnote to the document; do not copy embedded images. You may embed your own SVG diagrams;
+  they count as a conclusion ("derived from [^b1], [^b3]").
+- Sections with `empty: true` (e.g. the H1 directly before the first `##`) have no text of
+  their own: do not cite them, cite the subsection containing the quote.
+- Large documents: `read` with `content: false` (metadata, `sections`, `content_length` only),
+  then section by section with `section` or page by page with `offset`/`max_chars`. If `content` is missing
+  with `content_omitted`, the document was too large for one call.
+- Every factual statement in "Content" and "Contradictions / open questions" ends with at least one
+  footnote (a paragraph from the same passage: one footnote at the end of the paragraph is enough).
+- Outdated statements keep their citation of the **old** version.
+- `confidence: low` if sources contradict each other or there is only one uncertain source.
 
-**Zusammenfassung** (`wiki/summaries/<dateiname-des-dokuments>.md`, `type: summary`): fasst genau
-ein Dokument in seiner aktuellen Version zusammen, mit Belegen wie oben.
+German section names of existing pages ("Inhalt", "Widersprüche / offene Fragen") are still
+recognized; new pages use the English names.
 
-**Log** (`wiki/log.md`): `finish_maintenance` hängt den Eintrag an und setzt die Überschrift mit
-Zeitstempel aus `operation` und `log_title` (hier `log_title: "1 neu, 1 geändert"`). Du lieferst
-nur die Liste als `log_entry`:
+**Summary** (`wiki/summaries/<file-name-of-the-document>.md`, `type: summary`): summarizes exactly
+one document in its current version, with citations as above.
+
+**Log** (`wiki/log.md`): `finish_maintenance` appends the entry and builds the heading with a
+timestamp from `operation` and `log_title` (here `log_title: "1 new, 1 changed"`). You only
+deliver the list as `log_entry`:
 
 ```markdown
-## [2026-11-02 21:10] ingest | 1 neu, 1 geändert
-- neu: wiki/summaries/bewaesserung-zeitplan
-- aktualisiert: wiki/topics/regenwasser-ertrag, wiki/entities/tank-1
-- überholt: „Ultraschallsensor“ → „Schwimmerschalter“ (zisterne-ueberlaufsensor v2 → v3)
+## [2026-11-02 21:10] ingest | 1 new, 1 changed
+- new: wiki/summaries/irrigation-schedule
+- updated: wiki/topics/rainwater-yield, wiki/entities/tank-1
+- outdated: "ultrasonic sensor" → "float switch" (cistern-overflow-sensor v2 → v3)
 ```
 
-## Ablauf „Ingest“ („Verarbeite neue Dokumente“)
+## Flow "ingest" ("process new documents")
 
 1. `begin_maintenance`.
-   - `status: blocked` → Fehler (`doctor`) melden und **abbrechen**.
-   - `status: needs_decision` → doppelte IDs (`ids.duplicates`) nicht selbst auflösen, sondern
-     nachfragen.
-   - `pending` enthält `new`, `changed`, `meta_changed`, `moved`, `deleted`, `problems`.
-     Mehr als 10 Dokumente → in Etappen (je höchstens 10) verarbeiten; nicht verarbeitete
-     Dokumente einfach nicht in `processed` angeben.
-   - Verschiebungen sind bereits korrigiert (`fixed_citations`).
-2. **`new`**: Dokument mit `read` vollständig lesen.
-   1. `wiki/summaries/<name>.md` mit `write_wiki_page` anlegen, mit Belegen.
-   2. Über `read_index` (und bei Bedarf `search`) betroffene Seiten bestimmen. Höchstens
-      10–15 Themen-, Entitäts- und Syntheseseiten aktualisieren oder anlegen. Jede neue oder
-      geänderte Aussage bekommt eine Fußnote.
-   3. Querverweise in beide Richtungen setzen („Siehe auch“).
-   4. Frontmatter prüfen und Vorschläge erarbeiten (siehe „Frontmatter-Vorschläge“), noch
-      nichts eintragen.
-   5. Befunde zu Data-URIs (`image_issues`) für den Bericht übernehmen, noch nichts korrigieren.
-   6. Bestehende Seiten vor dem Ändern mit `read` lesen und deren `hash` als `expected_hash`
-      an `write_wiki_page` geben (immer den ganzen Seiteninhalt schreiben). Bei `conflict` neu
-      lesen.
-3. **`changed`**: Nur die gemeldeten Abschnitte verarbeiten. Diff lesen:
-   `history` mit `diff_from: <processed_version>`.
-   - `changed`/`added`: betroffene Aussagen auf den neuen Stand bringen, Belege auf die **neue
-     Version**.
-   - Geänderte Entscheidung oder Tatsache: früheren Stand als „Bis Version n: …“ mit Beleg auf
-     die **alte** Version behalten, wenn er für die Nachvollziehbarkeit wichtig ist; sonst nur
-     im Log vermerken.
-   - `removed`: betroffene Aussagen prüfen (überholt kennzeichnen statt löschen).
-   - `renamed`: nur Anker anpassen (erledigt `begin_maintenance`/`finish_maintenance`).
-   - Leere Abschnittsliste (nur Reihenfolge geändert): nichts inhaltlich tun.
-   - Belege auf unveränderte Abschnitte hebt `finish_maintenance` selbst auf die neue Version
-     (nur `v:`; `sha:` bleibt).
-   - Zusammenfassungsseite des Dokuments aktualisieren.
-4. **`meta_changed`**: nur Zusammenfassungsseite (Titel, Themen, Verweise) anpassen. Die Belege
-   hebt `finish_maintenance` auf die neue Version. **`image_notation_only`** (nur die Bildschreibweise
-   geändert): nichts verarbeiten, nur in `processed` angeben; die Belege hebt `finish_maintenance` an.
-5. **`deleted`**: betroffene Aussagen (siehe `wiki_pages`) **nicht löschen**, sondern unter
-   „Widersprüche / offene Fragen“ vermerken: „Original nicht mehr vorhanden (letzter Stand in
-   Git, v<n>)“, `confidence: low`, Rückfrage im Bericht. Den Schlüssel in `removed` angeben.
-6. **Korrekturen** (`kind: correction` im Frontmatter): Die Korrektur des Nutzers hat Vorrang vor
-   älteren Quellen und gilt selbst als Beleg. Betroffene Seite (siehe `related`) anpassen, die
-   alte Aussage im Log als ersetzt vermerken. Widerspricht die Korrektur einer **neueren** Quelle
-   → nachfragen.
-7. **Bilder**: Jedes neue oder geänderte Bild (eingebettet oder verlinkt, siehe `images` in
-   `read`) mit `read_image` ansehen. Den Inhalt in Worten übernehmen und mit `[img:<name>]` als
-   Zitat belegen. Zugehörige Bilder bekommen keine eigene Zusammenfassung; eigenständige Bilder
-   (ohne Dokument, das darauf verweist) wie bisher. **PDF**: `read` liefert nur Größe und `hash`.
-   Den Inhalt liest du, wenn der Vault-Ordner in der Unterhaltung verbunden ist; sonst das PDF
-   nicht in `processed` angeben und im Bericht nennen.
-8. Abschließen mit `finish_maintenance`:
-   - `processed`: IDs (bzw. Pfade bei PDF/Bild) aller in diesem Lauf verarbeiteten Dokumente –
-     auch der verschobenen und nur in den Metadaten geänderten. Die belegenden Seiten ermittelt
-     das Tool aus den Fußnoten; `warnings` nennt Dokumente ohne Beleg.
-   - `removed`: Schlüssel verarbeiteter gelöschter Dokumente.
-   - `log_entry`, `log_title`, bei Bedarf `questions` (Rückfragen für `wiki/_status.md`).
-   - Meldet `lint` Fehler in deinen Seiten: mit `write_wiki_page` beheben und
-     `finish_maintenance` erneut mit `operation: fix` aufrufen (ohne `processed`).
-9. Kurzer Bericht im Chat: neue/geänderte Seiten, überholte Aussagen, Beleg-Probleme,
-   Einsortier-Vorschläge (aus `wiki/_status.md`), Rückfragen – und **je neuem Dokument mit
-   fehlenden Feldern den YAML-Block** mit der Frage, ob er eingetragen werden soll, sowie je Dokument
-   mit `image_issues` die Befunde mit Korrekturvorschlag und der Frage, ob korrigiert werden soll.
+   - `status: blocked` → report the error (`doctor`) and **stop**.
+   - `status: needs_decision` → do not resolve duplicate IDs (`ids.duplicates`) yourself, but
+     ask.
+   - `pending` contains `new`, `changed`, `meta_changed`, `moved`, `deleted`, `problems`.
+     More than 10 documents → process in stages (at most 10 each); simply do not list
+     unprocessed documents in `processed`.
+   - Moves are already fixed (`fixed_citations`).
+2. **`new`**: read the document completely with `read`.
+   1. Create `wiki/summaries/<name>.md` with `write_wiki_page`, with citations.
+   2. Determine affected pages via `read_index` (and if needed `search`). Update or create at most
+      10–15 topic, entity and synthesis pages. Every new or
+      changed statement gets a footnote.
+   3. Set cross-references in both directions ("See also").
+   4. Check the frontmatter and work out proposals (see "Frontmatter proposals"), do not
+      enter anything yet.
+   5. Take findings on data URIs (`image_issues`) into the report, do not fix anything yet.
+   6. Read existing pages with `read` before changing them and pass their `hash` as `expected_hash`
+      to `write_wiki_page` (always write the whole page content). On `conflict` read
+      again.
+3. **`changed`**: process only the reported sections. Read the diff:
+   `history` with `diff_from: <processed_version>`.
+   - `changed`/`added`: bring the affected statements up to date, citations of the **new
+     version**.
+   - Changed decision or fact: keep the earlier state as "Up to version n: …" with a citation of
+     the **old** version if it matters for traceability; otherwise only
+     note it in the log.
+   - `removed`: check the affected statements (mark as outdated instead of deleting).
+   - `renamed`: only adjust the anchors (done by `begin_maintenance`/`finish_maintenance`).
+   - Empty section list (only the order changed): do nothing content-wise.
+   - Citations of unchanged sections are raised to the new version by `finish_maintenance` itself
+     (only `v:`; `sha:` stays).
+   - Update the summary page of the document.
+4. **`meta_changed`**: only adjust the summary page (title, topics, references). The citations
+   are raised to the new version by `finish_maintenance`. **`image_notation_only`** (only the image notation
+   changed): process nothing, only list it in `processed`; `finish_maintenance` raises the citations.
+5. **`deleted`**: **do not delete** the affected statements (see `wiki_pages`), but note under
+   "Contradictions / open questions": "Original no longer exists (last state in
+   Git, v<n>)", `confidence: low`, question in the report. List the key in `removed`.
+6. **Corrections** (`kind: correction` in the frontmatter): the user's correction takes precedence over
+   older sources and counts as a citation itself. Adjust the affected page (see `related`), note the
+   old statement as replaced in the log. If the correction contradicts a **newer** source
+   → ask.
+7. **Images**: view every new or changed image (embedded or linked, see `images` in
+   `read`) with `read_image`. Take over the content in words and cite it with `[img:<name>]` as the
+   quote. Associated images get no summary of their own; standalone images
+   (without a document that links to them) as before. **PDF**: `read` only returns size and `hash`.
+   You read the content if the vault folder is connected in the conversation; otherwise do not list the PDF
+   in `processed` and name it in the report.
+8. Finish with `finish_maintenance`:
+   - `processed`: IDs (or paths for PDF/image) of all documents processed in this run –
+     also the moved ones and those changed only in their metadata. The tool determines the citing pages
+     from the footnotes; `warnings` names documents without a citation.
+   - `removed`: keys of processed deleted documents.
+   - `log_entry`, `log_title`, if needed `questions` (questions for `wiki/_status.md`).
+   - If `lint` reports errors in your pages: fix them with `write_wiki_page` and
+     call `finish_maintenance` again with `operation: fix` (without `processed`).
+9. Short report in the chat: new/changed pages, outdated statements, citation problems,
+   filing proposals (from `wiki/_status.md`), questions – and **for each new document with
+   missing fields the YAML block** with the question whether it should be entered, as well as for each document
+   with `image_issues` the findings with a fix proposal and the question whether it should be fixed.
 
-Nextcloud-Konfliktkopien werden nie verarbeitet; der Nutzer führt sie in Obsidian zusammen.
+Conflict copies of the cloud storage are never processed; the user merges them in Obsidian.
 
-## Ablauf „Lint“
+## Flow "lint"
 
-1. `begin_maintenance` mit `with_lint: true` (Ergebnis unter `lint`).
-2. **Selbst beheben** (mit `write_wiki_page`): kaputte Links mit eindeutigem Ziel, fehlende
-   Kurzfassungen. Verschobene Belege, `sources` und Index erledigt `finish_maintenance`.
-3. **Vorschlagen statt ausführen:** fehlende Frontmatter-Felder von Dokumenten (YAML-Block wie
-   unter „Frontmatter-Vorschläge“), abweichende Data-URIs (`nonconforming_image`, siehe „Korrektur
-   von Data-URIs“), inhaltliche Widersprüche, Zusammenlegen von Seiten, neue
-   Seiten, doppelte IDs, Belege mit `newer_version`, die nicht automatisch angehoben werden
-   konnten, Hinweise zu Dokumenten (`documents/` fasst du nicht an).
-4. `finish_maintenance` mit `operation: lint`, `lint_report: true` (Bericht nach
-   `wiki/_lint/YYYY-MM-DD.md`) und einem Log-Eintrag.
+1. `begin_maintenance` with `with_lint: true` (result under `lint`).
+2. **Fix yourself** (with `write_wiki_page`): broken links with a unique target, missing
+   summaries. Moved citations, `sources` and the index are handled by `finish_maintenance`.
+3. **Propose instead of doing:** missing frontmatter fields of documents (YAML block as
+   under "Frontmatter proposals"), nonconforming data URIs (`nonconforming_image`, see "Fixing
+   data URIs"), contradictions in content, merging pages, new
+   pages, duplicate IDs, citations with `newer_version` that could not be raised
+   automatically, hints on documents (you do not touch `documents/`).
+4. `finish_maintenance` with `operation: lint`, `lint_report: true` (report to
+   `wiki/_lint/YYYY-MM-DD.md`) and a log entry.
 
-## Ablauf „Abfrage“ (im Projekt)
+## Flow "query" (in the project)
 
-Erst `read_index`, dann die relevanten Seiten mit `read`, dann die Antwort mit Verweisen auf die
-Wiki-Seiten. Auf Nachfrage die Belege nennen (`show_citations`; Wortlaut alter Versionen mit
-`read` und `version`). Gute Antworten als Seite unter `wiki/syntheses/` anbieten (mit Belegen auf
-Dokumente, nicht auf Wiki-Seiten) und nach Zustimmung mit `write_wiki_page` anlegen und mit
-`finish_maintenance` (`operation: fix`) abschließen.
+First `read_index`, then the relevant pages with `read`, then the answer with references to the
+wiki pages. When asked, name the citations (`show_citations`; wording of old versions with
+`read` and `version`). Offer good answers as a page below `wiki/syntheses/` (with citations of
+documents, not of wiki pages) and after consent create it with `write_wiki_page` and finish with
+`finish_maintenance` (`operation: fix`).
 
-## Ablauf „Schema anpassen“
+## Flow "adjust the schema"
 
-Änderungen an `CLAUDE.md` vorschlagen (als Diff). Schreiben nur nach Zustimmung und nur, wenn der
-Vault-Ordner verbunden ist; sonst übernimmt der Nutzer die Änderung selbst.
+Propose changes to `CLAUDE.md` (as a diff). Write only after consent and only if the
+vault folder is connected; otherwise the user makes the change themselves.
 
-## Unbeaufsichtigter Lauf (geplante Aufgabe)
+## Unattended run (scheduled task)
 
-Nicht auf Antworten warten. Frontmatter-Vorschläge und Bildkorrekturen **nie eintragen**, sondern als Frage über
-`questions` nach `wiki/_status.md`. Konservativ entscheiden: Bei unklarer Einordnung, Duplikaten,
-Widersprüchen zu neueren Quellen oder gelöschten Originalen **nichts Riskantes tun**, sondern
-die Frage über `questions` von `finish_maintenance` in `wiki/_status.md` aufnehmen und im Log
-vermerken. Den Lauf trotzdem mit `finish_maintenance` abschließen.
+Do not wait for answers. **Never enter** frontmatter proposals and image fixes, but put them as a question via
+`questions` into `wiki/_status.md`. Decide conservatively: for unclear filing, duplicates,
+contradictions with newer sources or deleted originals **do nothing risky**, but
+put the question via `questions` of `finish_maintenance` into `wiki/_status.md` and note it in the
+log. Still finish the run with `finish_maintenance`.

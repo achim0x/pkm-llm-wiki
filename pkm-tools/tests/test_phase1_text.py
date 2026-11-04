@@ -1,4 +1,4 @@
-"""Normalisierung, Abschnitte und Hashes (Spezifikation 4.8, Tests aus 14).
+"""Normalization, sections and hashes (specification 4.8, tests from 14).
 
     Author: Achim0x
 """
@@ -45,18 +45,18 @@ VECTORS = json.loads((Path(__file__).parent / "vectors" / "sections.json").read_
 
 
 def sha(s: str) -> str:
-    """SHA-256 eines Texts (unabhängige Vergleichsberechnung).
+    """SHA-256 of a text (independent comparison computation).
 
     Args:
         s: Text.
 
     Returns:
-        64 Hex-Zeichen.
+        64 hex characters.
     """
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-# Schritt 1 *******************************************************************
+# Step 1 **********************************************************************
 @pytest.mark.parametrize(
     "raw, expected",
     [
@@ -68,42 +68,42 @@ def sha(s: str) -> str:
         ("", ""),
         ("\n\n", ""),
         ("U\u0308ber\n", "Über\n"),  # NFD → NFC
-        ("a  \nb\n", "a  \nb\n"),  # Leerzeichen in Zeilen bleiben
+        ("a  \nb\n", "a  \nb\n"),  # spaces within lines stay
     ],
 )
 def test_normalize_text(raw, expected):
-    """Normalisierung nach 4.8, Schritt 1."""
+    """Normalization per 4.8, step 1."""
     assert normalize_text(raw) == expected
 
 
 def test_invalid_utf8():
-    """Ungültiges UTF-8 ergibt invalid_encoding."""
+    """Invalid UTF-8 gives invalid_encoding."""
     with pytest.raises(PkmError) as e:
         decode(b"\xff\xfeabc")
     assert e.value.status == "invalid_encoding"
 
 
 def test_crlf_and_lf_same_hash():
-    """CRLF- und LF-Fassung haben denselben Datei-Hash."""
+    """CRLF and LF versions have the same file hash."""
     lf = normalize_bytes("---\ntitle: Ä\n---\n## A\nx\n".encode())
     crlf = normalize_bytes("\ufeff---\r\ntitle: Ä\r\n---\r\n## A\r\nx\r\n".encode())
     assert hashes.file_hash(lf) == hashes.file_hash(crlf)
 
 
 def test_encode_write_form():
-    """Die Schreibform ist UTF-8 ohne BOM mit LF am Ende."""
+    """The write form is UTF-8 without BOM with LF at the end."""
     assert encode("\ufeffa\r\nb") == b"a\nb\n"
 
 
 def test_fragment_keeps_end():
-    """Fragmente behalten ihr Ende."""
+    """Fragments keep their end."""
     assert normalize_fragment("a\r\nb") == "a\nb"
 
 
-# Schritte 2–4 mit Testvektoren ***********************************************
+# Steps 2–4 with test vectors *************************************************
 @pytest.mark.parametrize("vec", VECTORS, ids=[v["name"] for v in VECTORS])
 def test_vectors(vec):
-    """Abschnitte und Hashes stimmen mit den Testvektoren überein."""
+    """Sections and hashes match the test vectors."""
     text = normalize_text(vec["input"])
     p = parse(text)
     if vec.get("fm_error"):
@@ -119,20 +119,20 @@ def test_vectors(vec):
 
 
 def test_whitespace_change_keeps_section_hash():
-    """Reine Leerraum-Änderungen ändern den Abschnitts-Hash nicht."""
+    """Pure whitespace changes do not change the section hash."""
     a = parse(normalize_text("## A\nx\n\ny\n"))
     b = parse(normalize_text("## A\n\nx   \n\n\n\ny\n\n## B\n"))
     assert hashes.section_hashes(a)["A"] == hashes.section_hashes(b)["A"]
 
 
 def test_empty_section_hash():
-    """Ein leerer Abschnitt hat den Hash des leeren Strings."""
+    """An empty section has the hash of the empty string."""
     p = parse("## A\n")
     assert hashes.section_hashes(p)["A"] == sha("")
 
 
 def test_updated_changes_only_file_hash():
-    """Eine Änderung nur an date_updated ändert nur den Datei-Hash."""
+    """A change only to date_updated changes only the file hash."""
     t1 = normalize_text("---\nid: d-20261031-2340-k7q2\ntitle: T\ndate_updated: 2026-11-01T10:00:00\n---\n## A\nx\n")
     t2 = t1.replace("10:00:00", "11:00:00")
     h1, h2 = hashes.compute(t1, parse(t1)), hashes.compute(t2, parse(t2))
@@ -142,7 +142,7 @@ def test_updated_changes_only_file_hash():
 
 
 def test_meta_hash_fields():
-    """meta_hash umfasst title, short_citation, date_document, tags, related und kind als Zeichenketten."""
+    """meta_hash covers title, short_citation, date_document, tags, related and kind as strings."""
     p = parse("---\ntitle: T\nshort_citation: EN 1:2014\ndate_document: 2014\ntags: [a, b]\nkind: note\n"
               "version: 3\nstatus_markdown: draft\ndate_markdown: 2026-10-25\n---\n")
     canon = json.dumps({"date_document": "2014", "kind": "note", "short_citation": "EN 1:2014", "tags": ["a", "b"],
@@ -153,7 +153,7 @@ def test_meta_hash_fields():
 
 
 def test_meta_hash_ignores_status_and_reads_legacy_name():
-    """status_markdown ändert meta_hash nicht; „short citation“ zählt wie short_citation."""
+    """status_markdown does not change meta_hash; "short citation" counts like short_citation."""
     base = "---\ntitle: T\nshort_citation: EN 1:2014\nstatus_markdown: draft\n---\n"
     released = base.replace("draft", "released")
     legacy = base.replace("short_citation:", "short citation:")
@@ -162,13 +162,13 @@ def test_meta_hash_ignores_status_and_reads_legacy_name():
 
 
 def test_timestamps_stay_strings():
-    """Zeitstempel im Frontmatter bleiben Strings."""
+    """Timestamps in the frontmatter stay strings."""
     p = parse("---\ncreated: 2026-10-31T23:40:12+01:00\n---\n")
     assert p.meta["created"] == "2026-10-31T23:40:12+01:00"
 
 
 def test_reorder_changes_body_hash_not_sections():
-    """Umsortieren ändert body_hash, nicht die Abschnitts-Hashes."""
+    """Reordering changes body_hash, not the section hashes."""
     a = parse("## A\nx\n## B\ny\n")
     b = parse("## B\ny\n## A\nx\n")
     assert hashes.section_hashes(a) == hashes.section_hashes(b)
@@ -176,7 +176,7 @@ def test_reorder_changes_body_hash_not_sections():
 
 
 def test_short_and_matches():
-    """Kurz-Hash und Präfixvergleich."""
+    """Short hash and prefix comparison."""
     h = sha("x")
     assert hashes.short(h) == h[:6]
     assert hashes.matches(h, h[:6].upper())
@@ -189,7 +189,7 @@ def test_short_and_matches():
      ("_preamble", "_preamble"), ("  Kontext / Begründung ", "Kontext / Begründung")],
 )
 def test_normalize_key_input(inp, key):
-    """Eingaben für section werden in Schlüssel umgewandelt."""
+    """Input for section is converted into keys."""
     assert normalize_key_input(inp) == key
 
 # Main ************************************************************************

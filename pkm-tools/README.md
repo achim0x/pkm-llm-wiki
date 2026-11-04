@@ -1,136 +1,140 @@
 # pkm-tools
 
-MCP-Server `pkm-mcp` (Chats) und `pkm-pflege-mcp` (Wiki-Pflege) sowie CLI `pkm` für das PKM mit LLM-Wiki.
-Grundlage: [Spezifikation](../docs/spezifikation.md), [Umsetzungsplan](../docs/umsetzungsplan.md).
+MCP servers `pkm-mcp` (chats) and `pkm-pflege-mcp` (wiki maintenance) as well as the CLI `pkm` for the PKM with LLM wiki.
+Basis: [specification](../docs/spezifikation.md), [implementation plan](../docs/umsetzungsplan.md).
 
-## Stand
+## Status
 
-| Phase | Inhalt | Stand |
+| Phase | Content | Status |
 |---|---|---|
-| 0 | Gerüst, Tests, CI | fertig |
-| 1 | Normalisierung/Abschnitte/Hashes (4.8), Frontmatter, IDs, Git-Schicht, `pkm init` | fertig |
-| 2 | Adressierung, Suchindex, lesende MCP-Tools | fertig |
-| 3 | Schreibende MCP-Tools mit Versionierung | fertig |
-| 4 | Pflege-CLI | fertig |
-| 5 | Belege, `lint`, `doctor` | fertig |
-| 6 | Skills, Vault-Vorlage, Einrichtungsanleitung | fertig |
-| 7 | Abnahme: Protokoll und Simulation fertig, Durchführung auf dem Mac offen | in Arbeit |
-| 8 | Automatik (geplante Aufgabe), nur auf Anweisung | offen |
+| 0 | Scaffold, tests, CI | done |
+| 1 | Normalization/sections/hashes (4.8), frontmatter, IDs, Git layer, `pkm init` | done |
+| 2 | Addressing, search index, reading MCP tools | done |
+| 3 | Writing MCP tools with versioning | done |
+| 4 | Maintenance CLI | done |
+| 5 | Citations, `lint`, `doctor` | done |
+| 6 | Skills, vault template, setup guide | done |
+| 7 | Acceptance: protocol and simulation done, run on the Mac open | in progress |
+| 8 | Automation (scheduled task), only on instruction | open |
 
-**MCP-Tools:** `search`, `read`, `history`, `read_index`, `list_unprocessed`, `create_document`,
+**MCP tools:** `search`, `read`, `history`, `read_index`, `list_unprocessed`, `create_document`,
 `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `restore_document`,
 `show_citations`.
 
-**Bilder (4.9):** `create_document`, `rewrite_document`, `append_to_document`, `edit_document` mit
-`images`, dazu `add_image` und `read_image` (auch in `pkm-pflege-mcp`). Module `images.py` (Erkennen,
-SVG-Bereinigung, PNG-Prüfung, Kodierung, Platzhalter), `docimages.py` (Einsetzen, Dateien, `read`,
-`read_image`), `assets.py` (zugehörige Bilddateien, `state.json`-`assets`, verwaiste Anhänge),
+**Images (4.9):** `create_document`, `rewrite_document`, `append_to_document`, `edit_document` with
+`images`, plus `add_image` and `read_image` (also in `pkm-pflege-mcp`). Modules `images.py` (detection,
+SVG sanitizing, PNG check, encoding, placeholders), `docimages.py` (insertion, files, `read`,
+`read_image`), `assets.py` (associated image files, `state.json` `assets`, orphaned attachments),
 `imagelint.py`.
 
-**Data-URIs (0.24):** `imagescan.py` (Erkennen in jeder Schreibweise), `imagefix.py` (Befundcodes,
-Vorschlag, Korrektur, Vergleich „nur Bildschreibweise“), `citeraise.py` (Belege anheben). Schreibende
-Tools mit `fix_images`/`image_alt`, Tool `fix_images` in beiden Servern, CLI `pkm fix-images`.
+**Data URIs (0.24):** `imagescan.py` (detection in every notation), `imagefix.py` (finding codes,
+proposal, fix, comparison "only the image notation"), `citeraise.py` (raising citations). Writing
+tools with `fix_images`/`image_alt`, tool `fix_images` in both servers, CLI `pkm fix-images`.
 
-**MCP-Tools `pkm-pflege-mcp`:** die lesenden Tools sowie `begin_maintenance` (doctor, versions, ids,
-pending mit `missing_fields`, `known_tags`, fix-citations), `set_document_metadata` (nur `title`,
-`context`, `tags`, `kind`, `short_citation` nach Bestätigung; neue Version mit `PKM-Source: agent`),
-`write_wiki_page` (nur `wiki/topics|entities|summaries|syntheses/`, mit
-`expected_hash`, ohne Commit) und `finish_maintenance` (fix-/sync-citations, mark mit aus den Belegen
-ermittelten Seiten, Belege bei unverändertem Abschnitt auf die neue Version anheben, Log, index,
+**MCP tools of `pkm-pflege-mcp`:** the reading tools as well as `begin_maintenance` (doctor, versions, ids,
+pending with `missing_fields`, `known_tags`, fix-citations), `set_document_metadata` (only `title`,
+`context`, `tags`, `kind`, `short_citation` after confirmation; new version with `PKM-Source: agent`),
+`write_wiki_page` (only `wiki/topics|entities|summaries|syntheses/`, with
+`expected_hash`, without commit) and `finish_maintenance` (fix-/sync-citations, mark with the pages
+determined from the citations, raise citations of unchanged sections to the new version, log, index,
 status, lint, commit-wiki).
 
-`read` (beide Server) kennt `section`, `offset`/`max_chars` und `content: false`; über 40 000 Zeichen
-ohne diese Angaben fehlt `content` (`content_omitted`).
+`read` (both servers) supports `section`, `offset`/`max_chars` and `content: false`; above 40,000 characters
+without these parameters `content` is left out (`content_omitted`).
 
 **CLI:** `pkm init`, `ids`, `versions`, `pending`, `mark <id>… [--pages <page>…] [--remove]`,
 `sha <target> [--section <key>] [--full]`, `index`, `status [--question <text>]…`,
-`commit-wiki -m <text>`, `fix-frontmatter [<target>…] [--all]`, `history <target> [--diff <von> [<bis>]]`,
-`show <target> --version <n> [--section <key>]`, `restore <target> --version <n>`, `reindex`,
-`fix-citations [<page>…]`, `sync-citations [<page>…]`, `lint [--report]`, `doctor [--short]`.
+`commit-wiki -m <text>`, `fix-frontmatter [<target>…] [--all]`, `fix-images [<target>…] [--all] [--apply]`,
+`history <target> [--diff <from> [<to>]]`, `show <target> --version <n> [--section <key>]`,
+`restore <target> --version <n>`, `reindex`, `fix-citations [<page>…]`, `sync-citations [<page>…]`,
+`lint [--report]`, `doctor [--short]`.
 
-**Skills:** `skills/pkm-access/SKILL.md` (normale Chats), `skills/pkm-wiki/SKILL.md` (Pflegeprojekt).
-**Einrichtung:** [docs/einrichtung.md](../docs/einrichtung.md). **Abnahme:** [docs/abnahme.md](../docs/abnahme.md)
-(Simulation der Schritte 1–9 und 11: `tests/test_acceptance_simulation.py`; Schritt 10 und alle
-`scratch/`-Fälle: `tests/test_scratch.py`).
+**Skills:** `skills/pkm-access/SKILL.md` (normal chats), `skills/pkm-wiki/SKILL.md` (maintenance project).
+**Setup:** [docs/einrichtung.md](../docs/einrichtung.md). **Acceptance:** [docs/abnahme.md](../docs/abnahme.md)
+(simulation of steps 1–9 and 11: `tests/test_acceptance_simulation.py`; step 10 and all
+`scratch/` cases: `tests/test_scratch.py`).
 
-## Abweichungen und Ergänzungen zur Spezifikation
+## Deviations from and additions to the specification
 
-- Fehlt `PKM_ROOT`, sucht die CLI den Vault vom aktuellen Ordner aufwärts (erster Ordner mit
-  `.pkm/state.json`). Der MCP-Server braucht `PKM_ROOT` weiterhin in seiner Konfiguration.
-
-- Das `mcp`-SDK 2.x heißt `MCPServer` statt `FastMCP`; der Server unterstützt beide Versionen.
-- Ändert ein Aufruf nichts (z. B. `edit_document` mit `old == new`), kommt `status: unchanged`
-  ohne neue Version und ohne Commit.
-- Zusätzliche Fehlerwerte: `forbidden` (Ziel nicht änderbar), `protected_field`, `too_large`,
+- **Language:** all output of the tools is English – messages, CLI help, MCP tool descriptions, commit
+  notes, the generated files `wiki/index.md`, `wiki/_status.md`, `wiki/log.md` and lint reports, the
+  vault schema `CLAUDE.md` and the skills (the specification asks for German content). The citation
+  check also accepts the German section names of existing pages ("Inhalt", "Widersprüche / offene
+  Fragen"). Image names derived without `pkm:<name>` are `image-<n>`.
+- If `PKM_ROOT` is missing, the CLI searches the vault upwards from the current folder (first folder with
+  `.pkm/state.json`). The MCP server still needs `PKM_ROOT` in its configuration.
+- The `mcp` SDK 2.x calls it `MCPServer` instead of `FastMCP`; the server supports both versions.
+- If a call changes nothing (e.g. `edit_document` with `old == new`), the result is `status: unchanged`
+  without a new version and without a commit.
+- Additional error values: `forbidden` (target cannot be changed), `protected_field`, `too_large`,
   `git_unavailable`, `commit_failed`, `index_unavailable`, `invalid_argument`, `invalid_path`.
-- Ändert der MCP-Server ein Dokument ohne ID (von Hand angelegt), vergibt er zuerst ID und
-  Version 1 und committet diesen Stand mit `PKM-Source: user`.
-- `pkm versions` committet auch Anhänge (neu, per Hash verschoben, gelöscht) und gelöschte
-  Dokumente, damit der Arbeitsbaum sauber bleibt. Anhänge haben keine `PKM-Id`.
-- `pkm mark --remove <key>` entfernt Einträge aus `state.json` (z. B. nach Verarbeitung eines
-  gelöschten Dokuments). `pkm status --question` nimmt Rückfragen in `_status.md` auf.
-- `show_citations` mit `statement`: Liegt das Textstück vor einer Fußnotengruppe, werden nur diese
-  Belege geliefert, sonst die des ganzen Absatzes.
-- Status von Belegen: `missing` vor `newer_version` vor `moved` vor `ok`. Ist ein Original verschoben
-  *und* geändert, ist der Status `newer_version`; `lint` meldet zusätzlich `citation_moved`.
-- Belegpflicht prüft `lint` in den Abschnitten „Inhalt“ und „Widersprüche / offene Fragen“
-  (`citations.CONTENT_SECTIONS`).
-- `pkm lint --report` schreibt den Bericht nach `wiki/_lint/YYYY-MM-DD.md`. `pkm doctor` warnt
-  zusätzlich, wenn `commit.gpgsign` aktiv ist.
-- Alle schreibenden Vorgänge (MCP und CLI) sind über eine Sperrdatei im Git-Verzeichnis
-  serialisiert.
-- `pkm init` legt `.obsidian/types.json` mit den Property-Typen des Schemas an bzw. ergänzt
-  fehlende; vorhandene Typen bleiben. `pkm doctor` warnt bei fehlenden oder abweichenden Typen.
-- **Pflege über MCP statt Shell:** Cowork/Claude Desktop bieten keine Shell auf dem PKM-Rechner.
-  Die Pflege läuft deshalb über den zweiten Server `pkm-pflege-mcp` (`maintrun.py`) mit drei
-  Tools statt über CLI-Aufrufe. `pkm mark` ermittelt dort die Seiten selbst aus den Fußnoten.
-  Der Server lässt sich in Claude Desktop nicht auf ein Projekt beschränken; er wird nur in
-  Pflege-Unterhaltungen eingeschaltet.
-- **Frontmatter:** Neue Felder werden zeilengenau an der Stelle aus dem Schema eingefügt
+- If the MCP server changes a document without ID (created by hand), it first assigns ID and
+  version 1 and commits this state with `PKM-Source: user`.
+- `pkm versions` also commits attachments (new, moved by hash, deleted) and deleted
+  documents so that the working tree stays clean. Attachments have no `PKM-Id`.
+- `pkm mark --remove <key>` removes entries from `state.json` (e.g. after processing a
+  deleted document). `pkm status --question` adds questions to `_status.md`.
+- `show_citations` with `statement`: if the piece of text lies before a footnote group, only these
+  citations are returned, otherwise those of the whole paragraph.
+- Status of citations: `missing` before `newer_version` before `moved` before `ok`. If an original is moved
+  *and* changed, the status is `newer_version`; `lint` additionally reports `citation_moved`.
+- `lint` checks the citation requirement in the sections "Content" and "Contradictions / open questions"
+  (`citations.CONTENT_SECTIONS`, German names included).
+- `pkm lint --report` writes the report to `wiki/_lint/YYYY-MM-DD.md`. `pkm doctor` additionally
+  warns if `commit.gpgsign` is active.
+- All writing operations (MCP and CLI) are serialized via a lock file in the Git directory.
+- `pkm init` creates `.obsidian/types.json` with the property types of the schema or adds
+  missing ones; existing types stay. `pkm doctor` warns about missing or differing types.
+- **Maintenance via MCP instead of a shell:** Cowork/Claude Desktop offer no shell on the PKM host.
+  Maintenance therefore runs via the second server `pkm-pflege-mcp` (`maintrun.py`) with three
+  tools instead of CLI calls. `pkm mark` determines the pages itself from the footnotes there.
+  The server cannot be restricted to one project in Claude Desktop; it is only enabled in
+  maintenance conversations.
+- **Frontmatter:** new fields are inserted line by line at the position given by the schema
   (`title`, `short_citation`, `date_document`, `status_markdown`, `date_markdown`,
   `toolchain_markdown`, `id`, `version`, `date_updated`, `context`, `tags`, `related`, `kind`;
-  unbekannte Felder danach); `update_frontmatter` sortiert ebenso. Einfache Listen werden ohne
-  Anführungszeichen geschrieben (`tags: [a, b]`), Tags vereinheitlicht.
-- `pkm versions` erfasst eine von Hand geänderte `CLAUDE.md` als Nutzer-Commit.
-- Lint `statement_without_citation` übergeht Zwischenüberschriften, reine Fett- und Link-Zeilen;
-  eine Tabelle gilt als belegt, wenn eine Fußnote in ihr oder direkt darunter steht. Belege auf
-  Abschnitte ohne eigenen Text meldet `citation_empty_section`; `read` kennzeichnet solche
-  Abschnitte mit `empty: true`.
-- `fix-citations` schreibt bei verschobenen Originalen auch Wikilinks im Seitentext um. Wird in
-  Obsidian verschoben, aktualisiert Obsidian die Links selbst; dann meldet `fix-citations`
-  zu Recht `pages_changed: 0`.
-- **Cloud-Speicher (`cloudsync.py`):** Konfliktkopien werden für alle bekannten Dienste erkannt – am
-  Namen (Nextcloud/ownCloud, Dropbox, Google Drive, Syncthing, pCloud, Box, deutsche Clients) und als Kopie
-  neben dem Original mit derselben Dokument-ID (OneDrive `-RECHNER`, iCloud ` 2`, ` (1)`, `Kopie von`).
-  Das frühere Muster „Konflikt“ irgendwo im Namen ist enger gefasst (keine Fehlalarme bei
-  „Konfliktmanagement.md“). `pkm doctor` erkennt Cloud-Ordner aller Dienste (`git_dir_cloud`,
-  `cache_dir_cloud`, `vault_cloud`) und Dateien „nur online“ (`vault_online_only`, macOS `SF_DATALESS`,
-  Windows Offline-/Recall-Attribute).
-- **Importordner:** Standard ist `pkm_img_import/` im Vault (in `.gitignore`, von allen Pflegebefehlen
-  ausgenommen, weil `iter_files` nur `documents/`, `wiki/` und `scratch/` durchläuft). JPEG wird übernommen,
-  EXIF/XMP, IPTC und Kommentare entfernt, die Ausrichtung als minimaler EXIF-Block behalten.
-- **Data-URIs (0.24):** Bei `fix_images: true` bzw. `apply: true` ohne `image_alt` wird für fehlende
-  Alternativtexte der Vorschlag aus `image_issues` übernommen (er wurde vorher gezeigt). Eine mehrfach
-  verwendete Referenzdefinition ergibt bei der Korrektur `ambiguous` mit den Zeilen; eine Auswahl der
-  Stelle gibt es nicht, der Nutzer passt die Stelle in Obsidian an. In Wiki-Seiten gilt keine
-  Größengrenze für eingebettete SVG und es werden keine Dateien angelegt. „Nur Bildschreibweise“
-  wird je Abschnitt und für den ganzen Body geprüft (Referenzdefinitionen in anderen Abschnitten);
-  angehobene Belege bekommen neue `v:` und `sha:`.
-- **Bilder:** `edit_document` hat zusätzlich `confirm_shortening`, weil das Entfernen eines Bildes
-  wie eine Kürzung bestätigt werden muss. Als verwaist gelten auch Bilddateien in
-  `documents/_attachments/` ohne Verweis (nicht nur früher zugehörige). Verwendet eine geänderte
-  Bilddatei mehrere Dokumente, enthält der Commit des ersten Dokuments das Bild, die übrigen
-  bekommen je einen eigenen Commit (eine Datei je Versions-Commit, 5.4). SVG-Rasterung über
-  `cairosvg` statt `resvg`. Bereits verarbeitete Dokumente ohne `assets` in `state.json` werden
-  erst nach dem nächsten Vermerk auf geänderte Bilddateien überwacht.
-- **Windows als PKM-Rechner** (Spezifikation 5.5 nennt nur den Mac): Standardordner
-  `%APPDATA%\pkm`, Sperre über `msvcrt` statt `fcntl`, `os.replace` mit Wiederholung bei
-  gesperrten Dateien, `core.autocrlf=false` im PKM-Repo, Abhängigkeit `tzdata`. Einrichtung in
+  unknown fields after them); `update_frontmatter` sorts the same way. Simple lists are written without
+  quotes (`tags: [a, b]`), tags are normalized.
+- `pkm versions` records a manually changed `CLAUDE.md` as a user commit.
+- Lint `statement_without_citation` skips subheadings, pure bold and link lines;
+  a table counts as cited if a footnote is in it or directly below it. Citations of
+  sections without text of their own are reported as `citation_empty_section`; `read` marks such
+  sections with `empty: true`.
+- `fix-citations` also rewrites wikilinks in the page text for moved originals. If a file is moved in
+  Obsidian, Obsidian updates the links itself; then `fix-citations` rightly reports
+  `pages_changed: 0`.
+- **Cloud storage (`cloudsync.py`):** conflict copies are detected for all known services – by
+  name (Nextcloud/ownCloud, Dropbox, Google Drive, Syncthing, pCloud, Box, German clients) and as a copy
+  next to the original with the same document ID (OneDrive `-COMPUTER`, iCloud ` 2`, ` (1)`, `Copy of`).
+  The earlier pattern "Konflikt" anywhere in the name is narrower now (no false alarms for
+  "Konfliktmanagement.md"). `pkm doctor` detects cloud folders of all services (`git_dir_cloud`,
+  `cache_dir_cloud`, `vault_cloud`) and "online only" files (`vault_online_only`, macOS `SF_DATALESS`,
+  Windows offline/recall attributes).
+- **Import folder:** the default is `pkm_img_import/` in the vault (in `.gitignore`, excluded from all
+  maintenance commands because `iter_files` only walks `documents/`, `wiki/` and `scratch/`). JPEG is imported,
+  EXIF/XMP, IPTC and comments are removed, the orientation is kept as a minimal EXIF block.
+- **Data URIs (0.24):** with `fix_images: true` or `apply: true` without `image_alt`, the proposal from
+  `image_issues` is taken for missing alt texts (it was shown beforehand). A reference definition used
+  more than once results in `ambiguous` with the lines when fixing; there is no choice of the
+  position, the user adjusts the position in Obsidian. In wiki pages there is no
+  size limit for embedded SVG and no files are created. "Only the image notation" is
+  checked per section and for the whole body (reference definitions in other sections);
+  raised citations get new `v:` and `sha:`.
+- **Images:** `edit_document` additionally has `confirm_shortening`, because removing an image
+  must be confirmed like a shortening. Image files in `documents/_attachments/` without a reference
+  also count as orphaned (not only formerly associated ones). If a changed image file is used by
+  several documents, the commit of the first document contains the image, the others
+  get one commit each (one file per version commit, 5.4). SVG rasterizing via
+  `cairosvg` instead of `resvg`. Already processed documents without `assets` in `state.json` are
+  only watched for changed image files after the next record.
+- **Windows as PKM host** (specification 5.5 only names the Mac): default folder
+  `%APPDATA%\pkm`, lock via `msvcrt` instead of `fcntl`, `os.replace` with retries for
+  locked files, `core.autocrlf=false` in the PKM repo, dependency `tzdata`. Setup in
   `docs/einrichtung.md`.
 
-## Entwicklung
+## Development
 
-Alle Python-Befehle laufen in einer projektlokalen `.venv` (nie im System-Python):
+All Python commands run in a project-local `.venv` (never in the system Python):
 
 ```bash
 cd pkm-tools
@@ -138,7 +142,7 @@ python3 -m venv .venv
 ./.venv/bin/pip install -e ".[dev]"
 ```
 
-Prüfen vor jedem Commit:
+Check before every commit:
 
 ```bash
 ./.venv/bin/python -m ruff check .
@@ -146,22 +150,23 @@ Prüfen vor jedem Commit:
 ./.venv/bin/python -m pytest -q
 ```
 
-### Coding-Standard
+### Coding standard
 
-- PEP 8, Typannotationen, Zeilenlänge 120.
-- pylint ohne Warnungen und Fehler mit der `.pylintrc` im Paket (Google-Stil).
-- Jede Python-Datei beginnt mit Modul-Docstring (inkl. `Author`), GPL-Lizenzkopf und den
-  Abschnitten `Imports`, `Variables`, `Classes`, `Functions`, `Main` in dieser Reihenfolge.
-- Docstrings für Module, Klassen, Funktionen und Methoden mit `Args`/`Returns`
-  (Testfunktionen: ein Satz, was geprüft wird).
-- Genau ein `return` je Funktion bzw. Methode.
-- Wenige, begründete `pylint: disable` nur dort, wo die Schnittstelle der Spezifikation es
-  erzwingt (z. B. zehn Parameter von `create_document`, Parametername `set`) oder bei
-  Datenklassen mit vielen Feldern.
+- PEP 8, type annotations, line length 120.
+- pylint without warnings and errors with the `.pylintrc` in the package (Google style).
+- Every Python file starts with a module docstring (incl. `Author`), the GPL license header and the
+  sections `Imports`, `Variables`, `Classes`, `Functions`, `Main` in this order.
+- Docstrings for modules, classes, functions and methods with `Args`/`Returns`
+  (test functions: one sentence on what is checked).
+- Exactly one `return` per function or method.
+- Few, justified `pylint: disable` only where the interface of the specification
+  forces it (e.g. ten parameters of `create_document`, parameter name `set`) or for
+  data classes with many fields.
+- Docstrings, comments, messages and generated text are English.
 
-Die Tests laufen unter Linux, macOS und Windows. Alle Pfade werden über Umgebungsvariablen gesetzt
-(`PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`, …), siehe Spezifikation 7.1.
+The tests run on Linux, macOS and Windows. All paths are set via environment variables
+(`PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`, …), see specification 7.1.
 
-## Lizenz
+## License
 
-GNU General Public License v3.0 oder später, siehe [LICENSE](LICENSE).
+GNU General Public License v3.0 or later, see [LICENSE](LICENSE).

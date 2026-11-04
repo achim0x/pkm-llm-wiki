@@ -1,6 +1,6 @@
 [
  {
-  "name": "einfach",
+  "name": "simple",
   "input": "---\nid: d-20261031-2340-k7q2\nversion: 1\ntitle: Test\n---\n\n## Ergebnis\nA\n\n## Offene Punkte\n- x\n",
   "sections": [
    [
@@ -19,7 +19,7 @@
   }
  },
  {
-  "name": "ohne_frontmatter_mit_vorspann",
+  "name": "no_frontmatter_with_preamble",
   "input": "Einleitung\n\n# Titel\nText\n## Teil\nMehr\n",
   "sections": [
    [
@@ -37,7 +37,7 @@
   ]
  },
  {
-  "name": "vorspann_leer",
+  "name": "empty_preamble",
   "input": "---\nx: 1\n---\n\n  \n\n## A\n",
   "sections": [
    [
@@ -60,13 +60,13 @@
   }
  },
  {
-  "name": "frontmatter_ohne_abschluss",
+  "name": "frontmatter_without_closing",
   "input": "---\ntitle: T\n\n## A\nx\n",
   "sections": [],
   "fm_error": true
  },
  {
-  "name": "frontmatter_ungueltig",
+  "name": "frontmatter_invalid",
   "input": "---\ntitle: [a\n---\n## A\n",
   "sections": [],
   "fm_error": true
@@ -86,7 +86,7 @@
   ]
  },
  {
-  "name": "codeblock_tilde_verschachtelt",
+  "name": "codeblock_tilde_nested",
   "input": "## A\n~~~~\n~~~\n## nein\n~~~\n~~~~\n## B\n",
   "sections": [
    [
@@ -100,7 +100,7 @@
   ]
  },
  {
-  "name": "codeblock_kurzer_zaun_schliesst_nicht",
+  "name": "codeblock_short_fence_does_not_close",
   "input": "## A\n````\n```\n## nein\n````\n## B\n",
   "sections": [
    [
@@ -114,7 +114,7 @@
   ]
  },
  {
-  "name": "codeblock_offen_bis_ende",
+  "name": "codeblock_open_until_end",
   "input": "## A\n```\n## nein\n",
   "sections": [
    [
@@ -124,7 +124,7 @@
   ]
  },
  {
-  "name": "setext_keine_grenze",
+  "name": "setext_no_boundary",
   "input": "## A\nTitel\n=====\nZeile\n---\n",
   "sections": [
    [
@@ -134,7 +134,7 @@
   ]
  },
  {
-  "name": "ebene3_gehoert_dazu",
+  "name": "level3_belongs_to_section",
   "input": "## A\n### Unter\nx\n## B\n",
   "sections": [
    [
@@ -148,7 +148,7 @@
   ]
  },
  {
-  "name": "atx_abschluss_und_leerraum",
+  "name": "atx_closing_and_whitespace",
   "input": "## Offene  Punkte ##\nx\n",
   "sections": [
    [
@@ -158,7 +158,7 @@
   ]
  },
  {
-  "name": "einrueckung",
+  "name": "indentation",
   "input": "   ## Drei\nx\n    ## Vier ist Code\n",
   "sections": [
    [
@@ -168,7 +168,7 @@
   ]
  },
  {
-  "name": "kein_leerzeichen_keine_ueberschrift",
+  "name": "no_space_no_heading",
   "input": "##Kein\n#Auch nicht\n",
   "sections": [
    [
@@ -178,7 +178,7 @@
   ]
  },
  {
-  "name": "duplikate_ueber_ebenen",
+  "name": "duplicates_across_levels",
   "input": "# Notizen\na\n## Notizen\nb\n## Notizen\nc\n",
   "sections": [
    [
@@ -196,7 +196,7 @@
   ]
  },
  {
-  "name": "leerzeilen_normalisiert",
+  "name": "blank_lines_normalized",
   "input": "## A\n\n\nx   \n\n\n\ny\t\n\n",
   "sections": [
    [
@@ -206,7 +206,7 @@
   ]
  },
  {
-  "name": "woertliches_suffix_wird_uebersprungen",
+  "name": "literal_suffix_is_skipped",
   "input": "## Version\na\n## Version#2\nb\n## Version\nc\n",
   "sections": [
    [
@@ -224,7 +224,7 @@
   ]
  },
  {
-  "name": "woertliches_suffix_vor_duplikat",
+  "name": "literal_suffix_before_duplicate",
   "input": "## Version#2\nb\n## Version\na\n## Version\nc\n## Version\nd\n",
   "sections": [
    [
@@ -246,7 +246,7 @@
   ]
  },
  {
-  "name": "woertliches_suffix_doppelt",
+  "name": "literal_suffix_twice",
   "input": "## Version#2\nb\n## Version#2\nc\n",
   "sections": [
    [

@@ -1,4 +1,4 @@
-"""Tests: Bilder in den Werkzeugen (Spezifikation 4.9, 7.2, 7.3) – Anlegen, Ändern, Lesen, read_image.
+"""Tests: images in the tools (specification 4.9, 7.2, 7.3) – creating, changing, reading, read_image.
 
     Author: Achim0x
 """
@@ -45,20 +45,20 @@ PNG_B64 = base64.b64encode(make_png(text=False)).decode()
 
 
 def _svg_doc(svc):
-    """Dokument mit eingebettetem SVG anlegen.
+    """Create a document with an embedded SVG.
 
     Args:
-        svc: Dienst.
+        svc: Service.
 
     Returns:
-        Rückgabe von ``create_document``.
+        Return value of ``create_document``.
     """
     return svc.create_document(title="Schaltplan", content="## Aufbau\nText\n{{image:plan}}\n\n## Rest\nmehr\n",
                                images=[{"name": "plan", "alt": "Schaltplan Überlauf", "svg": SVG}])
 
 
 def test_create_inline_svg_and_read_placeholders(svc, isolated_env):
-    """Kleines SVG wird eingebettet; read zeigt einen Platzhalter und die Bildliste."""
+    """A small SVG is embedded; read shows a placeholder and the image list."""
     res = _svg_doc(svc)
     assert res["images"][0]["mode"] == "inline"
     raw = (svc.cfg.root / res["path"]).read_text(encoding="utf-8")
@@ -71,7 +71,7 @@ def test_create_inline_svg_and_read_placeholders(svc, isolated_env):
 
 
 def test_large_png_becomes_file_in_same_commit(isolated_env, monkeypatch):
-    """Über der Grenze wird das PNG Datei in _attachments, im selben Commit wie das Dokument."""
+    """Above the limit the PNG becomes a file in _attachments, in the same commit as the document."""
     monkeypatch.setenv("PKM_INLINE_MAX_KB", "0")
     from pkm.vaultinit import init_vault  # pylint: disable=import-outside-toplevel
     cfg = Config.from_env()
@@ -94,7 +94,7 @@ def test_large_png_becomes_file_in_same_commit(isolated_env, monkeypatch):
 
 
 def test_rewrite_keeps_images_byte_exact_and_guards_removal(svc):
-    """rewrite_document mit Platzhaltern erhält das Bild; Entfernen braucht Bestätigung."""
+    """rewrite_document with placeholders keeps the image; removing needs confirmation."""
     res = _svg_doc(svc)
     before = (svc.cfg.root / res["path"]).read_text(encoding="utf-8")
     image_line = next(ln for ln in before.splitlines() if ln.startswith("![Schaltplan"))
@@ -114,7 +114,7 @@ def test_rewrite_keeps_images_byte_exact_and_guards_removal(svc):
 
 
 def test_edit_and_add_image(svc):
-    """edit_document arbeitet auf dem Text mit Platzhaltern; add_image fügt am Abschnittsende ein."""
+    """edit_document works on the text with placeholders; add_image inserts at the end of the section."""
     res = _svg_doc(svc)
     h = svc.read(res["path"])["hash"]
     out = svc.edit_document(target=res["path"], old="Text", new="Text geändert", expected_hash=h)
@@ -135,7 +135,7 @@ def test_edit_and_add_image(svc):
 
 
 def test_read_image_svg_text_and_raster_flag(svc):
-    """read_image liefert SVG als Text; Rastern nur mit PKM_SVG_RASTER."""
+    """read_image returns SVG as text; rasterizing only with PKM_SVG_RASTER."""
     res = _svg_doc(svc)
     img = svc.read_image(res["path"], "plan")
     assert img["svg"].startswith("<svg") and img["format"] == "svg" and "data" not in img
@@ -149,7 +149,7 @@ def test_read_image_svg_text_and_raster_flag(svc):
 
 @pytest.mark.usefixtures("cfg")
 def test_mcp_read_image_returns_image_content():
-    """Über MCP kommt ein PNG als Bildinhalt."""
+    """Via MCP a PNG comes as image content."""
     mcp_server.reset_service()
     svc = mcp_server.get_service()
     res = svc.create_document(title="Display", content="{{image:display}}",

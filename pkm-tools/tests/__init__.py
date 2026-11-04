@@ -1,4 +1,4 @@
-"""Testpaket für pkm-tools.
+"""Test package for pkm-tools.
 
     Author: Achim0x
 """
