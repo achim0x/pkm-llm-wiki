@@ -187,7 +187,7 @@ class Setup:
         exe = self.env.get("PKM_GIT") if self.env.get("PKM_GIT") and Path(self.env["PKM_GIT"]).is_file() else None
         exe = exe or self.git_finder()
         if exe:
-            self.say(f"Git: {exe} – version control is on.")
+            self.say(f"Git: {exe} - version control is on.")
         else:
             self.warn(NO_GIT_HINT)
         return exe
@@ -336,7 +336,7 @@ class Setup:
         """
         target = Path(self.opts.skills_dir).expanduser() if self.opts.skills_dir else self._app_dir() / "skills"
         paths = [str(p) for p in build_skill_zips(target)]
-        self.say("Skills: upload these files in Claude Desktop (Settings → Capabilities → Skills):\n  "
+        self.say("Skills: upload these files in Claude Desktop (Settings > Capabilities > Skills):\n  "
                  + "\n  ".join(paths))
         return paths
 
@@ -368,7 +368,7 @@ class Setup:
                 init = init_vault(cfg)
         claude = None if self.opts.no_claude else self._claude()
         skills = self._skills()
-        self.say("Project \"PKM-Pflege\" in Claude Desktop – project instructions:\n  " + PROJECT_INSTRUCTIONS)
+        self.say("Project \"PKM-Pflege\" in Claude Desktop - project instructions:\n  " + PROJECT_INSTRUCTIONS)
         check = doctor(Service(cfg), short=True)
         for c in check["checks"]:
             self.say(f"Error: {c['message']}")

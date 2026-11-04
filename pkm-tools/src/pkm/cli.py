@@ -62,6 +62,14 @@ def _print(data: Any) -> None:
     sys.stdout.write("\n")
 
 
+def _utf8_output() -> None:
+    """Write standard output and errors as UTF-8 (Windows uses cp1252 for pipes, e.g. in Claude Desktop or CI)."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def cmd_init(svc: Service, _args: argparse.Namespace) -> Any:
     """``pkm init``.
 
@@ -456,6 +464,7 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         Exit code: 0 on success, 1 on errors or a status other than ok.
     """
+    _utf8_output()
     args = build_parser().parse_args(argv)
     try:
         if args.command == "setup":
