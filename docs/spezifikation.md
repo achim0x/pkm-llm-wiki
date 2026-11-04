@@ -7,6 +7,7 @@
 > - **Konfliktkopien aller bekannten Dienste** werden erkannt: am Dateinamen (z. B. „conflicted copy“, „[Conflict]“, „.sync-conflict-…“, „Konflikt-Kopie“) und als Kopie neben dem Original mit derselben Dokument-ID (OneDrive „-RECHNERNAME“, iCloud „ 2“, „ (1)“, „Kopie von …“). Ohne gleiche ID ist eine solche Datei ein eigenes Dokument (5.3, 5.5).
 > - **Dateien „nur online“:** Der Vault muss vollständig lokal vorliegen. `pkm doctor` meldet Platzhalter-Dateien (`vault_online_only`) und erkennt Cloud-Ordner aller bekannten Dienste für Git-Verzeichnis und Suchindex (5.5, 8).
 > - Einstellungen je Dienst in 5.5; `.gitignore` enthält Hilfsdateien der verbreiteten Dienste (12).
+> - **Geplant, noch nicht umgesetzt:** einfachere Installation mit `pkm setup`, eigener Konfigurationsdatei, Obsidian-Einstellungen durch `pkm init`, Installation ohne Klonen und Installationsskripten (15.1, Schritt 8).
 
 > **Änderungen in 0.24**
 > - **Prüfung von Data-URIs bei der Übernahme** (neuer Teil in 4.9): Jede Bild-Data-URI, die über ein Werkzeug, von Hand oder aus einer Wiki-Seite ins PKM kommt, wird auf Schreibweise, Kodierung, Bildnamen, Alternativtext, Größe und Sicherheit geprüft. Abweichungen werden mit Befundcodes und einem Korrekturvorschlag gemeldet. **Korrigiert wird nur nach Rückfrage**, nie automatisch und nie in unbeaufsichtigten Läufen. Anlass: SVG im Referenzstil mit nicht kodierten Zeichen (`[ref]: <data:image/svg+xml;utf8,<svg …>>`) zeigte Obsidian nicht an (4.9).
@@ -1463,6 +1464,26 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 6 | Skills `pkm-access` und `pkm-wiki`, Projekt | Erster echter Ingest-Lauf |
 | 6a | MCP-Server `pkm-pflege-mcp` (7.7), Skill `pkm-wiki` darauf umgestellt | Pflege aus Claude Desktop bzw. Cowork ohne Shell |
 | 7 | Später: geplante Aufgabe | Automatische Verarbeitung, erst auf Anweisung des Nutzers |
+| 8 | Später: einfachere Installation (15.1) | Einrichtung mit einem Skript und `pkm setup` statt rund zehn Handschritten |
+
+### 15.1 Geplant: einfachere Installation (noch nicht umgesetzt)
+
+Heute braucht die Einrichtung rund zehn Handschritte (Git und uv installieren, Repository klonen, `uv tool install`, Git-Identität, `PKM_ROOT`, `pkm init`, JSON-Konfiguration von Claude Desktop von Hand, Skills packen, Obsidian einstellen, Projekt anlegen). Vorgesehen sind fünf Vereinfachungen, umgesetzt in der Reihenfolge 1–3 zusammen, dann 4 und 5. Ergebnis: Skript ausführen, `pkm setup` beantworten, zwei ZIP-Dateien hochladen, Projekt anlegen, Claude Desktop neu starten.
+
+1. **Assistent `pkm setup`** (interaktiv, idempotent, auf Mac und Windows):
+   - fragt den Vault-Ordner ab und erkennt den Cloud-Dienst (5.5); warnt bei Dateien „nur online“;
+   - prüft Git; fehlt die Identität, fragt er Name und E-Mail ab und setzt sie;
+   - führt `pkm init` aus und schaltet `commit.gpgsign` für das PKM-Repo ab;
+   - schreibt bzw. ergänzt die Konfiguration von Claude Desktop (7.6) mit den Einträgen `pkm` und `pkm-pflege`: absolute Pfade, bestehende Server bleiben unverändert, vorher eine Sicherungskopie der Datei, Abweichungen werden angezeigt und erst nach Bestätigung überschrieben;
+   - baut die ZIP-Dateien der Skills `pkm-access` und `pkm-wiki` und nennt, wo sie hochzuladen sind (das Hochladen selbst bleibt Handarbeit);
+   - gibt die Projektanweisung für „PKM-Pflege“ zum Kopieren aus (11);
+   - endet mit `pkm doctor`.
+2. **Eigene Konfigurationsdatei statt Umgebungsvariablen:** `pkm setup` schreibt `config.toml` nach `~/Library/Application Support/pkm/` (Mac) bzw. `%APPDATA%\pkm\` (Windows) mit `PKM_ROOT`, `PKM_VAULT_NAME` und ggf. weiteren Werten aus 7.1. Server und CLI lesen sie; gesetzte Umgebungsvariablen haben Vorrang. Der Eintrag in Claude Desktop braucht dann nur noch `command`, kein `env`. Der Server sucht Git zusätzlich an den üblichen Orten (`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, `C:\Program Files\Git\cmd`), sodass auch `PATH` entfällt. `pkm doctor` zeigt, woher jeder Wert stammt.
+3. **Obsidian-Einstellungen durch `pkm init`:** Die Werte aus 13 (Links automatisch aktualisieren, absolutes Link-Format, Wikilinks, Anhang-Ordner `documents/_attachments`, ausgeschlossener Ordner `.pkm/`) trägt `pkm init` in `.obsidian/app.json` ein, wie heute schon die Property-Typen in `types.json`. Fehlende Werte werden ergänzt, abweichende bleiben und werden gemeldet. Obsidian liest die Datei nach einem Neustart.
+4. **Installation ohne Klonen:** direkt aus GitHub mit `uv tool install "git+https://github.com/achim0x/pkm-llm-wiki#subdirectory=pkm-tools"`, Aktualisieren mit `uv tool upgrade pkm-tools`. Die Skill-ZIPs liegen zusätzlich fertig als Anhang jeder GitHub-Release. Später optional Veröffentlichung auf PyPI.
+5. **Installationsskripte** `install.sh` (Mac) und `install.ps1` (Windows), als Einzeiler aufrufbar: installiert uv, bei Bedarf Git (Mac `xcode-select --install`, Windows `winget install Git.Git`), dann das Paket (4), und startet `pkm setup`. Das Skript ändert nichts ohne Rückfrage außer der Installation von uv und dem Paket.
+
+Nicht vorgesehen: eine reine Python-Git-Bibliothek statt Git (zu tiefer Eingriff in 5.4). Ein Erweiterungspaket (`.mcpb`) für Claude Desktop wird erst nach einer Prüfung der Unterstützung für Python-Server erwogen.
 
 ---
 
@@ -1524,4 +1545,4 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 
 ### Noch offen
 
-Keine. Die Spezifikation ist bereit zur Umsetzung.
+Keine Entscheidung offen. Geplant, aber noch nicht umgesetzt: einfachere Installation (15.1).
