@@ -127,3 +127,18 @@ release is suggested as **0.2.0**.
    entries, repacks the skill ZIPs and runs `pkm init` (import folder, `.gitignore`,
    Obsidian settings) and `pkm doctor`.
 3. Upload the new skill ZIPs in Claude Desktop and restart Claude Desktop.
+
+## V0.1.0
+
+### Add pkm-pflege MCP server for wiki maintenance
+
+Claude Desktop/Cowork run shell commands only in an isolated environment without pkm, git or the
+git directory, so the CLI-based maintenance flow cannot run there. A second local MCP server
+`pkm-pflege-mcp` bundles the deterministic steps into three tools:
+
+- `begin_maintenance` (doctor, versions, ids, pending, fix-citations),
+- `write_wiki_page` (wiki page dirs only, with `expected_hash`, no commit) and
+- `finish_maintenance` (citations, mark with pages derived from footnotes, log, index, status,
+  lint, commit-wiki).
+
+Skill pkm-wiki, setup guide, READMEs and plan describe the new flow.
