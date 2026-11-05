@@ -4,7 +4,7 @@
 
 Die Abnahme läuft auf dem **Mac** mit echtem Vault im Cloud-Speicher (z. B. Nextcloud, OneDrive,
 Google Drive), Claude Desktop und Obsidian sowie für Schritt 9 auf dem **Windows-Rechner**. Die
-Einrichtung selbst ist Teil der Abnahme (Schritt 0, nach [einrichtung.md](einrichtung.md)). Die
+Einrichtung selbst ist Teil der Abnahme (Schritt 0, nach [installation.de.md](installation.de.md)). Die
 Schritte 1–12 setzen eingeschaltete Versionsverwaltung voraus (Git installiert); der Betrieb ohne Git
 steht unter den Zusatzprüfungen.
 

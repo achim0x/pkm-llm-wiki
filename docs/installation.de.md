@@ -285,7 +285,7 @@ Mit drei bis fünf eigenen Dokumenten (es gibt keine Startbefüllung):
 7. **Quellen:** „Woher stammt die Angabe …?“ → Original, Abschnitt, Zitat, Version, Status.
 8. Abschluss: `pkm doctor` und `pkm lint` ohne Fehler.
 
-Die vollständige Abnahme steht in [abnahme.md](abnahme.md) bzw. Abschnitt 14 der Spezifikation.
+Die vollständige Abnahme steht in [acceptance.md](acceptance.md) bzw. Abschnitt 14 der Spezifikation.
 
 ## 10. Fehlersuche
 

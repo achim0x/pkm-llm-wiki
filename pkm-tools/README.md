@@ -1,7 +1,7 @@
 # pkm-tools
 
 MCP servers `pkm-mcp` (chats) and `pkm-pflege-mcp` (wiki maintenance) as well as the CLI `pkm` for the PKM with LLM wiki.
-Basis: [specification](../docs/spezifikation.md), [implementation plan](../docs/umsetzungsplan.md).
+Basis: [specification](../docs/specification.md), [implementation plan](../docs/implementation-plan.md).
 
 ## Status
 
@@ -57,7 +57,7 @@ from the GitHub archive (works without Git) and start `pkm setup` (`setupwiz.py`
 check, `config.toml`, `pkm init`, check of the entries in `claude_desktop_config.json` (changed only after asking, with
 backup; otherwise the entries are printed for entering by hand), skill ZIPs, project instructions, `pkm doctor`. The workflow `release.yml` attaches the
 skill ZIPs and the wheel to every release tag `v*`.
-**Setup:** [docs/installation.md](../docs/installation.md) (German: [docs/einrichtung.md](../docs/einrichtung.md)). **Acceptance:** [docs/abnahme.md](../docs/abnahme.md)
+**Setup:** [docs/installation.md](../docs/installation.md) (German: [docs/installation.de.md](../docs/installation.de.md)). **Acceptance:** [docs/acceptance.md](../docs/acceptance.md)
 (simulation of steps 1–9 and 11: `tests/test_acceptance_simulation.py`; step 10 and all
 `scratch/` cases: `tests/test_scratch.py`).
 
@@ -150,7 +150,7 @@ skill ZIPs and the wheel to every release tag `v*`.
 - **Windows as PKM host** (specification 5.5 only names the Mac): default folder
   `%APPDATA%\pkm`, lock via `msvcrt` instead of `fcntl`, `os.replace` with retries for
   locked files, `core.autocrlf=false` in the PKM repo, dependency `tzdata`. Setup in
-  `docs/installation.md` (German: `docs/einrichtung.md`).
+  `docs/installation.md` (German: `docs/installation.de.md`).
 
 ## Development
 

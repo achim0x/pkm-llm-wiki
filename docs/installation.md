@@ -1,6 +1,6 @@
 # PKM with LLM wiki – Installation and setup
 
-[Deutsch](einrichtung.md) · **English**
+[Deutsch](installation.de.md) · **English**
 
 This guide sets up the PKM on the **PKM host** (specification 5.5, 7.6, 11, 13, 15.1). How the
 installer and `pkm setup` work inside is described in [architecture.md](architecture.md) (with flow
@@ -277,7 +277,7 @@ With three to five documents of your own (there is no initial content):
 7. **Sources:** "Where does the statement … come from?" → original, section, quote, version, status.
 8. Finally: `pkm doctor` and `pkm lint` without errors.
 
-The complete acceptance protocol is in [abnahme.md](abnahme.md) (German) and section 14 of the
+The complete acceptance protocol is in [acceptance.md](acceptance.md) (German) and section 14 of the
 specification.
 
 ## 10. Troubleshooting

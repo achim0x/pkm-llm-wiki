@@ -225,9 +225,9 @@ Claude Desktop is running there. Other devices use the vault only through an edi
 ├── scratch/                ← notes and todo lists: not in Git, never in the wiki
 ├── pkm_img_import/         ← hand over images from the chat: not in Git, never in the wiki
 ├── wiki/                   ← belongs to the maintenance agent
-│   ├── index.md            ← catalog of all pages with summary (generated)
-│   ├── _status.md          ← open items, filing proposals, problems, questions (generated)
-│   ├── log.md              ← chronicle of all maintenance runs
+│   ├── index.md                 ← catalog of all pages with summary (generated)
+│   ├── _status.md               ← open items, filing proposals, problems, questions (generated)
+│   ├── log.md                   ← chronicle of all maintenance runs
 │   ├── topics/  entities/  summaries/  syntheses/
 │   └── _lint/              ← lint reports
 ├── CLAUDE.md               ← schema and rules (changes only with your consent)
@@ -577,17 +577,17 @@ Log of all chat accesses: `<Vault>/.pkm/mcp.log`.
 ```
 pkm-llm-wiki/
 ├── docs/
-│   ├── spezifikation.md     ← full specification (German)
-│   ├── umsetzungsplan.md    ← phases and decisions (German)
-│   ├── installation.md      ← installation and setup (English)
-│   ├── einrichtung.md       ← installation and setup (German)
-│   ├── architecture.md      ← architecture, installation flow, pkm-tools internals (English)
-│   └── abnahme.md           ← acceptance protocol (German)
-├── pkm-tools/               ← Python package: pkm-mcp, pkm-pflege-mcp and pkm
+│   ├── specification.md         ← full specification (German)
+│   ├── implementation-plan.md   ← phases and decisions (German)
+│   ├── installation.md          ← installation and setup (English)
+│   ├── installation.de.md       ← installation and setup (German)
+│   ├── architecture.md          ← architecture, installation flow, pkm-tools internals (English)
+│   └── acceptance.md            ← acceptance protocol (German)
+├── pkm-tools/                   ← Python package: pkm-mcp, pkm-pflege-mcp and pkm
 │   ├── src/pkm/
-│   │   └── skills/          ← pkm-access, pkm-wiki
+│   │   └── skills/              ← pkm-access, pkm-wiki
 │   └── tests/
-└── install.sh, install.ps1  ← installers (Mac/Linux, Windows)
+└── install.sh, install.ps1      ← installers (Mac/Linux, Windows)
 ```
 
 Development and tests: see [pkm-tools/README.md](pkm-tools/README.md). The tests run on Linux,
@@ -629,7 +629,7 @@ Voraussetzung.
 >
 > Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.ps1 | iex"`
 >
-> Einzelheiten, auch zur manuellen Installation, in [docs/einrichtung.md](docs/einrichtung.md); wie
+> Einzelheiten, auch zur manuellen Installation, in [docs/installation.de.md](docs/installation.de.md); wie
 > es intern funktioniert, in [docs/architecture.md](docs/architecture.md) (englisch). Diese README
 > beschreibt, was das System kann und wie du es danach benutzt.
 
@@ -828,9 +828,9 @@ solange dort Claude Desktop läuft. Weitere Geräte nutzen den Vault nur über e
 ├── scratch/                ← Notizen und Todo-Listen: nicht in Git, nie im Wiki
 ├── pkm_img_import/         ← Bilder aus dem Chat übergeben: nicht in Git, nie im Wiki
 ├── wiki/                   ← gehört dem Pflege-Agenten
-│   ├── index.md            ← Katalog aller Seiten mit Kurzfassung (generiert)
-│   ├── _status.md          ← Offenes, Einsortier-Vorschläge, Probleme, Rückfragen (generiert)
-│   ├── log.md              ← Chronik aller Pflegeläufe
+│   ├── index.md                 ← Katalog aller Seiten mit Kurzfassung (generiert)
+│   ├── _status.md               ← Offenes, Einsortier-Vorschläge, Probleme, Rückfragen (generiert)
+│   ├── log.md                   ← Chronik aller Pflegeläufe
 │   ├── topics/  entities/  summaries/  syntheses/
 │   └── _lint/              ← Lint-Berichte
 ├── CLAUDE.md               ← Schema und Regeln (Änderungen nur mit deiner Zustimmung)
@@ -1184,7 +1184,7 @@ träger als bei einem normalen Ordner. Der Vault-Pfad zeigt dann dorthin.
 | Pflegelauf bricht wegen Konfliktkopie ab | Fassungen in Obsidian zusammenführen, Kopie löschen, Lauf wiederholen. |
 | `pkm doctor` meldet `vault_online_only` | Vault-Ordner im Cloud-Dienst lokal halten (siehe [Stolpersteine](#cloud-speicher-stolpersteine)). |
 | Suche findet Neues nicht | `pkm reindex` |
-| Tools fehlen in Claude Desktop oder `git_unavailable` | `pkm setup` erneut ausführen, `pkm doctor` und [Einrichtung, Fehlersuche](docs/einrichtung.md#10-fehlersuche) |
+| Tools fehlen in Claude Desktop oder `git_unavailable` | `pkm setup` erneut ausführen, `pkm doctor` und [Einrichtung, Fehlersuche](docs/installation.de.md#10-fehlersuche) |
 
 Protokoll aller Chat-Zugriffe: `<Vault>/.pkm/mcp.log`.
 
@@ -1194,17 +1194,17 @@ Protokoll aller Chat-Zugriffe: `<Vault>/.pkm/mcp.log`.
 ```
 pkm-llm-wiki/
 ├── docs/
-│   ├── spezifikation.md     ← vollständige Spezifikation (deutsch)
-│   ├── umsetzungsplan.md    ← Phasen und Entscheidungen
-│   ├── einrichtung.md       ← Installation und Einrichtung (deutsch)
-│   ├── installation.md      ← Installation und Einrichtung (englisch)
-│   ├── architecture.md      ← Architektur, Installationsablauf, Aufbau von pkm-tools (englisch)
-│   └── abnahme.md           ← Abnahmeprotokoll
-├── pkm-tools/               ← Python-Paket: pkm-mcp, pkm-pflege-mcp und pkm
+│   ├── specification.md         ← vollständige Spezifikation (deutsch)
+│   ├── implementation-plan.md   ← Phasen und Entscheidungen
+│   ├── installation.de.md       ← Installation und Einrichtung (deutsch)
+│   ├── installation.md          ← Installation und Einrichtung (englisch)
+│   ├── architecture.md          ← Architektur, Installationsablauf, Aufbau von pkm-tools (englisch)
+│   └── acceptance.md            ← Abnahmeprotokoll
+├── pkm-tools/                   ← Python-Paket: pkm-mcp, pkm-pflege-mcp und pkm
 │   ├── src/pkm/
-│   │   └── skills/          ← pkm-access, pkm-wiki
+│   │   └── skills/              ← pkm-access, pkm-wiki
 │   └── tests/
-└── install.sh, install.ps1  ← Installer (Mac/Linux, Windows)
+└── install.sh, install.ps1      ← Installer (Mac/Linux, Windows)
 ```
 
 Entwicklung und Tests: siehe [pkm-tools/README.md](pkm-tools/README.md). Die Tests laufen auf

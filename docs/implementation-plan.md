@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Umsetzungsplan
 
-**Bezug:** [Spezifikation v0.26](spezifikation.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 05.11.2026 · **Plan-Version:** 4
+**Bezug:** [Spezifikation v0.26](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 05.11.2026 · **Plan-Version:** 4
 
 Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnissen, Tests und Abnahmekriterien. Abschnittsnummern in Klammern (z. B. „5.4“) verweisen auf die Spezifikation.
 
@@ -227,12 +227,12 @@ Kern ist `writer.apply_change(target, transform, note, source="chat")`, über de
 - **`skills/pkm-access/SKILL.md`** (schlank): Trigger aus 10; Grundregel „immer erst Entwurf, keine Ausnahme“; Abläufe Ablegen, Fortsetzen (6.2 Standard, 6.3 nur auf Anweisung), kleine Änderungen, Verlauf, Abfragen, Quellen, Korrekturen; Umgang mit `conflict`, `large_shortening` und `ambiguous` bei Abschnitten; Hinweis, dass `update_frontmatter` Kommentare im Frontmatter entfernt (K8).
 - **`skills/pkm-wiki/SKILL.md`**: Abläufe Ingest (9.1, Schritt für Schritt mit CLI-Aufrufen, Abschluss mit `pkm commit-wiki`), Lint (9.2), Abfrage (9.3), Schema (9.4), feste Regeln (9.5), Beleg-Format mit Beispiel inkl. `§:`, Umgang mit `meta_changed` und `renamed`, Verhalten im unbeaufsichtigten Lauf.
 - **`CLAUDE.md`-Vorlage** im Vault (über `pkm init`): Konventionen aus 4 und 9.5 in Kurzform.
-- **Einrichtungsanleitung** `docs/einrichtung.md`: ursprünglich `uv` installieren, Git-Identität, `pkm init`, `claude_desktop_config.json` (7.6) von Hand, Skills packen, Projekt „PKM-Pflege“, Obsidian-Einstellungen (13), `PKM_CACHE_DIR` außerhalb des Cloud-Ordners. Seit 7d ersetzt durch Installer und `pkm setup`.
+- **Einrichtungsanleitung** `docs/installation.de.md`: ursprünglich `uv` installieren, Git-Identität, `pkm init`, `claude_desktop_config.json` (7.6) von Hand, Skills packen, Projekt „PKM-Pflege“, Obsidian-Einstellungen (13), `PKM_CACHE_DIR` außerhalb des Cloud-Ordners. Seit 7d ersetzt durch Installer und `pkm setup`.
 - **Probelauf** mit 3–5 selbst angelegten Dokumenten (keine Startbefüllung, 16 Nr. 7).
 
 ### Phase 7 – Abnahme (1,5 PT)
 
-Abnahmeschritte aus 14 auf dem Mac mit echtem Vault im Cloud-Speicher und Windows-Rechner durchgehen, Ergebnis je Schritt protokollieren (`docs/abnahme.md`). Fehler beheben, Skills nachschärfen (Formulierungen, die der Agent falsch versteht).
+Abnahmeschritte aus 14 auf dem Mac mit echtem Vault im Cloud-Speicher und Windows-Rechner durchgehen, Ergebnis je Schritt protokollieren (`docs/acceptance.md`). Fehler beheben, Skills nachschärfen (Formulierungen, die der Agent falsch versteht).
 
 ### Phase 7a – Pflege über MCP statt Shell (Befund aus der Abnahme)
 
@@ -274,7 +274,7 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 
 ### Phase 7e – Abnahme mit der neuen Installation
 
-Abnahme nach `docs/abnahme.md`, beginnend mit Schritt 0 (Installer und `pkm setup` auf dem echten PKM-Rechner) und den Zusatzprüfungen „Betrieb ohne Git“ an einem Testvault.
+Abnahme nach `docs/acceptance.md`, beginnend mit Schritt 0 (Installer und `pkm setup` auf dem echten PKM-Rechner) und den Zusatzprüfungen „Betrieb ohne Git“ an einem Testvault.
 
 ### Phase 8 – Automatik (später, 0,5 PT)
 
@@ -339,5 +339,5 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 ## 8. Nächste Schritte
 
 1. Branch auf `main` mergen, damit die Installer-Einzeiler den aktuellen Stand laden; danach eine erste Release (`v0.1.0`) mit Skill-ZIPs.
-2. Abnahme nach Phase 7e auf dem PKM-Rechner (`docs/abnahme.md`, ab Schritt 0).
+2. Abnahme nach Phase 7e auf dem PKM-Rechner (`docs/acceptance.md`, ab Schritt 0).
 3. Befunde beheben; erst danach Phase 8 (Automatik) und nur auf Anweisung.

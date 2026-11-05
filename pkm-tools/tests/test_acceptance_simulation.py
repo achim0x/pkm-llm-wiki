@@ -1,7 +1,7 @@
 """Acceptance (specification 14) as a simulation: every step with the real tools and the CLI.
 
 The calls of the chat or the maintenance agent are run directly here. It is checked that the
-tools support every step; the behaviour of the LLM is checked by the manual acceptance (docs/abnahme.md).
+tools support every step; the behaviour of the LLM is checked by the manual acceptance (docs/acceptance.md).
 
     Author: Achim0x
 """

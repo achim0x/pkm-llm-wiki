@@ -2,8 +2,8 @@
 
 This document describes the architecture of the PKM with LLM wiki and, in detail, how it is
 installed on the PKM host. The binding requirements are in the (German)
-[specification](spezifikation.md), sections 2, 5.4, 5.5, 7, 8 and 15.1; the step-by-step guide for
-users is [installation.md](installation.md) (German: [einrichtung.md](einrichtung.md)).
+[specification](specification.md), sections 2, 5.4, 5.5, 7, 8 and 15.1; the step-by-step guide for
+users is [installation.md](installation.md) (German: [installation.de.md](installation.de.md)).
 
 ## Contents
 
