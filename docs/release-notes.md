@@ -1,7 +1,5 @@
 # Release notes
 
-[Deutsch](release-notes.de.md) · **English**
-
 ## Changes since V0.1.0
 
 Compared to the tag `V0.1.0` (specification 0.18). Specification now **0.26**, implementation

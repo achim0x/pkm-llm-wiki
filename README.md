@@ -583,7 +583,7 @@ pkm-llm-wiki/
 │   ├── installation.de.md       ← installation and setup (German)
 │   ├── architecture.md          ← architecture, installation flow, pkm-tools internals (English)
 │   ├── acceptance.md            ← acceptance protocol (German)
-│   └── release-notes.md         ← release notes (also release-notes.de.md)
+│   └── release-notes.md         ← release notes (English)
 ├── pkm-tools/                   ← Python package: pkm-mcp, pkm-pflege-mcp and pkm
 │   ├── src/pkm/
 │   │   └── skills/              ← pkm-access, pkm-wiki
@@ -1201,7 +1201,7 @@ pkm-llm-wiki/
 │   ├── installation.md          ← Installation und Einrichtung (englisch)
 │   ├── architecture.md          ← Architektur, Installationsablauf, Aufbau von pkm-tools (englisch)
 │   ├── acceptance.md            ← Abnahmeprotokoll
-│   └── release-notes.de.md      ← Release Notes (englisch: release-notes.md)
+│   └── release-notes.md         ← Release Notes (nur englisch)
 ├── pkm-tools/                   ← Python-Paket: pkm-mcp, pkm-pflege-mcp und pkm
 │   ├── src/pkm/
 │   │   └── skills/              ← pkm-access, pkm-wiki

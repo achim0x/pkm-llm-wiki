@@ -13,6 +13,7 @@
   `docs/installation.md` (englisch) und `docs/installation.de.md` (deutsch) sind inhaltlich gleich
   (gleiche Kapitelnummern) und werden immer zusammen aktualisiert. Gibt es ein Dokument in beiden
   Sprachen, nie nur eine Fassung ändern. Dateinamen in `docs/` sind englisch; eine deutsche
-  Fassung neben einer englischen trägt die Endung `.de.md`.
+  Fassung neben einer englischen trägt die Endung `.de.md`. Die Release Notes
+  (`docs/release-notes.md`) gibt es nur auf Englisch.
 - Mindestens ein Commit je Umsetzungsphase.
 - Tests müssen auf Linux und macOS laufen (macOS-Dateisystem unterscheidet Groß-/Kleinschreibung nicht).
