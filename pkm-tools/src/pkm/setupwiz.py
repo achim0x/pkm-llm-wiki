@@ -161,7 +161,7 @@ class Setup:
         found = find_vault(Path.cwd())
         default = known or (str(found) if found else None)
         answer = self.opts.vault or self._question(
-            "Vault folder (absolute path, inside the folder of your cloud storage)", default)
+            "Vault folder (absolute path; inside your cloud storage folder if you use one)", default)
         root = Path(answer).expanduser() if answer else None
         if root is None or not root.is_absolute():
             raise PkmError("config_error", "Please give the vault folder as an absolute path.")

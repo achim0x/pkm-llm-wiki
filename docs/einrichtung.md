@@ -5,8 +5,8 @@ Wie Installer und `pkm setup` intern ablaufen, beschreibt [architecture.md](arch
 mit Ablaufdiagrammen).
 Der PKM-Rechner ist der eine Rechner, auf dem Claude Desktop, die MCP-Server `pkm-mcp` und
 `pkm-pflege-mcp`, die CLI `pkm` und (mit Git) der Versionsverlauf liegen. Das kann ein **Mac** oder
-ein **Windows-PC** sein; beide Varianten sind gleichwertig. Weitere Rechner brauchen nur Obsidian und
-den Client des Cloud-Speichers.
+ein **Windows-PC** sein; beide Varianten sind gleichwertig. Weitere Rechner (optional) brauchen nur
+Obsidian und den Client des Cloud-Speichers.
 
 **Pro Vault genau ein PKM-Rechner.** Der Versionsverlauf liegt lokal auf diesem Rechner und wird
 nicht synchronisiert. Ein zweiter PKM-Rechner für denselben Vault würde einen zweiten, abweichenden
@@ -25,19 +25,24 @@ Platzhalter:
 | Platzhalter | Mac | Windows |
 |---|---|---|
 | `<HOME>` | Home-Verzeichnis, z. B. `/Users/name` | Benutzerordner, z. B. `C:\Users\name` |
-| `<VAULT>` | Vault-Ordner im Ordner des Cloud-Speichers | ebenso |
+| `<VAULT>` | Vault-Ordner, mit Cloud-Speicher im Ordner des Dienstes, sonst ein beliebiger lokaler Ordner | ebenso |
 | `<APPDIR>` | `<HOME>/Library/Application Support/pkm` | `%APPDATA%\pkm`, z. B. `C:\Users\name\AppData\Roaming\pkm` |
 
 `<APPDIR>` enthält die Konfigurationsdatei `config.toml`, das Git-Verzeichnis (`<APPDIR>/git`),
 den Suchindex (`<APPDIR>/index.db`) und die Skill-ZIPs (`<APPDIR>/skills`). Er liegt bewusst
-außerhalb des Cloud-Ordners.
+außerhalb des Vaults und eines Cloud-Ordners.
 
 ---
 
 ## 1. Voraussetzungen
 
-- Client des Cloud-Speichers (Nextcloud, OneDrive, Google Drive, Dropbox, iCloud Drive …),
-  Obsidian, Claude Desktop.
+- **Claude Desktop** und **Obsidian**.
+- **Cloud-Speicher ist optional.** Das PKM funktioniert auch rein lokal: Der Vault ist dann ein
+  normaler Ordner auf dem PKM-Rechner, und du arbeitest nur auf diesem Rechner. Ein Cloud-Speicher
+  (Nextcloud, OneDrive, Google Drive, Dropbox, iCloud Drive, Syncthing …) wird erst gebraucht, wenn
+  du den Vault auch auf weiteren Rechnern oder dem Smartphone nutzen willst; dann liegt der Vault im
+  Ordner des Dienstes (Abschnitt 7). Ein lokaler Vault lässt sich später in den Cloud-Ordner
+  verschieben; danach `pkm setup` erneut ausführen und den neuen Ort angeben.
 - **Git ist optional.** Mit Git bekommt jedes Dokument einen vollständigen Versionsverlauf
   (`history`, Diffs, alte Versionen zurückholen, Pflegeläufe mit `git revert` zurücknehmen). Ohne
   Git läuft das PKM ohne Versionsverwaltung: Dokumente bekommen weiter IDs und Versionsnummern,
@@ -218,9 +223,10 @@ und in Obsidian prüfen.
 Optional: Dataview, Graph View. Die Einstellungen in `.obsidian/` werden über den Cloud-Speicher auch
 auf die anderen Rechner übertragen. Kein Obsidian-Git-Plugin verwenden.
 
-## 7. Cloud-Speicher
+## 7. Cloud-Speicher (optional)
 
-Jeder Dienst, der einen normalen lokalen Ordner synchronisiert, ist geeignet (Nextcloud/ownCloud,
+Ohne Cloud-Speicher entfällt dieser Abschnitt; `pkm setup` meldet dann „no recognized cloud folder“,
+das ist kein Fehler. Mit Cloud-Speicher ist jeder Dienst, der einen normalen lokalen Ordner synchronisiert, ist geeignet (Nextcloud/ownCloud,
 OneDrive, Google Drive, Dropbox, iCloud Drive, Syncthing …). Wichtig ist vor allem, den
 **Vault-Ordner immer lokal** zu halten (keine Dateien „nur online“). Was je Dienst zu beachten ist,
 steht in der README unter „Cloud-Speicher: Stolpersteine“ und in Spezifikation 5.5.

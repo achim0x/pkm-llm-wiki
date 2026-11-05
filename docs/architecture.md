@@ -5,10 +5,30 @@ installed on the PKM host. The binding requirements are in the (German)
 [specification](spezifikation.md), sections 2, 5.4, 5.5, 7, 8 and 15.1; the step-by-step guide for
 users is [einrichtung.md](einrichtung.md).
 
+## Contents
+
+- [1. Overview](#1-overview)
+  - [1.1 Locations](#11-locations)
+- [2. Installation at a glance](#2-installation-at-a-glance)
+- [3. The installers](#3-the-installers)
+  - [3.1 install.sh (macOS, Linux)](#31-installsh-macos-linux)
+  - [3.2 install.ps1 (Windows)](#32-installps1-windows)
+  - [3.3 What the installers change](#33-what-the-installers-change)
+- [4. pkm setup](#4-pkm-setup)
+  - [4.1 Flow](#41-flow)
+  - [4.2 Configuration file and lookup](#42-configuration-file-and-lookup)
+  - [4.3 Claude Desktop configuration](#43-claude-desktop-configuration)
+  - [4.4 Files created or changed](#44-files-created-or-changed)
+- [5. Version control is optional](#5-version-control-is-optional)
+- [6. Runtime: how Claude Desktop uses the servers](#6-runtime-how-claude-desktop-uses-the-servers)
+- [7. Manual installation](#7-manual-installation)
+- [8. Verification and releases](#8-verification-and-releases)
+
 ## 1. Overview
 
-The PKM is a folder of Markdown files (the **vault**) that a cloud storage service synchronizes to
-all devices. Exactly one computer, the **PKM host** (Mac or Windows), runs everything that writes:
+The PKM is a folder of Markdown files (the **vault**). Usually a cloud storage service synchronizes
+it to all devices; this is optional – the vault can also be a purely local folder on a single
+computer. Exactly one computer, the **PKM host** (Mac or Windows), runs everything that writes:
 the two MCP servers used by Claude Desktop, the command line tool `pkm` and – optionally – Git for
 the version history. Other devices only use Obsidian.
 
@@ -17,7 +37,7 @@ flowchart LR
     subgraph Devices["Other devices"]
         OBS2["Obsidian"]
     end
-    subgraph Cloud["Cloud storage (Nextcloud, OneDrive, Google Drive, Dropbox, iCloud Drive, ...)"]
+    subgraph Cloud["Cloud storage, optional (Nextcloud, OneDrive, Google Drive, Dropbox, iCloud Drive, ...)"]
         SYNC(("sync"))
     end
     subgraph Host["PKM host (Mac or Windows)"]
@@ -56,7 +76,7 @@ flowchart LR
 | `pkm-pflege-mcp` | MCP server for the maintenance project: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` plus the reading tools |
 | `pkm` | CLI for setup, checks (`doctor`, `lint`) and troubleshooting; contains the same maintenance building blocks |
 | Skills `pkm-access`, `pkm-wiki` | Instructions for Claude in normal chats and in the maintenance project |
-| Vault | Markdown files in the cloud folder; never contains `.git` or the search index |
+| Vault | Markdown files in the cloud folder (or a local folder without cloud storage); never contains `.git` or the search index |
 | App folder | `config.toml`, Git directory, search index and skill ZIP files – outside every cloud folder |
 | Git (optional) | One commit per document version; history, diff, restore, revertable agent runs |
 
