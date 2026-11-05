@@ -414,9 +414,8 @@ For special cases the steps of the installer can be done by hand (details in
 ## 9. pkm-tools: package structure
 
 `pkm-tools` is one Python package (`src/pkm/`, about 13,800 lines in 40 modules) with three entry
-points. The modules form layers; a module only uses modules of the same or a lower layer (the
-service façade and the maintenance commands are imported lazily by some lower modules for type
-hints only).
+points. The modules form layers; a module only uses modules of the same or a lower layer (lower
+modules refer to the service façade and the writer only for type hints, under `TYPE_CHECKING`).
 
 ```mermaid
 flowchart TB
@@ -545,7 +544,7 @@ flowchart LR
 
 `main()` writes UTF-8 (Windows uses cp1252 for pipes), parses the subcommand, builds `Config` (for
 all commands except `setup`), runs the command and prints JSON. The exit code is 1 for any status
-other than `ok`, `changed`, `created`, `unchanged` and similar.
+other than `ok`, `changed`, `created`, `unchanged` and `proposal`.
 
 ## 11. Service and the write path
 
@@ -594,7 +593,7 @@ flowchart TD
     U -- "yes" --> UC["commit the manual state first<br/>(PKM-Source: user)"]
     U -- "no" --> T
     UC --> T["transform(doc): new full text"]
-    T --> I["check data URIs (nonconforming_image)<br/>place new images {{image:name}}"]
+    T --> I["check data URIs (nonconforming_image)<br/>place new images at their placeholders"]
     I --> S{"scratch/?"}
     S -- "yes" --> FS["finish_scratch(): write,<br/>no version, no commit"]
     S -- "no" --> F{"text changed?"}
@@ -791,7 +790,7 @@ flowchart TD
     C -- "no, fix_images not set" --> X(["nonconforming_image with findings<br/>and proposal; nothing written"])
     C -- "no, fix_images: true" --> FX["imagefix: rewrite in the 4.9 form"]
     C -- "yes" --> P
-    FX --> P{"{{image:name}} placeholders?"}
+    FX --> P{"image placeholders in the text?"}
     P -- "no" --> W(["continue writing"])
     P -- "yes" --> S["images.prepare_image: read the source<br/>(svg, png_base64, import_path)"]
     S --> CH["sanitize SVG / check PNG, JPEG<br/>(remove metadata)"]
