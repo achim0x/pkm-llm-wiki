@@ -63,6 +63,18 @@ außerhalb des Vaults und eines Cloud-Ordners.
 
 ## 2. Installation
 
+Es gibt zwei Wege:
+
+| Weg | Für wen | Wo beschrieben |
+|---|---|---|
+| **Installer** (empfohlen) | Normalfall: ein Befehl, danach führt `pkm setup` durch die Einrichtung | dieser Abschnitt und Abschnitt 3 |
+| **Manuelle Installation** | Wer jeden Schritt selbst ausführen und sehen will, keine Skripte aus dem Internet ausführen möchte oder eine abweichende Einrichtung braucht (z. B. andere Ordner) | [Anhang A](#anhang-a-manuelle-installation) |
+
+Beide Wege führen zum selben Ergebnis; man kann sie auch mischen (z. B. das Paket von Hand
+installieren und danach `pkm setup` ausführen).
+
+### 2.1 Mit dem Installer
+
 Mac (Terminal):
 
 ```bash
@@ -87,7 +99,7 @@ Außer `uv` und dem Paket ändert der Installer nichts ohne Rückfrage. **Aktual
 Installer erneut ausführen. Meldet ein neues Terminal, dass `pkm` nicht gefunden wird, einmal
 `uv tool update-shell` ausführen.
 
-Installation von Hand statt mit dem Installer: Anhang A.
+Installation ohne Installer: [Anhang A](#anhang-a-manuelle-installation).
 
 ## 3. `pkm setup`
 
@@ -306,43 +318,90 @@ git --git-dir="$env:APPDATA\pkm\git" --work-tree="<VAULT>" log --oneline
 
 ---
 
-## Anhang A: Installation von Hand
+## Anhang A: Manuelle Installation
 
-Statt des Installers geht es auch Schritt für Schritt.
+Diese Anleitung ersetzt Installer und `pkm setup` vollständig. Jeder Schritt lässt sich einzeln
+prüfen. Wer nur das Paket von Hand installieren will, macht die Schritte A.1–A.3 und führt danach
+`pkm setup` aus (Abschnitt 3).
 
-1. `uv` installieren:
+### A.1 uv installieren
 
-   Mac:
+`uv` installiert das Paket in eine eigene Umgebung und bringt eine passende Python-Version mit.
 
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
+Mac:
 
-   Windows:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
-   ```powershell
-   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-   ```
+Windows:
 
-2. Paket installieren. Mit Git direkt aus GitHub (Aktualisieren dann mit `uv tool upgrade pkm-tools`):
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
 
-   ```bash
-   uv tool install "git+https://github.com/achim0x/pkm-llm-wiki#subdirectory=pkm-tools"
-   ```
+Danach ein neues Terminal öffnen. Prüfen:
 
-   Ohne Git: das ZIP des Repositorys von GitHub laden, entpacken und den Ordner `pkm-tools`
-   installieren:
+```bash
+uv --version
+```
 
-   ```bash
-   uv tool install --force <ENTPACKT>/pkm-tools
-   ```
+### A.2 Git (optional)
 
-3. `pkm setup` ausführen.
+Mit Git gibt es die Versionsverwaltung, ohne Git läuft das PKM ohne sie (Abschnitt 1). Prüfen, ob
+Git vorhanden ist und läuft (auf dem Mac ohne Developer Tools erscheint stattdessen ein
+Installationsdialog):
 
-**Ohne `pkm setup`** (nur für Sonderfälle): `config.toml` von Hand anlegen, `pkm init` ausführen und
-die Server in Claude Desktop eintragen.
+```bash
+git --version
+```
 
-`<APPDIR>/config.toml` (flache Schlüssel wie die Umgebungsvariablen aus Spezifikation 7.1):
+Den Pfad von Git braucht Schritt A.4. Mac:
+
+```bash
+command -v git
+```
+
+Windows:
+
+```powershell
+(Get-Command git).Source
+```
+
+### A.3 Paket installieren
+
+Variante 1 – mit Git direkt aus GitHub (Aktualisieren später mit `uv tool upgrade pkm-tools`):
+
+```bash
+uv tool install "git+https://github.com/achim0x/pkm-llm-wiki#subdirectory=pkm-tools"
+```
+
+Variante 2 – ohne Git: auf GitHub das Repository als ZIP herunterladen („Code“ → „Download ZIP“),
+entpacken und den Ordner `pkm-tools` installieren (Aktualisieren: neues ZIP, gleicher Befehl):
+
+```bash
+uv tool install --force --reinstall <ENTPACKT>/pkm-tools
+```
+
+Danach liegen `pkm`, `pkm-mcp` und `pkm-pflege-mcp` in `<HOME>/.local/bin` (Windows mit `.exe`).
+Meldet ein neues Terminal, dass `pkm` nicht gefunden wird:
+
+```bash
+uv tool update-shell
+```
+
+Prüfen:
+
+```bash
+pkm --help
+```
+
+### A.4 Konfigurationsdatei anlegen
+
+`<APPDIR>/config.toml` anlegen (Ordner `<APPDIR>` bei Bedarf erstellen). Die Schlüssel heißen wie
+die Umgebungsvariablen aus Spezifikation 7.1.
+
+Mac, z. B. `~/Library/Application Support/pkm/config.toml`:
 
 ```toml
 PKM_ROOT = "/Users/name/Nextcloud/Vault"
@@ -351,27 +410,136 @@ PKM_VERSIONING = true
 PKM_GIT = "/usr/bin/git"
 ```
 
-`PKM_VERSIONING = false` schaltet die Versionsverwaltung ab. Weitere optionale Schlüssel:
-`PKM_GIT_DIR`, `PKM_CACHE_DIR`, `PKM_TZ`, `PKM_MAX_KB`, `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`,
-`PKM_INLINE_MAX_KB` (24), `PKM_SVG_MAX_KB` (200), `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB`
-(512), `PKM_SVG_RASTER` (`false`; zum Rastern von SVG zusätzlich das Paket `cairosvg` installieren).
-Eine andere Datei wählt die Umgebungsvariable `PKM_CONFIG`.
+Windows, z. B. `%APPDATA%\pkm\config.toml` (Pfade in einfachen Anführungszeichen, dann bleiben die
+Backslashes, wie sie sind):
 
-Eintrag in `claude_desktop_config.json` (Mac
-`<HOME>/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\`; in Claude Desktop auch
-über Einstellungen → Entwickler → „Konfiguration bearbeiten“); in JSON alle Pfade absolut und unter
-Windows jeden Backslash verdoppeln:
+```toml
+PKM_ROOT = 'C:\Users\name\Nextcloud\Vault'
+PKM_VAULT_NAME = "Vault"
+PKM_VERSIONING = true
+PKM_GIT = 'C:\Program Files\Git\cmd\git.exe'
+```
+
+- `PKM_ROOT`: absoluter Pfad des Vault-Ordners (mit Cloud-Speicher im Ordner des Dienstes, sonst ein
+  lokaler Ordner).
+- `PKM_VERSIONING = false`, wenn Git fehlt oder nicht genutzt werden soll; `PKM_GIT` entfällt dann.
+- Weitere optionale Schlüssel: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (beide nie in einen Cloud-Ordner),
+  `PKM_TZ`, `PKM_MAX_KB`, `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`, `PKM_INLINE_MAX_KB` (24),
+  `PKM_SVG_MAX_KB` (200), `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER`
+  (`false`; zum Rastern von SVG zusätzlich das Paket `cairosvg` installieren).
+- Eine Datei an einem anderen Ort wählt die Umgebungsvariable `PKM_CONFIG`; sie muss dann auch im
+  Eintrag für Claude Desktop stehen (A.7).
+
+### A.5 Vault anlegen
+
+```bash
+pkm init
+```
+
+`pkm init` legt Ordnerstruktur, `CLAUDE.md`, `.gitignore`, `.pkm/state.json`,
+`.obsidian/app.json` und `.obsidian/types.json` an und, mit `PKM_VERSIONING = true`, das
+Git-Verzeichnis unter `<APPDIR>/git`. Bestehende Notizen bleiben unverändert.
+
+### A.6 Git-Identität und Signierung (nur mit Git)
+
+Ohne Name und E-Mail verweigert der Server alle schreibenden Tools. Ist global keine Identität
+gesetzt, für das PKM-Repo setzen (Mac):
+
+```bash
+git --git-dir="$HOME/Library/Application Support/pkm/git" config user.name "Vorname Nachname"
+```
+
+```bash
+git --git-dir="$HOME/Library/Application Support/pkm/git" config user.email "name@example.org"
+```
+
+Windows:
+
+```powershell
+git --git-dir="$env:APPDATA\pkm\git" config user.name "Vorname Nachname"
+```
+
+```powershell
+git --git-dir="$env:APPDATA\pkm\git" config user.email "name@example.org"
+```
+
+Commit-Signierung für das PKM-Repo abschalten (sonst scheitern Commits aus Claude Desktop, wenn
+der Signaturschlüssel dort nicht erreichbar ist). Mac:
+
+```bash
+git --git-dir="$HOME/Library/Application Support/pkm/git" config commit.gpgsign false
+```
+
+Windows:
+
+```powershell
+git --git-dir="$env:APPDATA\pkm\git" config commit.gpgsign false
+```
+
+Fehlte die Identität bei `pkm init`, gibt es noch keinen ersten Commit; dann `pkm init` noch
+einmal ausführen.
+
+### A.7 Claude Desktop
+
+`claude_desktop_config.json` öffnen (in Claude Desktop: Einstellungen → Entwickler →
+„Konfiguration bearbeiten“; Mac `<HOME>/Library/Application Support/Claude/`, Windows
+`%APPDATA%\Claude\`) und unter `mcpServers` die beiden Einträge ergänzen. Andere Server bleiben
+stehen. Alle Pfade absolut.
+
+Mac:
 
 ```json
 {
   "mcpServers": {
-    "pkm": { "command": "<HOME>/.local/bin/pkm-mcp" },
-    "pkm-pflege": { "command": "<HOME>/.local/bin/pkm-pflege-mcp" }
+    "pkm": { "command": "/Users/name/.local/bin/pkm-mcp" },
+    "pkm-pflege": { "command": "/Users/name/.local/bin/pkm-pflege-mcp" }
   }
 }
 ```
 
-Unter Windows heißen die Programme `pkm-mcp.exe` und `pkm-pflege-mcp.exe`. Umgebungsvariablen in
-`env` sind weiterhin möglich und haben Vorrang vor `config.toml`. Git findet der Server über
-`PKM_GIT`, über `PATH` oder an den üblichen Orten (`/opt/homebrew/bin`, `/usr/local/bin`,
-`/usr/bin`, `C:\Program Files\Git\cmd`).
+Windows (in JSON jeden Backslash verdoppeln):
+
+```json
+{
+  "mcpServers": {
+    "pkm": { "command": "C:\\Users\\name\\.local\\bin\\pkm-mcp.exe" },
+    "pkm-pflege": { "command": "C:\\Users\\name\\.local\\bin\\pkm-pflege-mcp.exe" }
+  }
+}
+```
+
+Liegt `config.toml` nicht im Standardordner, in beiden Einträgen
+`"env": { "PKM_CONFIG": "<pfad zur config.toml>" }` ergänzen. Umgebungsvariablen in `env` haben
+Vorrang vor `config.toml`. Danach Claude Desktop vollständig beenden und neu starten.
+
+### A.8 Skills packen und hochladen
+
+Die Skills liegen im Paket unter `pkm/skills/` (im Repository `pkm-tools/src/pkm/skills/`). Fertige
+ZIP-Dateien hängen an jeder GitHub-Release; selbst packen geht so (im entpackten bzw. geklonten
+Repository).
+
+Mac:
+
+```bash
+cd <REPO>/pkm-tools/src/pkm/skills && zip -r pkm-access.zip pkm-access && zip -r pkm-wiki.zip pkm-wiki
+```
+
+Windows:
+
+```powershell
+cd <REPO>\pkm-tools\src\pkm\skills; Compress-Archive -Force pkm-access pkm-access.zip; Compress-Archive -Force pkm-wiki pkm-wiki.zip
+```
+
+Beide ZIP-Dateien in Claude Desktop hochladen (Abschnitt 4).
+
+### A.9 Abschluss
+
+```bash
+pkm doctor
+```
+
+Erwartet: `"status": "ok"`. Danach weiter mit Abschnitt 5 (Projekt „PKM-Pflege“) und, falls
+genutzt, Abschnitt 6 (Obsidian neu starten, damit es die Einstellungen aus `app.json` liest).
+
+**Aktualisieren:** Paket neu installieren (A.3), Skills neu packen und hochladen (A.8). Die
+übrigen Schritte bleiben gültig.
