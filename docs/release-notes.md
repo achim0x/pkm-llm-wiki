@@ -1,10 +1,9 @@
 # Release notes
 
-## Changes since V0.1.0
+## V0.2.0
 
-Compared to the tag `V0.1.0` (specification 0.18). Specification now **0.26**, implementation
-plan version 4. The package version in `pkm-tools/pyproject.toml` is still `0.1.0`; the next
-release is suggested as **0.2.0**.
+Changes compared to `V0.1.0` (specification 0.18). Specification now **0.26**, implementation
+plan version 4.
 
 ### Highlights
 
