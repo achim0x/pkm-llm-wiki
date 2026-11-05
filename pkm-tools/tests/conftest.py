@@ -1,7 +1,7 @@
-"""Gemeinsame Fixtures: temporärer Vault mit getrenntem Git-Verzeichnis.
+"""Shared fixtures: temporary vault with a separate Git directory.
 
-Die Umgebung wird vollständig isoliert (eigenes HOME, eigene globale Git-Konfiguration),
-damit Einstellungen des Rechners (z. B. Commit-Signierung) die Tests nicht beeinflussen.
+The environment is fully isolated (own HOME, own global Git configuration),
+so that settings of the machine (e.g. commit signing) do not affect the tests.
 
     Author: Achim0x
 """
@@ -50,14 +50,14 @@ from pkm.vaultinit import init_vault
 
 @pytest.fixture(name="isolated_env")
 def fixture_isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Path]:
-    """Isolierte Umgebung: eigenes HOME, eigene Git-Konfiguration, Vault- und App-Ordner.
+    """Isolated environment: own HOME, own Git configuration, vault and app folders.
 
     Args:
-        tmp_path: Temporärer Ordner von pytest.
-        monkeypatch: Zum Setzen der Umgebungsvariablen.
+        tmp_path: Temporary folder of pytest.
+        monkeypatch: For setting environment variables.
 
     Returns:
-        Pfade ``root``, ``git_dir``, ``cache_dir``, ``home`` und ``gitconfig``.
+        Paths ``root``, ``git_dir``, ``cache_dir``, ``home`` and ``gitconfig``.
     """
     home = tmp_path / "home"
     home.mkdir()
@@ -73,20 +73,23 @@ def fixture_isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dic
     monkeypatch.setenv("PKM_GIT_DIR", str(app / "git"))
     monkeypatch.setenv("PKM_CACHE_DIR", str(app))
     monkeypatch.setenv("PKM_TZ", "Europe/Berlin")
-    for var in ("PKM_MAX_KB", "PKM_VAULT_NAME", "PKM_GIT_AUTHOR"):
+    monkeypatch.setenv("PKM_CONFIG", str(app / "config.toml"))
+    for var in ("PKM_MAX_KB", "PKM_VAULT_NAME", "PKM_GIT_AUTHOR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
+                "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_IMPORT_DIR", "PKM_SVG_RASTER", "PKM_VERSIONING",
+                "PKM_GIT"):
         monkeypatch.delenv(var, raising=False)
     return {"root": root, "git_dir": app / "git", "cache_dir": app, "home": home, "gitconfig": gitconfig}
 
 
 def git(env: dict[str, Path], *args: str) -> str:
-    """Git im Testvault mit getrenntem Git-Verzeichnis aufrufen.
+    """Call Git in the test vault with a separate Git directory.
 
     Args:
-        env: Isolierte Umgebung (``git_dir`` und ``root``).
-        *args: Git-Unterbefehl und Argumente.
+        env: Isolated environment (``git_dir`` and ``root``).
+        *args: Git subcommand and arguments.
 
     Returns:
-        Standardausgabe von Git.
+        Standard output of Git.
     """
     out = subprocess.run(
         ["git", f"--git-dir={env['git_dir']}", f"--work-tree={env['root']}", *args],
@@ -100,15 +103,15 @@ def git(env: dict[str, Path], *args: str) -> str:
 
 @pytest.fixture(name="cfg")
 def fixture_cfg(isolated_env):
-    """Konfiguration mit initialisiertem Vault (``pkm init``).
+    """Configuration with an initialized vault (``pkm init``).
 
     Args:
-        isolated_env: Isolierte Umgebung (nur für die Vorbereitung).
+        isolated_env: Isolated environment (only for the setup).
 
     Returns:
-        Die Konfiguration.
+        The configuration.
     """
-    del isolated_env  # nur für die Vorbereitung benötigt
+    del isolated_env  # only needed for the setup
 
     c = Config.from_env()
     init_vault(c)
@@ -117,27 +120,27 @@ def fixture_cfg(isolated_env):
 
 @pytest.fixture(name="svc")
 def fixture_svc(cfg):
-    """Dienst für den initialisierten Vault.
+    """Service for the initialized vault.
 
     Args:
-        cfg: Konfiguration.
+        cfg: Configuration.
 
     Returns:
-        Der Dienst.
+        The service.
     """
     return Service(cfg)
 
 
 def write(env_or_cfg, rel: str, text: str) -> Path:
-    """Datei im Vault schreiben (Ordner werden angelegt).
+    """Write a file in the vault (folders are created).
 
     Args:
-        env_or_cfg: Isolierte Umgebung oder Konfiguration.
-        rel: Relativer Pfad.
+        env_or_cfg: Isolated environment or configuration.
+        rel: Relative path.
         text: Inhalt (UTF-8).
 
     Returns:
-        Pfad der geschriebenen Datei.
+        Path of the written file.
     """
     root = env_or_cfg["root"] if isinstance(env_or_cfg, dict) else env_or_cfg.root
     p = root / rel
@@ -147,37 +150,37 @@ def write(env_or_cfg, rel: str, text: str) -> Path:
 
 
 def commit_doc(cfg: Config, rel: str, text: str, doc_id: str, version: int) -> str:
-    """Dokument schreiben und mit PKM-Zeilen committen.
+    """Write a document and commit it with PKM lines.
 
     Args:
-        cfg: Konfiguration.
-        rel: Relativer Pfad.
-        text: Inhalt.
-        doc_id: Dokument-ID für ``PKM-Id``.
-        version: Versionsnummer für ``PKM-Version``.
+        cfg: Configuration.
+        rel: Relative path.
+        text: Content.
+        doc_id: Document ID for ``PKM-Id``.
+        version: Version number for ``PKM-Version``.
         source: ``PKM-Source``.
-        title: Titel im Betreff.
+        title: Title in the subject.
 
     Returns:
-        Hash des Commits.
+        Hash of the commit.
     """
     write(cfg, rel, text)
     message = build_message("T", f"v{version}", "", doc_id, version, "user")
     return Git(cfg.git_dir, cfg.root).commit_paths([rel], message)
 
 def remove_tree(path: Path) -> None:
-    """Ordner löschen, auch schreibgeschützte Dateien (Git-Objekte unter Windows).
+    """Delete a folder, also read-only files (Git objects on Windows).
 
     Args:
-        path: Zu löschender Ordner.
+        path: Folder to delete.
     """
     def make_writable(func, target, _exc):  # pylint: disable=unused-argument
-        """Schreibschutz aufheben und den Löschversuch wiederholen.
+        """Remove the write protection and retry the deletion.
 
         Args:
-            func: Fehlgeschlagene Funktion (z. B. ``os.unlink``).
-            target: Betroffener Pfad.
-            _exc: Ausnahme (ungenutzt).
+            func: Failed function (e.g. ``os.unlink``).
+            target: Affected path.
+            _exc: Exception (unused).
         """
         os.chmod(target, stat.S_IWRITE)
         func(target)

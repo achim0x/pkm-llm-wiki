@@ -1,4 +1,4 @@
-"""Fachliche Fassade für MCP-Server und CLI (Spezifikation 7.2, 7.3).
+"""Domain facade for the MCP server and the CLI (specification 7.2, 7.3).
 
     Author: Achim0x
 """
@@ -28,10 +28,10 @@ import sqlite3
 from datetime import datetime
 from typing import Any
 
-from . import citations
+from . import citations, docimages
 from .config import Config
 from .diffs import unified_diff
-from .errors import PkmError
+from .errors import NO_VERSIONING, PkmError
 from .gitlayer import Commit, Git
 from .ids import is_valid_id
 from .index import SearchIndex, query_terms, snippet
@@ -48,43 +48,45 @@ HISTORY_DIFF_LINES = 400
 SCOPES = {"wiki": ("wiki",), "documents": ("documents",), "scratch": (SCRATCH,), "all": AREAS}
 UNPROCESSED_CATEGORIES = ("new", "changed", "meta_changed", "moved", "deleted")
 INDEX_ERRORS = (sqlite3.Error, PkmError, OSError)
+READ_LIMIT = 40_000
 
 # Classes *********************************************************************
 
 
 class Service:  # pylint: disable=too-many-public-methods
-    """Fassade über Vault, Git, Suchindex und Schreiblogik; eine Methode je Tool bzw. Befehl."""
+    """Facade over vault, Git, search index and write logic; one method per tool or command."""
 
     def __init__(self, cfg: Config) -> None:
-        """Dienst anlegen.
+        """Create the service.
 
         Args:
-            cfg: Konfiguration.
+            cfg: Configuration.
         """
         self.cfg = cfg
         self.vault = Vault(cfg)
-        self.git = Git(cfg.git_dir, cfg.root, cfg.git_author)
+        self.git = Git(cfg.git_dir, cfg.root, cfg.git_author, cfg.git_exe)
+        self.versioning = cfg.versioning
         self._index: SearchIndex | None = None
 
-    # Hilfen *******************************************************************
+    # Helpers ******************************************************************
 
     def now(self) -> datetime:
-        """Aktuelle Zeit in ``PKM_TZ`` ohne Mikrosekunden.
+        """Current time in ``PKM_TZ`` without microseconds.
 
         Returns:
-            Zeitpunkt mit Zeitzone.
+            Point in time with time zone.
         """
         return datetime.now(self.cfg.tz).replace(microsecond=0)
 
     @property
     def index(self) -> SearchIndex:
-        """Suchindex (beim ersten Zugriff angelegt).
+        """Search index (created on first access).
 
         Returns:
-            Den Index.
+            The index.
 
         Raises:
-            PkmError: ``index_unavailable``, wenn ``PKM_CACHE_DIR`` im Vault liegt.
+            PkmError: ``index_unavailable`` if ``PKM_CACHE_DIR`` lies in the vault.
         """
         if self._index is None:
             self._index = SearchIndex(self.cfg, self.vault)
@@ -92,61 +94,62 @@ class Service:  # pylint: disable=too-many-public-methods
 
     @property
     def writer(self) -> Writer:
-        """Schreiblogik für diesen Dienst.
+        """Write logic for this service.
 
         Returns:
-            Ein ``Writer``.
+            A ``Writer``.
         """
         return Writer(self)
 
     def index_available(self) -> bool:
-        """Prüfen, ob der Suchindex genutzt werden darf.
+        """Check whether the search index may be used.
 
         Returns:
-            ``True``, wenn ``PKM_CACHE_DIR`` außerhalb des Vaults liegt.
+            ``True`` if ``PKM_CACHE_DIR`` lies outside the vault.
         """
         return self.cfg.cache_dir_problem() is None
 
     def find_id(self, doc_id: str) -> list[str]:
-        """Pfade zu einer ID suchen, bevorzugt über den Index.
+        """Find the paths for an ID, preferably via the index.
 
         Args:
-            doc_id: Dokument-ID.
+            doc_id: Document ID.
 
         Returns:
-            Existierende Pfade mit dieser ID.
+            Existing paths with this ID.
         """
         paths = None
         if self.index_available():
             try:
-                paths = [p for p in self.index.find_id(doc_id) if self.vault.exists(p)]
-            except INDEX_ERRORS:  # Der Index ist nur ein Cache.
+                paths = [p for p in self.index.find_id(doc_id) if self.vault.exists(p)] or None
+            except INDEX_ERRORS:  # The index is only a cache.
                 paths = None
+        # Empty hit: the index can be outdated (e.g. after a move) – then scan.
         paths = paths if paths is not None else self.vault.scan_id(doc_id)
         return [p for p in paths if not p.startswith(f"{SCRATCH}/")]
 
     def find_citation(self, value: str) -> list[str]:
-        """Pfade zu einer Kurzbezeichnung suchen, bevorzugt über den Index.
+        """Find the paths for a short citation, preferably via the index.
 
         Args:
-            value: Kurzbezeichnung (``short_citation``).
+            value: Short citation (``short_citation``).
 
         Returns:
-            Existierende Pfade in ``documents/``.
+            Existing paths in ``documents/``.
         """
         paths = None
         if self.index_available():
             try:
-                paths = [p for p in self.index.find_citation(value) if self.vault.exists(p)]
+                paths = [p for p in self.index.find_citation(value) if self.vault.exists(p)] or None
             except INDEX_ERRORS:
                 paths = None
         return paths if paths is not None else self.vault.scan_citation(value)
 
     def known_ids(self) -> set[str]:
-        """Alle vergebenen IDs, bevorzugt über den Index.
+        """All assigned IDs, preferably via the index.
 
         Returns:
-            Menge der IDs.
+            Set of the IDs.
         """
         ids = None
         if self.index_available():
@@ -160,109 +163,116 @@ class Service:  # pylint: disable=too-many-public-methods
         return ids
 
     def resolve(self, target: str, areas: tuple[str, ...] = READ_AREAS) -> str:
-        """Ziel auflösen (Pfad, Wikilink, Kurzname oder ``id:``).
+        """Resolve a target (path, wikilink, short name or ``id:``).
 
         Args:
-            target: Ziel.
-            areas: Erlaubte Bereiche.
+            target: Target.
+            areas: Allowed areas.
 
         Returns:
-            Relativer Pfad.
+            Relative path.
         """
         return self.vault.resolve(target, areas, self.find_id, self.find_citation)
 
     def load(self, target: str, areas: tuple[str, ...] = READ_AREAS) -> Doc:
-        """Ziel auflösen und laden.
+        """Resolve and load a target.
 
         Args:
-            target: Ziel.
-            areas: Erlaubte Bereiche.
+            target: Target.
+            areas: Allowed areas.
 
         Returns:
-            Das Dokument.
+            The document.
         """
         return self.vault.load(self.resolve(target, areas))
 
     def state(self) -> dict[str, Any]:
-        """Verarbeitungsstand lesen.
+        """Read the processing state.
 
         Returns:
-            Inhalt von ``state.json``.
+            Content of ``state.json``.
         """
         return load_state(self.cfg)
 
     def processed(self, doc: Doc, state: dict[str, Any] | None = None) -> bool:
-        """Prüfen, ob der aktuelle Stand eines Dokuments im Wiki eingearbeitet ist.
+        """Check whether the current state of a document is incorporated into the wiki.
 
         Args:
-            doc: Dokument.
-            state: Bereits gelesener Stand; ohne Angabe wird er gelesen.
+            doc: Document.
+            state: Already loaded state; read if omitted.
 
         Returns:
-            ``True``, wenn ``classify`` nichts zu tun meldet.
+            ``True`` if ``classify`` reports nothing to do.
         """
         state = state if state is not None else self.state()
         key = state_key(doc)
         entry = state["documents"].get(key) if key else None
         return classify(doc, entry) is None
 
-    # Versionen aus Git ********************************************************
+    # Versions from Git ********************************************************
 
     def versions(self, doc_id: str) -> list[Commit]:
-        """Commits eines Dokuments mit Versionsnummer.
+        """Commits of a document with a version number.
 
         Args:
-            doc_id: Dokument-ID.
+            doc_id: Document ID.
 
         Returns:
-            Commits, älteste zuerst.
+            Commits, oldest first; empty without version control.
         """
-        return [c for c in self.git.log_for_id(doc_id) if c.version is not None]
+        return [c for c in self.git.log_for_id(doc_id) if c.version is not None] if self.versioning else []
 
     def commit_for_version(self, doc_id: str, version: int) -> Commit:
-        """Commit zu einer Version (bei mehreren der letzte, z. B. nach reinem Verschieben).
+        """Commit for a version (the last one if there are several, e.g. after a pure move).
 
         Args:
-            doc_id: Dokument-ID.
-            version: Versionsnummer.
+            doc_id: Document ID.
+            version: Version number.
 
         Returns:
-            Den Commit.
+            The commit.
 
         Raises:
-            PkmError: ``not_found``, wenn die Version nicht im Verlauf ist.
+            PkmError: ``not_found`` if the version is not in the history.
         """
         matching = [c for c in self.versions(doc_id) if c.version == version and c.path]
         if not matching:
-            raise PkmError("not_found", f"Version {version} von {doc_id} nicht im Verlauf.", version=version)
+            raise PkmError("not_found", f"Version {version} of {doc_id} not in the history.", version=version)
         return matching[-1]
 
     def text_at_version(self, doc_id: str, version: int) -> tuple[str, str]:
-        """Pfad und Text eines Dokuments in einer Version.
+        """Path and text of a document in a version.
 
         Args:
-            doc_id: Dokument-ID.
-            version: Versionsnummer.
+            doc_id: Document ID.
+            version: Version number.
 
         Returns:
-            Tupel aus (damaliger Pfad, Text).
+            Tuple of (path at that time, text).
+
+        Raises:
+            PkmError: ``not_versioned`` without version control, ``not_found`` for an unknown version.
         """
+        if not self.versioning:
+            raise PkmError("not_versioned", NO_VERSIONING, version=version)
         c = self.commit_for_version(doc_id, version)
         return c.path or "", self.git.show_file(c.sha, c.path or "").decode("utf-8", "replace")
 
     def _target_id(self, target: str) -> tuple[str, str | None]:
-        """ID und aktuellen Pfad bestimmen; bei ``id:`` auch für gelöschte Dokumente.
+        """Determine the ID and current path; for ``id:`` also for deleted documents.
 
         Args:
-            target: Ziel.
+            target: Target.
 
         Returns:
-            Tupel aus (ID, aktueller Pfad oder ``None``, wenn das Dokument gelöscht ist).
+            Tuple of (ID, current path or ``None`` if the document is deleted).
 
         Raises:
-            PkmError: ``not_found``, wenn das Ziel fehlt oder keine ID hat; ``not_versioned``
-                für Dateien in ``scratch/``.
+            PkmError: ``not_found`` if the target is missing or has no ID; ``not_versioned``
+                for files in ``scratch/`` and without version control.
         """
+        if not self.versioning:
+            raise PkmError("not_versioned", NO_VERSIONING, target=target)
         t = target.strip()
         try:
             doc = self.load(t)
@@ -271,35 +281,35 @@ class Service:  # pylint: disable=too-many-public-methods
                 raise
             doc = None
         if doc is not None and not doc.versioned:
-            raise PkmError("not_versioned", f"{doc.rel} liegt in scratch/ und hat keinen Verlauf.", path=doc.rel)
+            raise PkmError("not_versioned", f"{doc.rel} lies in scratch/ and has no history.", path=doc.rel)
         if doc is None:
             result: tuple[str, str | None] = (t[3:].strip(), None)
         elif not doc.id:
-            raise PkmError("not_found", f"{doc.rel} hat keine ID (noch nicht versioniert).", path=doc.rel)
+            raise PkmError("not_found", f"{doc.rel} has no ID (not versioned yet).", path=doc.rel)
         else:
             result = (doc.id, doc.rel)
         return result
 
-    # Lesende Tools ************************************************************
+    # Reading tools ************************************************************
 
     def search(self, query: str, scope: str = "wiki", max_results: int = 8) -> dict[str, Any]:
         """Tool ``search``.
 
         Args:
-            query: Suchbegriffe.
-            scope: ``wiki``, ``documents``, ``scratch`` oder ``all`` (= ``wiki`` und ``documents``).
-            max_results: Höchstzahl der Treffer (1–25).
+            query: Search terms.
+            scope: ``wiki``, ``documents``, ``scratch`` or ``all`` (= ``wiki`` and ``documents``).
+            max_results: Maximum number of hits (1–25).
 
         Returns:
-            Treffer mit ``id``, ``path``, ``title``, ``type``, ``summary``, ``snippet``, ``score``,
-            ``date_updated``, ``short_citation`` und bei Dokumenten ``version`` und ``processed``.
+            Hits with ``id``, ``path``, ``title``, ``type``, ``summary``, ``snippet``, ``score``,
+            ``date_updated``, ``short_citation`` and for documents ``version`` and ``processed``.
 
         Raises:
-            PkmError: ``invalid_argument`` bei unbekanntem ``scope``.
+            PkmError: ``invalid_argument`` for an unknown ``scope``.
         """
         areas = SCOPES.get(scope)
         if areas is None:
-            raise PkmError("invalid_argument", "scope muss wiki, documents, scratch oder all sein.")
+            raise PkmError("invalid_argument", "scope must be wiki, documents, scratch or all.")
         hits = self.index.search(query, areas, max(1, min(int(max_results), MAX_RESULTS)))
         state = self.state()
         results = []
@@ -310,14 +320,14 @@ class Service:  # pylint: disable=too-many-public-methods
         return {"status": "ok", "query": query, "scope": scope, "results": results, "terms": query_terms(query)}
 
     def _search_item(self, hit: dict[str, Any], state: dict[str, Any]) -> dict[str, Any] | None:
-        """Suchtreffer um Ausschnitt, Version und Verarbeitungsstand ergänzen.
+        """Add excerpt, version and processing state to a search hit.
 
         Args:
-            hit: Treffer aus dem Index.
-            state: Verarbeitungsstand.
+            hit: Hit from the index.
+            state: Processing state.
 
         Returns:
-            Ergebnis-Eintrag oder ``None``, wenn die Datei inzwischen fehlt.
+            Result entry or ``None`` if the file is missing in the meantime.
         """
         item: dict[str, Any] | None = None
         try:
@@ -333,38 +343,60 @@ class Service:  # pylint: disable=too-many-public-methods
                 item["processed"] = self.processed(doc, state)
         return item
 
-    def read(self, target: str, version: int | None = None) -> dict[str, Any]:
+    def read(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        target: str,
+        version: int | None = None,
+        section: str | None = None,
+        offset: int = 0,
+        max_chars: int | None = None,
+        content: bool = True,
+    ) -> dict[str, Any]:
         """Tool ``read``.
 
         Args:
-            target: Pfad, Wikilink oder ``id:``.
-            version: Frühere Version aus Git (nur lesend).
+            target: Path, wikilink or ``id:``.
+            version: Earlier version from Git (read-only).
+            section: Return only this section (key as in ``sections``).
+            offset: Start character for reading page by page.
+            max_chars: Return at most this many characters.
+            content: ``False`` returns only frontmatter, ``sections``, ``hash`` and ``content_length``.
 
         Returns:
-            Inhalt, Frontmatter, ``hash``, ``editable``, Abschnitte, Links und Rückverweise;
-            bei Wiki-Seiten zusätzlich die geparsten Belege; in ``scratch/`` ohne ``id`` und ``version``.
+            Content, frontmatter, ``hash``, ``editable``, sections, links and backlinks;
+            for wiki pages additionally the parsed citations; in ``scratch/`` without ``id`` and ``version``.
+            If the content is larger than ``READ_LIMIT`` and neither ``section`` nor ``max_chars``
+            is given, ``content`` is left out (``content_omitted``).
 
         Raises:
-            PkmError: ``not_versioned`` bei ``version`` für Dateien in ``scratch/``.
+            PkmError: ``not_versioned`` for ``version`` with files in ``scratch/``.
         """
         if version is not None:
             doc_id, rel = self._target_id(target)
             path, text = self.text_at_version(doc_id, int(version))
-            result = self._doc_result(load_text_doc(path, text.encode("utf-8")), with_links=False)
+            doc = load_text_doc(path, text.encode("utf-8"))
+            result = self._doc_result(doc, with_links=False)
             result.update({"editable": False, "current_path": rel, "version": version})
         else:
-            result = self._doc_result(self.load(target), with_links=True)
+            doc = self.load(target)
+            result = self._doc_result(doc, with_links=True)
+        if "content" in result:
+            text = _section_content(doc, section, result) if section is not None else result["content"]
+            text, result["images"] = docimages.read_view(doc, text, result.get("section"), self.cfg.images)
+            result.update(_page_of(text, offset, max_chars, content))
+            if "content" not in result or result["content"] is None:
+                result.pop("content", None)
         return result
 
     def _doc_result(self, doc: Doc, with_links: bool) -> dict[str, Any]:
-        """Rückgabe von ``read`` für ein geladenes Dokument bilden.
+        """Build the return value of ``read`` for a loaded document.
 
         Args:
-            doc: Dokument.
-            with_links: Links und Rückverweise ermitteln.
+            doc: Document.
+            with_links: Determine links and backlinks.
 
         Returns:
-            Das Ergebnis-Wörterbuch.
+            The result dictionary.
         """
         if doc.kind == "bin":
             result: dict[str, Any] = {
@@ -380,6 +412,7 @@ class Service:  # pylint: disable=too-many-public-methods
                 "title": doc.title,
                 "frontmatter": doc.meta,
                 "content": doc.body if doc.error in (None, "invalid_frontmatter") else "",
+                "images": [],
                 "hash": doc.hashes.file_hash if doc.hashes else None,
                 "editable": doc.editable,
                 "sections": section_summary(doc),
@@ -397,13 +430,13 @@ class Service:  # pylint: disable=too-many-public-methods
         return result
 
     def _backlinks(self, doc: Doc) -> list[str]:
-        """Rückverweise über den Index (leer, wenn der Index nicht verfügbar ist).
+        """Backlinks via the index (empty if the index is not available).
 
         Args:
-            doc: Dokument.
+            doc: Document.
 
         Returns:
-            Pfade der verweisenden Dateien.
+            Paths of the linking files.
         """
         links: list[str] = []
         if self.index_available():
@@ -417,15 +450,15 @@ class Service:  # pylint: disable=too-many-public-methods
         """Tool ``history``.
 
         Args:
-            target: Dokument (auch ``id:`` eines gelöschten Dokuments).
-            diff_from: Version, ab der verglichen wird.
-            diff_to: Version, bis zu der verglichen wird; Standard ist die neueste.
+            target: Document (also ``id:`` of a deleted document).
+            diff_from: Version to compare from.
+            diff_to: Version to compare to; default is the newest.
 
         Returns:
-            Versionen mit Datum, Quelle, Notiz und Commit; mit ``diff_from`` zusätzlich ``diff``.
+            Versions with date, source, note and commit; with ``diff_from`` additionally ``diff``.
 
         Raises:
-            PkmError: ``not_found``, wenn es keine Versionen gibt; ``not_versioned`` in ``scratch/``.
+            PkmError: ``not_found`` if there are no versions; ``not_versioned`` in ``scratch/``.
         """
         doc_id, rel = self._target_id(target)
         commits = self.git.log_for_id(doc_id)
@@ -440,7 +473,7 @@ class Service:  # pylint: disable=too-many-public-methods
         if diff_from is not None:
             versions = [c.version for c in commits if c.version is not None]
             if not versions:
-                raise PkmError("not_found", "Keine Versionen im Verlauf.")
+                raise PkmError("not_found", "No versions in the history.")
             to = int(diff_to) if diff_to is not None else max(versions)
             _, old = self.text_at_version(doc_id, int(diff_from))
             _, new = self.text_at_version(doc_id, to)
@@ -449,19 +482,19 @@ class Service:  # pylint: disable=too-many-public-methods
         return result
 
     def show(self, target: str, version: int, section: str | None = None) -> dict[str, Any]:
-        """CLI ``pkm show``: frühere Version, optional nur ein Abschnitt.
+        """CLI ``pkm show``: earlier version, optionally only one section.
 
         Args:
-            target: Dokument.
-            version: Versionsnummer.
-            section: Abschnittsschlüssel.
+            target: Document.
+            version: Version number.
+            section: Section key.
 
         Returns:
-            Wie ``read`` mit ``version``; mit ``section`` zusätzlich ``section`` und ``section_hash``
-            und ``content`` nur mit diesem Abschnitt.
+            Like ``read`` with ``version``; with ``section`` additionally ``section`` and ``section_hash``
+            and ``content`` with this section only.
 
         Raises:
-            PkmError: ``not_found``, wenn der Abschnitt fehlt.
+            PkmError: ``not_found`` if the section is missing.
         """
         res = self.read(target, version)
         if section is not None:
@@ -470,7 +503,7 @@ class Service:  # pylint: disable=too-many-public-methods
             doc = load_text_doc(res["path"], self.text_at_version(doc_id, version)[1].encode("utf-8"))
             sec = doc.parsed.section(key) if doc.parsed else None
             if sec is None:
-                raise PkmError("not_found", f"Abschnitt nicht gefunden: {section}", section=section)
+                raise PkmError("not_found", f"Section not found: {section}", section=section)
             res["section"] = key
             res["content"] = "\n".join(([sec.heading] if sec.heading else []) + sec.content_lines)
             res["section_hash"] = doc.hashes.sections[key] if doc.hashes else None
@@ -480,17 +513,17 @@ class Service:  # pylint: disable=too-many-public-methods
         """Tool ``read_index``.
 
         Returns:
-            Inhalt von ``wiki/index.md`` (leer, wenn die Datei fehlt).
+            Content of ``wiki/index.md`` (empty if the file is missing).
         """
         p = self.cfg.root / "wiki" / "index.md"
         content = p.read_text(encoding="utf-8") if p.is_file() else ""
         return {"status": "ok", "path": "wiki/index.md", "content": content}
 
     def list_unprocessed(self) -> dict[str, Any]:
-        """Tool ``list_unprocessed``: wie ``pkm pending`` als flache Liste (live berechnet).
+        """Tool ``list_unprocessed``: like ``pkm pending`` as a flat list (computed live).
 
         Returns:
-            Anzahl, Dokumente mit ``category`` und gefundene Probleme.
+            Count, documents with ``category`` and problems found.
         """
         pend = Maintenance(self).pending()
         docs = [{"category": category, **item} for category in UNPROCESSED_CATEGORIES for item in pend[category]]
@@ -500,7 +533,7 @@ class Service:  # pylint: disable=too-many-public-methods
         """CLI ``pkm reindex``.
 
         Returns:
-            Zähler des Neuaufbaus.
+            Counters of the rebuild.
         """
         return {"status": "ok", **self.index.rebuild()}
 
@@ -508,25 +541,25 @@ class Service:  # pylint: disable=too-many-public-methods
         """Tool ``show_citations``.
 
         Args:
-            target: Wiki-Seite.
-            statement: Textstück zum Eingrenzen.
-            with_excerpt: Wortlaut aus dem Original laden.
+            target: Wiki page.
+            statement: Text fragment to narrow down.
+            with_excerpt: Load the wording from the original.
 
         Returns:
-            Siehe ``citations.show_citations``.
+            See ``citations.show_citations``.
         """
         return citations.show_citations(self, target, statement, with_excerpt)
 
-    # Schreibende Tools (7.2) **************************************************
+    # Writing tools (7.2) ******************************************************
 
     def create_document(self, **kwargs: Any) -> dict[str, Any]:
         """Tool ``create_document``.
 
         Args:
-            **kwargs: Parameter wie ``Writer.create_document``.
+            **kwargs: Parameters like ``Writer.create_document``.
 
         Returns:
-            Rückgabe des Writers.
+            Return value of the writer.
         """
         return self.writer.create_document(**kwargs)
 
@@ -534,10 +567,10 @@ class Service:  # pylint: disable=too-many-public-methods
         """Tool ``rewrite_document``.
 
         Args:
-            **kwargs: Parameter wie ``Writer.rewrite_document``.
+            **kwargs: Parameters like ``Writer.rewrite_document``.
 
         Returns:
-            Rückgabe des Writers.
+            Return value of the writer.
         """
         return self.writer.rewrite_document(**kwargs)
 
@@ -545,10 +578,10 @@ class Service:  # pylint: disable=too-many-public-methods
         """Tool ``append_to_document``.
 
         Args:
-            **kwargs: Parameter wie ``Writer.append_to_document``.
+            **kwargs: Parameters like ``Writer.append_to_document``.
 
         Returns:
-            Rückgabe des Writers.
+            Return value of the writer.
         """
         return self.writer.append_to_document(**kwargs)
 
@@ -556,40 +589,129 @@ class Service:  # pylint: disable=too-many-public-methods
         """Tool ``edit_document``.
 
         Args:
-            **kwargs: Parameter wie ``Writer.edit_document``.
+            **kwargs: Parameters like ``Writer.edit_document``.
 
         Returns:
-            Rückgabe des Writers.
+            Return value of the writer.
         """
         return self.writer.edit_document(**kwargs)
+
+    def add_image(self, **kwargs: Any) -> dict[str, Any]:
+        """Tool ``add_image`` (4.9).
+
+        Args:
+            **kwargs: Parameters of ``Writer.add_image``.
+
+        Returns:
+            Return value of the writer.
+        """
+        return self.writer.add_image(**kwargs)
+
+    def read_image(self, target: str, image: str | None = None, as_: str = "auto") -> dict[str, Any]:
+        """Tool ``read_image`` (4.9).
+
+        Args:
+            target: Document or standalone image file.
+            image: Image name.
+            as_: ``auto``, ``image`` or ``svg_text``.
+
+        Returns:
+            Metadata and image (``svg`` as text or ``data`` as bytes).
+        """
+        return docimages.image_payload(self, target, image, as_)
+
+    def fix_images(self, **kwargs: Any) -> dict[str, Any]:
+        """Tool ``fix_images`` (4.9, 7.2).
+
+        Args:
+            **kwargs: Parameters of ``docimages.fix_document``.
+
+        Returns:
+            Proposal or new version.
+        """
+        return docimages.fix_document(self.writer, **kwargs)
 
     def update_frontmatter(self, **kwargs: Any) -> dict[str, Any]:
         """Tool ``update_frontmatter``.
 
         Args:
-            **kwargs: Parameter wie ``Writer.update_frontmatter``.
+            **kwargs: Parameters like ``Writer.update_frontmatter``.
 
         Returns:
-            Rückgabe des Writers.
+            Return value of the writer.
         """
         return self.writer.update_frontmatter(**kwargs)
 
     def restore_document(
         self, target: str, version: int, expected_hash: str | None, source: str = "chat"
     ) -> dict[str, Any]:
-        """Tool ``restore_document`` bzw. CLI ``pkm restore``.
+        """Tool ``restore_document`` or CLI ``pkm restore``.
 
         Args:
-            target: Dokument.
-            version: Wiederherzustellende Version.
-            expected_hash: Hash aus ``read``.
-            source: ``chat`` (MCP) oder ``user`` (CLI).
+            target: Document.
+            version: Version to restore.
+            expected_hash: Hash from ``read``.
+            source: ``chat`` (MCP) or ``user`` (CLI).
 
         Returns:
-            Rückgabe des Writers.
+            Return value of the writer.
         """
         return self.writer.restore_document(target, version, expected_hash, source)
 
 # Functions *******************************************************************
+
+def _section_content(doc: Doc, section: str, result: dict[str, Any]) -> str:
+    """Text of a section for ``read``.
+
+    Args:
+        doc: Document.
+        section: Section key.
+        result: Result of ``read`` (receives ``section``).
+
+    Returns:
+        Heading and content of the section.
+
+    Raises:
+        PkmError: ``not_found`` with the list of sections.
+    """
+    key = normalize_key_input(section)
+    text = citations.section_text(doc, key)
+    if text is None:
+        raise PkmError("not_found", f"Section not found: {section}",
+                       sections=[s["key"] for s in result.get("sections", [])])
+    result["section"] = key
+    return text
+
+
+def _page_of(text: str, offset: int, max_chars: int | None, content: bool) -> dict[str, Any]:
+    """Trim the content for ``read``.
+
+    Args:
+        text: Complete text (document or section).
+        offset: Start character.
+        max_chars: Maximum number of characters or ``None``.
+        content: Return content at all.
+
+    Returns:
+        ``content`` (or ``None``), ``content_length`` and if needed ``offset``, ``truncated``,
+        ``next_offset`` or ``content_omitted`` with a hint.
+
+    Raises:
+        PkmError: ``invalid_argument`` for negative values.
+    """
+    if offset < 0 or (max_chars is not None and max_chars <= 0):
+        raise PkmError("invalid_argument", "offset must be ≥ 0 and max_chars > 0.")
+    out: dict[str, Any] = {"content": None, "content_length": len(text)}
+    if content and (max_chars is not None or offset):
+        end = len(text) if max_chars is None else min(len(text), offset + max_chars)
+        out.update(content=text[offset:end], offset=offset, truncated=end < len(text))
+        if end < len(text):
+            out["next_offset"] = end
+    elif content and len(text) > READ_LIMIT:
+        out.update(content_omitted=True, hint=f"Content larger than {READ_LIMIT} characters: read it with section or "
+                   "offset/max_chars.")
+    elif content:
+        out["content"] = text
+    return out
 
 # Main ************************************************************************

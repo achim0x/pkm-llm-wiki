@@ -1,4 +1,4 @@
-"""Tests: MCP-Server ``pkm-pflege`` mit begin_maintenance, write_wiki_page und finish_maintenance.
+"""Tests: MCP server ``pkm-pflege`` with begin_maintenance, write_wiki_page and finish_maintenance.
 
     Author: Achim0x
 """
@@ -62,14 +62,14 @@ Den ersten Preis nie annehmen.[^b1]
 
 
 def _page(svc, doc_id):
-    """Zusammenfassung mit gültigem Beleg auf das Testdokument erzeugen.
+    """Create a summary with a valid citation of the test document.
 
     Args:
-        svc: Dienst.
-        doc_id: ID des Dokuments.
+        svc: Service.
+        doc_id: ID of the document.
 
     Returns:
-        Seiteninhalt.
+        Page content.
     """
     doc = svc.read(f"id:{doc_id}")
     sha = next(s["sha"] for s in doc["sections"] if s["key"] == "Regeln")
@@ -77,14 +77,14 @@ def _page(svc, doc_id):
 
 
 def test_server_tools():
-    """Der Pflege-Server bietet die lesenden Tools und die drei Pflege-Tools, aber keine Dokument-Schreibtools."""
+    """The maintenance server offers the reading tools and the three maintenance tools, but no document write tools."""
     tools = {t.name for t in asyncio.run(pflege_server.build_server().list_tools())}
     assert {"begin_maintenance", "write_wiki_page", "finish_maintenance", "read", "search", "history"} <= tools
     assert not tools & {"create_document", "rewrite_document", "edit_document", "append_to_document"}
 
 
 def test_full_run(svc, cfg, isolated_env):
-    """Ein Lauf: ID vergeben, Seite schreiben, abschließen; danach ist nichts mehr offen."""
+    """One run: assign ID, write page, finish; afterwards nothing is open."""
     write(cfg, DOC, DOC_TEXT)
     begin = maintrun.begin_maintenance(svc)
     assert begin["status"] == "ok"
@@ -115,21 +115,21 @@ def test_full_run(svc, cfg, isolated_env):
 @pytest.mark.parametrize("path", ["wiki/index.md", "wiki/log.md", "wiki/_status.md", "documents/x.md",
                                   "wiki/x.md", "scratch/x.md", "wiki/_lint/x.md"])
 def test_write_forbidden(svc, path):
-    """Generierte Dateien und Bereiche außerhalb der Seitenordner sind gesperrt."""
+    """Generated files and areas outside the page folders are blocked."""
     with pytest.raises(PkmError) as e:
         maintrun.write_wiki_page(svc, path, "x")
     assert e.value.status == "forbidden"
 
 
 def test_write_rejects_escape(svc):
-    """Pfade mit .. werden abgelehnt."""
+    """Paths with .. are rejected."""
     with pytest.raises(PkmError) as e:
         maintrun.write_wiki_page(svc, "wiki/topics/../../documents/x", "x")
     assert e.value.status in ("invalid_path", "forbidden")
 
 
 def test_write_conflicts(svc):
-    """Bestehende Seiten nur mit passendem expected_hash; neue ohne."""
+    """Existing pages only with a matching expected_hash; new ones without."""
     first = maintrun.write_wiki_page(svc, "wiki/topics/thema", "---\ntype: topic\n---\nA\n")
     for expected in (None, "falsch"):
         with pytest.raises(PkmError) as e:
@@ -146,7 +146,7 @@ def test_write_conflicts(svc):
 
 
 def test_begin_blocked_by_doctor(svc, cfg):
-    """Fehler der Umgebung (hier ein .git im Vault) stoppen den Lauf vor jeder Änderung."""
+    """Environment errors (here a .git in the vault) stop the run before any change."""
     (cfg.root / ".git").mkdir()
     res = maintrun.begin_maintenance(svc)
     assert res["status"] == "blocked" and res["doctor"]
@@ -154,12 +154,12 @@ def test_begin_blocked_by_doctor(svc, cfg):
 
 
 def test_begin_with_lint(svc):
-    """with_lint liefert den Prüfbericht mit."""
+    """with_lint also returns the lint report."""
     assert "lint" in maintrun.begin_maintenance(svc, with_lint=True)
 
 
 def test_finish_warns_without_citation_and_validates(svc, cfg):
-    """Ein verarbeitetes Dokument ohne Beleg wird trotzdem vermerkt, aber gemeldet."""
+    """A processed document without citation is still recorded, but reported."""
     write(cfg, DOC, DOC_TEXT)
     doc_id = maintrun.begin_maintenance(svc)["ids"]["assigned"][0]["id"]
     fin = maintrun.finish_maintenance(svc, "- nur vermerkt", processed=[doc_id])
@@ -171,7 +171,7 @@ def test_finish_warns_without_citation_and_validates(svc, cfg):
 
 
 def test_finish_removes_deleted(svc, cfg):
-    """removed trägt gelöschte Dokumente aus state.json aus."""
+    """removed removes deleted documents from state.json."""
     write(cfg, DOC, DOC_TEXT)
     doc_id = maintrun.begin_maintenance(svc)["ids"]["assigned"][0]["id"]
     maintrun.finish_maintenance(svc, "- vermerkt", processed=[doc_id])
@@ -184,7 +184,7 @@ def test_finish_removes_deleted(svc, cfg):
 
 @pytest.mark.usefixtures("cfg")
 def test_tool_call_returns_status():
-    """Über die MCP-Hülle kommen fachliche Fehler als Status zurück."""
+    """Via the MCP wrapper domain errors come back as a status."""
     server = pflege_server.build_server()
     result = asyncio.run(server.call_tool("write_wiki_page", {"path": "wiki/index.md", "content": "x"}))
     text = json.dumps(result, default=str)

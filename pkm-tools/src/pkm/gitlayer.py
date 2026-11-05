@@ -1,7 +1,7 @@
-"""Git mit getrenntem Git-Verzeichnis (Spezifikation 5.4, 5.5, 7.5).
+"""Git with a separate Git directory (specification 5.4, 5.5, 7.5).
 
-Alle Aufrufe laufen mit ``--git-dir``/``--work-tree``. Eingaben werden nie als Optionen
-durchgereicht; Pfade stehen immer nach ``--``. Es gibt keine Operation, die Geschichte umschreibt.
+All calls run with ``--git-dir``/``--work-tree``. Inputs are never passed on as options;
+paths always come after ``--``. There is no operation that rewrites history.
 
     Author: Achim0x
 """
@@ -48,32 +48,32 @@ SHA_RE = re.compile(r"[0-9a-f]{7,64}")
 
 
 class GitError(PkmError):
-    """Fehler eines Git-Aufrufs (Status ``git_error``)."""
+    """Error of a Git call (status ``git_error``)."""
 
     def __init__(self, message: str, **data: Any) -> None:
-        """Fehler anlegen.
+        """Create the error.
 
         Args:
-            message: Erklärung inklusive Ausgabe von Git.
-            **data: Zusätzliche Felder.
+            message: Explanation including the output of Git.
+            **data: Additional fields.
         """
         super().__init__("git_error", message, **data)
 
 
 @dataclass
 class Commit:  # pylint: disable=too-many-instance-attributes
-    """Ein Commit mit den PKM-Zeilen aus der Commit-Nachricht.
+    """A commit with the PKM lines from the commit message.
 
     Attributes:
-        sha: Voller Commit-Hash.
-        date: Autorendatum (ISO 8601).
-        author: Autorname.
-        subject: Erste Zeile der Nachricht.
-        note: Änderungsnotiz (Text zwischen Betreff und PKM-Zeilen).
+        sha: Full commit hash.
+        date: Author date (ISO 8601).
+        author: Author name.
+        subject: First line of the message.
+        note: Change note (text between subject and PKM lines).
         doc_id: ``PKM-Id``.
         version: ``PKM-Version``.
-        source: ``PKM-Source`` (``chat``, ``user`` oder ``agent``).
-        files: Geänderte Dateien als (Status, Pfad).
+        source: ``PKM-Source`` (``chat``, ``user`` or ``agent``).
+        files: Changed files as (status, path).
     """
 
     sha: str
@@ -88,42 +88,44 @@ class Commit:  # pylint: disable=too-many-instance-attributes
 
     @property
     def path(self) -> str | None:
-        """Pfad des Dokuments in diesem Commit.
+        """Path of the document in this commit.
 
         Returns:
-            Den ersten nicht gelöschten Pfad oder ``None`` (z. B. bei einem Lösch-Commit).
+            The first path that is not deleted or ``None`` (e.g. for a delete commit).
         """
         return next((path for status, path in self.files if not status.startswith("D")), None)
 
 
 class Git:
-    """Git-Aufrufe für den Vault mit getrenntem Git-Verzeichnis."""
+    """Git calls for the vault with a separate Git directory."""
 
-    def __init__(self, git_dir: Path, work_tree: Path, author: str | None = None) -> None:
-        """Git-Zugang anlegen.
+    def __init__(self, git_dir: Path, work_tree: Path, author: str | None = None, exe: str = "git") -> None:
+        """Create the Git access.
 
         Args:
-            git_dir: Git-Verzeichnis außerhalb des Vaults.
-            work_tree: Vault-Wurzel.
-            author: Autor für Commits (``Name <mail>``); ``None`` nutzt die Git-Identität.
+            git_dir: Git directory outside the vault.
+            work_tree: Vault root.
+            author: Author for commits (``Name <mail>``); ``None`` uses the Git identity.
+            exe: Git program (name in ``PATH`` or absolute path).
         """
         self.git_dir = git_dir
         self.work_tree = work_tree
         self.author = author
+        self.exe = exe
 
-    # Grundlagen ***************************************************************
+    # Basics *******************************************************************
 
     def _cmd(self, args: list[str]) -> list[str]:
-        """Vollständige Kommandozeile bilden.
+        """Build the complete command line.
 
         Args:
-            args: Git-Unterbefehl und Argumente.
+            args: Git subcommand and arguments.
 
         Returns:
-            Kommandozeile mit ``--git-dir``/``--work-tree`` und festen Optionen.
+            Command line with ``--git-dir``/``--work-tree`` and fixed options.
         """
         return [
-            "git",
+            self.exe,
             f"--git-dir={self.git_dir}",
             f"--work-tree={self.work_tree}",
             "-c", "core.quotepath=false",
@@ -132,18 +134,18 @@ class Git:
         ]
 
     def run(self, *args: str, stdin: bytes | None = None, check: bool = True) -> subprocess.CompletedProcess[bytes]:
-        """Git ausführen.
+        """Run Git.
 
         Args:
-            *args: Git-Unterbefehl und Argumente.
-            stdin: Eingabe für Git (z. B. die Commit-Nachricht).
-            check: Bei Exit-Code ungleich 0 einen ``GitError`` auslösen.
+            *args: Git subcommand and arguments.
+            stdin: Input for Git (e.g. the commit message).
+            check: Raise a ``GitError`` for an exit code other than 0.
 
         Returns:
-            Das Ergebnis des Prozesses.
+            The result of the process.
 
         Raises:
-            GitError: Wenn Git fehlt oder (mit ``check``) der Aufruf fehlschlägt.
+            GitError: If Git is missing or (with ``check``) the call fails.
         """
         env = os.environ.copy()
         env.update({"GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"})
@@ -154,81 +156,80 @@ class Git:
                 self._cmd(list(args)), input=stdin, capture_output=True, env=env, cwd=self.work_tree, check=False
             )
         except FileNotFoundError as exc:
-            raise GitError("git ist nicht installiert oder nicht im PATH.") from exc
+            raise GitError("git is not installed or not in PATH.") from exc
         if check and proc.returncode != 0:
-            raise GitError(f"git {args[0]} fehlgeschlagen: {proc.stderr.decode('utf-8', 'replace').strip()}")
+            raise GitError(f"git {args[0]} failed: {proc.stderr.decode('utf-8', 'replace').strip()}")
         return proc
 
     def out(self, *args: str) -> str:
-        """Git ausführen und die Ausgabe als Text liefern.
+        """Run Git and return the output as text.
 
         Args:
-            *args: Git-Unterbefehl und Argumente.
+            *args: Git subcommand and arguments.
 
         Returns:
-            Standardausgabe (UTF-8).
+            Standard output (UTF-8).
         """
         return self.run(*args).stdout.decode("utf-8", "replace")
 
-    @staticmethod
-    def installed() -> bool:
-        """Prüfen, ob Git installiert ist.
+    def installed(self) -> bool:
+        """Check whether Git is installed.
 
         Returns:
-            ``True``, wenn ``git`` im ``PATH`` liegt.
+            ``True`` if the Git program exists (absolute path or found in ``PATH``).
         """
-        return shutil.which("git") is not None
+        return Path(self.exe).is_file() or shutil.which(self.exe) is not None
 
     def is_repo(self) -> bool:
-        """Prüfen, ob das Git-Verzeichnis ein Repo ist.
+        """Check whether the Git directory is a repo.
 
         Returns:
-            ``True``, wenn das Verzeichnis existiert und Git es als Repo erkennt.
+            ``True`` if the directory exists and Git recognizes it as a repo.
         """
         return self.git_dir.is_dir() and self.run("rev-parse", "--git-dir", check=False).returncode == 0
 
     def config_get(self, key: str) -> str | None:
-        """Git-Konfigurationswert lesen.
+        """Read a Git configuration value.
 
         Args:
-            key: Schlüssel, z. B. ``user.name``.
+            key: Key, e.g. ``user.name``.
 
         Returns:
-            Den Wert oder ``None``, wenn er nicht gesetzt ist.
+            The value or ``None`` if it is not set.
         """
         value = self.run("config", "--get", key, check=False).stdout.decode("utf-8", "replace").strip()
         return value or None
 
     def problem(self) -> str | None:
-        """Grund, warum nicht geschrieben werden kann.
+        """Reason why writing is not possible.
 
         Returns:
-            Fehlertext oder ``None``, wenn Git bereit ist.
+            Error text or ``None`` if Git is ready.
         """
         problem = None
         if not self.installed():
-            problem = "git ist nicht installiert oder nicht im PATH."
+            problem = "git is not installed or not in PATH."
         elif not self.is_repo():
-            problem = f"Kein Git-Repo unter {self.git_dir}. Bitte `pkm init` ausführen."
+            problem = f"No Git repo at {self.git_dir}. Please run `pkm init`."
         elif not self.config_get("user.name") or not self.config_get("user.email"):
-            problem = "Git-Identität fehlt: user.name und user.email setzen."
+            problem = "Git identity missing: set user.name and user.email."
         return problem
 
     def require_ok(self) -> None:
-        """Sicherstellen, dass Git zum Schreiben bereit ist.
+        """Make sure Git is ready for writing.
 
         Raises:
-            PkmError: ``git_unavailable`` mit dem Grund.
+            PkmError: ``git_unavailable`` with the reason.
         """
         msg = self.problem()
         if msg:
             raise PkmError("git_unavailable", msg)
 
     def init(self) -> bool:
-        """Repo im Git-Verzeichnis anlegen, ohne ``.git`` im Vault.
+        """Create the repo in the Git directory, without ``.git`` in the vault.
 
         Returns:
-            ``True``, wenn das Repo neu angelegt wurde.
+            ``True`` if the repo was newly created.
         """
         created = False
         if not self.is_repo():
@@ -240,34 +241,34 @@ class Git:
         return created
 
     def has_head(self) -> bool:
-        """Prüfen, ob es schon einen Commit gibt.
+        """Check whether there is already a commit.
 
         Returns:
-            ``True``, wenn ``HEAD`` existiert.
+            ``True`` if ``HEAD`` exists.
         """
         return self.run("rev-parse", "--verify", "--quiet", "HEAD", check=False).returncode == 0
 
     # Status *******************************************************************
 
     def is_dirty(self, path: str) -> bool:
-        """Prüfen, ob eine Datei vom letzten Commit abweicht (inkl. nicht verfolgt oder gelöscht).
+        """Check whether a file differs from the last commit (incl. untracked or deleted).
 
         Args:
-            path: Relativer Pfad.
+            path: Relative path.
 
         Returns:
-            ``True`` bei Abweichung.
+            ``True`` if it differs.
         """
         return bool(self.run("status", "--porcelain=v1", "--untracked-files=all", "--", path).stdout.strip())
 
     def status_entries(self, *pathspecs: str) -> list[tuple[str, str]]:
-        """Geänderte, gelöschte und nicht verfolgte Dateien, ohne Rename-Erkennung.
+        """Changed, deleted and untracked files, without rename detection.
 
         Args:
-            *pathspecs: Pfade oder Ordner.
+            *pathspecs: Paths or folders.
 
         Returns:
-            Liste von (XY-Status, Pfad).
+            List of (XY status, path).
         """
         out = self.run(
             "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames", "--", *pathspecs
@@ -275,36 +276,36 @@ class Git:
         return [(rec[:2], rec[3:]) for rec in out.split("\0") if len(rec) > 3]
 
     def has_changes(self, *pathspecs: str) -> bool:
-        """Prüfen, ob es unter den Pfaden offene Änderungen gibt.
+        """Check whether there are uncommitted changes below the paths.
 
         Args:
-            *pathspecs: Pfade oder Ordner.
+            *pathspecs: Paths or folders.
 
         Returns:
-            ``True`` bei offenen Änderungen.
+            ``True`` for uncommitted changes.
         """
         return bool(self.status_entries(*pathspecs))
 
-    # Schreiben ****************************************************************
+    # Writing ******************************************************************
 
     def commit_paths(self, paths: list[str], message: str, author: str | None = None, as_user: bool = False) -> str:
-        """Genau diese Pfade committen; andere offene Änderungen bleiben unberührt.
+        """Commit exactly these paths; other uncommitted changes stay untouched.
 
         Args:
-            paths: Dateien oder Ordner, auch gelöschte Pfade.
-            message: Commit-Nachricht.
-            author: Abweichender Autor; ohne Angabe ``self.author``.
-            as_user: Mit der Git-Identität des Nutzers statt ``PKM_GIT_AUTHOR`` committen.
+            paths: Files or folders, also deleted paths.
+            message: Commit message.
+            author: Different author; ``self.author`` if omitted.
+            as_user: Commit with the user's Git identity instead of ``PKM_GIT_AUTHOR``.
 
         Returns:
-            Den vollen Hash des neuen Commits.
+            The full hash of the new commit.
 
         Raises:
-            ValueError: Wenn keine Pfade angegeben sind.
-            GitError: Wenn der Commit fehlschlägt (die Pfade werden dann wieder ausgetragen).
+            ValueError: If no paths are given.
+            GitError: If the commit fails (the paths are then unstaged again).
         """
         if not paths:
-            raise ValueError("Keine Pfade")
+            raise ValueError("No paths")
         self.run("add", "-A", "--", *paths)
         args = ["commit", "--quiet", "--only", "-F", "-"]
         author = None if as_user else (author or self.author)
@@ -313,47 +314,47 @@ class Git:
         proc = self.run(*args, "--", *paths, stdin=message.encode("utf-8"), check=False)
         if proc.returncode != 0:
             self.unstage(paths)
-            raise GitError("Commit fehlgeschlagen: " + proc.stderr.decode("utf-8", "replace").strip())
+            raise GitError("Commit failed: " + proc.stderr.decode("utf-8", "replace").strip())
         return self.out("rev-parse", "HEAD").strip()
 
     def unstage(self, paths: list[str]) -> None:
-        """Pfade aus dem Index nehmen, ohne die Arbeitskopie zu ändern.
+        """Remove paths from the index without changing the working copy.
 
         Args:
-            paths: Pfade.
+            paths: Paths.
         """
         if self.has_head():
             self.run("restore", "--staged", "--", *paths, check=False)
         else:
             self.run("rm", "--cached", "--quiet", "--ignore-unmatch", "--", *paths, check=False)
 
-    # Lesen ********************************************************************
+    # Reading ******************************************************************
 
     def show_file(self, sha: str, path: str) -> bytes:
-        """Inhalt einer Datei in einem Commit lesen.
+        """Read the content of a file in a commit.
 
         Args:
-            sha: Commit-Hash oder ``HEAD``.
-            path: Relativer Pfad in diesem Commit.
+            sha: Commit hash or ``HEAD``.
+            path: Relative path in this commit.
 
         Returns:
-            Die Bytes der Datei.
+            The bytes of the file.
 
         Raises:
-            ValueError: Bei ungültigem Commit-Bezeichner.
+            ValueError: For an invalid commit identifier.
         """
         if sha != "HEAD" and not SHA_RE.fullmatch(sha):
-            raise ValueError("Ungültiger Commit")
+            raise ValueError("Invalid commit")
         return self.run("show", f"{sha}:{path}").stdout
 
     def commit_files(self, sha: str) -> list[tuple[str, str]]:
-        """Geänderte Dateien eines Commits.
+        """Changed files of a commit.
 
         Args:
-            sha: Commit-Hash.
+            sha: Commit hash.
 
         Returns:
-            Liste von (Status, Pfad), ohne Rename-Erkennung.
+            List of (status, path), without rename detection.
         """
         out = self.run("diff-tree", "--no-commit-id", "--name-status", "-r", "-z", "--root", "--no-renames", sha)
         parts = out.stdout.decode("utf-8", "replace").split("\0")
@@ -361,19 +362,19 @@ class Git:
         return [(status, path) for status, path in pairs if status]
 
     def log_for_id(self, doc_id: str) -> list[Commit]:
-        """Alle Commits mit ``PKM-Id: <id>``, unabhängig vom aktuellen Ort des Dokuments.
+        """All commits with ``PKM-Id: <id>``, regardless of the current location of the document.
 
         Args:
-            doc_id: Dokument-ID.
+            doc_id: Document ID.
 
         Returns:
-            Commits, älteste zuerst; leer, wenn es noch keinen Commit gibt.
+            Commits, oldest first; empty if there is no commit yet.
 
         Raises:
-            PkmError: ``invalid_id`` bei ungültiger ID.
+            PkmError: ``invalid_id`` for an invalid ID.
         """
         if not is_valid_id(doc_id):
-            raise PkmError("invalid_id", f"Ungültige ID: {doc_id}")
+            raise PkmError("invalid_id", f"Invalid ID: {doc_id}")
         commits: list[Commit] = []
         if self.has_head():
             out = self.out("log", "--format=%x1e%H%x1f%aI%x1f%an%x1f%B", f"--grep=^PKM-Id: {doc_id}$", "HEAD")
@@ -385,14 +386,14 @@ class Git:
         return commits
 
     def _parse_log_record(self, rec: str, doc_id: str) -> Commit | None:
-        """Einen Datensatz aus ``git log`` in einen Commit umwandeln.
+        """Convert a record from ``git log`` into a commit.
 
         Args:
-            rec: Datensatz mit durch ``\\x1f`` getrennten Feldern.
-            doc_id: Erwartete Dokument-ID.
+            rec: Record with fields separated by ``\\x1f``.
+            doc_id: Expected document ID.
 
         Returns:
-            Den Commit oder ``None``, wenn der Datensatz leer ist oder zu einer anderen ID gehört.
+            The commit or ``None`` if the record is empty or belongs to another ID.
         """
         commit = None
         if rec.strip():
@@ -410,24 +411,24 @@ class Git:
 def build_message(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     title: str, version_label: str, note: str, doc_id: str, version: int, source: str
 ) -> str:
-    """Commit-Nachricht im festen Format nach 5.4 bilden.
+    """Build the commit message in the fixed format of 5.4.
 
     Args:
-        title: Dokumenttitel.
-        version_label: Zusatz im Betreff, z. B. ``v3``, ``moved`` oder ``deleted``.
-        note: Änderungsnotiz (eine Zeile).
-        doc_id: Dokument-ID für ``PKM-Id``.
-        version: Versionsnummer für ``PKM-Version``.
-        source: ``chat``, ``user`` oder ``agent``.
+        title: Document title.
+        version_label: Suffix in the subject, e.g. ``v3``, ``moved`` or ``deleted``.
+        note: Change note (one line).
+        doc_id: Document ID for ``PKM-Id``.
+        version: Version number for ``PKM-Version``.
+        source: ``chat``, ``user`` or ``agent``.
 
     Returns:
-        Die Nachricht mit Betreff, Notiz und PKM-Zeilen.
+        The message with subject, note and PKM lines.
 
     Raises:
-        ValueError: Bei unbekannter Quelle.
+        ValueError: For an unknown source.
     """
     if source not in SOURCES:
-        raise ValueError(f"Unbekannte Quelle: {source}")
+        raise ValueError(f"Unknown source: {source}")
     title = " ".join(title.split()) or doc_id
     note = " ".join(note.split())
     lines = [f"doc: {title} {version_label}", ""]
@@ -438,13 +439,13 @@ def build_message(  # pylint: disable=too-many-arguments,too-many-positional-arg
 
 
 def parse_message(body: str) -> tuple[str, str, dict[str, str]]:
-    """Commit-Nachricht in Betreff, Notiz und PKM-Zeilen zerlegen.
+    """Split a commit message into subject, note and PKM lines.
 
     Args:
-        body: Vollständige Commit-Nachricht.
+        body: Complete commit message.
 
     Returns:
-        Tupel aus (Betreff, Notiz, PKM-Zeilen als Wörterbuch).
+        Tuple of (subject, note, PKM lines as a dictionary).
     """
     lines = body.strip("\n").split("\n")
     subject = lines[0] if lines else ""

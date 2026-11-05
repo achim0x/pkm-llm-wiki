@@ -1,8 +1,20 @@
-# PKM – nicht versionieren
+# PKM – do not version
 scratch/
+pkm_img_import/
 .obsidian/workspace*
 .pkm/mcp.log
 .sync_*
 .owncloudsync.log
 *.part
 .DS_Store
+# Helper files of other cloud storage services and programs
+.dropbox
+.dropbox.attr
+.stfolder
+.stversions/
+.tmp.drivedownload/
+.tmp.driveupload/
+*.icloud
+desktop.ini
+~$*
+.~lock.*

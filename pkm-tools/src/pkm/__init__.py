@@ -1,4 +1,4 @@
-"""PKM mit LLM-Wiki – Bibliothek, CLI und MCP-Server.
+"""PKM with LLM wiki – library, CLI and MCP servers.
 
     Author: Achim0x
 """
@@ -24,7 +24,7 @@
 
 # Variables *******************************************************************
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # Classes *********************************************************************
 

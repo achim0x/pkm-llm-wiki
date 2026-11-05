@@ -1,7 +1,7 @@
-"""Frontmatter schreiben (Spezifikation 4.1, Entscheidung 16 Nr. 16).
+"""Write frontmatter (specification 4.1, decision 16 no. 16).
 
-Serverfelder werden zeilengenau gesetzt; der Rest des Frontmatters bleibt unverändert.
-``dump_meta`` schreibt ein vollständiges Frontmatter (für create_document und update_frontmatter).
+Server fields are set line by line; the rest of the frontmatter stays unchanged.
+``dump_meta`` writes a complete frontmatter (for create_document and update_frontmatter).
 
     Author: Achim0x
 """
@@ -34,7 +34,7 @@ from typing import Any
 import yaml
 
 from .parse import load_yaml, split_frontmatter
-from .schema import LEGACY_SHORT_CITATION, SHORT_CITATION
+from .schema import LEGACY_SHORT_CITATION, SHORT_CITATION, field_rank
 
 # Variables *******************************************************************
 
@@ -48,13 +48,13 @@ PLAIN_FORBIDDEN_START = ("[", "{", "&", "*", "!", "|", ">", "'", '"', "%", "@", 
 
 
 def _plain_ok(s: str) -> bool:
-    """Prüfen, ob ein String ohne Anführungszeichen eindeutig als YAML-String gelesen wird.
+    """Check whether a string without quotes is read unambiguously as a YAML string.
 
     Args:
-        s: Zu schreibender String.
+        s: String to write.
 
     Returns:
-        ``True``, wenn die einfache Schreibweise denselben String ergibt.
+        ``True`` if the plain notation yields the same string.
     """
     ok = bool(
         s
@@ -73,14 +73,33 @@ def _plain_ok(s: str) -> bool:
     return ok
 
 
-def format_scalar(value: Any) -> str:
-    """YAML-Darstellung eines Werts: einfach, wenn eindeutig, sonst JSON (gültiges YAML).
+def _flow_list(items: list[Any]) -> str:
+    """Write a list on one line: without quotes if unambiguous, otherwise as JSON.
 
     Args:
-        value: Wert eines Frontmatter-Felds.
+        items: List entries.
 
     Returns:
-        Die Darstellung für die rechte Seite von ``key: …``.
+        E.g. ``[negotiation, softskills]`` or ``["a, b", "c"]``.
+    """
+    plain = all(isinstance(i, str) and _plain_ok(i) and not any(c in i for c in ",[]{}") for i in items)
+    rendered = "[" + ", ".join(items) + "]" if plain else json.dumps(items, ensure_ascii=False)
+    if plain:
+        try:
+            plain = load_yaml(f"k: {rendered}") == {"k": items}
+        except yaml.YAMLError:
+            plain = False
+    return rendered if plain else json.dumps(items, ensure_ascii=False)
+
+
+def format_scalar(value: Any) -> str:
+    """YAML representation of a value: plain if unambiguous, otherwise JSON (valid YAML).
+
+    Args:
+        value: Value of a frontmatter field.
+
+    Returns:
+        The representation for the right-hand side of ``key: …``.
     """
     if isinstance(value, bool):
         rendered = "true" if value else "false"
@@ -88,7 +107,9 @@ def format_scalar(value: Any) -> str:
         rendered = "null"
     elif isinstance(value, int | float):
         rendered = str(value)
-    elif isinstance(value, list | tuple | dict):
+    elif isinstance(value, list | tuple):
+        rendered = _flow_list(list(value))
+    elif isinstance(value, dict):
         rendered = json.dumps(value, ensure_ascii=False)
     else:
         s = str(value)
@@ -97,40 +118,40 @@ def format_scalar(value: Any) -> str:
 
 
 def dump_meta(meta: dict[str, Any]) -> str:
-    """Vollständiges Frontmatter schreiben.
+    """Write a complete frontmatter.
 
     Args:
-        meta: Felder in der gewünschten Reihenfolge.
+        meta: Fields in the desired order.
 
     Returns:
-        Frontmatter-Block inklusive Begrenzungszeilen und abschließendem LF.
+        Frontmatter block including delimiter lines and a final LF.
     """
     lines = ["---", *(f"{key}: {format_scalar(value)}" for key, value in meta.items()), "---"]
     return "\n".join(lines) + "\n"
 
 
 def _field_re(key: str) -> re.Pattern[str]:
-    """Regex für die Zeile eines Felds auf oberster Ebene.
+    """Regex for the line of a top-level field.
 
     Args:
-        key: Feldname.
+        key: Field name.
 
     Returns:
-        Kompilierte Regex, die ``key:`` am Zeilenanfang erkennt.
+        Compiled regex that matches ``key:`` at the start of a line.
     """
     return re.compile(rf"^{re.escape(key)}[ \t]*:")
 
 
 def _render(key: str, value: Any, block_lists: bool) -> list[str]:
-    """Zeilen für ein Feld erzeugen.
+    """Create the lines for a field.
 
     Args:
-        key: Feldname.
-        value: Wert.
-        block_lists: Listen als YAML-Blockliste (``- …``) statt einzeilig schreiben.
+        key: Field name.
+        value: Value.
+        block_lists: Write lists as a YAML block list (``- …``) instead of on one line.
 
     Returns:
-        Die Zeilen ohne LF.
+        The lines without LF.
     """
     if block_lists and isinstance(value, list | tuple):
         lines = [f"{key}:"] + [f"  - {format_scalar(v)}" for v in value] if value else [f"{key}: []"]
@@ -140,14 +161,14 @@ def _render(key: str, value: Any, block_lists: bool) -> list[str]:
 
 
 def _value_end(inner: list[str], start: int) -> int:
-    """Ende eines mehrzeiligen Feldwerts bestimmen.
+    """Determine the end of a multi-line field value.
 
     Args:
-        inner: Frontmatter-Zeilen ohne Begrenzer.
-        start: Index der Feldzeile.
+        inner: Frontmatter lines without delimiters.
+        start: Index of the field line.
 
     Returns:
-        Index nach der letzten Fortsetzungszeile (eingerückt oder Blocklisten-Eintrag).
+        Index after the last continuation line (indented or block list entry).
     """
     j = start + 1
     while j < len(inner) and inner[j].strip() and (
@@ -157,16 +178,40 @@ def _value_end(inner: list[str], start: int) -> int:
     return j
 
 
-def _apply_fields(inner: list[str], fields: dict[str, Any], block_lists: bool) -> list[str]:
-    """Felder in den Frontmatter-Zeilen ersetzen oder anhängen.
+def _insert_position(inner: list[str], key: str) -> int:
+    """Insertion point for a new field according to the schema order (4.1).
 
     Args:
-        inner: Frontmatter-Zeilen ohne Begrenzer.
-        fields: Zu setzende Felder.
-        block_lists: Listen als YAML-Blockliste schreiben.
+        inner: Frontmatter lines without delimiters.
+        key: New field.
 
     Returns:
-        Neue Zeilenliste; nicht betroffene Zeilen bleiben unverändert.
+        Index after the last existing field that precedes ``key`` in the schema; before the first
+        following schema field if there is no preceding one; otherwise the end.
+    """
+    rank = field_rank(key)
+    at = len(inner)
+    if rank is not None:
+        tops = [(i, m.group(1)) for i, line in enumerate(inner) if (m := TOP_LEVEL_FIELD_RE.match(line))]
+        before = [i for i, k in tops if (r := field_rank(k)) is not None and r < rank]
+        after = [i for i, k in tops if (r := field_rank(k)) is not None and r > rank]
+        if before:
+            at = _value_end(inner, max(before))
+        elif after:
+            at = min(after)
+    return at
+
+
+def _apply_fields(inner: list[str], fields: dict[str, Any], block_lists: bool) -> list[str]:
+    """Replace or append fields in the frontmatter lines.
+
+    Args:
+        inner: Frontmatter lines without delimiters.
+        fields: Fields to set.
+        block_lists: Write lists as a YAML block list.
+
+    Returns:
+        New list of lines; unaffected lines stay unchanged.
     """
     lines = list(inner)
     for key, value in fields.items():
@@ -174,25 +219,26 @@ def _apply_fields(inner: list[str], fields: dict[str, Any], block_lists: bool) -
         rx = _field_re(key)
         pos = next((i for i, line in enumerate(lines) if rx.match(line)), None)
         if pos is None:
-            lines.extend(rendered)
+            at = _insert_position(lines, key)
+            lines[at:at] = rendered
         else:
             lines[pos:_value_end(lines, pos)] = rendered
     return lines
 
 
 def set_fields_linewise(text: str, fields: dict[str, Any], block_lists: bool = False) -> str:
-    """Felder im Frontmatter zeilengenau setzen; fehlt das Frontmatter, wird es angelegt.
+    """Set fields in the frontmatter line by line; a missing frontmatter is created.
 
     Args:
-        text: Normalisierter Text mit gültigem oder ohne Frontmatter.
-        fields: Zu setzende Felder.
-        block_lists: Listen als YAML-Blockliste schreiben.
+        text: Normalized text with valid or without frontmatter.
+        fields: Fields to set.
+        block_lists: Write lists as a YAML block list.
 
     Returns:
-        Der neue Text; alle übrigen Zeilen bleiben unverändert.
+        The new text; all other lines stay unchanged.
 
     Raises:
-        ValueError: Bei Frontmatter ohne Abschlusszeile.
+        ValueError: For frontmatter without a closing line.
     """
     has_fm, fm_text, inner, body, err = split_frontmatter(text)
     if err is not None:
@@ -206,13 +252,13 @@ def set_fields_linewise(text: str, fields: dict[str, Any], block_lists: bool = F
     return result
 
 def _line_is_valid(line: str) -> bool:
-    """Prüfen, ob eine Frontmatter-Zeile für sich gültiges YAML ist.
+    """Check whether a frontmatter line is valid YAML on its own.
 
     Args:
-        line: Zeile auf oberster Ebene (``key: value``).
+        line: Top-level line (``key: value``).
 
     Returns:
-        ``True``, wenn die Zeile fehlerfrei gelesen werden kann.
+        ``True`` if the line can be read without errors.
     """
     try:
         load_yaml(line)
@@ -223,16 +269,16 @@ def _line_is_valid(line: str) -> bool:
 
 
 def _fix_line(line: str) -> tuple[str, list[str]]:
-    """Eine Frontmatter-Zeile reparieren (4.1).
+    """Repair a frontmatter line (4.1).
 
-    Benennt ``short citation`` in ``short_citation`` um und setzt Werte, die als YAML ungültig
-    sind (z. B. mit ``: `` oder führendem Sonderzeichen), in doppelte Anführungszeichen.
+    Renames ``short citation`` to ``short_citation`` and puts values that are invalid as YAML
+    (e.g. with ``: `` or a leading special character) in double quotes.
 
     Args:
-        line: Zeile ohne LF.
+        line: Line without LF.
 
     Returns:
-        Tupel aus (neue Zeile, Beschreibungen der Änderungen).
+        Tuple of (new line, descriptions of the changes).
     """
     changes: list[str] = []
     m = TOP_LEVEL_FIELD_RE.match(line)
@@ -243,22 +289,22 @@ def _fix_line(line: str) -> tuple[str, list[str]]:
             changes.append(f"{LEGACY_SHORT_CITATION} → {SHORT_CITATION}")
         if value.strip() and not _line_is_valid(f"k: {value}"):
             value = json.dumps(value.strip(), ensure_ascii=False)
-            changes.append(f"{key}: Anführungszeichen ergänzt")
+            changes.append(f"{key}: quotes added")
         if changes:
             line = f"{key}: {value}" if value else f"{key}:"
     return line, changes
 
 
 def fix_frontmatter_text(text: str) -> tuple[str, list[str]]:
-    """Frontmatter zeilengenau reparieren; der übrige Text bleibt unverändert (``pkm fix-frontmatter``).
+    """Repair the frontmatter line by line; the remaining text stays unchanged (``pkm fix-frontmatter``).
 
-    Gibt es schon ``short_citation``, bleibt eine zusätzliche Zeile ``short citation`` unverändert.
+    If ``short_citation`` already exists, an additional ``short citation`` line stays unchanged.
 
     Args:
-        text: Normalisierter Dateitext.
+        text: Normalized file text.
 
     Returns:
-        Tupel aus (neuer Text, Liste der Änderungen); ohne Frontmatter unverändert.
+        Tuple of (new text, list of changes); unchanged without frontmatter.
     """
     lines = text.split("\n")
     changes: list[str] = []

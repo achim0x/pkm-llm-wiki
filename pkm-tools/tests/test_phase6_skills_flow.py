@@ -1,4 +1,4 @@
-"""Skills (Format) und ein vollständiger Pflegelauf nach Skill `pkm-wiki` (Probelauf 9.1).
+"""Skills (format) and a complete maintenance run per skill `pkm-wiki` (trial run 9.1).
 
     Author: Achim0x
 """
@@ -89,11 +89,11 @@ Vorgesehen ist ein Ultraschallsensor am Deckel.[^b1]
 [^b1]: {b1}
 """
 
-SKILLS = Path(__file__).resolve().parents[1] / "skills"
+SKILLS = Path(__file__).resolve().parents[1] / "src" / "pkm" / "skills"
 
 SPEC_TOOLS = {"create_document", "rewrite_document", "append_to_document", "edit_document",
               "update_frontmatter", "restore_document", "search", "read", "history", "show_citations",
-              "read_index", "list_unprocessed"}
+              "read_index", "list_unprocessed", "add_image", "read_image", "fix_images"}
 
 # Classes *********************************************************************
 
@@ -103,7 +103,7 @@ SPEC_TOOLS = {"create_document", "rewrite_document", "append_to_document", "edit
 # Skills **********************************************************************
 @pytest.mark.parametrize("name", ["pkm-access", "pkm-wiki"])
 def test_skill_frontmatter(name):
-    """Die Skills haben gültiges Frontmatter."""
+    """The skills have a valid frontmatter."""
     text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
     m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
     assert m, "Frontmatter fehlt"
@@ -114,7 +114,7 @@ def test_skill_frontmatter(name):
 
 
 def test_skill_tool_and_cli_names_exist():
-    """Der Server bietet genau die Tools aus 4.7; Skills nennen nur vorhandene Tools und Befehle."""
+    """The server offers exactly the tools of 4.7; the skills name only existing tools and commands."""
     tools = {t.name for t in asyncio.run(mcp_server.build_server().list_tools())}
     assert tools == SPEC_TOOLS
     access = (SKILLS / "pkm-access" / "SKILL.md").read_text(encoding="utf-8")
@@ -129,16 +129,16 @@ def test_skill_tool_and_cli_names_exist():
     assert pflege <= named, pflege - named
 
 
-# Pflegelauf ******************************************************************
+# Maintenance run *************************************************************
 def run(capsys, *argv):
-    """CLI-Befehl ausführen und das JSON-Ergebnis zurückgeben.
+    """Run a CLI command and return the JSON result.
 
     Args:
-        capsys: pytest-Fixture zum Lesen der Ausgabe.
-        *argv: Argumente für ``pkm``.
+        capsys: pytest fixture for reading the output.
+        *argv: Arguments for ``pkm``.
 
     Returns:
-        Das ausgegebene JSON-Objekt.
+        The printed JSON object.
     """
     code = main(list(argv))
     out = json.loads(capsys.readouterr().out)
@@ -147,30 +147,30 @@ def run(capsys, *argv):
 
 
 def citation(sha_out, path, key, quote):
-    """Beleg-Zeile (ohne Fußnotennamen) bilden.
+    """Build a citation line (without footnote name).
 
     Args:
-        sha_out: Ergebnis von ``pkm sha``.
-        path: Dokumentpfad mit ``.md``.
-        key: Abschnittsschlüssel.
-        quote: Wörtliches Zitat.
+        sha_out: Result of ``pkm sha``.
+        path: Document path with ``.md``.
+        key: Section key.
+        quote: Literal quote.
 
     Returns:
-        Der Belegtext.
+        The citation text.
     """
     link = path[:-3]
     return f"[[{link}#{key}]] · „{quote}“ · id:{sha_out['id']} · v:{sha_out['version']} · sha:{sha_out['sha']}"
 
 
 def _create_documents(svc: Service, cfg: Config) -> dict:
-    """Drei Quellen anlegen: aus dem Chat, von Hand ohne Frontmatter und ein PDF.
+    """Create three sources: from the chat, by hand without frontmatter and a PDF.
 
     Args:
-        svc: Dienst.
-        cfg: Konfiguration.
+        svc: Service.
+        cfg: Configuration.
 
     Returns:
-        Rückgabe von ``create_document`` für das Chat-Dokument.
+        Return value of ``create_document`` for the chat document.
     """
     chat = svc.create_document(title="Zisterne – Überlaufsensor", tags=["zisterne"], content=(
         "## Ergebnis\nDer Überlauf wird per Ultraschallsensor erkannt.\n\n"
@@ -181,13 +181,13 @@ def _create_documents(svc: Service, cfg: Config) -> dict:
 
 
 def _write_pages(cfg: Config, capsys: pytest.CaptureFixture[str], chat: dict, hand_path: str) -> None:
-    """Themen- und Zusammenfassungsseite mit Belegen schreiben (wie der Pflege-Agent).
+    """Write the topic and summary page with citations (like the maintenance agent).
 
     Args:
-        cfg: Konfiguration.
-        capsys: pytest-Fixture für die CLI-Aufrufe.
-        chat: Chat-Dokument.
-        hand_path: Pfad der Notiz von Hand.
+        cfg: Configuration.
+        capsys: pytest fixture for the CLI calls.
+        chat: Chat document.
+        hand_path: Path of the manual note.
     """
     s_dach = run(capsys, "sha", hand_path, "--section", "Dach")
     s_ent = run(capsys, "sha", f"id:{chat['id']}", "--section", "Entscheidungen")
@@ -200,13 +200,13 @@ def _write_pages(cfg: Config, capsys: pytest.CaptureFixture[str], chat: dict, ha
 
 
 def _finish_first_run(cfg: Config, capsys: pytest.CaptureFixture[str], chat_id: str, hand_id: str) -> None:
-    """Ersten Pflegelauf abschließen und prüfen (Lint sauber, nichts mehr offen).
+    """Finish the first maintenance run and check it (lint clean, nothing open).
 
     Args:
-        cfg: Konfiguration.
-        capsys: pytest-Fixture für die CLI-Aufrufe.
-        chat_id: ID des Chat-Dokuments.
-        hand_id: ID der Notiz von Hand.
+        cfg: Configuration.
+        capsys: pytest fixture for the CLI calls.
+        chat_id: ID of the chat document.
+        hand_id: ID of the manual note.
     """
     run(capsys, "sync-citations")
     run(capsys, "mark", chat_id, "--pages", "wiki/summaries/zisterne-ueberlaufsensor", "wiki/topics/zisterne")
@@ -220,18 +220,18 @@ def _finish_first_run(cfg: Config, capsys: pytest.CaptureFixture[str], chat_id: 
     assert run(capsys, "commit-wiki", "-m", "pkm: ingest 3 documents")["status"] == "ok"
     assert run(capsys, "pending")["counts"]["new"] == 0
     status = (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
-    assert "## Noch nicht verarbeitet (0)" in status
-    assert "Vorschlag: documents/haus/" not in status  # tags passen nicht
+    assert "## Not yet processed (0)" in status
+    assert "proposal: documents/haus/" not in status  # tags do not match
 
 
 def _continue_in_chat(svc: Service, cfg: Config, env: dict, chat: dict) -> None:
-    """In Obsidian einsortieren und die Diskussion im Chat fortsetzen.
+    """File in Obsidian and continue the discussion in the chat.
 
     Args:
-        svc: Dienst.
-        cfg: Konfiguration.
-        env: Isolierte Umgebung.
-        chat: Chat-Dokument.
+        svc: Service.
+        cfg: Configuration.
+        env: Isolated environment.
+        chat: Chat document.
     """
     (cfg.root / chat["path"]).rename(cfg.root / SORTED)
     cur = svc.read(f"id:{chat['id']}")
@@ -244,18 +244,18 @@ def _continue_in_chat(svc: Service, cfg: Config, env: dict, chat: dict) -> None:
 
 
 def _second_run(svc: Service, capsys: pytest.CaptureFixture[str], chat_id: str) -> None:
-    """Nächster Lauf: nur geänderte Abschnitte, verschobene Belege korrigieren.
+    """Next run: only changed sections, fix moved citations.
 
     Args:
-        svc: Dienst.
-        capsys: pytest-Fixture für die CLI-Aufrufe.
-        chat_id: ID des Chat-Dokuments.
+        svc: Service.
+        capsys: pytest fixture for the CLI calls.
+        chat_id: ID of the chat document.
     """
     run(capsys, "versions")
     pend = run(capsys, "pending")
     assert pend["moved"][0]["to"] == SORTED
     changed = pend["changed"][0]
-    # Verschieben ohne Inhaltsänderung erhöht die Version nicht (16 Nr. 17), die Neufassung ergibt v2
+    # A move without a change of content does not raise the version (16 no. 17), the rewrite gives v2
     assert changed["processed_version"] == 1 and changed["version"] == 2
     assert {c["key"] for c in changed["sections"]} == {"Ergebnis", "Entscheidungen"}
     hist = run(capsys, "history", f"id:{chat_id}", "--diff", "1")
@@ -268,7 +268,7 @@ def _second_run(svc: Service, capsys: pytest.CaptureFixture[str], chat_id: str) 
 
 
 def test_full_ingest_flow(cfg, isolated_env, capsys, monkeypatch):
-    """Vollständiger Pflegelauf nach Skill pkm-wiki und Folgelauf nach einer Fortsetzung."""
+    """Complete maintenance run per skill pkm-wiki and a follow-up run after a continuation."""
     svc = Service(cfg)
     chat = _create_documents(svc, cfg)
     monkeypatch.delenv("PKM_ROOT")

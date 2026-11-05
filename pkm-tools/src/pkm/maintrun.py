@@ -1,7 +1,7 @@
-"""Pflegelauf als drei Schritte für den MCP-Server ``pkm-pflege``: beginnen, Wiki-Seite schreiben, abschließen.
+"""Maintenance run as three steps for the MCP server ``pkm-pflege``: begin, write wiki page, finish.
 
-Alle Schritte sind deterministisch. Inhaltliche Arbeit (Seiten formulieren, Belege wählen) macht
-das LLM; die mechanischen Pflege-Befehle laufen hier gebündelt in fester Reihenfolge.
+All steps are deterministic. The content work (writing pages, choosing citations) is done by
+the LLM; the mechanical maintenance commands run here bundled in a fixed order.
 
     Author: Achim0x
 """
@@ -27,16 +27,21 @@ das LLM; die mechanischen Pflege-Befehle laufen hier gebündelt in fester Reihen
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
+from . import docimages, imagefix, images
 from .citations import fix_citations, parse_page, sync_citations
+from .citeraise import raise_versions
 from .doctor import doctor
 from .errors import PkmError
+from .frontmatter import set_fields_linewise
 from .ids import is_valid_id
 from .lint import lint, write_report
 from .maint import Maintenance, page_ref
 from .paths import is_platform_safe_name, safe_resolve
+from .schema import KINDS, normalize_tags
 from .vault import Doc
 from .wikigen import build_index, build_status, wiki_pages, write_if_changed
 
@@ -48,6 +53,8 @@ if TYPE_CHECKING:
 WRITABLE_DIRS = ("wiki/topics/", "wiki/entities/", "wiki/summaries/", "wiki/syntheses/")
 LOG_PATH = "wiki/log.md"
 OPERATIONS = ("ingest", "lint", "fix")
+METADATA_FIELDS = ("title", "context", "tags", "kind", "short_citation")
+SUGGESTED_FIELDS = ("title", "context", "tags", "kind")
 
 # Classes *********************************************************************
 
@@ -55,15 +62,15 @@ OPERATIONS = ("ingest", "lint", "fix")
 
 
 def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
-    """Vorlauf: ``doctor``, ``versions``, ``ids``, ``pending`` und bei Verschiebungen ``fix-citations``.
+    """Preparation: ``doctor``, ``versions``, ``ids``, ``pending`` and, for moves, ``fix-citations``.
 
     Args:
-        svc: Dienst.
-        with_lint: Zusätzlich den Prüfbericht liefern (für den Ablauf „Lint“).
+        svc: Service.
+        with_lint: Additionally return the lint report (for the "lint" flow).
 
     Returns:
-        ``status`` (``ok``, ``blocked`` bei Fehlern der Umgebung, ``needs_decision`` bei doppelten
-        IDs), die Ergebnisse der Einzelschritte und die zu verarbeitenden Dokumente.
+        ``status`` (``ok``, ``blocked`` for environment errors, ``needs_decision`` for duplicate
+        IDs), the results of the individual steps and the documents to process.
     """
     check = doctor(svc, short=True)
     result: dict[str, Any] = {"status": "blocked", "doctor": check["checks"]}
@@ -72,6 +79,7 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
         versions = maint.versions()
         ids = maint.ids()
         pend = maint.pending()
+        add_missing_fields(svc, pend["new"])
         fixed = fix_citations(svc) if pend["moved"] else None
         result = {
             "status": "needs_decision" if ids["duplicates"] else "ok",
@@ -79,61 +87,208 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
             "ids": {k: ids[k] for k in ("assigned", "duplicates", "skipped", "problems")},
             "pending": pend,
             "fixed_citations": fixed,
+            "known_tags": known_tags(svc),
         }
         if with_lint:
             result["lint"] = lint(svc)
     return result
 
 
-def _page_path(path: str) -> str:
-    """Pfad einer beschreibbaren Wiki-Seite prüfen und vereinheitlichen.
+def _empty(value: Any) -> bool:
+    """Check whether a frontmatter value is missing or empty.
 
     Args:
-        path: Pfad wie ``wiki/topics/thema`` oder ``wiki/topics/thema.md``.
+        value: Value.
 
     Returns:
-        Relativer Pfad mit ``.md``.
+        ``True`` for ``None``, empty text or an empty list.
+    """
+    return value is None or (isinstance(value, str | list) and not (value.strip() if isinstance(value, str) else value))
+
+
+def add_missing_fields(svc: Service, new_docs: list[dict[str, Any]]) -> None:
+    """Add the missing fields ``title``, ``context``, ``tags``, ``kind`` for each new Markdown document.
+
+    Args:
+        svc: Service.
+        new_docs: Entries from ``pending.new`` (``missing_fields`` is added to them).
+    """
+    for entry in new_docs:
+        rel = entry.get("path")
+        if rel and str(rel).lower().endswith(".md") and svc.vault.exists(rel):
+            meta = svc.vault.load(rel).meta
+            entry["missing_fields"] = [f for f in SUGGESTED_FIELDS if _empty(meta.get(f))]
+
+
+def known_tags(svc: Service) -> dict[str, int]:
+    """Existing tags from ``documents/`` and ``wiki/`` with their frequency.
+
+    Args:
+        svc: Service.
+
+    Returns:
+        Tag → count, most frequent first.
+    """
+    counts: Counter[str] = Counter()
+    for rel in svc.vault.iter_files(("documents", "wiki")):
+        if rel.lower().endswith(".md"):
+            try:
+                tags = svc.vault.load(rel).meta.get("tags")
+            except PkmError:
+                tags = None
+            if isinstance(tags, list):
+                counts.update(normalize_tags(tags))
+            elif isinstance(tags, str) and tags.strip():
+                counts.update(normalize_tags(tags.replace(",", " ").split()))
+    return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+def _metadata_fields(
+    meta: dict[str, Any], set_fields: dict[str, Any], add_fields: dict[str, Any], overwrite: bool
+) -> dict[str, Any]:
+    """Compute and check the fields to write for ``set_document_metadata``.
+
+    Args:
+        meta: Previous frontmatter.
+        set_fields: Fields to set.
+        add_fields: Values to append to lists (``tags`` only).
+        overwrite: Overwrite existing values.
+
+    Returns:
+        Field → new value (changed fields only).
 
     Raises:
-        PkmError: ``forbidden`` außerhalb der Seitenordner, ``invalid_path`` bei ungültigen Namen.
+        PkmError: ``protected_field`` outside the whitelist, ``invalid_argument`` for invalid
+            values, ``field_exists`` for existing values without ``overwrite``.
+    """
+    bad = [k for k in [*set_fields, *add_fields] if k not in METADATA_FIELDS] + [k for k in add_fields if k != "tags"]
+    if bad:
+        raise PkmError("protected_field", "Only " + ", ".join(METADATA_FIELDS)
+                       + " are allowed (add only for tags).", fields=sorted(set(bad)))
+    fields: dict[str, Any] = {}
+    for key, value in set_fields.items():
+        new = normalize_tags(value if isinstance(value, list) else [value]) if key == "tags" else " ".join(
+            str(value).split())
+        if _empty(new) or (key == "kind" and new not in KINDS):
+            raise PkmError("invalid_argument", f"Invalid value for {key}: {value!r}"
+                           + (f" (allowed: {', '.join(KINDS)})" if key == "kind" else ""), field=key)
+        if not _empty(meta.get(key)) and meta.get(key) != new and not overwrite:
+            raise PkmError("field_exists", f"{key} is already set ({meta.get(key)!r}); change only with overwrite.",
+                           field=key, value=meta.get(key))
+        fields[key] = new
+    if "tags" in add_fields:
+        current = meta.get("tags") if isinstance(meta.get("tags"), list) else []
+        extra = add_fields["tags"] if isinstance(add_fields["tags"], list) else [add_fields["tags"]]
+        fields["tags"] = normalize_tags([*fields.get("tags", current), *extra])
+    return {k: v for k, v in fields.items() if meta.get(k) != v}
+
+
+def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    svc: Service,
+    target: str,
+    expected_hash: str,
+    set: dict[str, Any] | None = None,  # pylint: disable=redefined-builtin
+    add: dict[str, Any] | None = None,
+    overwrite: bool = False,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """Enter the metadata of a document after confirmation by the user (new version, ``PKM-Source: agent``).
+
+    Only ``title``, ``context``, ``tags``, ``kind`` and ``short_citation`` are allowed. Fields are
+    inserted line by line at the position given by the schema; all other lines stay unchanged.
+
+    Args:
+        svc: Service.
+        target: Document in ``documents/`` (path, wikilink or ``id:``).
+        expected_hash: ``hash`` from ``read``.
+        set: Fields to set.
+        add: Values to append to ``tags``.
+        overwrite: Overwrite existing values (only on explicit request by the user).
+        note: Change note.
+
+    Returns:
+        Return value of ``finish`` (new version, commit) or ``unchanged``.
+
+    Raises:
+        PkmError: ``invalid_argument`` without fields, otherwise like ``_metadata_fields`` and ``change``.
+    """
+    if not set and not add:
+        raise PkmError("invalid_argument", "No fields given (set or add).")
+    rel = svc.resolve(target, ("documents",))
+    fields = _metadata_fields(svc.vault.load(rel).meta, dict(set or {}), dict(add or {}), overwrite)
+
+    def transform(doc: Doc) -> str:
+        """Set the fields line by line.
+
+        Args:
+            doc: Document.
+
+        Returns:
+            New text.
+        """
+        return set_fields_linewise(doc.text or "", fields) if fields else doc.text or ""
+
+    default = "metadata after confirmation: " + ", ".join(fields or set or add or {})
+    return svc.writer.change(rel, expected_hash, transform, note or default, source="agent")
+
+
+def _page_path(path: str) -> str:
+    """Check and normalize the path of a writable wiki page.
+
+    Args:
+        path: Path like ``wiki/topics/topic`` or ``wiki/topics/topic.md``.
+
+    Returns:
+        Relative path with ``.md``.
+
+    Raises:
+        PkmError: ``forbidden`` outside the page folders, ``invalid_path`` for invalid names.
     """
     rel = path.strip().replace("\\", "/").lstrip("/")
     if PurePosixPath(rel).suffix.lower() != ".md":
         rel = f"{rel}.md"
     if not rel.startswith(WRITABLE_DIRS):
-        raise PkmError("forbidden", "Schreiben nur in " + ", ".join(WRITABLE_DIRS)
-                       + " (index.md, _status.md, log.md und sources sind generiert).", path=rel)
+        raise PkmError("forbidden", "Writing only in " + ", ".join(WRITABLE_DIRS)
+                       + " (index.md, _status.md, log.md and sources are generated).", path=rel)
     if not all(is_platform_safe_name(part) for part in PurePosixPath(rel).parts):
-        raise PkmError("invalid_path", "Ungültiger Datei- oder Ordnername.", path=rel)
+        raise PkmError("invalid_path", "Invalid file or folder name.", path=rel)
     return rel
 
 
-def write_wiki_page(svc: Service, path: str, content: str, expected_hash: str | None = None) -> dict[str, Any]:
-    """Wiki-Seite anlegen oder ersetzen (ohne Commit; den macht ``finish_maintenance``).
+def write_wiki_page(
+    svc: Service, path: str, content: str, expected_hash: str | None = None, fix_images: bool = False
+) -> dict[str, Any]:
+    """Create or replace a wiki page (without commit; ``finish_maintenance`` does that).
+
+    Image placeholders from ``read`` are replaced byte for byte by the originals. New data URIs must
+    conform to the form of 4.9; with ``fix_images`` the server fixes them without asking.
 
     Args:
-        svc: Dienst.
-        path: Seite unter ``wiki/topics|entities|summaries|syntheses/``.
-        content: Vollständiger Inhalt mit Frontmatter.
-        expected_hash: ``hash`` aus ``read`` bei bestehenden Seiten; bei neuen Seiten weglassen.
+        svc: Service.
+        path: Page below ``wiki/topics|entities|summaries|syntheses/``.
+        content: Complete content with frontmatter.
+        expected_hash: ``hash`` from ``read`` for existing pages; omit for new pages.
+        fix_images: Fix nonconforming data URIs.
 
     Returns:
-        ``status`` (``created``, ``changed``, ``unchanged``), Pfad und neuer ``hash``.
+        ``status`` (``created``, ``changed``, ``unchanged``), path and new ``hash``.
 
     Raises:
-        PkmError: ``forbidden``, ``invalid_path``, ``conflict`` oder ``too_large``.
+        PkmError: ``forbidden``, ``invalid_path``, ``conflict``, ``too_large``, ``unknown_image`` or
+            ``nonconforming_image``.
     """
     rel = _page_path(path)
     safe_resolve(svc.cfg.root, rel)
-    svc.writer.check_size(content, "Die Seite")
+    svc.writer.check_size(content, "The page")
     with svc.writer.lock():
         exists = svc.vault.exists(rel)
         current = svc.vault.load(rel).hashes if exists else None
         if exists and (expected_hash is None or current is None or current.file_hash != expected_hash):
-            raise PkmError("conflict", "Seite existiert oder wurde geändert: erst mit read lesen und dessen "
-                           "hash als expected_hash angeben.", path=rel)
+            raise PkmError("conflict", "Page exists or was changed: read it with read first and pass its "
+                           "hash as expected_hash.", path=rel)
         if not exists and expected_hash is not None:
-            raise PkmError("conflict", "Seite existiert nicht (mehr); ohne expected_hash neu anlegen.", path=rel)
+            raise PkmError("conflict", "Page does not exist (any more); create it without expected_hash.", path=rel)
+        content = _checked_page(svc, rel, content, exists, fix_images)
         (svc.cfg.root / rel).parent.mkdir(parents=True, exist_ok=True)
         changed = write_if_changed(svc, rel, content)
         new = svc.vault.load(rel).hashes
@@ -141,29 +296,84 @@ def write_wiki_page(svc: Service, path: str, content: str, expected_hash: str | 
     return {"status": status, "path": rel, "hash": new.file_hash if new else None}
 
 
-def _load_target(svc: Service, target: str) -> Doc:
-    """Dokument aus ``documents/`` über ID oder Pfad laden.
+def _checked_page(svc: Service, rel: str, content: str, exists: bool, fix_images: bool) -> str:
+    """Content of a wiki page: translate placeholders back, check new data URIs (4.9).
 
     Args:
-        svc: Dienst.
-        target: ID (``d-…`` oder ``id:d-…``) oder Pfad.
+        svc: Service.
+        rel: Path of the page.
+        content: New content.
+        exists: Whether the page already exists.
+        fix_images: Fix nonconforming data URIs.
 
     Returns:
-        Das Dokument.
+        The content to write.
+
+    Raises:
+        PkmError: ``unknown_image`` or ``nonconforming_image``.
+    """
+    old = svc.vault.load(rel).text or "" if exists else ""
+    old_refs = images.find_images(old)
+    content = images.restore_placeholders(content, old_refs)
+    new_links = {r.link for r in images.find_images(content) if r.inline} - {r.link for r in old_refs if r.inline}
+    issues = imagefix.image_issues(content, svc.cfg.images, legacy=False, wiki=True, only_links=new_links) \
+        if new_links else []
+    if issues and (not fix_images or not all(i["fixable"] for i in issues)):
+        raise PkmError("nonconforming_image", "Data URIs do not conform to 4.9; fix them with fix_images=true "
+                       "or rebuild the SVG.", image_issues=issues, path=rel)
+    if issues:
+        content, _ = imagefix.fix_text(content, svc.cfg.images, legacy=False, wiki=True, only_links=new_links)
+    return content
+
+
+def fix_document_images(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    svc: Service, target: str, expected_hash: str, images_only: list[str] | None = None,
+    image_alt: dict[str, str] | None = None, apply: bool = False, confirm_shortening: bool = False,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """Tool ``fix_images`` in the maintenance server: only ``documents/``, commit with ``PKM-Source: agent`` (7.7).
+
+    Args:
+        svc: Service.
+        target: Document.
+        expected_hash: Hash from ``read``.
+        images_only: Only these images.
+        image_alt: Alt texts per name.
+        apply: Write instead of only proposing.
+        confirm_shortening: Removal of unused definitions confirmed.
+        note: Change note.
+
+    Returns:
+        Return value of ``docimages.fix_document``.
+    """
+    return docimages.fix_document(svc.writer, target, expected_hash, images_only=images_only, image_alt=image_alt,
+                                  apply=apply, confirm_shortening=confirm_shortening, note=note, source="agent",
+                                  areas=("documents/",))
+
+
+def _load_target(svc: Service, target: str) -> Doc:
+    """Load a document from ``documents/`` by ID or path.
+
+    Args:
+        svc: Service.
+        target: ID (``d-…`` or ``id:d-…``) or path.
+
+    Returns:
+        The document.
     """
     ref = f"id:{target}" if is_valid_id(target) else target
     return svc.load(ref, ("documents",))
 
 
 def citing_pages(svc: Service, doc: Doc) -> list[str]:
-    """Wiki-Seiten, die ein Dokument belegen.
+    """Wiki pages that cite a document.
 
     Args:
-        svc: Dienst.
-        doc: Dokument (Markdown über ``id``, Anhänge über den Pfad).
+        svc: Service.
+        doc: Document (Markdown via ``id``, attachments via the path).
 
     Returns:
-        Seiten als Verweis ohne Endung, sortiert.
+        Pages as references without extension, sorted.
     """
     pages = set()
     for page in wiki_pages(svc):
@@ -175,14 +385,14 @@ def citing_pages(svc: Service, doc: Doc) -> list[str]:
 
 
 def _mark_processed(svc: Service, processed: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
-    """Verarbeitete Dokumente mit den belegenden Seiten in ``state.json`` eintragen.
+    """Record processed documents with the citing pages in ``state.json``.
 
     Args:
-        svc: Dienst.
-        processed: IDs oder Pfade.
+        svc: Service.
+        processed: IDs or paths.
 
     Returns:
-        Tupel aus (Einträge, Warnungen für Dokumente ohne Beleg).
+        Tuple of (entries, warnings for documents without a citation).
     """
     maint = Maintenance(svc)
     marked: list[dict[str, Any]] = []
@@ -191,28 +401,28 @@ def _mark_processed(svc: Service, processed: list[str]) -> tuple[list[dict[str, 
         doc = _load_target(svc, target)
         pages = citing_pages(svc, doc)
         if not pages:
-            warnings.append(f"{doc.rel}: keine Wiki-Seite belegt dieses Dokument.")
+            warnings.append(f"{doc.rel}: no wiki page cites this document.")
         entry = maint.mark([target], pages)["marked"][0]
         marked.append({**entry, "pages": pages})
     return marked, warnings
 
 
 def append_log(svc: Service, operation: str, title: str | None, entry: str) -> str:
-    """Eintrag an ``wiki/log.md`` anhängen (nur anhängen, nie ändern).
+    """Append an entry to ``wiki/log.md`` (append only, never change).
 
     Args:
-        svc: Dienst.
-        operation: ``ingest``, ``lint`` oder ``fix``.
-        title: Kurzangabe hinter der Überschrift, z. B. ``1 neu, 1 geändert``.
-        entry: Inhalt (Markdown-Liste).
+        svc: Service.
+        operation: ``ingest``, ``lint`` or ``fix``.
+        title: Short note after the heading, e.g. ``1 new, 1 changed``.
+        entry: Content (Markdown list).
 
     Returns:
-        Die erzeugte Überschrift.
+        The generated heading.
     """
     stamp = svc.now().strftime("%Y-%m-%d %H:%M")
     heading = f"## [{stamp}] {operation}" + (f" | {' '.join(title.split())}" if title else "")
     p = svc.cfg.root / LOG_PATH
-    old = p.read_text(encoding="utf-8").rstrip("\n") if p.is_file() else "# Pflege-Log"
+    old = p.read_text(encoding="utf-8").rstrip("\n") if p.is_file() else "# Maintenance log"
     write_if_changed(svc, LOG_PATH, f"{old}\n\n{heading}\n{entry.strip()}\n")
     return heading
 
@@ -227,31 +437,32 @@ def finish_maintenance(  # pylint: disable=too-many-arguments,too-many-positiona
     questions: list[str] | None = None,
     lint_report: bool = False,
 ) -> dict[str, Any]:
-    """Abschluss: Belege, ``mark``, Log, Index, Status, Lint und Agenten-Commit.
+    """Finish: citations (moved, renamed, version raised), ``mark``, log, index, status, lint, commit.
 
     Args:
-        svc: Dienst.
-        log_entry: Inhalt des Log-Eintrags (Markdown-Liste).
-        operation: ``ingest``, ``lint`` oder ``fix``.
-        log_title: Kurzangabe für die Log-Überschrift.
-        processed: Verarbeitete Dokumente (IDs oder Pfade); die belegenden Seiten werden ermittelt.
-        removed: Schlüssel gelöschter Dokumente, die aus ``state.json`` entfernt werden.
-        questions: Rückfragen für ``wiki/_status.md``.
-        lint_report: Prüfbericht nach ``wiki/_lint/`` schreiben.
+        svc: Service.
+        log_entry: Content of the log entry (Markdown list).
+        operation: ``ingest``, ``lint`` or ``fix``.
+        log_title: Short note for the log heading.
+        processed: Processed documents (IDs or paths); the citing pages are determined.
+        removed: Keys of deleted documents that are removed from ``state.json``.
+        questions: Questions for ``wiki/_status.md``.
+        lint_report: Write the lint report to ``wiki/_lint/``.
 
     Returns:
-        Ergebnisse der Einzelschritte, Warnungen, Prüfbericht und Commit.
+        Results of the individual steps, warnings, lint report and commit.
 
     Raises:
-        PkmError: ``invalid_argument`` bei unbekannter Operation oder leerem Log-Eintrag.
+        PkmError: ``invalid_argument`` for an unknown operation or an empty log entry.
     """
     if operation not in OPERATIONS:
-        raise PkmError("invalid_argument", f"operation muss eines von {', '.join(OPERATIONS)} sein.")
+        raise PkmError("invalid_argument", f"operation must be one of {', '.join(OPERATIONS)}.")
     if not log_entry.strip():
-        raise PkmError("invalid_argument", "log_entry darf nicht leer sein.")
+        raise PkmError("invalid_argument", "log_entry must not be empty.")
     result: dict[str, Any] = {
         "status": "ok",
         "fixed_citations": fix_citations(svc),
+        "raised_citations": raise_versions(svc),
         "synced_sources": sync_citations(svc)["pages_changed"],
     }
     marked, warnings = _mark_processed(svc, processed or [])
@@ -270,14 +481,14 @@ def finish_maintenance(  # pylint: disable=too-many-arguments,too-many-positiona
 
 
 def _commit_message(operation: str, count: int) -> str:
-    """Betreff des Agenten-Commits.
+    """Subject of the agent commit.
 
     Args:
-        operation: ``ingest``, ``lint`` oder ``fix``.
-        count: Anzahl verarbeiteter Dokumente.
+        operation: ``ingest``, ``lint`` or ``fix``.
+        count: Number of processed documents.
 
     Returns:
-        Z. B. ``pkm: ingest 2 documents``.
+        E.g. ``pkm: ingest 2 documents``.
     """
     suffix = f" {count} document{'s' if count != 1 else ''}" if count else ""
     return f"pkm: {operation}{suffix}"

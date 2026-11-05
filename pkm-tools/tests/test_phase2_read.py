@@ -1,4 +1,4 @@
-"""Vault, Adressierung, Suchindex und lesende Tools (Spezifikation 7.1, 7.3, 7.4).
+"""Vault, addressing, search index and reading tools (specification 7.1, 7.3, 7.4).
 
     Author: Achim0x
 """
@@ -80,14 +80,14 @@ Die Dachfläche beträgt 92 m².[^b1] Siehe [[documents/haus/zisterne]].
 
 @pytest.fixture(name="filled")
 def fixture_filled(cfg, svc):
-    """Vault mit einem versionierten Dokument, einer Notiz, einem PDF und einer Wiki-Seite.
+    """Vault with a versioned document, a note, a PDF and a wiki page.
 
     Args:
-        cfg: Konfiguration.
-        svc: Dienst.
+        cfg: Configuration.
+        svc: Service.
 
     Returns:
-        Der Dienst.
+        The service.
     """
     commit_doc(cfg, "documents/haus/zisterne.md", DOC1, ID1, 1)
     write(cfg, "documents/notiz.md", "Lose Notiz ohne Frontmatter über Bewässerung.\n")
@@ -96,19 +96,19 @@ def fixture_filled(cfg, svc):
     return svc
 
 
-# Adressierung ****************************************************************
+# Addressing ******************************************************************
 @pytest.mark.parametrize(
     "target",
     ["documents/haus/zisterne.md", "documents/haus/zisterne", "[[documents/haus/zisterne]]",
      "[[zisterne]]", "zisterne", "ZISTERNE", f"id:{ID1}", "[[zisterne#Ergebnis|Alias]]"],
 )
 def test_resolve(filled, target):
-    """Pfad, Wikilink, Kurzname und ID führen zum selben Dokument."""
+    """Path, wikilink, short name and ID lead to the same document."""
     assert filled.resolve(target) == "documents/haus/zisterne.md"
 
 
 def test_resolve_ambiguous(filled, cfg):
-    """Mehrdeutige Kurznamen liefern ambiguous mit Kandidaten."""
+    """Ambiguous short names return ambiguous with candidates."""
     write(cfg, "documents/alt/zisterne.md", "alt\n")
     with pytest.raises(PkmError) as e:
         filled.resolve("[[zisterne]]")
@@ -117,7 +117,7 @@ def test_resolve_ambiguous(filled, cfg):
 
 
 def test_resolve_not_found_and_outside(filled):
-    """Unbekannte Ziele und Dateien außerhalb von documents/ und wiki/ werden abgelehnt."""
+    """Unknown targets and files outside documents/ and wiki/ are rejected."""
     with pytest.raises(PkmError) as e:
         filled.resolve("gibtsnicht")
     assert e.value.status == "not_found"
@@ -132,13 +132,13 @@ def test_resolve_not_found_and_outside(filled):
 
 
 def test_resolve_id_after_move(filled, cfg):
-    """Die ID findet ein verschobenes Dokument."""
+    """The ID finds a moved document."""
     (cfg.root / "documents/haus/zisterne.md").rename(cfg.root / "documents/zisterne-neu.md")
     assert filled.resolve(f"id:{ID1}") == "documents/zisterne-neu.md"
 
 
 def test_resolve_id_without_index(cfg, isolated_env, monkeypatch):
-    """Ohne nutzbaren Index wird die ID per Scan gefunden, die Suche verweigert."""
+    """Without a usable index the ID is found by scanning, the search refuses."""
     commit_doc(cfg, "documents/a.md", DOC1, ID1, 1)
     monkeypatch.setenv("PKM_CACHE_DIR", str(isolated_env["root"] / ".pkm" / "cache"))
 
@@ -150,9 +150,9 @@ def test_resolve_id_without_index(cfg, isolated_env, monkeypatch):
     assert not (isolated_env["root"] / ".pkm" / "cache" / "index.db").exists()
 
 
-# Suche ***********************************************************************
+# Search **********************************************************************
 def test_search_wiki_default(filled):
-    """Die Suche durchsucht standardmäßig das Wiki und liefert die Kurzfassung."""
+    """The search covers the wiki by default and returns the summary."""
     res = filled.search("Regenertrag")
     assert [r["path"] for r in res["results"]] == ["wiki/topics/regenwasser-ertrag.md"]
     r = res["results"][0]
@@ -162,7 +162,7 @@ def test_search_wiki_default(filled):
 
 
 def test_search_documents_with_processed(filled):
-    """Treffer in Dokumenten enthalten Version, processed und Ausschnitt."""
+    """Hits in documents contain version, processed and excerpt."""
     res = filled.search("schwimmer", scope="documents")
     r = res["results"][0]
     assert r["path"] == "documents/haus/zisterne.md"
@@ -172,28 +172,28 @@ def test_search_documents_with_processed(filled):
 
 @pytest.mark.parametrize("q", ["Überlauf", "uberlauf", "Ueberlauf", "überl", "ÜBERLAUF"])
 def test_search_umlaut_tolerance(filled, q):
-    """Die Suche ist umlauttolerant."""
+    """The search is umlaut-tolerant."""
     paths = [r["path"] for r in filled.search(q, scope="documents")["results"]]
     assert "documents/haus/zisterne.md" in paths
 
 
 def test_search_weighting(filled, cfg):
-    """Titeltreffer stehen vor Texttreffern."""
+    """Title hits come before text hits."""
     write(cfg, "documents/text.md", "# Andere\n\nHier steht nebenbei das Wort Zisterne im Text.\n")
     res = filled.search("zisterne", scope="documents")["results"]
     assert res[0]["path"] == "documents/haus/zisterne.md"
 
 
 def test_search_limits_and_scope(filled):
-    """max_results wird begrenzt, ungültiger scope abgelehnt."""
-    assert filled.search("a", max_results=999)  # wird auf 25 begrenzt, kein Fehler
+    """max_results is limited, an invalid scope rejected."""
+    assert filled.search("a", max_results=999)  # limited to 25, no error
     with pytest.raises(PkmError):
         filled.search("x", scope="falsch")
     assert filled.search("   ")["results"] == []
 
 
 def test_search_incremental_and_rebuild(filled, cfg):
-    """Der Index aktualisiert sich inkrementell und baut sich bei Schaden neu auf."""
+    """The index updates incrementally and rebuilds itself after damage."""
     assert filled.search("Kolibri", scope="all")["results"] == []
     write(cfg, "documents/vogel.md", "Ein Kolibri.\n")
     assert [r["path"] for r in filled.search("kolibri", scope="all")["results"]] == ["documents/vogel.md"]
@@ -206,7 +206,7 @@ def test_search_incremental_and_rebuild(filled, cfg):
 
 
 def test_index_schema_mismatch_rebuilds(filled, cfg):
-    """Ein abweichendes Schema führt zum Neuaufbau."""
+    """A different schema leads to a rebuild."""
     filled.search("x")
     con = sqlite3.connect(cfg.index_path)
     con.execute("UPDATE info SET value='0' WHERE key='schema'")
@@ -216,14 +216,14 @@ def test_index_schema_mismatch_rebuilds(filled, cfg):
 
 
 def test_reindex(filled):
-    """reindex zählt alle Dateien."""
+    """reindex counts all files."""
     res = filled.reindex()
-    assert res["total"] == 7  # 3 Dokumente, 1 Wiki-Seite, index/log/_status
+    assert res["total"] == 7  # 3 documents, 1 wiki page, index/log/_status
 
 
 # read ************************************************************************
 def test_read_document(filled):
-    """read liefert ID, Version, Abschnitte, Hash und Rückverweise."""
+    """read returns ID, version, sections, hash and backlinks."""
     r = filled.read("[[zisterne]]")
     assert r["id"] == ID1 and r["version"] == 1 and r["editable"] is True
     assert r["frontmatter"]["title"] == "Zisterne – Überlaufsensor"
@@ -234,7 +234,7 @@ def test_read_document(filled):
 
 
 def test_read_wiki_not_editable(filled):
-    """Wiki-Seiten sind nicht änderbar und liefern ihre Belege."""
+    """Wiki pages cannot be changed and return their citations."""
     r = filled.read("wiki/topics/regenwasser-ertrag")
     assert r["editable"] is False
     assert [(c["id"], c["path"], c["version"], c["sha"]) for c in r["citations"]] == [
@@ -243,27 +243,27 @@ def test_read_wiki_not_editable(filled):
 
 
 def test_read_pdf(filled):
-    """PDFs liefern nur Metadaten und Hash."""
+    """PDFs return only metadata and hash."""
     r = filled.read("documents/haus/datenblatt.pdf")
     assert r["kind"] == "binary" and len(r["hash"]) == 64 and r["editable"] is False
 
 
 def test_read_invalid_frontmatter(filled, cfg):
-    """Bei ungültigem Frontmatter bleibt der Rohtext lesbar."""
+    """With an invalid frontmatter the raw text stays readable."""
     write(cfg, "documents/kaputt.md", "---\ntitle: [x\n---\nText\n")
     r = filled.read("kaputt")
     assert r["status"] == "invalid_frontmatter" and r["editable"] is False and "Text" in r["content"]
 
 
 def test_read_invalid_encoding(filled, cfg):
-    """Ungültiges UTF-8 wird gemeldet."""
+    """Invalid UTF-8 is reported."""
     (cfg.root / "documents/bin.md").write_bytes(b"\xff\xfe")
     r = filled.read("documents/bin.md")
     assert r["status"] == "invalid_encoding" and r["editable"] is False
 
 
 def test_read_old_version(filled, cfg):
-    """read mit version liest eine frühere Version aus Git."""
+    """read with version reads an earlier version from Git."""
     commit_doc(cfg, "documents/haus/zisterne.md", DOC1.replace("version: 1", "version: 2").replace(
         "Schwimmerschalter", "Ultraschall"), ID1, 2)
     old = filled.read(f"id:{ID1}", version=1)
@@ -274,7 +274,7 @@ def test_read_old_version(filled, cfg):
 
 # history *********************************************************************
 def test_history_with_diff_after_move(filled, cfg):
-    """history ist nach dem Verschieben vollständig und liefert den Diff."""
+    """history is complete after a move and returns the diff."""
     (cfg.root / "documents/neu").mkdir()
     (cfg.root / "documents/haus/zisterne.md").rename(cfg.root / "documents/neu/z.md")
     write(cfg, "documents/neu/z.md", DOC1.replace("version: 1", "version: 2").replace("klären", "geklärt"))
@@ -291,27 +291,27 @@ def test_history_with_diff_after_move(filled, cfg):
 
 
 def test_history_deleted_document_by_id(filled, cfg):
-    """history funktioniert per ID auch für gelöschte Dokumente."""
+    """history works by ID also for deleted documents."""
     (cfg.root / "documents/haus/zisterne.md").unlink()
     h = filled.history(f"id:{ID1}")
     assert h["path"] is None and h["versions"][0]["version"] == 1
 
 
 def test_show_section(filled):
-    """show liefert einen Abschnitt einer früheren Version."""
+    """show returns a section of an earlier version."""
     r = filled.show(f"id:{ID1}", 1, "Offene Punkte")
     assert r["content"] == "## Offene Punkte\n- Montageort klären"
 
 
 # read_index / list_unprocessed ***********************************************
 def test_read_index(filled):
-    """read_index liefert wiki/index.md."""
-    assert filled.read_index()["content"].startswith("# Wiki-Index")
+    """read_index returns wiki/index.md."""
+    assert filled.read_index()["content"].startswith("# Wiki index")
 
 
 def test_list_unprocessed(filled, cfg):
 
-    """list_unprocessed meldet new, changed (mit Abschnitten) und meta_changed."""
+    """list_unprocessed reports new, changed (with sections) and meta_changed."""
     res = filled.list_unprocessed()
     cats = {d["path"]: d["category"] for d in res["documents"]}
     assert cats["documents/haus/zisterne.md"] == "new"

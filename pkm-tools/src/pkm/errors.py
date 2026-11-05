@@ -1,4 +1,4 @@
-"""Fehler mit maschinenlesbarem Status (Spezifikation 4.7, Statuswerte).
+"""Errors with a machine-readable status (specification 4.7, status values).
 
     Author: Achim0x
 """
@@ -28,25 +28,28 @@ from typing import Any
 
 # Variables *******************************************************************
 
+NO_VERSIONING = ("Version control is off because Git is not installed (or PKM_VERSIONING is off). "
+                 "Install Git and run `pkm setup` again to turn it on.")
+
 # Classes *********************************************************************
 
 
 class PkmError(Exception):
-    """Fachlicher Fehler mit Statuswert aus 4.7 oder kurzem Fehlercode.
+    """Domain error with a status value from 4.7 or a short error code.
 
     Attributes:
-        status: Maschinenlesbarer Status, z. B. ``conflict`` oder ``not_found``.
-        message: Erklärung für Menschen (deutsch).
-        data: Zusätzliche Angaben, die mit zurückgegeben werden.
+        status: Machine-readable status, e.g. ``conflict`` or ``not_found``.
+        message: Explanation for humans.
+        data: Additional details returned along with the error.
     """
 
     def __init__(self, status: str, message: str, **data: Any) -> None:
-        """Fehler anlegen.
+        """Create the error.
 
         Args:
-            status: Maschinenlesbarer Status.
-            message: Erklärung für Menschen.
-            **data: Zusätzliche Felder für die Rückgabe an den Aufrufer.
+            status: Machine-readable status.
+            message: Explanation for humans.
+            **data: Additional fields returned to the caller.
         """
         super().__init__(message)
         self.status = status
@@ -54,10 +57,10 @@ class PkmError(Exception):
         self.data = data
 
     def to_dict(self) -> dict[str, Any]:
-        """Fehler als Rückgabe-Objekt für MCP-Tools und CLI.
+        """Error as a result object for MCP tools and the CLI.
 
         Returns:
-            Wörterbuch mit ``status``, ``message`` und den zusätzlichen Feldern.
+            Dictionary with ``status``, ``message`` and the additional fields.
         """
         return {"status": self.status, "message": self.message, **self.data}
 

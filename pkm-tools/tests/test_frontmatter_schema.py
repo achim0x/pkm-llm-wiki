@@ -1,4 +1,4 @@
-"""Frontmatter nach dem Schema der digitalisierten Normen (Spezifikation 0.15–0.18, 4.1).
+"""Frontmatter per the schema of the digitized standards (specification 0.15–0.18, 4.1).
 
     Author: Achim0x
 """
@@ -62,20 +62,20 @@ STAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
 
 
 def checks_for(svc: Service, path: str) -> set[tuple[str, str]]:
-    """Lint-Befunde einer Datei.
+    """Lint findings of a file.
 
     Args:
-        svc: Dienst.
-        path: Relativer Pfad.
+        svc: Service.
+        path: Relative path.
 
     Returns:
-        Menge von (Prüfung, Schweregrad).
+        Set of (check, severity).
     """
     return {(f["check"], f["severity"]) for f in lint(svc)["findings"] if f.get("path") == path}
 
 
 def test_norm_with_unquoted_colon_is_invalid_and_linted(svc, cfg):
-    """Ein unquotiertes „: “ im Titel ergibt invalid_frontmatter mit Hinweis auf fix-frontmatter."""
+    """An unquoted ": " in the title gives invalid_frontmatter with a hint to fix-frontmatter."""
     write(cfg, NORM_PATH, NORM)
     assert svc.read(NORM_PATH)["status"] == "invalid_frontmatter"
     finding = next(f for f in lint(svc)["findings"] if f.get("path") == NORM_PATH)
@@ -83,7 +83,7 @@ def test_norm_with_unquoted_colon_is_invalid_and_linted(svc, cfg):
 
 
 def test_fix_frontmatter_lists_then_fixes_only_affected_lines(svc, cfg, isolated_env):
-    """fix-frontmatter ohne Ziel listet nur; mit Ziel ändert es nur die betroffenen Zeilen."""
+    """fix-frontmatter without a target only lists; with a target it changes only the affected lines."""
     write(cfg, NORM_PATH, NORM)
     m = Maintenance(svc)
     dry = m.fix_frontmatter()
@@ -101,7 +101,7 @@ def test_fix_frontmatter_lists_then_fixes_only_affected_lines(svc, cfg, isolated
 
 
 def test_ids_appends_only_id_and_version(svc, cfg):
-    """Ein Dokument mit den sechs Umwandlungsfeldern bekommt nur id und version am Ende."""
+    """A document with the six conversion fields only gets id and version at the end."""
     write(cfg, NORM_PATH, NORM)
     m = Maintenance(svc)
     m.fix_frontmatter([NORM_PATH])
@@ -114,7 +114,7 @@ def test_ids_appends_only_id_and_version(svc, cfg):
 
 
 def test_short_citation_as_target(svc, cfg):
-    """short_citation (auch alte Schreibweise, andere Groß-/Kleinschreibung, Leerraum) ist ein Ziel."""
+    """short_citation (also the old notation, other upper/lower case, whitespace) is a target."""
     write(cfg, NORM_PATH, NORM.replace(f"title: {NORM_TITLE}", f'title: "{NORM_TITLE}"'))
     for target in ("EN 61000-4-6:2014", "en 61000-4-6:2014", "EN  61000-4-6:2014"):
         assert svc.resolve(target) == NORM_PATH
@@ -128,7 +128,7 @@ def test_short_citation_as_target(svc, cfg):
 
 
 def test_legacy_name_renamed_with_new_version(svc, cfg, isolated_env):
-    """Mit ID wird die Umbenennung durch fix-frontmatter als neue Version (user) committet."""
+    """With an ID the renaming by fix-frontmatter is committed as a new version (user)."""
     write(cfg, NORM_PATH, NORM.replace(f"title: {NORM_TITLE}", f'title: "{NORM_TITLE}"'))
     m = Maintenance(svc)
     doc_id = m.ids()["assigned"][0]["id"]
@@ -142,7 +142,7 @@ def test_legacy_name_renamed_with_new_version(svc, cfg, isolated_env):
 
 
 def test_create_document_frontmatter(svc):
-    """create_document schreibt das Schema aus 4.1 in der vorgesehenen Reihenfolge."""
+    """create_document writes the schema of 4.1 in the intended order."""
     res = svc.create_document(title="Norm-Notiz: EMV", content="## Ergebnis\nx\n", tags=["emv"],
                               short_citation="EN 61000-4-6:2014", date_document="August 2014", kind="standard",
                               toolchain="Claude Opus 5.5 (pkm-mcp)", context="Chat: EMV")
@@ -157,20 +157,20 @@ def test_create_document_frontmatter(svc):
 
 @pytest.mark.parametrize("kind", ["note", "standard", "regulation", "correction"])
 def test_kinds(svc, kind):
-    """Alle vier Werte von kind sind erlaubt."""
+    """All four values of kind are allowed."""
     res = svc.create_document(title=f"K {kind}", content="x", kind=kind)
     assert svc.read(res["path"])["frontmatter"]["kind"] == kind
 
 
 def test_invalid_kind(svc):
-    """Unbekannte Werte von kind werden abgelehnt."""
+    """Unknown values of kind are rejected."""
     with pytest.raises(PkmError) as e:
         svc.create_document(title="X", content="y", kind="gesetz")
     assert e.value.status == "invalid_argument"
 
 
 def test_date_updated_without_timezone(svc):
-    """date_updated wird mit Uhrzeit in Ortszeit ohne Zeitzone geschrieben."""
+    """date_updated is written with time of day in local time without time zone."""
     res = svc.create_document(title="Zeit", content="a b")
     r = svc.edit_document(target=res["path"], old="a", new="c", expected_hash=res["new_hash"])
     fm = svc.read(res["path"])["frontmatter"]
@@ -178,7 +178,7 @@ def test_date_updated_without_timezone(svc):
 
 
 def test_status_markdown_never_written(svc, cfg):
-    """Kein Werkzeug setzt oder ändert status_markdown."""
+    """No tool sets or changes status_markdown."""
     write(cfg, NORM_PATH, NORM.replace(f"title: {NORM_TITLE}", f'title: "{NORM_TITLE}"'))
     Maintenance(svc).ids()
     doc = svc.read(NORM_PATH)
@@ -190,7 +190,7 @@ def test_status_markdown_never_written(svc, cfg):
 
 
 def test_lint_frontmatter_hints(svc, cfg):
-    """Hinweise und Fehler zu Herkunftsfeldern, alter Schreibweise, kind, Datum und tags."""
+    """Hints and errors on provenance fields, old notation, kind, date and tags."""
     write(cfg, NORM_PATH, NORM.replace(f"title: {NORM_TITLE}", f'title: "{NORM_TITLE}"'))
     write(cfg, "documents/b.md", "---\ntitle: B\nkind: gesetz\ndate_updated: 2026-11-01T10:00:00+01:00\n"
           "tags: [zwei worte]\n---\nx\n")
@@ -203,7 +203,7 @@ def test_lint_frontmatter_hints(svc, cfg):
 
 
 def test_lint_accepts_date_only_and_kind_standard(svc, cfg):
-    """Datum ohne Uhrzeit ist gültig; mit kind gibt es keinen missing_kind-Hinweis."""
+    """A date without time of day is valid; with kind there is no missing_kind hint."""
     text = NORM.replace(f"title: {NORM_TITLE}", f'title: "{NORM_TITLE}"').replace("2026-10-25T14:12:00", "2026-10-25")
     write(cfg, NORM_PATH, text.replace("short citation:", "kind: standard\nshort_citation:"))
     checks = {c for c, _ in checks_for(svc, NORM_PATH)}
@@ -212,7 +212,7 @@ def test_lint_accepts_date_only_and_kind_standard(svc, cfg):
 
 @pytest.mark.usefixtures("cfg")
 def test_mcp_create_document_parameters():
-    """Das MCP-Tool create_document kennt tags, short_citation, date_document und toolchain."""
+    """The MCP tool create_document knows tags, short_citation, date_document and toolchain."""
     tools = {t.name: t for t in asyncio.run(mcp_server.build_server().list_tools())}
     params = set(tools["create_document"].input_schema["properties"])
     assert {"tags", "short_citation", "date_document", "toolchain"} <= params

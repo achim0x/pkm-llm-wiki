@@ -1,4 +1,4 @@
-"""Konfiguration, Pfade, IDs, Frontmatter (Spezifikation 4.1, 5.5, 7.1, 7.5).
+"""Configuration, paths, IDs, frontmatter (specification 4.1, 5.5, 7.1, 7.5).
 
     Author: Achim0x
 """
@@ -30,7 +30,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from pkm import paths
+from pkm import cloudsync, paths
 from pkm.config import Config
 from pkm.errors import PkmError
 from pkm.frontmatter import dump_meta, format_scalar, set_fields_linewise
@@ -44,15 +44,15 @@ from pkm.parse import parse
 # Functions *******************************************************************
 
 
-# Konfiguration ***************************************************************
+# Configuration ***************************************************************
 def test_config_requires_root():
-    """Ohne PKM_ROOT gibt es einen Konfigurationsfehler."""
+    """Without PKM_ROOT there is a configuration error."""
     with pytest.raises(PkmError):
         Config.from_env({})
 
 
 def test_config_defaults(tmp_path):
-    """Standardwerte für Größe, Autor, Index- und Protokollpfad."""
+    """Default values for size, author, index and log path."""
     cfg = Config.from_env({"PKM_ROOT": str(tmp_path), "HOME": str(tmp_path / "h")})
     assert cfg.max_kb == 200
     assert cfg.git_author.startswith("pkm-mcp")
@@ -61,42 +61,42 @@ def test_config_defaults(tmp_path):
 
 
 def test_cache_dir_inside_vault_rejected(tmp_path):
-    """PKM_CACHE_DIR im Vault wird als Problem gemeldet."""
+    """PKM_CACHE_DIR in the vault is reported as a problem."""
     cfg = Config.from_env({"PKM_ROOT": str(tmp_path), "PKM_CACHE_DIR": str(tmp_path / ".pkm")})
     assert cfg.cache_dir_problem()
     ok = Config.from_env({"PKM_ROOT": str(tmp_path / "v"), "PKM_CACHE_DIR": str(tmp_path / "c")})
     assert ok.cache_dir_problem() is None
 
 
-# Pfade ***********************************************************************
+# Paths ***********************************************************************
 def test_safe_resolve_ok(tmp_path):
-    """Gültige relative Pfade werden im Vault aufgelöst."""
+    """Valid relative paths are resolved in the vault."""
     assert paths.safe_resolve(tmp_path, "documents/a.md") == tmp_path / "documents" / "a.md"
 
 
 @pytest.mark.parametrize("bad", ["../x.md", "/etc/passwd", "documents/../../x", "C:/x", ""])
 def test_safe_resolve_rejects(tmp_path, bad):
-    """Ausbrechende, absolute und leere Pfade werden abgelehnt."""
+    """Escaping, absolute and empty paths are rejected."""
     with pytest.raises(PkmError):
         paths.safe_resolve(tmp_path, bad)
 
 
 def test_symlink_outside_rejected(tmp_path):
-    """Symlinks, die aus dem Vault zeigen, werden abgelehnt."""
+    """Symlinks pointing out of the vault are rejected."""
     root = tmp_path / "root"
     (root / "documents").mkdir(parents=True)
     outside = tmp_path / "outside"
     outside.mkdir()
     try:
         os.symlink(outside, root / "documents" / "link")
-    except OSError:  # Windows ohne Entwicklermodus erlaubt keine Symlinks
+    except OSError:  # Windows without developer mode allows no symlinks
         pytest.skip("Symlinks sind hier nicht erlaubt")
     with pytest.raises(PkmError):
         paths.safe_resolve(root, "documents/link/x.md")
 
 
 def test_nfd_input_becomes_nfc(tmp_path):
-    """NFD-Eingaben werden in NFC umgewandelt."""
+    """NFD input is converted to NFC."""
     p = paths.safe_resolve(tmp_path, "documents/U\u0308ber.md")
     assert p.name == "Über.md"
 
@@ -104,15 +104,15 @@ def test_nfd_input_becomes_nfc(tmp_path):
 @pytest.mark.parametrize(
     "title, slug",
     [("Zisterne – Überlaufsensor", "zisterne-ueberlaufsensor"), ("Größe: 5 m²", "groesse-5-m2"),
-     ("CON", "con-doc"), ("???", "dokument"), ("a/b\\c:d*e", "a-b-c-d-e")],
+     ("CON", "con-doc"), ("???", "document"), ("a/b\\c:d*e", "a-b-c-d-e")],
 )
 def test_slugify(title, slug):
-    """Slugs sind klein, mit Bindestrichen und plattformfest."""
+    """Slugs are lower case, with hyphens and platform-safe."""
     assert paths.slugify(title) == slug
 
 
 def test_slug_length():
-    """Slugs werden gekürzt."""
+    """Slugs are shortened."""
     assert len(paths.slugify("x" * 500)) <= 80
 
 
@@ -121,25 +121,25 @@ def test_slug_length():
     [("a.md", True), ("con.md", False), ("a?.md", False), ("a.", False), ("a ", False), ("x" * 121, False)],
 )
 def test_platform_safe(name, ok):
-    """Plattformfeste Dateinamen nach 5.5."""
+    """Platform-safe file names per 5.5."""
     assert paths.is_platform_safe_name(name) is ok
 
 
 def test_conflict_copy():
-    """Nextcloud-Konfliktkopien werden am Namen erkannt."""
-    assert paths.is_conflict_copy("notiz (conflicted copy 2026-11-01 120000).md")
-    assert paths.is_conflict_copy("notiz (Konflikt).md")
-    assert not paths.is_conflict_copy("notiz.md")
+    """Conflict copies are detected by name."""
+    assert cloudsync.is_conflict_copy("notiz (conflicted copy 2026-11-01 120000).md")
+    assert cloudsync.is_conflict_copy("notiz (Konflikt).md")
+    assert not cloudsync.is_conflict_copy("notiz.md")
 
 
 def test_case_collisions():
-    """Namen, die sich nur in Groß-/Kleinschreibung unterscheiden, werden gruppiert."""
+    """Names that differ only in upper/lower case are grouped."""
     assert paths.case_collisions(["a/B.md", "a/b.md", "c.md"]) == [["a/B.md", "a/b.md"]]
 
 
 # IDs *************************************************************************
 def test_id_format():
-    """IDs haben das Format d-YYYYMMDD-HHMM-xxxx ohne 0, 1, l, o."""
+    """IDs have the format d-YYYYMMDD-HHMM-xxxx without 0, 1, l, o."""
     now = datetime(2026, 10, 31, 23, 40, tzinfo=ZoneInfo("Europe/Berlin"))
     i = new_id(now)
     assert ID_RE.match(i) and i.startswith("d-20261031-2340-")
@@ -147,7 +147,7 @@ def test_id_format():
 
 
 def test_id_collision_retries():
-    """Bei einer Kollision wird eine neue ID gezogen."""
+    """On a collision a new ID is drawn."""
     now = datetime(2026, 1, 1, 0, 0)
     seq = iter(["aaaa", "bbbb"])
     i = new_id(now, exists=lambda x: x.endswith("aaaa"), rand=lambda: next(seq))
@@ -155,7 +155,7 @@ def test_id_collision_retries():
 
 
 def test_is_valid_id():
-    """Gültige und ungültige IDs werden unterschieden."""
+    """Valid and invalid IDs are distinguished."""
     assert is_valid_id("d-20261031-2340-k7q2")
     assert not is_valid_id("d-20261031-2340-k7q0")
     assert not is_valid_id("x; rm -rf")
@@ -163,7 +163,7 @@ def test_is_valid_id():
 
 # Frontmatter *****************************************************************
 def test_linewise_keeps_comments_and_order():
-    """Serverfelder werden zeilengenau gesetzt, Kommentare bleiben."""
+    """Server fields are set line by line, comments stay."""
     text = "---\ntitle: T   # Kommentar\nversion: 2\nrelated: [\"[[x]]\"]  # optional\n---\nBody\n"
     out = set_fields_linewise(text, {"version": 3, "updated": "2026-11-01T10:00:00+01:00"})
     assert out == (
@@ -173,14 +173,14 @@ def test_linewise_keeps_comments_and_order():
 
 
 def test_linewise_creates_frontmatter_rest_unchanged():
-    """Fehlendes Frontmatter wird angelegt, der Rest bleibt gleich."""
+    """A missing frontmatter is created, the rest stays the same."""
     body = "# Titel\n\nText  mit  Leerzeichen\n"
     out = set_fields_linewise(body, {"id": "d-20261031-2340-k7q2", "version": 1})
     assert out == "---\nid: d-20261031-2340-k7q2\nversion: 1\n---\n" + body
 
 
 def test_dump_meta_roundtrip():
-    """Geschriebenes Frontmatter wird unverändert zurückgelesen."""
+    """A written frontmatter is read back unchanged."""
     meta = {"id": "d-20261031-2340-k7q2", "version": 1, "title": "Zisterne – Überlaufsensor",
             "context": "Chat: Füllstand", "tags": ["zisterne", "home-assistant"],
             "related": ["[[documents/haus/zisterne]]"], "created": "2026-10-31T23:40:12+01:00",
@@ -190,14 +190,16 @@ def test_dump_meta_roundtrip():
 
 
 @pytest.mark.parametrize("v, out", [(3, "3"), ("abc", "abc"), ("a: b", '"a: b"'), ("true", '"true"'),
-                                    (["a"], '["a"]'), ("- x", '"- x"')])
+                                    (["a"], "[a]"), (["a, b", "c"], '["a, b", "c"]'),
+                                    (["[[documents/x]]"], '["[[documents/x]]"]'), ([1], "[1]"),
+                                    ("- x", '"- x"')])
 def test_format_scalar(v, out):
-    """Werte werden einfach oder als JSON geschrieben."""
+    """Values are written plainly or as JSON."""
     assert format_scalar(v) == out
 
 
 def test_config_finds_vault_from_cwd(tmp_path):
-    """Ohne PKM_ROOT wird der Vault aufwärts gesucht."""
+    """Without PKM_ROOT the vault is searched upwards."""
     (tmp_path / "v" / ".pkm").mkdir(parents=True)
     (tmp_path / "v" / ".pkm" / "state.json").write_text("{}", encoding="utf-8", newline="\n")
     (tmp_path / "v" / "documents" / "x").mkdir(parents=True)

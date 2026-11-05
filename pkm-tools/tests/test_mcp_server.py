@@ -1,4 +1,4 @@
-"""MCP-Server: Tool-Liste, Aufruf in-process und Rauchtest über stdio.
+"""MCP server: tool list, in-process call and smoke test via stdio.
 
     Author: Achim0x
 """
@@ -47,40 +47,40 @@ READ_TOOLS = {"search", "read", "history", "read_index", "list_unprocessed"}
 
 @pytest.fixture(name="server")
 def fixture_server(cfg):
-    """MCP-Server mit frischem Dienst.
+    """MCP server with a fresh service.
 
     Args:
-        cfg: Konfiguration (nur für die Vorbereitung).
+        cfg: Configuration (only for the setup).
 
     Yields:
-        Der Server.
+        The server.
     """
-    del cfg  # nur für die Vorbereitung benötigt
+    del cfg  # only needed for the setup
     mcp_server.reset_service()
     yield mcp_server.build_server()
     mcp_server.reset_service()
 
 
 def tool_names(server) -> set[str]:
-    """Namen aller registrierten Tools.
+    """Names of all registered tools.
 
     Args:
         server: MCP-Server.
 
     Returns:
-        Menge der Toolnamen.
+        Set of the tool names.
     """
     return {t.name for t in asyncio.run(server.list_tools())}
 
 
 def test_read_tools_registered(server):
-    """Alle lesenden Tools sind registriert."""
+    """All reading tools are registered."""
     assert READ_TOOLS <= tool_names(server)
 
 
 @pytest.mark.usefixtures("server")
 def test_call_returns_status_on_error(cfg):
-    """Fachliche Fehler kommen als Status zurück und werden protokolliert."""
+    """Domain errors come back as a status and are logged."""
     res = mcp_server.call("read", Service.read, target="gibtsnicht")
     assert res["status"] == "not_found"
     log = cfg.log_path.read_text(encoding="utf-8").strip().splitlines()
@@ -88,24 +88,24 @@ def test_call_returns_status_on_error(cfg):
 
 
 def _send(proc: subprocess.Popen, msg: dict) -> None:
-    """Nachricht an den Server senden.
+    """Send a message to the server.
 
     Args:
-        proc: Laufender Server-Prozess.
-        msg: JSON-RPC-Nachricht.
+        proc: Running server process.
+        msg: JSON-RPC message.
     """
     proc.stdin.write(json.dumps(msg) + "\n")
     proc.stdin.flush()
 
 
 def _recv(proc: subprocess.Popen) -> dict:
-    """Nächste Antwort mit ``id`` lesen (Benachrichtigungen werden übersprungen).
+    """Read the next response with ``id`` (notifications are skipped).
 
     Args:
-        proc: Laufender Server-Prozess.
+        proc: Running server process.
 
     Returns:
-        Die JSON-RPC-Antwort.
+        The JSON-RPC response.
     """
     data: dict = {}
     while "id" not in data:
@@ -117,7 +117,7 @@ def _recv(proc: subprocess.Popen) -> dict:
 
 @pytest.mark.usefixtures("cfg")
 def test_stdio_smoke():
-    """Der Server antwortet über stdio auf initialize und tools/list."""
+    """The server answers initialize and tools/list via stdio."""
     env = os.environ.copy()
     src = str(Path(__file__).resolve().parents[1] / "src")
     env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "")
