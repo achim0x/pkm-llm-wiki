@@ -98,22 +98,71 @@ def test_setup_with_git(paths):
     assert "PKM-Pflege" in out
 
 
-def test_setup_is_repeatable_and_keeps_other_servers(paths):
-    """A second run changes nothing; other servers stay, differing entries are only replaced after confirmation."""
+def test_setup_asks_before_changing_claude_desktop(paths):
+    """Missing or different entries are shown; without permission nothing changes and the entries are printed."""
+    paths["claude"].parent.mkdir(parents=True)
+    old = {"mcpServers": {"other": {"command": "x"}, "pkm": {"command": "old"}}, "theme": "dark"}
+    paths["claude"].write_text(json.dumps(old), encoding="utf-8")
+    questions: list[str] = []
+
+    def no(question):
+        """Answer no to the question about Claude Desktop.
+
+        Args:
+            question: Question.
+
+        Returns:
+            The answer.
+        """
+        questions.append(question)
+        return "n" if "Claude Desktop configuration" in question else ""
+
+    res, out = _setup(paths, ask=no)
+    claude = res["claude"]
+    assert claude["status"] == "declined" and claude["missing"] == ["pkm-pflege"] and claude["differing"] == ["pkm"]
+    assert sum("Claude Desktop configuration" in q for q in questions) == 1
+    assert json.loads(paths["claude"].read_text(encoding="utf-8")) == old
+    assert not list(paths["claude"].parent.glob("*.bak"))
+    manual = json.loads(claude["manual"])["mcpServers"]
+    assert set(manual) == {"pkm", "pkm-pflege"} and "Enter the following by hand" in out and "pkm-pflege-mcp" in out
+
+
+def test_setup_changes_claude_desktop_with_permission_and_is_repeatable(paths):
+    """With permission: entries added or replaced, other servers kept, backup; a second run asks nothing."""
     paths["claude"].parent.mkdir(parents=True)
     paths["claude"].write_text(json.dumps({"mcpServers": {"other": {"command": "x"}, "pkm": {"command": "old"}},
                                            "theme": "dark"}), encoding="utf-8")
-    res, _ = _setup(paths, ask=lambda q: "n" if "Replace" in q else "")
-    assert res["claude"]["added"] == ["pkm-pflege"] and res["claude"]["kept"] == ["pkm"]
+    res, _ = _setup(paths, ask=lambda q: "")
+    assert res["claude"]["status"] == "changed"
     data = json.loads(paths["claude"].read_text(encoding="utf-8"))
     assert data["theme"] == "dark" and data["mcpServers"]["other"] == {"command": "x"}
-    assert data["mcpServers"]["pkm"] == {"command": "old"}
+    assert data["mcpServers"]["pkm"]["command"] != "old" and "pkm-pflege" in data["mcpServers"]
     assert len(list(paths["claude"].parent.glob("*.bak"))) == 1
+
+    def no_claude_question(question):
+        """Fail if the setup asks about Claude Desktop again.
+
+        Args:
+            question: Question.
+
+        Returns:
+            An empty answer (default).
+        """
+        assert "Claude Desktop" not in question
+        return ""
+
+    res, out = _setup(paths, ask=no_claude_question)
+    assert res["claude"]["status"] == "unchanged" and "already entered" in out
+    assert len(list(paths["claude"].parent.glob("*.bak"))) == 1
+
+
+def test_setup_with_unreadable_claude_config(paths):
+    """A broken Claude Desktop configuration is left alone; the entries are shown for entering by hand."""
+    paths["claude"].parent.mkdir(parents=True)
+    paths["claude"].write_text("{broken", encoding="utf-8")
     res, _ = _setup(paths)
-    assert res["claude"]["replaced"] == ["pkm"]
-    res, _ = _setup(paths)
-    assert res["claude"] == {"path": str(paths["claude"]), "added": [], "replaced": [], "kept": []}
-    assert len(list(paths["claude"].parent.glob("*.bak"))) == 2
+    assert res["claude"]["status"] == "unreadable" and res["claude"]["manual"]
+    assert paths["claude"].read_text(encoding="utf-8") == "{broken"
 
 
 def test_setup_without_git_then_with_git(paths):
@@ -132,7 +181,7 @@ def test_setup_asks_and_sets_git_identity(paths, monkeypatch, tmp_path):
     empty = tmp_path / "empty.gitconfig"
     empty.write_text("", encoding="utf-8")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
-    answers = {"Vault folder": str(paths["root"]), "user name": "Ada", "e-mail": "ada@example.org"}
+    answers = {"Vault folder": "must not be asked", "user name": "Ada", "e-mail": "ada@example.org"}
     res, _ = _setup(paths, ask=lambda q: next((v for k, v in answers.items() if k in q), ""))
     assert res["status"] == "ok" and res["init"]["commit"]
     assert git(paths["env"], "config", "--local", "user.name").strip() == "Ada"
@@ -143,7 +192,7 @@ def test_setup_cli(paths, capsys):
     code = cli.main(["setup", "--yes", "--json", "--vault", str(paths["root"]), "--claude-config", str(paths["claude"]),
                      "--skills-dir", str(paths["skills"])])
     assert code == 0 and json.loads(capsys.readouterr().out)["status"] == "ok"
-    code = cli.main(["setup", "--yes", "--vault", "relative/path", "--no-claude"])
+    code = cli.main(["setup", "--yes", "--vault", "relative/path"])
     assert code == 1 and "absolute path" in capsys.readouterr().out
 
 # Main ************************************************************************

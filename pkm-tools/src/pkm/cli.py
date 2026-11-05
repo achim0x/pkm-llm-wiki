@@ -364,14 +364,14 @@ def cmd_setup(args: argparse.Namespace) -> dict[str, Any]:
 
     Args:
         args: Answers given in advance (``vault``, ``vault_name``, ``git_name``, ``git_email``, ``yes``,
-            ``claude_config``, ``no_claude``, ``skills_dir``).
+            ``claude_config``, ``skills_dir``).
 
     Returns:
         Result of ``Setup.run``.
     """
     opts = SetupOptions(vault=args.vault, vault_name=args.vault_name, git_name=args.git_name,
                         git_email=args.git_email, yes=args.yes, claude_config=args.claude_config,
-                        no_claude=args.no_claude, skills_dir=args.skills_dir)
+                        skills_dir=args.skills_dir)
     say = (lambda text: print(text, file=sys.stderr)) if args.json else print
     return Setup(opts, say=say).run()
 
@@ -389,7 +389,6 @@ def _add_setup(sub: Any) -> None:
     se.add_argument("--git-email", help="Git e-mail address for the PKM repo if none is set")
     se.add_argument("--yes", action="store_true", help="accept defaults and confirmations without asking")
     se.add_argument("--claude-config", help="path of claude_desktop_config.json")
-    se.add_argument("--no-claude", action="store_true", help="do not change the Claude Desktop configuration")
     se.add_argument("--skills-dir", help="target folder for the skill ZIP files")
     se.add_argument("--json", action="store_true", help="print the result as JSON")
 

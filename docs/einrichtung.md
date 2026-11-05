@@ -97,17 +97,21 @@ idempotent.
    Obsidian-Einstellungen (`.obsidian/app.json`) und Property-Typen (`.obsidian/types.json`), mit
    Git zusätzlich das Repo außerhalb des Vaults mit einem ersten Commit. Bestehende Notizen bleiben
    unverändert.
-5. **Claude Desktop** einrichten: Die Server `pkm` und `pkm-pflege` werden in
-   `claude_desktop_config.json` eingetragen (nur mit `command`, ohne weitere Angaben). Andere Server
-   bleiben unverändert; vorher wird eine Sicherungskopie der Datei angelegt; ein abweichender
-   Eintrag wird erst nach Bestätigung ersetzt.
+5. **Claude Desktop prüfen:** `pkm setup` prüft, ob die Server `pkm` und `pkm-pflege` in
+   `claude_desktop_config.json` schon passend eingetragen sind (nur mit `command`, ohne weitere
+   Angaben). Fehlt ein Eintrag oder weicht er ab, zeigt der Assistent die Änderung und **fragt, ob er
+   die Datei ändern darf**. Bei „ja“ legt er eine Sicherungskopie an und trägt die Server ein; andere
+   Server bleiben unverändert. Bei „nein“ ändert er nichts und zeigt den JSON-Text, den du selbst
+   unter `mcpServers` einträgst (in Claude Desktop: Einstellungen → Entwickler → „Konfiguration
+   bearbeiten“). Ist die Datei kein gültiges JSON, bleibt sie unangetastet und der Text wird ebenfalls
+   angezeigt.
 6. **Skill-ZIPs** nach `<APPDIR>/skills/` schreiben (Abschnitt 4).
 7. Die **Projektanweisung** für „PKM-Pflege“ ausgeben (Abschnitt 5).
 8. **`pkm doctor`** ausführen und Fehler nennen.
 
 Optionen (alle optional): `--vault <ordner>`, `--vault-name <name>`, `--git-name <name>`,
 `--git-email <adresse>`, `--yes` (Standardwerte ohne Rückfrage), `--claude-config <datei>`,
-`--no-claude` (Claude Desktop nicht anfassen), `--skills-dir <ordner>`, `--json`.
+`--skills-dir <ordner>`, `--json`.
 
 **Versionsverwaltung nachträglich einschalten:** Git installieren (Abschnitt 1) und `pkm setup`
 erneut ausführen. Der Assistent findet Git, legt das Repo an und committet die Grunddateien

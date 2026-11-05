@@ -1102,7 +1102,7 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 
 ### 7.6 Einbindung in Claude Desktop
 
-`pkm setup` trägt beide Server in `claude_desktop_config.json` ein (macOS `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\`). Andere Einträge bleiben unverändert, vorher entsteht eine Sicherungskopie, ein abweichender Eintrag `pkm` oder `pkm-pflege` wird erst nach Bestätigung ersetzt. Weil Vault-Pfad, Git und alle übrigen Werte in `config.toml` stehen, braucht ein Eintrag nur den absoluten Pfad des Programms:
+`pkm setup` prüft zuerst, ob beide Server in `claude_desktop_config.json` (macOS `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\`) schon passend eingetragen sind. Fehlt ein Eintrag oder weicht er ab, zeigt es die Änderung und fragt, ob es die Datei ändern darf. Bei „ja“ entsteht eine Sicherungskopie, die Einträge werden ergänzt bzw. ersetzt und andere Einträge bleiben unverändert. Bei „nein“ (oder wenn die Datei kein gültiges JSON ist) ändert es nichts und zeigt den JSON-Text, den der Nutzer selbst unter `mcpServers` einträgt. Weil Vault-Pfad, Git und alle übrigen Werte in `config.toml` stehen, braucht ein Eintrag nur den absoluten Pfad des Programms:
 
 ```json
 {
@@ -1185,7 +1185,7 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 
 | Befehl | Funktion |
 |---|---|
-| `pkm setup` | Geführte Einrichtung (15.1): Vault-Ordner, Git-Prüfung (ohne Git Hinweis und Betrieb ohne Versionsverwaltung, 5.4), Git-Identität für das PKM-Repo, `config.toml`, `pkm init`, Einträge in Claude Desktop (7.6), Skill-ZIPs, Projektanweisung, `pkm doctor`. Wiederholbar; Optionen `--vault`, `--vault-name`, `--git-name`, `--git-email`, `--yes`, `--claude-config`, `--no-claude`, `--skills-dir`, `--json` |
+| `pkm setup` | Geführte Einrichtung (15.1): Vault-Ordner, Git-Prüfung (ohne Git Hinweis und Betrieb ohne Versionsverwaltung, 5.4), Git-Identität für das PKM-Repo, `config.toml`, `pkm init`, Einträge in Claude Desktop (7.6), Skill-ZIPs, Projektanweisung, `pkm doctor`. Wiederholbar; Optionen `--vault`, `--vault-name`, `--git-name`, `--git-email`, `--yes`, `--claude-config`, `--skills-dir`, `--json` |
 | `pkm init` | Legt Struktur, `CLAUDE.md`, `wiki/index.md`, `log.md`, `_status.md`, `state.json`, `.gitignore`, den Importordner `pkm_img_import/`, `.obsidian/types.json` (Property-Typen, 13) und `.obsidian/app.json` (Einstellungen aus 13; fehlende Werte ergänzt, abweichende gemeldet) an und initialisiert mit Versionsverwaltung das Git-Verzeichnis außerhalb des Vaults, falls nötig (idempotent) |
 | `pkm ids` | Trägt fehlende `id`/`version` in Markdown-Dokumente ein und committet **je Dokument einzeln** (`doc: <title> v1`, `PKM-Source: agent`). Meldet doppelte IDs |
 | `pkm versions` | Committet alle von Hand geänderten Dokumente als neue Version (je Dokument eine, `PKM-Source: user`). Erkennt auch Verschiebungen (Markdown über die ID, PDF/Bild über den Hash) und committet sie mit: ein Commit enthält dann alten und neuen Pfad. Eine neue Version entsteht nur, wenn sich `body_hash` oder `meta_hash` geändert hat (4.8). Reines Verschieben ergibt den Commit `doc: <title> moved` ohne Versionssprung. Eine von Hand geänderte `CLAUDE.md` wird als eigener Commit `pkm: CLAUDE.md geändert` mit `PKM-Source: user` erfasst Ändert sich eine verlinkte Bilddatei, erhält jedes Dokument, das sie verwendet, eine neue Version im selben Commit wie das Bild (4.9). Zugehörige Bilddateien werden nicht als eigenständige Dokumente geführt. |
@@ -1450,7 +1450,7 @@ Vorher brauchte die Einrichtung rund zehn Handschritte. Jetzt: Installer ausfüh
    - fragt den Vault-Ordner ab (legt ihn nach Bestätigung an) und erkennt den Cloud-Dienst (5.5); warnt bei Dateien „nur online“;
    - prüft Git. **Fehlt Git, gibt er einen Hinweis aus und schaltet die Versionsverwaltung ab** (5.4). Ist Git da und fehlt die Identität, fragt er Name und E-Mail ab und setzt sie nur für das PKM-Repo; die Commit-Signierung schaltet er für das PKM-Repo ab;
    - schreibt `config.toml` (7.1; andere Schlüssel in der Datei bleiben) und führt `pkm init` aus;
-   - schreibt bzw. ergänzt die Konfiguration von Claude Desktop (7.6): Sicherungskopie, bestehende Server bleiben, Abweichungen werden angezeigt und erst nach Bestätigung überschrieben;
+   - prüft die Einträge in Claude Desktop (7.6); fehlen sie oder weichen sie ab, fragt es, ob es die Datei ändern darf (dann mit Sicherungskopie, andere Server bleiben), sonst zeigt es den Text zum Selbst-Eintragen;
    - baut die ZIP-Dateien der Skills `pkm-access` und `pkm-wiki` nach `<Standardordner>/skills/` (das Hochladen bleibt Handarbeit);
    - gibt die Projektanweisung für „PKM-Pflege“ aus (11) und endet mit `pkm doctor`.
 2. **Konfigurationsdatei statt Umgebungsvariablen** (7.1): Der Eintrag in Claude Desktop braucht nur `command`, kein `env`; Git wird über `PKM_GIT` bzw. an den üblichen Orten gefunden, sodass auch `PATH` entfällt. `pkm doctor` nennt, welches Git verwendet wird und ob die Versionsverwaltung an ist.

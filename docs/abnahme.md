@@ -37,9 +37,12 @@ Befunde unten unter „Befunde“ sammeln; sie werden danach behoben (Code oder 
 - [ ] `pkm setup` erkennt den Cloud-Dienst des Vault-Ordners und meldet keine Dateien „nur online“.
 - [ ] `~/Library/Application Support/pkm/config.toml` enthält `PKM_ROOT`, `PKM_VAULT_NAME`,
       `PKM_VERSIONING = true` und `PKM_GIT`.
-- [ ] `claude_desktop_config.json` enthält `pkm` und `pkm-pflege` nur mit `command`; andere Server
-      sind unverändert; eine Sicherungskopie `claude_desktop_config.json.<datum>.bak` liegt daneben;
-      abweichende alte Einträge wurden erst nach Rückfrage ersetzt.
+- [ ] `pkm setup` meldet, ob die Server in Claude Desktop schon eingetragen sind; fehlen sie oder
+      weichen sie ab, zeigt es die Änderung und fragt, ob es `claude_desktop_config.json` ändern darf.
+- [ ] Bei „ja“: `pkm` und `pkm-pflege` nur mit `command`, andere Server unverändert, Sicherungskopie
+      `claude_desktop_config.json.<datum>.bak` daneben.
+- [ ] Probe mit „nein“ (z. B. beim zweiten Lauf nach Entfernen eines Eintrags): die Datei bleibt
+      unverändert, der Assistent zeigt den JSON-Text zum Selbst-Eintragen.
 - [ ] `~/Library/Application Support/pkm/skills/` enthält `pkm-access.zip` und `pkm-wiki.zip`;
       beide sind in Claude Desktop hochgeladen.
 - [ ] `.obsidian/app.json` enthält die Einstellungen aus Spezifikation 13; Obsidian zeigt sie nach

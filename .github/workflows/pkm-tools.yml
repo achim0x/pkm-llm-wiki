@@ -46,7 +46,7 @@ jobs:
       - name: install.sh (macOS, Linux)
         if: runner.os != 'Windows'
         run: |
-          PKM_ARCHIVE="file://$RUNNER_TEMP/pkm.zip" sh install.sh --yes --no-claude --vault "$RUNNER_TEMP/vault" \
+          PKM_ARCHIVE="file://$RUNNER_TEMP/pkm.zip" sh install.sh --yes --claude-config "$RUNNER_TEMP/claude.json" --vault "$RUNNER_TEMP/vault" \
             --git-name CI --git-email ci@example.org
           "$HOME/.local/bin/pkm" doctor --short
       - name: install.ps1 (Windows)
@@ -54,7 +54,7 @@ jobs:
         shell: powershell
         run: |
           $env:PKM_ARCHIVE = "$env:RUNNER_TEMP\pkm.zip"
-          $env:PKM_SETUP_ARGS = "--yes --no-claude --vault $env:RUNNER_TEMP\vault --git-name CI --git-email ci@example.org"
+          $env:PKM_SETUP_ARGS = "--yes --claude-config $env:RUNNER_TEMP\claude.json --vault $env:RUNNER_TEMP\vault --git-name CI --git-email ci@example.org"
           .\install.ps1
           & "$env:USERPROFILE\.local\bin\pkm.exe" doctor --short
           if ($LASTEXITCODE -ne 0) { exit 1 }

@@ -164,7 +164,6 @@ CI).
 | `--git-name`, `--git-email` | Git identity for the PKM repo if none is set |
 | `--yes` | Take defaults, confirm everything |
 | `--claude-config <file>` | Path of `claude_desktop_config.json` (default per OS) |
-| `--no-claude` | Leave the Claude Desktop configuration alone |
 | `--skills-dir <folder>` | Target folder of the skill ZIP files |
 | `--json` | Print the result as JSON (messages go to standard error) |
 
@@ -188,7 +187,7 @@ flowchart TD
     G1 --> W
     W --> I["pkm init:<br/>structure, CLAUDE.md, .gitignore, state.json,<br/>.obsidian/app.json, .obsidian/types.json"]
     I --> R{"version control on?"}
-    R -- "no" --> CL
+    R -- "no" --> CD
     R -- "yes" --> R1["Create the Git repo outside the vault<br/>core.autocrlf=false"]
     R1 --> ID{"user.name and user.email set?"}
     ID -- "no" --> ID1["Ask for name and e-mail,<br/>set them for the PKM repo only"]
@@ -196,10 +195,8 @@ flowchart TD
     ID1 --> GPG["commit.gpgsign=false for the PKM repo"]
     GPG --> IC{"initial commit exists?"}
     IC -- "no" --> IC1["pkm init again:<br/>commit pkm: init"]
-    IC -- "yes" --> CL
-    IC1 --> CL{"--no-claude?"}
-    CL -- "yes" --> SKZ
-    CL -- "no" --> CD["Update claude_desktop_config.json<br/>(section 4.3)"]
+    IC -- "yes" --> CD
+    IC1 --> CD["Check claude_desktop_config.json,<br/>change it only with permission<br/>(section 4.3)"]
     CD --> SKZ["Write pkm-access.zip and pkm-wiki.zip"]
     SKZ --> PI["Print the project instructions<br/>for PKM-Pflege"]
     PI --> DR["pkm doctor --short"]
@@ -245,24 +242,28 @@ environment without the user's shell profile.
 
 ### 4.3 Claude Desktop configuration
 
+`pkm setup` first checks whether `pkm` and `pkm-pflege` are already entered as needed. Only if an
+entry is missing or different does it show the change and ask **once** whether it may change the
+file. If the answer is no, nothing is changed and the entries are printed so that the user can add
+them by hand (in Claude Desktop: Settings > Developer > Edit Config). With `--yes` the answer is yes.
+
 ```mermaid
 flowchart TD
-    A["Find pkm-mcp and pkm-pflege-mcp<br/>(next to pkm, else PATH)"] --> B{"config file exists?"}
-    B -- "no" --> N["New file with mcpServers"]
-    B -- "yes" --> P{"valid JSON?"}
-    P -- "no" --> W(["Warning, nothing changed"])
-    P -- "yes" --> L["For pkm and pkm-pflege"]
-    L --> Q{"entry present?"}
-    Q -- "no" --> ADD["Add"]
-    Q -- "equal" --> KEEP["Nothing to do"]
-    Q -- "different" --> ASK{"Replace? (shows old and new)"}
-    ASK -- "yes" --> REP["Replace"]
-    ASK -- "no" --> KEPT["Keep the old entry"]
-    ADD --> SAVE
-    REP --> SAVE{"anything added or replaced?"}
-    N --> SAVE
-    SAVE -- "yes" --> BAK["Backup claude_desktop_config.json.DATE.bak,<br/>write the file"]
-    SAVE -- "no" --> UNCH(["unchanged"])
+    A["Find pkm-mcp and pkm-pflege-mcp<br/>(next to pkm, else PATH)"] --> F{"programs found?"}
+    F -- "no" --> SK(["Warning, status skipped"])
+    F -- "yes" --> B["Read claude_desktop_config.json<br/>(missing file = empty)"]
+    B --> P{"valid JSON?"}
+    P -- "no" --> W["Warning, file unchanged"]
+    W --> MAN
+    P -- "yes" --> C{"pkm and pkm-pflege<br/>entered as needed?"}
+    C -- "yes" --> OK(["Already entered: status unchanged,<br/>no question"])
+    C -- "no" --> SHOW["Show missing entries and<br/>differing entries (old and new)"]
+    SHOW --> ASK{"May pkm setup change<br/>the configuration?"}
+    ASK -- "yes" --> BAK["Backup claude_desktop_config.json.DATE.bak<br/>(if the file exists)"]
+    BAK --> WR["Add or replace only pkm and pkm-pflege,<br/>write the file: status changed"]
+    ASK -- "no" --> MAN["Print the JSON entries for entering by hand<br/>status declined or unreadable"]
+    WR --> RS(["Restart Claude Desktop"])
+    MAN --> RS
 ```
 
 Other servers and all other keys of the file are kept. An entry looks like this:
@@ -290,7 +291,7 @@ Only if the configuration file is not in the default app folder does `pkm setup`
 | `<vault>/.obsidian/app.json` | `pkm init` | Missing settings of specification 13 added; different values kept and reported |
 | `<vault>/.obsidian/types.json` | `pkm init` | Missing property types added; different types kept and reported |
 | `<app folder>/git/` | `pkm init` | Only with version control; local `user.name`/`user.email` if asked, `commit.gpgsign=false`, `core.autocrlf=false` |
-| `claude_desktop_config.json` (+ `.bak`) | `pkm setup` | Section 4.3 |
+| `claude_desktop_config.json` (+ `.bak`) | `pkm setup`, only with permission | Section 4.3 |
 | `<app folder>/skills/pkm-access.zip`, `pkm-wiki.zip` | `pkm setup` | Built from the skills inside the package |
 
 ## 5. Version control is optional
@@ -371,7 +372,7 @@ For special cases the steps of the installer can be done by hand (details in
 - **CI** (`.github/workflows/pkm-tools.yml`): ruff, pylint and the test suite on Linux, macOS and
   Windows (Python 3.12). A second job `installer` builds a ZIP of the commit with `git archive`, runs
   `install.sh` (Linux, macOS) or `install.ps1` (Windows) with `PKM_ARCHIVE` pointing to it and
-  `pkm setup --yes --no-claude`, and finally `pkm doctor --short`. The tests `test_setup.py` and
+  `pkm setup --yes` with a temporary `--claude-config`, and finally `pkm doctor --short`. The tests `test_setup.py` and
   `test_no_git.py` cover the wizard (with and without Git, repeated runs, existing Claude Desktop
   configuration, missing identity) and the operation without version control.
 - **Releases** (`.github/workflows/release.yml`): for every tag `v*` a GitHub release with the wheel

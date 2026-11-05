@@ -76,7 +76,6 @@ class SetupOptions:  # pylint: disable=too-many-instance-attributes
         git_email: Git e-mail address for the PKM repo if no identity is set.
         yes: Accept all defaults and confirmations without asking.
         claude_config: Path of ``claude_desktop_config.json`` (default per operating system).
-        no_claude: Do not change the configuration of Claude Desktop.
         skills_dir: Target folder for the skill ZIP files (default ``<app folder>/skills``).
     """
 
@@ -86,7 +85,6 @@ class SetupOptions:  # pylint: disable=too-many-instance-attributes
     git_email: str | None = None
     yes: bool = False
     claude_config: str | None = None
-    no_claude: bool = False
     skills_dir: str | None = None
 
 
@@ -159,10 +157,11 @@ class Setup:
         Raises:
             PkmError: ``config_error`` without a usable folder.
         """
-        known = self.opts.vault or self.env.get("PKM_ROOT") or read_config_file(self.config_path).get("PKM_ROOT")
+        known = self.env.get("PKM_ROOT") or read_config_file(self.config_path).get("PKM_ROOT")
         found = find_vault(Path.cwd())
         default = known or (str(found) if found else None)
-        answer = self._question("Vault folder (absolute path, inside the folder of your cloud storage)", default)
+        answer = self.opts.vault or self._question(
+            "Vault folder (absolute path, inside the folder of your cloud storage)", default)
         root = Path(answer).expanduser() if answer else None
         if root is None or not root.is_absolute():
             raise PkmError("config_error", "Please give the vault folder as an absolute path.")
@@ -273,14 +272,15 @@ class Setup:
             entries[name] = entry
         return entries
 
-    def _claude(self) -> dict[str, Any]:
-        """Enter the servers in the configuration of Claude Desktop (backup first, confirm replacements).
+    def _read_claude(self, path: Path) -> dict[str, Any] | None:
+        """Read the configuration of Claude Desktop.
+
+        Args:
+            path: Path of ``claude_desktop_config.json``.
 
         Returns:
-            Path, added, replaced and kept entries.
+            The content (empty if the file is missing) or ``None`` if it is not valid JSON.
         """
-        path = self._claude_config_path()
-        result: dict[str, Any] = {"path": str(path), "added": [], "replaced": [], "kept": []}
         data: dict[str, Any] | None = {}
         if path.is_file():
             try:
@@ -288,25 +288,66 @@ class Setup:
                 data = loaded if isinstance(loaded, dict) else None
             except (OSError, ValueError):
                 data = None
-        if data is None:
-            self.warn(f"{path} cannot be read; Claude Desktop not configured. Fix or remove the file and "
-                       "run `pkm setup` again.")
+        return data
+
+    def _claude(self) -> dict[str, Any]:
+        """Check the entries in the configuration of Claude Desktop and update them only with permission.
+
+        First checks whether ``pkm`` and ``pkm-pflege`` are already entered as needed. If something is
+        missing or different, it shows the changes and asks whether it may change the file (backup
+        first). If the answer is no (or the file cannot be read), it shows the entries for entering
+        them by hand.
+
+        Returns:
+            Path, ``status`` (``unchanged``, ``changed``, ``declined``, ``unreadable`` or ``skipped`` if the
+            programs are not found), missing and
+            differing entries and, if the user enters them by hand, the text to enter (``manual``).
+        """
+        path = self._claude_config_path()
+        entries = self._server_entries()
+        data = self._read_claude(path)
+        servers = (data or {}).get("mcpServers") or {}
+        missing = [n for n in entries if n not in servers]
+        differing = [n for n, entry in entries.items() if n in servers and servers[n] != entry]
+        result: dict[str, Any] = {"path": str(path), "status": "unchanged", "missing": missing,
+                                  "differing": differing, "manual": None}
+        if not entries:
+            result["status"] = "skipped"
+        elif data is None:
+            self.warn(f"{path} is not valid JSON; Claude Desktop was not changed.")
+            result.update(status="unreadable", manual=self._manual_claude(path, entries))
+        elif not missing and not differing:
+            self.say(f"Claude Desktop: the servers {', '.join(entries)} are already entered ({path}).")
         else:
-            servers = data.setdefault("mcpServers", {})
-            for name, entry in self._server_entries().items():
-                old = servers.get(name)
-                if old is None:
-                    servers[name] = entry
-                    result["added"].append(name)
-                elif old != entry:
-                    self.say(f"Claude Desktop: server {name} is entered as {json.dumps(old)}; new: {json.dumps(entry)}")
-                    key = "replaced" if self._confirm(f"Replace the entry {name}?") else "kept"
-                    if key == "replaced":
-                        servers[name] = entry
-                    result[key].append(name)
-            if result["added"] or result["replaced"]:
+            for name in missing:
+                self.say(f"Claude Desktop: server {name} is missing; new entry: {json.dumps(entries[name])}")
+            for name in differing:
+                self.say(f"Claude Desktop: server {name} is entered as {json.dumps(servers[name])}; "
+                         f"new entry: {json.dumps(entries[name])}")
+            if self._confirm(f"May pkm setup change the Claude Desktop configuration {path}? "
+                             "(Other servers stay, a backup is made first.)"):
+                data.setdefault("mcpServers", {}).update({n: entries[n] for n in missing + differing})
                 self._write_claude(path, data)
+                result["status"] = "changed"
+            else:
+                result.update(status="declined", manual=self._manual_claude(path, entries))
         return result
+
+    def _manual_claude(self, path: Path, entries: dict[str, dict[str, Any]]) -> str:
+        """Show the entries for Claude Desktop so that the user can enter them by hand.
+
+        Args:
+            path: Path of ``claude_desktop_config.json``.
+            entries: Server name → entry.
+
+        Returns:
+            The JSON text to enter.
+        """
+        text = json.dumps({"mcpServers": entries}, indent=2, ensure_ascii=False)
+        self.say(f"Enter the following by hand in {path} (in Claude Desktop: Settings > Developer > "
+                 "Edit Config). If the file already has \"mcpServers\", add only the two entries inside it "
+                 "and keep the other servers. Then restart Claude Desktop.\n" + text)
+        return text
 
     def _write_claude(self, path: Path, data: dict[str, Any]) -> None:
         """Write the configuration of Claude Desktop, with a backup of an existing file.
@@ -366,7 +407,7 @@ class Setup:
             self._identity(cfg)
             if init["commit"] is None:
                 init = init_vault(cfg)
-        claude = None if self.opts.no_claude else self._claude()
+        claude = self._claude()
         skills = self._skills()
         self.say("Project \"PKM-Pflege\" in Claude Desktop - project instructions:\n  " + PROJECT_INSTRUCTIONS)
         check = doctor(Service(cfg), short=True)
