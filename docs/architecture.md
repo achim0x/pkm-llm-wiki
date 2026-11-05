@@ -23,6 +23,16 @@ users is [einrichtung.md](einrichtung.md).
 - [6. Runtime: how Claude Desktop uses the servers](#6-runtime-how-claude-desktop-uses-the-servers)
 - [7. Manual installation](#7-manual-installation)
 - [8. Verification and releases](#8-verification-and-releases)
+- [9. pkm-tools: package structure](#9-pkm-tools-package-structure)
+- [10. Entry points](#10-entry-points)
+  - [10.1 pkm-mcp and pkm-pflege-mcp](#101-pkm-mcp-and-pkm-pflege-mcp)
+  - [10.2 pkm (CLI)](#102-pkm-cli)
+- [11. Service and the write path](#11-service-and-the-write-path)
+- [12. Vault model, text and hashes](#12-vault-model-text-and-hashes)
+- [13. Search index](#13-search-index)
+- [14. Maintenance and citations](#14-maintenance-and-citations)
+- [15. Images](#15-images)
+- [16. Configuration, setup and environment checks](#16-configuration-setup-and-environment-checks)
 
 ## 1. Overview
 
@@ -400,3 +410,429 @@ For special cases the steps of the installer can be done by hand (details in
   of `pkm-tools` and the two skill ZIP files.
 - The one-line installers download from the branch `main`; changes on other branches reach users
   only after a merge (or with `PKM_ARCHIVE` pointing to the branch archive).
+
+## 9. pkm-tools: package structure
+
+`pkm-tools` is one Python package (`src/pkm/`, about 13,800 lines in 40 modules) with three entry
+points. The modules form layers; a module only uses modules of the same or a lower layer (the
+service façade and the maintenance commands are imported lazily by some lower modules for type
+hints only).
+
+```mermaid
+flowchart TB
+    subgraph EP["Entry points"]
+        direction LR
+        mcp_server["mcp_server<br/>pkm-mcp"]
+        pflege_server["pflege_server<br/>pkm-pflege-mcp"]
+        cli["cli<br/>pkm"]
+    end
+    subgraph APP["Application"]
+        direction LR
+        service["service<br/>(facade)"]
+        maintrun["maintrun<br/>(maintenance run)"]
+        setupwiz["setupwiz<br/>(pkm setup)"]
+    end
+    subgraph DOM["Domain"]
+        direction LR
+        writer["writer"]
+        maint["maint"]
+        citations["citations / citeraise"]
+        lint["lint / imagelint / doctor"]
+        wikigen["wikigen"]
+        img["images / imagescan /<br/>imagefix / docimages / assets"]
+        index["index"]
+    end
+    subgraph MODEL["Model and storage"]
+        direction LR
+        vault["vault"]
+        state["state"]
+        gitlayer["gitlayer"]
+        vaultinit["vaultinit"]
+        cloudsync["cloudsync"]
+    end
+    subgraph BASE["Foundation"]
+        direction LR
+        text["normalize / parse / hashes /<br/>frontmatter / pagetext / appendtext"]
+        meta["schema / ids / paths"]
+        sys["config / errors / fsutil / diffs"]
+    end
+    EP --> APP
+    APP --> DOM
+    DOM --> MODEL
+    MODEL --> BASE
+    DOM --> BASE
+```
+
+| Layer | Modules | Responsibility |
+|---|---|---|
+| Entry points | `mcp_server`, `pflege_server`, `cli` | Thin wrappers: register tools or subcommands, turn `PkmError` into a status, log calls |
+| Application | `service`, `maintrun`, `setupwiz` | One method per tool or command; the maintenance run in three steps; the setup wizard |
+| Domain | `writer`, `docimages`, `maint`, `citations`, `citeraise`, `lint`, `imagelint`, `doctor`, `wikigen`, `images`, `imagescan`, `imagefix`, `assets`, `index` | Writing with versions, maintenance commands, citations, checks, generated wiki files, images, search |
+| Model and storage | `vault`, `state`, `gitlayer`, `vaultinit`, `cloudsync` | Files in the vault, processing state, Git with a separate directory, vault structure, cloud storage |
+| Foundation | `normalize`, `parse`, `hashes`, `frontmatter`, `pagetext`, `appendtext`, `schema`, `ids`, `paths`, `config`, `errors`, `fsutil`, `diffs` | Text normalization, sections and hashes (spec 4.8), frontmatter schema (4.1), IDs, safe paths, configuration, atomic files |
+
+Common rules: no network access, no LLM calls, no background processes; every domain error is a
+`PkmError` with a machine-readable `status` (e.g. `conflict`, `not_versioned`); files are written
+atomically (`fsutil`); all writes go through one lock file.
+
+## 10. Entry points
+
+### 10.1 `pkm-mcp` and `pkm-pflege-mcp`
+
+```mermaid
+flowchart LR
+    subgraph mcp["MCP layer"]
+        mcp_server["mcp_server<br/>register_read_tools()<br/>register_write_tools()<br/>call(), image_content()"]
+        pflege_server["pflege_server<br/>register maintenance tools"]
+    end
+    SDK["mcp SDK<br/>(FastMCP / MCPServer, stdio)"]
+    service["service.Service"]
+    maintrun["maintrun"]
+    config["config.Config"]
+    log[(".pkm/mcp.log")]
+    pflege_server -- "reuses read tools" --> mcp_server
+    mcp_server --> SDK
+    pflege_server --> SDK
+    mcp_server --> service
+    pflege_server --> maintrun
+    maintrun --> service
+    mcp_server --> config
+    mcp_server --> log
+```
+
+Both servers are built from the same functions: `pkm-pflege-mcp` registers the reading tools of
+`pkm-mcp` (`register_read_tools`) plus the maintenance tools, but none of the document writing tools.
+Every tool goes through `call()`:
+
+```mermaid
+sequenceDiagram
+    participant C as Claude Desktop
+    participant T as Tool function
+    participant K as call()
+    participant S as Service (created once)
+    participant L as mcp.log
+    C->>T: tools/call (arguments)
+    T->>K: call(name, Service.method, **arguments)
+    K->>S: get_service() on first use: Config.from_env()
+    K->>S: method(**arguments)
+    alt success
+        S-->>K: result dict
+    else PkmError
+        S-->>K: raises PkmError
+        K->>K: result = {status, message, ...}
+    end
+    K->>L: append one JSON line (tool, arguments, status)
+    K-->>T: result
+    T-->>C: JSON (read_image: also image content)
+```
+
+### 10.2 `pkm` (CLI)
+
+```mermaid
+flowchart LR
+    cli["cli<br/>build_parser(), main()"]
+    setupwiz["setupwiz"]
+    service["service"]
+    maint["maint.Maintenance"]
+    other["citations, lint, doctor,<br/>wikigen, vaultinit,<br/>docimages, imagefix"]
+    config["config"]
+    cli -- "pkm setup" --> setupwiz
+    cli -- "all other commands" --> config
+    cli --> service
+    cli --> maint
+    cli --> other
+```
+
+`main()` writes UTF-8 (Windows uses cp1252 for pipes), parses the subcommand, builds `Config` (for
+all commands except `setup`), runs the command and prints JSON. The exit code is 1 for any status
+other than `ok`, `changed`, `created`, `unchanged` and similar.
+
+## 11. Service and the write path
+
+```mermaid
+flowchart TB
+    service["service.Service<br/>search, read, history, show_citations,<br/>create/rewrite/append/edit, restore, ..."]
+    subgraph write["Write path"]
+        writer["writer.Writer<br/>lock, change, finish,<br/>create_document, ..."]
+        appendtext["appendtext<br/>insert into sections"]
+        docimages["docimages<br/>placeholders, new images"]
+        diffs["diffs"]
+    end
+    subgraph read["Read path"]
+        vault["vault.Vault / Doc"]
+        index["index.SearchIndex"]
+        citations["citations"]
+    end
+    gitlayer["gitlayer.Git"]
+    state["state"]
+    service --> writer
+    service --> vault
+    service --> index
+    service --> citations
+    service --> gitlayer
+    service --> state
+    writer --> appendtext
+    writer --> docimages
+    writer --> diffs
+    writer --> vault
+    writer --> gitlayer
+```
+
+Every changing tool (`rewrite_document`, `append_to_document`, `edit_document`, `add_image`,
+`fix_images`, `update_frontmatter`, `restore_document`) runs through `Writer.change()`:
+
+```mermaid
+flowchart TD
+    A(["change(target, expected_hash, transform)"]) --> L["Take the write lock<br/>(git dir or cache dir)"]
+    L --> E["editable_doc(): resolve the target,<br/>only documents/ and scratch/, only Markdown"]
+    E --> V{"versioned area and<br/>version control on?"}
+    V -- "yes" --> G["require_git()<br/>(git_unavailable)"]
+    V -- "no" --> H
+    G --> H{"expected_hash = current hash?"}
+    H -- "no" --> X1(["conflict"])
+    H -- "yes" --> U{"version control on and<br/>file differs from last commit?"}
+    U -- "yes" --> UC["commit the manual state first<br/>(PKM-Source: user)"]
+    U -- "no" --> T
+    UC --> T["transform(doc): new full text"]
+    T --> I["check data URIs (nonconforming_image)<br/>place new images {{image:name}}"]
+    I --> S{"scratch/?"}
+    S -- "yes" --> FS["finish_scratch(): write,<br/>no version, no commit"]
+    S -- "no" --> F{"text changed?"}
+    F -- "no" --> UN(["unchanged"])
+    F -- "yes" --> FN["version + 1, date_updated,<br/>size and frontmatter check"]
+    FN --> W["write atomically"]
+    W --> C{"version control on?"}
+    C -- "yes" --> CM["commit only this file (+ new images)<br/>reset the file on failure"]
+    C -- "no" --> R
+    CM --> R(["changed: version, new_hash,<br/>commit or null, diff"])
+    FS --> R
+```
+
+## 12. Vault model, text and hashes
+
+```mermaid
+flowchart TB
+    vault["vault<br/>Vault: iter_files, load, resolve<br/>Doc, summary_of, extract_links"]
+    subgraph text["Text processing (spec 4.8)"]
+        normalize["normalize<br/>UTF-8, LF, NFC"]
+        parse["parse<br/>frontmatter, sections,<br/>duplicate suffixes"]
+        hashes["hashes<br/>file, body, meta,<br/>section hashes"]
+        pagetext["pagetext<br/>statements, footnotes"]
+        frontmatter["frontmatter<br/>line-wise fields"]
+    end
+    subgraph meta["Schema and names"]
+        schema["schema<br/>field order, kinds, tags"]
+        ids["ids<br/>d-YYYYMMDD-HHMM-xxxx"]
+        paths["paths<br/>safe_resolve, slugify,<br/>platform-safe names"]
+    end
+    config["config"]
+    vault --> normalize
+    vault --> parse
+    vault --> hashes
+    vault --> paths
+    vault --> ids
+    vault --> schema
+    vault --> config
+    hashes --> parse
+    hashes --> schema
+    frontmatter --> parse
+    frontmatter --> schema
+```
+
+Loading a Markdown file always produces the same normalized view, independent of the operating
+system and the editor:
+
+```mermaid
+flowchart LR
+    B["bytes from disk"] --> N{"valid UTF-8?"}
+    N -- "no" --> E1(["Doc with error invalid_encoding"])
+    N -- "yes" --> T["normalize: no BOM, LF, NFC"]
+    T --> P["parse: split frontmatter,<br/>YAML, sections level 1-2,<br/>keys with #2 suffixes"]
+    P --> F{"frontmatter valid?"}
+    F -- "no" --> E2["error invalid_frontmatter<br/>(text stays readable)"]
+    F -- "yes" --> H["hashes: file_hash, body_hash,<br/>meta_hash, one hash per section"]
+    E2 --> D(["Doc"])
+    H --> D
+```
+
+Targets (`target` of every tool) are resolved by `Vault.resolve()` in this order: `id:` (via the
+index, otherwise a scan), a path with `/`, a short name (file name without extension), and finally
+`short_citation`. Several matches give `ambiguous` with candidates.
+
+## 13. Search index
+
+```mermaid
+flowchart LR
+    index["index.SearchIndex<br/>refresh, rebuild, search,<br/>find_id, backlinks"]
+    sqlite[("SQLite FTS5<br/>PKM_CACHE_DIR/index.db")]
+    vault["vault"]
+    images["images.strip_images"]
+    paths["paths.transliterate"]
+    schema["schema.citation_key"]
+    index --> sqlite
+    index --> vault
+    index --> images
+    index --> paths
+    index --> schema
+```
+
+```mermaid
+flowchart TD
+    Q(["search(query, scope)"]) --> O{"index opens and<br/>schema matches?"}
+    O -- "no (damaged)" --> RB["delete and rebuild"]
+    O -- "yes" --> RF
+    RB --> RF["refresh: compare mtime and size,<br/>reindex changed files, drop deleted ones"]
+    RF --> T["query terms: lower case,<br/>without diacritics, prefix search"]
+    T --> A["FTS query: all terms (AND)"]
+    A --> H{"hits?"}
+    H -- "no" --> OR["FTS query: any term (OR)"]
+    H -- "yes" --> R
+    OR --> R(["hits ranked by BM25<br/>(title 5, aliases/tags 3, summary 2),<br/>with snippet"])
+```
+
+The index is a cache only: it never lives in the vault, can be deleted at any time and is rebuilt
+when it is damaged. Text is indexed twice (original and with umlauts spelled out), so "Ueberlauf"
+finds "Überlauf". Images are indexed only by their alt text.
+
+## 14. Maintenance and citations
+
+```mermaid
+flowchart TB
+    maintrun["maintrun<br/>begin_maintenance, write_wiki_page,<br/>set_document_metadata, finish_maintenance"]
+    maint["maint.Maintenance<br/>ids, versions, pending, mark,<br/>sha, fix-frontmatter, commit-wiki"]
+    subgraph cit["Citations"]
+        citations["citations<br/>parse, resolve, show,<br/>fix-/sync-citations"]
+        citeraise["citeraise<br/>raise v: of unchanged sections"]
+    end
+    subgraph checks["Checks"]
+        lint["lint"]
+        imagelint["imagelint"]
+        doctor["doctor"]
+    end
+    wikigen["wikigen<br/>index.md, _status.md"]
+    state["state<br/>state.json, classify"]
+    assets["assets<br/>image files per document"]
+    cloudsync["cloudsync<br/>conflict copies"]
+    maintrun --> maint
+    maintrun --> citations
+    maintrun --> citeraise
+    maintrun --> lint
+    maintrun --> doctor
+    maintrun --> wikigen
+    maint --> state
+    maint --> assets
+    maint --> cloudsync
+    citeraise --> citations
+    lint --> citations
+    lint --> imagelint
+    lint --> cloudsync
+    imagelint --> assets
+    wikigen --> maint
+```
+
+A maintenance run (skill `pkm-wiki`) consists of three tool steps; the content work in between is
+done by Claude:
+
+```mermaid
+flowchart TD
+    B(["begin_maintenance"]) --> D{"doctor --short:<br/>errors?"}
+    D -- "yes" --> BL(["blocked: nothing changed"])
+    D -- "no" --> V["versions: commit manual changes<br/>(without Git: nothing)"]
+    V --> I["ids: missing id/version"]
+    I --> P["pending: new, changed, meta_changed,<br/>moved, deleted, problems,<br/>missing_fields, image_issues"]
+    P --> M{"moved documents?"}
+    M -- "yes" --> FC["fix-citations"]
+    M -- "no" --> DUP
+    FC --> DUP{"duplicate IDs?"}
+    DUP -- "yes" --> ND(["needs_decision"])
+    DUP -- "no" --> OK(["ok: pending, known_tags"])
+    OK --> W["Claude reads documents and writes pages<br/>write_wiki_page (no commit)"]
+    W --> F(["finish_maintenance"])
+    F --> F1["fix-citations, raise versions,<br/>sync-citations (sources)"]
+    F1 --> F2["mark processed documents<br/>(pages from the footnotes), remove deleted"]
+    F2 --> F3["append wiki/log.md, build index.md<br/>and _status.md (with questions)"]
+    F3 --> F4["lint (optional report)"]
+    F4 --> F5["commit-wiki: agent commit<br/>(without Git: nothing)"]
+```
+
+`pending` compares each document with its entry in `state.json` (`state.classify`): equal body and
+meta hash means processed; only a different meta hash gives `meta_changed`; otherwise `changed` with
+the changed, added, removed and renamed sections. This works with and without Git.
+
+## 15. Images
+
+```mermaid
+flowchart TB
+    docimages["docimages<br/>place new images, placeholders in read,<br/>read_image, fix_document"]
+    images["images<br/>find images, SVG sanitizing,<br/>PNG/JPEG checks, encoding"]
+    imagescan["imagescan<br/>data URIs in every notation"]
+    imagefix["imagefix<br/>findings, proposals, fixes,<br/>notation-only comparison"]
+    assets["assets<br/>image files of documents,<br/>orphaned attachments"]
+    imagelint["imagelint<br/>lint checks"]
+    writer["writer"]
+    maint["maint"]
+    writer --> docimages
+    docimages --> images
+    docimages --> imagefix
+    imagefix --> images
+    imagefix --> imagescan
+    images --> imagescan
+    maint --> assets
+    maint --> imagefix
+    imagelint --> imagefix
+    imagelint --> assets
+    assets --> images
+```
+
+```mermaid
+flowchart TD
+    A(["writing tool with images or<br/>text containing data URIs"]) --> B["imagescan: find data URIs<br/>(inline, angle, reference, HTML)"]
+    B --> C{"new data URIs conform<br/>to spec 4.9?"}
+    C -- "no, fix_images not set" --> X(["nonconforming_image with findings<br/>and proposal; nothing written"])
+    C -- "no, fix_images: true" --> FX["imagefix: rewrite in the 4.9 form"]
+    C -- "yes" --> P
+    FX --> P{"{{image:name}} placeholders?"}
+    P -- "no" --> W(["continue writing"])
+    P -- "yes" --> S["images.prepare_image: read the source<br/>(svg, png_base64, import_path)"]
+    S --> CH["sanitize SVG / check PNG, JPEG<br/>(remove metadata)"]
+    CH --> M{"mode auto: size up to 24 KB<br/>or area scratch/?"}
+    M -- "yes" --> IN["embed as data URI<br/>title pkm:name"]
+    M -- "no" --> FI["write file to documents/_attachments/<br/>(same commit as the document)"]
+    IN --> W
+    FI --> W
+```
+
+`read` shows embedded images as placeholders `![alt](pkm-image:name "…")`; when the text comes back,
+`docimages` puts the original bytes in again, so Base64 never passes through the model.
+
+## 16. Configuration, setup and environment checks
+
+```mermaid
+flowchart TB
+    setupwiz["setupwiz<br/>Setup.run(), build_skill_zips,<br/>find_program"]
+    config["config<br/>Config.from_env, ImageConfig,<br/>read/write config.toml, find_git"]
+    vaultinit["vaultinit<br/>init_vault, .gitignore,<br/>types.json, app.json"]
+    doctor["doctor<br/>environment checks"]
+    cloudsync["cloudsync<br/>cloud folders, online-only files"]
+    gitlayer["gitlayer"]
+    templates[("templates/<br/>CLAUDE.md, gitignore")]
+    skills[("skills/<br/>pkm-access, pkm-wiki")]
+    setupwiz --> config
+    setupwiz --> vaultinit
+    setupwiz --> doctor
+    setupwiz --> cloudsync
+    setupwiz --> gitlayer
+    setupwiz --> skills
+    vaultinit --> templates
+    vaultinit --> gitlayer
+    vaultinit --> config
+    doctor --> cloudsync
+    doctor --> vaultinit
+    doctor --> config
+```
+
+The flows of `pkm setup` and of the configuration lookup are in sections 4.1 and 4.2. `pkm doctor`
+groups its checks into paths (vault, cache directory, cloud folders, online-only files, conflict
+copies, import folder, `.gitignore`), Git (only with version control: program, Git directory outside
+any cloud folder, repo, identity, signing) and Obsidian (`app.json`, `types.json`); errors make the
+status `error`, warnings and notes do not.
