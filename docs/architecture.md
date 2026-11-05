@@ -3,7 +3,7 @@
 This document describes the architecture of the PKM with LLM wiki and, in detail, how it is
 installed on the PKM host. The binding requirements are in the (German)
 [specification](spezifikation.md), sections 2, 5.4, 5.5, 7, 8 and 15.1; the step-by-step guide for
-users is [einrichtung.md](einrichtung.md).
+users is [installation.md](installation.md) (German: [einrichtung.md](einrichtung.md)).
 
 ## Contents
 
@@ -388,7 +388,7 @@ cannot restrict a server to one project.
 ## 7. Manual installation
 
 For special cases the steps of the installer can be done by hand (details in
-[einrichtung.md](einrichtung.md), appendix A):
+[installation.md](installation.md), appendix A):
 
 1. Install `uv`.
 2. Install the package: with Git directly from GitHub

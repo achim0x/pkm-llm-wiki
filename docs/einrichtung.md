@@ -1,5 +1,7 @@
 # PKM mit LLM-Wiki – Einrichtung
 
+**Deutsch** · [English](installation.md)
+
 Diese Anleitung richtet das PKM auf dem **PKM-Rechner** ein (Spezifikation 5.5, 7.6, 11, 13, 15.1).
 Wie Installer und `pkm setup` intern ablaufen, beschreibt [architecture.md](architecture.md) (englisch,
 mit Ablaufdiagrammen).
@@ -106,8 +108,8 @@ Installation ohne Installer: [Anhang A](#anhang-a-manuelle-installation).
 `pkm setup` führt durch die Einrichtung und lässt sich jederzeit erneut ausführen; jeder Schritt ist
 idempotent.
 
-1. **Vault-Ordner** abfragen (absoluter Pfad im Ordner des Cloud-Speichers; wird angelegt, wenn er
-   fehlt). Erkannt wird auch der Cloud-Dienst; Dateien, die nur online vorliegen, meldet der
+1. **Vault-Ordner** abfragen (absoluter Pfad; mit Cloud-Speicher im Ordner des Dienstes; wird
+   angelegt, wenn er fehlt). Erkannt wird auch der Cloud-Dienst; Dateien, die nur online vorliegen, meldet der
    Assistent (Abschnitt 7).
 2. **Git prüfen.** Ist Git vorhanden, wird die Versionsverwaltung eingeschaltet. Fehlt die
    Git-Identität, fragt `pkm setup` nach Name und E-Mail und trägt sie nur für das PKM-Repo ein;
@@ -189,8 +191,8 @@ diesem Rechner ist nicht nötig.
 
 ## 6. Obsidian (optional)
 
-Ohne Obsidian entfällt dieser Abschnitt. Mit Obsidian den Vault-Ordner als Vault öffnen. `pkm init` (über `pkm setup`) trägt die Einstellungen aus
-Spezifikation 13 in `.obsidian/app.json` ein; Obsidian übernimmt sie nach einem Neustart:
+Ohne Obsidian entfällt dieser Abschnitt. Mit Obsidian den Vault-Ordner als Vault öffnen.
+`pkm init` (über `pkm setup`) trägt die Einstellungen aus Spezifikation 13 in `.obsidian/app.json` ein; Obsidian übernimmt sie nach einem Neustart:
 
 | Einstellung | Wert |
 |---|---|
@@ -233,7 +235,7 @@ auf, mit Ziel oder `--all` repariert er sie.
 
 **Bilder:** Fotos und Screenshots aus einem Chat übernimmt der Server nur aus dem Importordner
 `pkm_img_import/` im Vault (PNG, JPEG, SVG). Er ist nicht in Git und von Pflegelauf, Lint und Suche
-ausgenommen; weil er im Cloud-Ordner liegt, kannst du Bilder auch vom Smartphone hineinlegen.
+ausgenommen; liegt der Vault im Cloud-Speicher, kannst du Bilder auch vom Smartphone hineinlegen.
 Eingebettete Bilder (Data-URIs) zeigt Obsidian im Lese- und Live-Vorschau-Modus. Nach der
 Einrichtung einmal ein Dokument mit einem eingebetteten PNG und SVG aus einem Chat anlegen lassen
 und in Obsidian prüfen.
@@ -244,8 +246,8 @@ auf die anderen Rechner übertragen. Kein Obsidian-Git-Plugin verwenden.
 ## 7. Cloud-Speicher (optional)
 
 Ohne Cloud-Speicher entfällt dieser Abschnitt; `pkm setup` meldet dann „no recognized cloud folder“,
-das ist kein Fehler. Mit Cloud-Speicher ist jeder Dienst, der einen normalen lokalen Ordner synchronisiert, ist geeignet (Nextcloud/ownCloud,
-OneDrive, Google Drive, Dropbox, iCloud Drive, Syncthing …). Wichtig ist vor allem, den
+das ist kein Fehler. Geeignet ist jeder Dienst, der einen normalen lokalen Ordner synchronisiert
+(Nextcloud/ownCloud, OneDrive, Google Drive, Dropbox, iCloud Drive, Syncthing …). Wichtig ist vor allem, den
 **Vault-Ordner immer lokal** zu halten (keine Dateien „nur online“). Was je Dienst zu beachten ist,
 steht in der README unter „Cloud-Speicher: Stolpersteine“ und in Spezifikation 5.5.
 
