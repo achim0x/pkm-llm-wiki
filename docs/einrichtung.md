@@ -1,6 +1,8 @@
 # PKM mit LLM-Wiki – Einrichtung
 
 Diese Anleitung richtet das PKM auf dem **PKM-Rechner** ein (Spezifikation 5.5, 7.6, 11, 13, 15.1).
+Wie Installer und `pkm setup` intern ablaufen, beschreibt [architecture.md](architecture.md) (englisch,
+mit Ablaufdiagrammen).
 Der PKM-Rechner ist der eine Rechner, auf dem Claude Desktop, die MCP-Server `pkm-mcp` und
 `pkm-pflege-mcp`, die CLI `pkm` und (mit Git) der Versionsverlauf liegen. Das kann ein **Mac** oder
 ein **Windows-PC** sein; beide Varianten sind gleichwertig. Weitere Rechner brauchen nur Obsidian und
@@ -108,8 +110,10 @@ Optionen (alle optional): `--vault <ordner>`, `--vault-name <name>`, `--git-name
 `--no-claude` (Claude Desktop nicht anfassen), `--skills-dir <ordner>`, `--json`.
 
 **Versionsverwaltung nachträglich einschalten:** Git installieren (Abschnitt 1) und `pkm setup`
-erneut ausführen. Der Assistent findet Git, legt das Repo an und committet den aktuellen Stand als
-Ausgangspunkt. Ein Verlauf für die Zeit davor entsteht nicht.
+erneut ausführen. Der Assistent findet Git, legt das Repo an und committet die Grunddateien
+(`pkm: init`). Die Dokumente kommen zu Beginn des nächsten Pflegelaufs (`pkm versions`) bzw. vor ihrer
+nächsten Änderung aus einem Chat mit ihrer aktuellen Versionsnummer in Git (Notiz „first version by
+hand“). Ein Verlauf für die Zeit davor entsteht nicht.
 
 **Nach `pkm setup`:** Claude Desktop vollständig beenden (unter Windows auch im Infobereich der
 Taskleiste) und neu starten. Im Chat erscheinen unter den Werkzeugen die 15 `pkm`-Tools (`search`,

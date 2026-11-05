@@ -595,6 +595,7 @@ pkm-llm-wiki/
 │   ├── spezifikation.md     ← vollständige Spezifikation
 │   ├── umsetzungsplan.md    ← Phasen und Entscheidungen
 │   ├── einrichtung.md       ← Installation und Einrichtung
+│   ├── architecture.md      ← Architektur und Installationsablauf (englisch, mit Diagrammen)
 │   └── abnahme.md           ← Abnahmeprotokoll
 └── pkm-tools/               ← Python-Paket: pkm-mcp, pkm-pflege-mcp und pkm
     ├── src/pkm/

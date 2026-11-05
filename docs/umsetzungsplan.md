@@ -1,9 +1,13 @@
 # PKM mit LLM-Wiki – Umsetzungsplan
 
-**Bezug:** [Spezifikation v0.12](spezifikation.md) · **Stand:** 31.10.2026 · **Plan-Version:** 3
+**Bezug:** [Spezifikation v0.26](spezifikation.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 05.11.2026 · **Plan-Version:** 4
 
 Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnissen, Tests und Abnahmekriterien. Abschnittsnummern in Klammern (z. B. „5.4“) verweisen auf die Spezifikation.
 
+> **Änderungen in Plan-Version 4**
+> - Phasen 0–6 und 7a–7c umgesetzt; neue Phase 7d (Englisch, Cloud-Speicher allgemein, Git optional, vereinfachte Installation, Spezifikation 0.25–0.26) und Phase 7e (Abnahme mit neuer Installation). Architektur und Installationsablauf beschreibt [architecture.md](architecture.md).
+> - Risiken und Zuordnung an Cloud-Speicher allgemein und den Betrieb ohne Git angepasst.
+>
 > **Änderungen in Plan-Version 3**
 > - K1 revidiert: Der Suchindex (SQLite) liegt in `PKM_CACHE_DIR` außerhalb der Nextcloud, nur `mcp.log` liegt in `.pkm/`. `pkm doctor` und der Server prüfen, dass `PKM_CACHE_DIR` nicht im Vault oder im Nextcloud-Ordner liegt.
 > - K6, K10, K11 wie vorgeschlagen entschieden. Keine Klärungen mehr offen.
@@ -25,8 +29,9 @@ Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnisse
 | 3 | Schreibende MCP-Tools inkl. Versionierung und Commit | Ablegen und Aktualisieren aus Chats | 3,5 |
 | 4 | Pflege-CLI: `ids`, `versions`, `pending`, `mark`, `sha`, `show`, `history`, `restore`, `index`, `status`, `reindex`, `commit-wiki` | Pflege-Grundlage | 3,5 |
 | 5 | Belege: Parser, Auflösung, `show_citations`, `fix-/sync-citations`, `lint`, `doctor` | Rückverfolgbarkeit | 4 |
-| 6 | Skills `pkm-access`, `pkm-wiki`, Projekt „PKM-Pflege“, Einrichtung auf dem Mac | Erster echter Ingest-Lauf | 2 |
+| 6 | Skills `pkm-access`, `pkm-wiki`, Projekt „PKM-Pflege“, Einrichtung auf dem PKM-Rechner (Mac oder Windows) | Erster echter Ingest-Lauf | 2 |
 | 7 | Manuelle Abnahme (14), Nacharbeiten | Freigabe | 1,5 |
+| 7a–7d | Nacharbeiten aus Abnahme und Spezifikation 0.13–0.26 (Pflege über MCP, Bilder, Windows, Englisch, Cloud-Speicher, Git optional, Installation) | umgesetzt | – |
 | 8 | Später, nur auf Anweisung: geplante Aufgabe | Automatische Verarbeitung | 0,5 |
 | | | **Summe** | **≈ 23,5** |
 
@@ -42,7 +47,7 @@ Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnisse
 
 | # | Thema | Entscheidung | Folge für die Umsetzung |
 |---|---|---|---|
-| K1 | Ort von Suchindex und Protokoll | Suchindex **`PKM_CACHE_DIR/index.db`** (außerhalb der Nextcloud, Standard `~/Library/Application Support/pkm`), Protokoll **`.pkm/mcp.log`** | `PKM_CACHE_DIR` darf nicht in `PKM_ROOT` oder im Nextcloud-Ordner liegen, siehe Hinweis unten. `.gitignore` erhält `.pkm/mcp.log` |
+| K1 | Ort von Suchindex und Protokoll | Suchindex **`PKM_CACHE_DIR/index.db`** (außerhalb des Cloud-Ordners, Standard `~/Library/Application Support/pkm`), Protokoll **`.pkm/mcp.log`** | `PKM_CACHE_DIR` darf nicht in `PKM_ROOT` oder im Nextcloud-Ordner liegen, siehe Hinweis unten. `.gitignore` erhält `.pkm/mcp.log` |
 | K2 | Wert für Änderungen von Hand | `user` (`chat` \| `user` \| `agent`) | einheitlich in Commits, `history`, CLI |
 | K3 | Commits von `pkm ids` | **je Dokument ein Commit** (`doc: <title> v1`, `PKM-Source: agent`), kein Sammel-Commit | Commit-Tabelle in 12 anpassen |
 | K4 | Definition `hash`/`expected_hash` | durch Spezifikation 0.11, Abschnitt 4.8 | – |
@@ -54,7 +59,7 @@ Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnisse
 
 **Hinweis zu K1:** Die SQLite-Datei darf nie synchronisiert werden (5.5). Deshalb:
 - Der Server prüft beim Start, dass `PKM_CACHE_DIR` nicht innerhalb von `PKM_ROOT` liegt (nach `resolve()`). Liegt es dort, legt er keinen Index an und meldet einen klaren Fehler; die lesenden Tools ohne Suche funktionieren weiter.
-- `pkm doctor` prüft das ebenfalls und warnt zusätzlich, wenn `PKM_CACHE_DIR` in einem typischen Nextcloud-Ordner liegt (Pfad enthält `Nextcloud` oder einen Ordner mit `.sync_*.db`/`.owncloudsync.log`).
+- `pkm doctor` prüft das ebenfalls und warnt zusätzlich, wenn `PKM_CACHE_DIR` in einem Cloud-Ordner liegt (seit 0.25 für alle bekannten Dienste, `cloudsync.py`).
 - Der Index ist ein Wegwerf-Cache. Fehlt er oder ist er beschädigt, wird er neu aufgebaut (7.4).
 - `mcp.log` liegt in `.pkm/` und wird mit synchronisiert, aber nicht in Git aufgenommen. Es ist eine reine Textdatei, die nur auf dem Mac angehängt wird.
 
@@ -81,7 +86,7 @@ Damit ist keine Klärung mehr offen.
 
 ## 3. Paketaufbau
 
-Ein Python-Paket `pkm-tools` mit zwei Einstiegspunkten (`pkm`, `pkm-mcp`), installierbar über `uvx --from <pfad>` (7.6).
+Ein Python-Paket `pkm-tools` mit den Einstiegspunkten `pkm`, `pkm-mcp` und (seit 7a) `pkm-pflege-mcp`. Ursprünglich installierbar über `uvx --from <pfad>`; seit 7d über die Installer `install.sh`/`install.ps1` und `pkm setup` (Spezifikation 15.1, [architecture.md](architecture.md)).
 
 ```
 pkm-tools/
@@ -213,7 +218,7 @@ Kern ist `writer.apply_change(target, transform, note, source="chat")`, über de
 | 5.4 `fix-citations` | Link-Pfade in Fußnoten und `sources` auf aktuelle Orte umschreiben; Anker bzw. `§:` bei `renamed`-Abschnitten anpassen (nur `wiki/`) |
 | 5.5 `sync-citations` | `sources` aus Fußnoten erzeugen (eindeutig, sortiert, Wikilinks) |
 | 5.6 `lint` | Alle Prüfungen aus 8 plus aus 4.8: `invalid_encoding`, `invalid_frontmatter`, Setext-Überschriften, doppelte Überschriften Ebene 1/2, Überschriften mit `# ^ [ ] \|`; JSON-Bericht mit Schweregrad; jede Prüfung als eigene Funktion |
-| 5.7 `doctor` | Umgebungsprüfungen aus 8, `--short`; zusätzlich `PKM_CACHE_DIR` außerhalb von Vault und Nextcloud (K1) |
+| 5.7 `doctor` | Umgebungsprüfungen aus 8, `--short`; zusätzlich `PKM_CACHE_DIR` außerhalb von Vault und Cloud-Ordner (K1) |
 
 **Tests:** jede Lint-Prüfung positiv und negativ; alle Status von `show_citations`; Beleg mit `§:` auf Duplikat; Auszug aus alter und aktueller Version; Zitat-Prüfung gegen belegte Version (im normalisierten Text); Beleg auf Wiki-Seite wird gemeldet.
 
@@ -222,12 +227,12 @@ Kern ist `writer.apply_change(target, transform, note, source="chat")`, über de
 - **`skills/pkm-access/SKILL.md`** (schlank): Trigger aus 10; Grundregel „immer erst Entwurf, keine Ausnahme“; Abläufe Ablegen, Fortsetzen (6.2 Standard, 6.3 nur auf Anweisung), kleine Änderungen, Verlauf, Abfragen, Quellen, Korrekturen; Umgang mit `conflict`, `large_shortening` und `ambiguous` bei Abschnitten; Hinweis, dass `update_frontmatter` Kommentare im Frontmatter entfernt (K8).
 - **`skills/pkm-wiki/SKILL.md`**: Abläufe Ingest (9.1, Schritt für Schritt mit CLI-Aufrufen, Abschluss mit `pkm commit-wiki`), Lint (9.2), Abfrage (9.3), Schema (9.4), feste Regeln (9.5), Beleg-Format mit Beispiel inkl. `§:`, Umgang mit `meta_changed` und `renamed`, Verhalten im unbeaufsichtigten Lauf.
 - **`CLAUDE.md`-Vorlage** im Vault (über `pkm init`): Konventionen aus 4 und 9.5 in Kurzform.
-- **Einrichtungsanleitung** `docs/einrichtung.md`: `uv` installieren, Git-Identität, `pkm init`, `claude_desktop_config.json` (7.6), Skills installieren, Projekt „PKM-Pflege“ anlegen und Vault-Ordner verbinden, Obsidian-Einstellungen (13), `PKM_CACHE_DIR` außerhalb der Nextcloud lassen (Standard genügt, K1), optional in Nextcloud `.obsidian/workspace*.json` ignorieren.
+- **Einrichtungsanleitung** `docs/einrichtung.md`: ursprünglich `uv` installieren, Git-Identität, `pkm init`, `claude_desktop_config.json` (7.6) von Hand, Skills packen, Projekt „PKM-Pflege“, Obsidian-Einstellungen (13), `PKM_CACHE_DIR` außerhalb des Cloud-Ordners. Seit 7d ersetzt durch Installer und `pkm setup`.
 - **Probelauf** mit 3–5 selbst angelegten Dokumenten (keine Startbefüllung, 16 Nr. 7).
 
 ### Phase 7 – Abnahme (1,5 PT)
 
-Abnahmeschritte 1–10 aus 14 auf dem Mac mit echtem Nextcloud-Vault und Windows-Rechner durchgehen, Ergebnis je Schritt protokollieren (`docs/abnahme.md`). Fehler beheben, Skills nachschärfen (Formulierungen, die der Agent falsch versteht).
+Abnahmeschritte aus 14 auf dem Mac mit echtem Vault im Cloud-Speicher und Windows-Rechner durchgehen, Ergebnis je Schritt protokollieren (`docs/abnahme.md`). Fehler beheben, Skills nachschärfen (Formulierungen, die der Agent falsch versteht).
 
 ### Phase 7a – Pflege über MCP statt Shell (Befund aus der Abnahme)
 
@@ -258,6 +263,19 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - 0.23: Importordner `pkm_img_import/` im Vault (von `init` angelegt, in `.gitignore`, von der Pflege ausgenommen) und JPEG-Übernahme ohne Metadaten. CI testet nur noch Python 3.12.
 - Offen: Anzeige eingebetteter PNG/SVG in Obsidian (auch mit `|breite`) am echten Vault testen.
 
+### Phase 7d – Englisch, Cloud-Speicher, Git optional, einfachere Installation (Spezifikation 0.25–0.26)
+
+- **Englisch:** Code, Meldungen, CLI-Hilfe, MCP-Beschreibungen, Commit-Notizen, generierte Vault-Dateien (`index.md`, `_status.md`, `log.md`, Lint-Berichte), Vorlage `CLAUDE.md`, Skills und README von `pkm-tools` sind englisch. Deutsche Abschnittsnamen bestehender Wiki-Seiten („Inhalt“, „Widersprüche / offene Fragen“) werden weiter erkannt. Die Spezifikation und die Dokumente unter `docs/` bleiben deutsch; `docs/architecture.md` ist englisch.
+- **Cloud-Speicher allgemein** (0.25): Konfliktkopien aller bekannten Dienste (`cloudsync.py`), Cloud-Ordner aller Dienste für Git-Verzeichnis und Suchindex, Dateien „nur online“ (`pkm doctor`).
+- **Git optional** (0.26): Schalter `PKM_VERSIONING`; ohne Git Schreiben ohne Commit, `not_versioned` für Verlauf und Wiederherstellen, `pkm versions`/`commit-wiki` ohne Wirkung, Änderungen über Hashes, Belege gegen den aktuellen Text. Nachrüsten: Git installieren, `pkm setup` erneut ausführen.
+- **Einfachere Installation** (15.1): `config.toml` statt Umgebungsvariablen, Git-Suche (`PKM_GIT`, `PATH`, übliche Orte), `.obsidian/app.json` durch `pkm init`, Assistent `pkm setup` (`setupwiz.py`), Skills im Paket, Installer `install.sh`/`install.ps1` (laden das GitHub-Archiv, funktionieren ohne Git), Release-Workflow mit Skill-ZIPs und Wheel. Die CI führt beide Installer auf Linux, macOS und Windows aus.
+- **Tests:** `test_no_git.py`, `test_setup.py`; 405 Tests auf allen drei Systemen grün.
+- **Offen:** Merge auf `main` (die Einzeiler laden von `main`); erste Release mit Tag `v*`.
+
+### Phase 7e – Abnahme mit der neuen Installation
+
+Abnahme nach `docs/abnahme.md`, beginnend mit Schritt 0 (Installer und `pkm setup` auf dem echten PKM-Rechner) und den Zusatzprüfungen „Betrieb ohne Git“ an einem Testvault.
+
 ### Phase 8 – Automatik (später, 0,5 PT)
 
 Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im Projekt. Voraussetzung: mehrere manuelle Läufe ohne Nacharbeit. Geplante Cowork-Aufgaben laufen in der Cloud und erreichen `pkm-pflege` voraussichtlich nur bei laufendem PKM-Rechner mit geöffneter Desktop-App – vorher testen.
@@ -281,11 +299,14 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 
 | Risiko | Auswirkung | Gegenmaßnahme |
 |---|---|---|
-| Nextcloud synchronisiert während eines Schreibvorgangs | Konfliktkopie, doppelte ID | atomares Schreiben, Hash-Schutz, `doctor`/`lint` melden Konfliktkopien, Pflegelauf bricht ab (9.1) |
+| Cloud-Speicher synchronisiert während eines Schreibvorgangs | Konfliktkopie, doppelte ID | atomares Schreiben, Hash-Schutz, `doctor`/`lint` melden Konfliktkopien, Pflegelauf bricht ab (9.1) |
 | `pkm versions` ändert eine Datei, die gerade auf Windows bearbeitet wird | Konfliktkopie | **bewusst in Kauf genommen (K7).** Nur zwei Zeilen werden geändert; Konfliktkopien meldet `lint`. Bei Bedarf Schonfrist nachrüsten |
-| `PKM_CACHE_DIR` versehentlich in den Nextcloud-Ordner gelegt (K1) | SQLite wird synchronisiert und beschädigt | Server verweigert Index im Vault, `doctor` prüft den Ort |
+| `PKM_CACHE_DIR` oder Git-Verzeichnis versehentlich in einen Cloud-Ordner gelegt (K1) | SQLite bzw. Git-Dateien werden synchronisiert und beschädigt | Server verweigert Index im Vault, `doctor` erkennt Cloud-Ordner aller bekannten Dienste |
+| Vault-Dateien liegen nur online (Platzhalter) | Pflegelauf löst Downloads aus oder sieht Dateien nicht | `pkm setup` und `doctor` melden `vault_online_only`; Einstellung je Dienst (Spezifikation 5.5) |
 | Git-Verzeichnis außerhalb des Vaults geht verloren | Verlauf weg, Belege `v:` nicht mehr prüfbar | Time Machine (12), `doctor` prüft Erreichbarkeit; später optional Remote |
-| Claude Desktop startet MCP mit minimalem `PATH` | `git` nicht gefunden | absoluter `uvx`-Pfad, `PATH` in Config (7.6), klare Fehlermeldung, `doctor` |
+| Claude Desktop startet MCP mit minimalem `PATH` | `git` nicht gefunden | `pkm setup` speichert den Git-Pfad in `config.toml` (`PKM_GIT`), Suche an den üblichen Orten, klare Fehlermeldung, `doctor` |
+| Git fehlt auf dem PKM-Rechner | keine Versionsgeschichte | bewusst erlaubt (0.26): Betrieb ohne Versionsverwaltung mit Hinweis; nachrüstbar durch `pkm setup` |
+| Installer ändert eine bestehende Claude-Desktop-Konfiguration | andere Server gehen verloren | nur Einträge `pkm`/`pkm-pflege`, Sicherungskopie, Ersetzen erst nach Rückfrage |
 | Hash-Regeln werden später geändert | alle Einträge in `state.json` gelten als geändert | Testvektoren, Feld `version` in `state.json` als Formatversion, Migration bei Bedarf |
 | LLM hält Beleg-Format oder Regeln nicht ein | fehlerhafte Belege | `lint` als harte Kontrolle am Ende jedes Ingest, Skill mit Beispielen |
 | Kontextgrenze beim Ingest | unvollständige Verarbeitung | Etappen à ≤ 10 Dokumente (9.1), Verarbeitung nur geänderter Abschnitte |
@@ -304,17 +325,19 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 | 4.8 Normalisierung, Abschnitte, Hashes | 1 (Grundlage), 3, 4, 5 |
 | 5.1–5.2 Zuordnung, Auflösung | 2, 5 |
 | 5.4 Versionen/Commits | 1, 3, 4 |
-| 5.5 Nextcloud/Plattform | 1, 5 |
+| 5.5 Cloud-Speicher/Plattform | 1, 5, 7d |
 | 6 Fortgeführte Diskussionen | 3, 6 |
 | 7.1–7.6 MCP | 2, 3, 6 |
 | 8 CLI | 1, 4, 5 |
 | 9, 10, 11 Skills, Projekt | 6, 8 |
 | 13 Obsidian | 6 |
-| 14 Tests/Abnahme | durchgehend, 7 |
+| 14 Tests/Abnahme | durchgehend, 7, 7e |
+| 15.1 Einfachere Installation, Git optional (5.4) | 7d |
 
 ---
 
 ## 8. Nächste Schritte
 
-1. Phase 0 starten: Paketgerüst, Test-Fixture, CI.
-2. Phase 1 als erster Meilenstein, zuerst die Testvektoren für 4.8; danach kurzer Review von `parse`/`hashes` und Git-Schicht, weil alle weiteren Phasen darauf aufbauen.
+1. Branch auf `main` mergen, damit die Installer-Einzeiler den aktuellen Stand laden; danach eine erste Release (`v0.1.0`) mit Skill-ZIPs.
+2. Abnahme nach Phase 7e auf dem PKM-Rechner (`docs/abnahme.md`, ab Schritt 0).
+3. Befunde beheben; erst danach Phase 8 (Automatik) und nur auf Anweisung.

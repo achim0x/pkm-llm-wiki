@@ -734,7 +734,7 @@ Mehrere Änderungen von Hand zwischen zwei Commits werden also zu **einer** Vers
 - `history`, `read` mit `version`, `pkm show` und `restore_document` liefern `not_versioned` mit einem Hinweis, wie die Versionsverwaltung einzuschalten ist.
 - Belege: Den Wortlaut einer älteren Version gibt es nicht. Nennt ein Beleg die aktuelle Version oder ist der belegte Abschnitt unverändert (`sha:`), prüft Lint gegen den aktuellen Text; sonst gilt der Status `newer_version` ohne Inhaltsprüfung. `cited_version_missing` entfällt.
 - Die Schreibsperre liegt in `PKM_CACHE_DIR`. `pkm doctor` meldet die abgeschaltete Versionsverwaltung als Hinweis, nicht als Fehler.
-- **Nachrüsten:** Git installieren und `pkm setup` erneut ausführen. Der Assistent schaltet die Versionsverwaltung ein, legt das Repo an und committet den aktuellen Stand als Ausgangspunkt; ein Verlauf für die Zeit davor entsteht nicht.
+- **Nachrüsten:** Git installieren und `pkm setup` erneut ausführen. Der Assistent schaltet die Versionsverwaltung ein, legt das Repo an und committet die Grunddateien (`pkm: init`). Die Dokumente committet `pkm versions` zu Beginn des nächsten Pflegelaufs (bzw. der Server vor der nächsten Änderung aus einem Chat) mit ihrer aktuellen Versionsnummer als Ausgangspunkt (`PKM-Source: user`, Notiz „first version by hand“); ein Verlauf für die Zeit davor entsteht nicht.
 
 ### 5.5 Cloud-Speicher, Mac und Windows
 
