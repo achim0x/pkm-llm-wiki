@@ -1,5 +1,15 @@
 # Release notes
 
+## Unreleased
+
+- **Document language:** `pkm setup` asks whether documents created in chat should be mainly in
+  English or German (`PKM_LANGUAGE` in `config.toml`, `en` or `de`, default `en`, option
+  `--language`). The server `pkm` names the language and its section names in its instructions
+  (German: Ergebnis, Entscheidungen, Offene Punkte, Kontext / Begründung); the skill `pkm-access`
+  writes new documents in that language, continued documents keep theirs. Specification 0.27.
+- **Upgrading:** run `pkm setup` again (it asks for the language), upload the new skill ZIP of
+  `pkm-access` and restart Claude Desktop.
+
 ## V0.2.0
 
 Changes compared to `V0.1.0` (specification 0.18). Specification now **0.26**, implementation

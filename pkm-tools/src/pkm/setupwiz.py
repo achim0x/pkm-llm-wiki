@@ -1,8 +1,8 @@
 """``pkm setup``: guided installation (specification 15.1).
 
-Asks for the vault folder, checks Git (without Git the PKM runs without version control), writes
-``config.toml``, runs ``pkm init``, enters the servers in the configuration of Claude Desktop,
-builds the skill ZIP files and finally runs ``pkm doctor``. It can be run again at any time.
+Asks for the vault folder, checks Git (without Git the PKM runs without version control), asks for the
+language of documents created in chat, writes ``config.toml``, runs ``pkm init``, enters the servers in
+the configuration of Claude Desktop, builds the skill ZIP files and finally runs ``pkm doctor``. It can be run again at any time.
 
     Author: Achim0x
 """
@@ -41,7 +41,18 @@ from pathlib import Path
 from typing import Any
 
 from .cloudsync import cloud_service, online_only_files
-from .config import CONFIG_FILE, Config, default_app_dir, find_git, find_vault, read_config_file, write_config_file
+from .config import (
+    CONFIG_FILE,
+    DEFAULT_LANGUAGE,
+    DOC_LANGUAGES,
+    Config,
+    default_app_dir,
+    find_git,
+    find_vault,
+    parse_language,
+    read_config_file,
+    write_config_file,
+)
 from .doctor import doctor
 from .errors import PkmError
 from .gitlayer import Git
@@ -77,6 +88,7 @@ class SetupOptions:  # pylint: disable=too-many-instance-attributes
         yes: Accept all defaults and confirmations without asking.
         claude_config: Path of ``claude_desktop_config.json`` (default per operating system).
         skills_dir: Target folder for the skill ZIP files (default ``<app folder>/skills``).
+        language: Main language of documents created in chat, ``en`` or ``de``.
     """
 
     vault: str | None = None
@@ -86,6 +98,7 @@ class SetupOptions:  # pylint: disable=too-many-instance-attributes
     yes: bool = False
     claude_config: str | None = None
     skills_dir: str | None = None
+    language: str | None = None
 
 
 class Setup:
@@ -191,19 +204,37 @@ class Setup:
             self.warn(NO_GIT_HINT)
         return exe
 
-    def _write_config(self, root: Path, git_exe: str | None) -> dict[str, str]:
+    def _language(self) -> str:
+        """Ask for the main language of documents created in chat.
+
+        Returns:
+            ``en`` or ``de``.
+
+        Raises:
+            PkmError: ``config_error`` for an unknown language.
+        """
+        known = self.env.get("PKM_LANGUAGE") or read_config_file(self.config_path).get("PKM_LANGUAGE")
+        answer = self.opts.language or self._question(
+            "Main language of documents created in chat (en = English, de = German)",
+            parse_language(known) if known else DEFAULT_LANGUAGE)
+        language = parse_language(answer)
+        self.say(f"Document language: {DOC_LANGUAGES[language][0]}.")
+        return language
+
+    def _write_config(self, root: Path, git_exe: str | None, language: str = DEFAULT_LANGUAGE) -> dict[str, str]:
         """Write ``config.toml``; other keys in the file are kept.
 
         Args:
             root: Vault folder.
             git_exe: Git program or ``None``.
+            language: Document language ``en`` or ``de``.
 
         Returns:
             Environment for the configuration of this setup.
         """
         values: dict[str, str | bool] = dict(read_config_file(self.config_path))
         values.update({"PKM_ROOT": str(root), "PKM_VAULT_NAME": self.opts.vault_name or root.name,
-                       "PKM_VERSIONING": git_exe is not None})
+                       "PKM_VERSIONING": git_exe is not None, "PKM_LANGUAGE": language})
         if git_exe:
             values["PKM_GIT"] = git_exe
         else:
@@ -400,7 +431,8 @@ class Setup:
         """
         root = self._vault()
         git_exe = self._git()
-        env = self._write_config(root, git_exe)
+        language = self._language()
+        env = self._write_config(root, git_exe, language)
         cfg = Config.from_env(env)
         init = init_vault(cfg)
         if cfg.versioning:
@@ -416,6 +448,7 @@ class Setup:
         self.say("Setup finished." if not check["errors"] else "Setup finished with errors (see above, `pkm doctor`).")
         return {"status": "ok" if not check["errors"] else "error", "root": str(root),
                 "config_file": str(self.config_path), "versioning": cfg.versioning, "git": git_exe,
+                "language": cfg.language,
                 "init": init, "claude": claude, "skills": skills, "warnings": self.warnings, "doctor": check}
 
 # Functions *******************************************************************

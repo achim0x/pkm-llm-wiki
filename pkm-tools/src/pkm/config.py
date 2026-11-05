@@ -48,6 +48,12 @@ GIT_CANDIDATES = (
     "/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git",
     r"C:\Program Files\Git\cmd\git.exe", r"C:\Program Files (x86)\Git\cmd\git.exe",
 )
+DEFAULT_LANGUAGE = "en"
+DOC_LANGUAGES = {
+    "en": ("English", ("Result", "Decisions", "Open points", "Context / rationale")),
+    "de": ("German", ("Ergebnis", "Entscheidungen", "Offene Punkte", "Kontext / Begründung")),
+}
+LANGUAGE_ALIASES = {"en": "en", "english": "en", "englisch": "en", "de": "de", "german": "de", "deutsch": "de"}
 IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX_MB": 5,
                   "PKM_IMAGE_PARAM_MAX_KB": 512}
 
@@ -120,6 +126,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
         images: Image settings (4.9).
         versioning: Version control with Git (``PKM_VERSIONING``; off if Git is not installed, 5.4).
         git_exe: Git program (``PKM_GIT``, otherwise found in ``PATH`` or the usual locations).
+        language: Main language of documents created in chat, ``en`` or ``de`` (``PKM_LANGUAGE``).
         config_file: Configuration file that was read, or ``None``.
     """
 
@@ -133,6 +140,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
     images: ImageConfig = field(default_factory=ImageConfig)
     versioning: bool = True
     git_exe: str = "git"
+    language: str = DEFAULT_LANGUAGE
     config_file: Path | None = None
 
     @classmethod
@@ -182,6 +190,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
             images=ImageConfig.from_env(env, root.resolve()),
             versioning=(env.get("PKM_VERSIONING") or "on").strip().lower() not in FALSE_VALUES,
             git_exe=env.get("PKM_GIT") or find_git() or "git",
+            language=parse_language(env.get("PKM_LANGUAGE")),
             config_file=config_path if file_values else None,
         )
 
@@ -300,6 +309,46 @@ def default_app_dir(home: Path | None = None) -> Path:
         base = os.environ.get("XDG_DATA_HOME")
         app = Path(base) / "pkm" if base else home / ".local" / "share" / "pkm"
     return app
+
+
+def parse_language(value: str | None) -> str:
+    """Normalize the document language (``PKM_LANGUAGE``).
+
+    Args:
+        value: ``en``/``de`` or the name of the language (English/German, also German names); empty
+            means the default.
+
+    Returns:
+        ``en`` or ``de``.
+
+    Raises:
+        PkmError: ``config_error`` for an unknown language.
+    """
+    text = (value or "").strip().lower()
+    if text and text not in LANGUAGE_ALIASES:
+        raise PkmError("config_error", f"PKM_LANGUAGE must be en (English) or de (German), not {value!r}.")
+    return LANGUAGE_ALIASES.get(text, DEFAULT_LANGUAGE)
+
+
+def configured_language(env: Mapping[str, str] | None = None) -> str:
+    """Document language from the environment or the configuration file, without a complete configuration.
+
+    Used by the MCP server for its instructions; an unreadable or invalid setting gives the default.
+
+    Args:
+        env: Environment variables; ``os.environ`` if omitted.
+
+    Returns:
+        ``en`` or ``de``.
+    """
+    env = os.environ if env is None else env
+    home = Path(env["HOME"]) if env.get("HOME") else None
+    path = Path(env.get("PKM_CONFIG") or default_app_dir(home) / CONFIG_FILE).expanduser()
+    try:
+        language = parse_language(env.get("PKM_LANGUAGE") or read_config_file(path).get("PKM_LANGUAGE"))
+    except PkmError:
+        language = DEFAULT_LANGUAGE
+    return language
 
 
 def read_config_file(path: Path) -> dict[str, str]:

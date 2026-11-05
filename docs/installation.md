@@ -16,7 +16,8 @@ synchronized. A second PKM host for the same vault would create a second, diverg
 Summary:
 
 1. Run the installer (installs uv and the package, starts `pkm setup`).
-2. Answer the questions of `pkm setup` (vault folder, possibly Git name and e-mail).
+2. Answer the questions of `pkm setup` (vault folder, document language, possibly Git name and
+   e-mail).
 3. Upload the two skill ZIP files in Claude Desktop.
 4. Create the project "PKM-Pflege".
 5. Restart Claude Desktop (and Obsidian, if you use it).
@@ -112,24 +113,30 @@ Installation without the installer: [Appendix A](#appendix-a-manual-installation
    missing, `pkm setup` asks for name and e-mail and sets them for the PKM repo only; commit signing
    is turned off for the PKM repo. **If Git is missing**, a note is shown and the PKM runs without
    version control.
-3. Write the **configuration file** `<APPDIR>/config.toml` (vault path, vault name, version control
-   on or off, path of Git). Servers and CLI read it; environment variables take precedence.
-4. Run **`pkm init`**: folder structure, `CLAUDE.md`, `.gitignore`, `.pkm/state.json`, Obsidian
+3. Ask for the **document language**: should documents created in chat be mainly in English or
+   German (`en` or `de`, default English or the previous answer; option `--language`)? The server
+   `pkm` tells Claude this language and the matching section names (Result, Decisions, Open points,
+   Context / rationale or Ergebnis, Entscheidungen, Offene Punkte, Kontext / Begründung). Continued
+   documents keep their language. To change it later, run `pkm setup` again and restart Claude
+   Desktop.
+4. Write the **configuration file** `<APPDIR>/config.toml` (vault path, vault name, version control
+   on or off, path of Git, document language). Servers and CLI read it; environment variables take precedence.
+5. Run **`pkm init`**: folder structure, `CLAUDE.md`, `.gitignore`, `.pkm/state.json`, Obsidian
    settings (`.obsidian/app.json`) and property types (`.obsidian/types.json`), with Git also the
    repo outside the vault with a first commit. Existing notes stay unchanged.
-5. **Check Claude Desktop:** `pkm setup` checks whether the servers `pkm` and `pkm-pflege` are
+6. **Check Claude Desktop:** `pkm setup` checks whether the servers `pkm` and `pkm-pflege` are
    already entered as needed in `claude_desktop_config.json` (with `command` only, nothing else). If
    an entry is missing or different, the wizard shows the change and **asks whether it may change
    the file**. On "yes" it makes a backup and enters the servers; other servers stay unchanged. On
    "no" it changes nothing and shows the JSON text that you enter yourself under `mcpServers` (in
    Claude Desktop: Settings → Developer → "Edit Config"). If the file is not valid JSON, it is left
    alone and the text is shown as well.
-6. Write the **skill ZIP files** to `<APPDIR>/skills/` (section 4).
-7. Print the **project instructions** for "PKM-Pflege" (section 5).
-8. Run **`pkm doctor`** and name any errors.
+7. Write the **skill ZIP files** to `<APPDIR>/skills/` (section 4).
+8. Print the **project instructions** for "PKM-Pflege" (section 5).
+9. Run **`pkm doctor`** and name any errors.
 
 Options (all optional): `--vault <folder>`, `--vault-name <name>`, `--git-name <name>`,
-`--git-email <address>`, `--yes` (defaults without asking), `--claude-config <file>`,
+`--git-email <address>`, `--language en|de`, `--yes` (defaults without asking), `--claude-config <file>`,
 `--skills-dir <folder>`, `--json`.
 
 **Turning version control on later:** install Git (section 1) and run `pkm setup` again. The wizard
@@ -403,6 +410,7 @@ PKM_ROOT = "/Users/name/Nextcloud/Vault"
 PKM_VAULT_NAME = "Vault"
 PKM_VERSIONING = true
 PKM_GIT = "/usr/bin/git"
+PKM_LANGUAGE = "en"
 ```
 
 Windows, e.g. `%APPDATA%\pkm\config.toml` (paths in single quotes, so the backslashes stay as they
@@ -413,11 +421,14 @@ PKM_ROOT = 'C:\Users\name\Nextcloud\Vault'
 PKM_VAULT_NAME = "Vault"
 PKM_VERSIONING = true
 PKM_GIT = 'C:\Program Files\Git\cmd\git.exe'
+PKM_LANGUAGE = "en"
 ```
 
 - `PKM_ROOT`: absolute path of the vault folder (with cloud storage inside the folder of the
   service, otherwise a local folder).
 - `PKM_VERSIONING = false` if Git is missing or should not be used; `PKM_GIT` is then omitted.
+- `PKM_LANGUAGE`: main language of documents created in chat, `"en"` (English, default) or `"de"`
+  (German).
 - Further optional keys: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (both never in a cloud folder), `PKM_TZ`,
   `PKM_MAX_KB`, `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`, `PKM_INLINE_MAX_KB` (24), `PKM_SVG_MAX_KB` (200),
   `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER` (`false`; to rasterize SVG

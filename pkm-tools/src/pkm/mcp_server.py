@@ -33,7 +33,7 @@ from typing import Any
 
 from mcp.types import TextContent
 
-from .config import Config
+from .config import DEFAULT_LANGUAGE, DOC_LANGUAGES, Config, configured_language
 from .errors import PkmError
 from .service import Service
 
@@ -336,13 +336,32 @@ def _register_write_tools(server: Server) -> None:
                     expected_hash=expected_hash)
 
 
-def build_server() -> Server:
+def language_instructions(language: str) -> str:
+    """Instruction for the language of documents created in chat (``PKM_LANGUAGE``).
+
+    Args:
+        language: ``en`` or ``de``.
+
+    Returns:
+        Sentence with the language and the section names of new documents.
+    """
+    name, sections = DOC_LANGUAGES.get(language, DOC_LANGUAGES[DEFAULT_LANGUAGE])
+    headings = ", ".join(f"## {s}" for s in sections)
+    return (f" Document language: {name}. Write new documents created in chat in {name} with the sections "
+            f"{headings}, unless the user asks for another language. When continuing a document keep its "
+            "language and section names.")
+
+
+def build_server(language: str | None = None) -> Server:
     """Build the MCP server with all tools (reading incl. ``read_image``, writing incl. ``add_image``).
+
+    Args:
+        language: Document language ``en`` or ``de``; from the configuration if omitted.
 
     Returns:
         The server.
     """
-    server = Server("pkm", instructions=INSTRUCTIONS)
+    server = Server("pkm", instructions=INSTRUCTIONS + language_instructions(language or configured_language()))
     register_read_tools(server)
     _register_write_tools(server)
     return server

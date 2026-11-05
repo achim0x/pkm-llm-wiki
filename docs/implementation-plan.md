@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Umsetzungsplan
 
-**Bezug:** [Spezifikation v0.26](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 05.11.2026 · **Plan-Version:** 4
+**Bezug:** [Spezifikation v0.27](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 05.11.2026 · **Plan-Version:** 4
 
 Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnissen, Tests und Abnahmekriterien. Abschnittsnummern in Klammern (z. B. „5.4“) verweisen auf die Spezifikation.
 
@@ -270,7 +270,8 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - **Git optional** (0.26): Schalter `PKM_VERSIONING`; ohne Git Schreiben ohne Commit, `not_versioned` für Verlauf und Wiederherstellen, `pkm versions`/`commit-wiki` ohne Wirkung, Änderungen über Hashes, Belege gegen den aktuellen Text. Nachrüsten: Git installieren, `pkm setup` erneut ausführen.
 - **Einfachere Installation** (15.1): `config.toml` statt Umgebungsvariablen, Git-Suche (`PKM_GIT`, `PATH`, übliche Orte), `.obsidian/app.json` durch `pkm init`, Assistent `pkm setup` (`setupwiz.py`), Skills im Paket, Installer `install.sh`/`install.ps1` (laden das GitHub-Archiv, funktionieren ohne Git), Release-Workflow mit Skill-ZIPs und Wheel. Die CI führt beide Installer auf Linux, macOS und Windows aus.
 - **Tests:** `test_no_git.py`, `test_setup.py`; 405 Tests auf allen drei Systemen grün.
-- **Offen:** Merge auf `main` (die Einzeiler laden von `main`); erste Release mit Tag `v*`.
+- **Erledigt:** Merge auf `main`, Release `v0.2.0`.
+- **Dokumentsprache** (0.27): `pkm setup` fragt, ob im Chat erzeugte Dokumente hauptsächlich englisch oder deutsch sind (`PKM_LANGUAGE`, Option `--language`); der Server `pkm` nennt Sprache und Abschnittsnamen in seinen Anweisungen, der Skill `pkm-access` folgt ihnen (`test_language.py`).
 
 ### Phase 7e – Abnahme mit der neuen Installation
 
@@ -338,6 +339,6 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 
 ## 8. Nächste Schritte
 
-1. Branch auf `main` mergen, damit die Installer-Einzeiler den aktuellen Stand laden; danach eine erste Release (`v0.1.0`) mit Skill-ZIPs.
+1. Erledigt: Merge auf `main` und Release `v0.2.0` mit Skill-ZIPs.
 2. Abnahme nach Phase 7e auf dem PKM-Rechner (`docs/acceptance.md`, ab Schritt 0).
 3. Befunde beheben; erst danach Phase 8 (Automatik) und nur auf Anweisung.

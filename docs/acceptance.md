@@ -35,8 +35,9 @@ Befunde unten unter „Befunde“ sammeln; sie werden danach behoben (Code oder 
 - [ ] Der Installer meldet „Git found: version control will be on.“ und installiert `pkm`,
       `pkm-mcp` und `pkm-pflege-mcp` nach `~/.local/bin`.
 - [ ] `pkm setup` erkennt den Cloud-Dienst des Vault-Ordners und meldet keine Dateien „nur online“.
+- [ ] `pkm setup` fragt nach der Dokumentsprache für im Chat erzeugte Dokumente (`en` oder `de`).
 - [ ] `~/Library/Application Support/pkm/config.toml` enthält `PKM_ROOT`, `PKM_VAULT_NAME`,
-      `PKM_VERSIONING = true` und `PKM_GIT`.
+      `PKM_VERSIONING = true`, `PKM_GIT` und `PKM_LANGUAGE` mit der gewählten Sprache.
 - [ ] `pkm setup` meldet, ob die Server in Claude Desktop schon eingetragen sind; fehlen sie oder
       weichen sie ab, zeigt es die Änderung und fragt, ob es `claude_desktop_config.json` ändern darf.
 - [ ] Bei „ja“: `pkm` und `pkm-pflege` nur mit `command`, andere Server unverändert, Sicherungskopie
@@ -82,6 +83,9 @@ dann die Eingaben sinngemäß anpassen.
 - [ ] Der Chat prüft per `search`, ob es schon ein Dokument gibt.
 - [ ] Der Chat zeigt **erst einen Entwurf** (Titel, Themen, Abschnitte) und schreibt erst nach
       Bestätigung.
+- [ ] Titel, Text und Abschnitte sind in der gewählten Dokumentsprache (Deutsch: Ergebnis,
+      Entscheidungen, Offene Punkte, Kontext / Begründung; Englisch: Result, Decisions, Open points,
+      Context / rationale).
 - [ ] Danach nennt er ID, Pfad und `version: 1`.
 - [ ] Datei liegt in `documents/_inbox/<slug>_YYYY-MM-DD.md` mit `id` und `version: 1`.
 - [ ] Es gibt genau einen Commit:
@@ -330,6 +334,13 @@ pkm lint --report
 | Bild im Pflegelauf | Nächster Pflegelauf nach den beiden Bildern | `read_image` wird genutzt, Inhalt in Worten mit Beleg `[img:<name>]`, Bilddatei nicht als eigenes Dokument | ☐ |
 | Bild ändern | Die Bilddatei in `_attachments/` ersetzen, Pflegelauf | Dokument bekommt eine neue Version mit `PKM-Source: user`, `pending` meldet den Abschnitt mit dem Bild | ☐ |
 
+
+**Dokumentsprache:**
+
+| Prüfung | Vorgehen | Erwartet | Ergebnis |
+|---|---|---|---|
+| Sprache wechseln | `pkm setup --language en` (bzw. `de`), Claude Desktop neu starten, in einem deutschsprachigen Chat etwas ablegen | Neues Dokument in der anderen Sprache mit deren Abschnittsnamen; ein bestehendes Dokument behält beim Fortschreiben seine Sprache | ☐ |
+| Ausdrücklicher Wunsch | „Leg das auf Englisch ab“ bei Dokumentsprache Deutsch (bzw. umgekehrt) | Der Wunsch des Nutzers gilt | ☐ |
 
 **Betrieb ohne Git** (mit einem Testvault, damit der echte Vault seine Versionsverwaltung behält):
 

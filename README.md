@@ -56,6 +56,9 @@ a purely local folder works as well. Obsidian is the recommended front end, but 
 - "Put this into the PKM": Claude condenses the result of a discussion into the sections
   **Result · Decisions · Open points · Context / rationale** and shows you a **draft**. It saves only
   after you confirm.
+- **Document language:** during installation you choose whether documents created in chat are mainly
+  English or German (`pkm setup`, `PKM_LANGUAGE`). With German the sections are called **Ergebnis ·
+  Entscheidungen · Offene Punkte · Kontext / Begründung**. Continued documents keep their language.
 - New documents land in `documents/_inbox/` and get a fixed **ID** (`d-20261031-2340-k7q2`) and
   `version: 1`.
 - Before that, Claude searches for an existing document on the topic and asks whether it should be
@@ -511,7 +514,7 @@ configuration file written by `pkm setup`; otherwise it finds it from inside the
 
 | Command | Purpose |
 |---|---|
-| `pkm setup` | guided setup: vault, Git check, Claude Desktop, skills (repeatable) |
+| `pkm setup` | guided setup: vault, Git check, document language, Claude Desktop, skills (repeatable) |
 | `pkm init` | create structure, Obsidian settings and (with Git) the Git directory (idempotent) |
 | `pkm doctor [--short]` | check the environment |
 | `pkm lint [--report]` | lint report (with `--report` to `wiki/_lint/`) |
@@ -657,6 +660,10 @@ Voraussetzung.
 - „Leg das ins PKM“: Claude verdichtet das Ergebnis einer Diskussion in die Abschnitte
   **Ergebnis · Entscheidungen · Offene Punkte · Kontext / Begründung** und zeigt dir einen
   **Entwurf**. Erst nach deiner Bestätigung wird gespeichert.
+- **Dokumentsprache:** Bei der Installation legst du fest, ob im Chat erzeugte Dokumente
+  hauptsächlich englisch oder deutsch sind (`pkm setup`, `PKM_LANGUAGE`). Mit Englisch heißen die
+  Abschnitte **Result · Decisions · Open points · Context / rationale**. Fortgeführte Dokumente
+  behalten ihre Sprache.
 - Neue Dokumente landen in `documents/_inbox/` und bekommen eine feste **ID**
   (`d-20261031-2340-k7q2`) sowie `version: 1`.
 - Vorher sucht Claude, ob es zum Thema schon ein Dokument gibt, und fragt, ob es fortgeschrieben
@@ -1126,7 +1133,7 @@ Ausgabe ist JSON (außer bei `pkm setup`). Den Vault kennt die CLI aus der Konfi
 
 | Befehl | Zweck |
 |---|---|
-| `pkm setup` | geführte Einrichtung: Vault, Git-Prüfung, Claude Desktop, Skills (wiederholbar) |
+| `pkm setup` | geführte Einrichtung: Vault, Git-Prüfung, Dokumentsprache, Claude Desktop, Skills (wiederholbar) |
 | `pkm init` | Struktur, Obsidian-Einstellungen und (mit Git) Git-Verzeichnis anlegen (idempotent) |
 | `pkm doctor [--short]` | Umgebung prüfen |
 | `pkm lint [--report]` | Prüfbericht (mit `--report` nach `wiki/_lint/`) |
