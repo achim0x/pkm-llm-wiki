@@ -2,7 +2,8 @@
 
 Asks for the vault folder, checks Git (without Git the PKM runs without version control), asks for the
 language of documents created in chat, writes ``config.toml``, runs ``pkm init``, enters the servers in
-the configuration of Claude Desktop, builds the skill ZIP files and finally runs ``pkm doctor``. It can be run again at any time.
+the configuration of Claude Desktop, builds the skill ZIP files and finally runs ``pkm doctor``. It can be
+run again at any time.
 
     Author: Achim0x
 """
