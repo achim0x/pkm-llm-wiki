@@ -30,12 +30,13 @@ The PKM is a folder of Markdown files (the **vault**). Usually a cloud storage s
 it to all devices; this is optional – the vault can also be a purely local folder on a single
 computer. Exactly one computer, the **PKM host** (Mac or Windows), runs everything that writes:
 the two MCP servers used by Claude Desktop, the command line tool `pkm` and – optionally – Git for
-the version history. Other devices only use Obsidian.
+the version history. Other devices only edit the Markdown files, typically with Obsidian; Obsidian is
+optional as well (any Markdown editor works).
 
 ```mermaid
 flowchart LR
     subgraph Devices["Other devices"]
-        OBS2["Obsidian"]
+        OBS2["Obsidian, optional"]
     end
     subgraph Cloud["Cloud storage, optional (Nextcloud, OneDrive, Google Drive, Dropbox, iCloud Drive, ...)"]
         SYNC(("sync"))
@@ -52,7 +53,7 @@ flowchart LR
             IDX[("index.db<br/>search cache")]
             SK["skills/*.zip"]
         end
-        OBS1["Obsidian"]
+        OBS1["Obsidian, optional"]
     end
     CD -- "stdio" --> MCP
     CD -- "stdio" --> PFL
@@ -125,7 +126,7 @@ flowchart TD
 
 After the installer the user does three things by hand, because Claude Desktop offers no interface
 for them: upload the two skill ZIP files, create the project "PKM-Pflege" with the printed
-instructions, and restart Claude Desktop (and Obsidian, so that it reads the new settings).
+instructions, and restart Claude Desktop (and Obsidian, if used, so that it reads the new settings).
 
 ## 3. The installers
 

@@ -6,7 +6,7 @@ mit Ablaufdiagrammen).
 Der PKM-Rechner ist der eine Rechner, auf dem Claude Desktop, die MCP-Server `pkm-mcp` und
 `pkm-pflege-mcp`, die CLI `pkm` und (mit Git) der Versionsverlauf liegen. Das kann ein **Mac** oder
 ein **Windows-PC** sein; beide Varianten sind gleichwertig. Weitere Rechner (optional) brauchen nur
-Obsidian und den Client des Cloud-Speichers.
+den Client des Cloud-Speichers und einen Markdown-Editor, z. B. Obsidian.
 
 **Pro Vault genau ein PKM-Rechner.** Der Versionsverlauf liegt lokal auf diesem Rechner und wird
 nicht synchronisiert. Ein zweiter PKM-Rechner für denselben Vault würde einen zweiten, abweichenden
@@ -18,7 +18,7 @@ Kurzfassung:
 2. Die Fragen von `pkm setup` beantworten (Vault-Ordner, ggf. Git-Name und E-Mail).
 3. Die beiden Skill-ZIPs in Claude Desktop hochladen.
 4. Projekt „PKM-Pflege“ anlegen.
-5. Claude Desktop und Obsidian neu starten.
+5. Claude Desktop neu starten (und Obsidian, falls du es nutzt).
 
 Platzhalter:
 
@@ -36,7 +36,13 @@ außerhalb des Vaults und eines Cloud-Ordners.
 
 ## 1. Voraussetzungen
 
-- **Claude Desktop** und **Obsidian**.
+- **Claude Desktop** (Pflicht).
+- **Obsidian ist optional**, aber empfohlen. Der Vault besteht aus normalen Markdown-Dateien; du
+  kannst sie mit jedem Editor lesen und bearbeiten. Obsidian bringt Wikilinks, Backlinks, die Anzeige
+  der Eigenschaften und eingebetteter Bilder, die Graph-Ansicht und das automatische Umschreiben von
+  Links beim Verschieben. Ohne Obsidian beim Verschieben von Dokumenten bedenken: Belege und Wikilinks in
+  Wiki-Seiten korrigiert der Pflegelauf (`fix-citations`), Links in deinen eigenen Dokumenten nicht.
+  Die Dateien unter `.obsidian/` legt `pkm init` trotzdem an; sie stören ohne Obsidian nicht.
 - **Cloud-Speicher ist optional.** Das PKM funktioniert auch rein lokal: Der Vault ist dann ein
   normaler Ordner auf dem PKM-Rechner, und du arbeitest nur auf diesem Rechner. Ein Cloud-Speicher
   (Nextcloud, OneDrive, Google Drive, Dropbox, iCloud Drive, Syncthing …) wird erst gebraucht, wenn
@@ -169,9 +175,9 @@ diesem Rechner ist nicht nötig.
    erreichen `pkm-pflege` voraussichtlich nur, solange dieser Rechner an und Claude Desktop
    geöffnet ist.
 
-## 6. Obsidian
+## 6. Obsidian (optional)
 
-Den Vault-Ordner als Vault öffnen. `pkm init` (über `pkm setup`) trägt die Einstellungen aus
+Ohne Obsidian entfällt dieser Abschnitt. Mit Obsidian den Vault-Ordner als Vault öffnen. `pkm init` (über `pkm setup`) trägt die Einstellungen aus
 Spezifikation 13 in `.obsidian/app.json` ein; Obsidian übernimmt sie nach einem Neustart:
 
 | Einstellung | Wert |
