@@ -1,9 +1,10 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.26 (Entwurf zum Review) · **Stand:** 04.11.2026
+**Version:** 0.26 (Entwurf zum Review) · **Stand:** 05.11.2026
 
 > **Änderungen in 0.26**
 > - **Git ist optional.** Ohne Git läuft das PKM ohne Versionsverwaltung: Dokumente bekommen weiter IDs und Versionsnummern, geschrieben wird ohne Commit, Änderungen von Hand erkennt der Pflegelauf über die Hashes in `state.json`. Verlauf, Diff, alte Versionen und Wiederherstellen gibt es dann nicht (`not_versioned`). Nachrüsten: Git installieren und `pkm setup` erneut ausführen (5.4, 7.1–7.3, 8, 12, 16).
+> - **Obsidian ist optional** (Klarstellung): Der Vault ist reines Markdown und lässt sich mit jedem Editor bearbeiten. Obsidian bleibt das empfohlene Frontend; ohne Obsidian entfällt nur das automatische Umschreiben von Links beim Verschieben (5.1, 5.5, 13).
 > - **Einfachere Installation umgesetzt** (15.1): Installer `install.sh`/`install.ps1`, Assistent `pkm setup`, Konfigurationsdatei `config.toml`, Obsidian-Einstellungen durch `pkm init`, Skill-ZIPs im Paket und an jeder Release. Abweichend vom Plan installiert der Installer Git nicht, sondern weist nur darauf hin, und lädt das Paket als ZIP-Archiv (funktioniert ohne Git) (7.1, 7.6, 8, 13, 15.1).
 
 > **Änderungen in 0.25**
@@ -118,7 +119,7 @@
 Ein persönliches Wissensmanagement (PKM), das
 
 - für Menschen lesbar bleibt: reines Markdown, Obsidian als Frontend, aber nicht als Voraussetzung,
-- **einen Ablagebereich** hat, in dem Dokumente manuell oder per MCP landen und in Obsidian frei sortiert werden,
+- **einen Ablagebereich** hat, in dem Dokumente manuell oder per MCP landen und frei sortiert werden (üblicherweise in Obsidian),
 - daraus von einem LLM-Agenten ein **kompiliertes Wiki** aufbauen lässt (Zusammenfassungen, Themen, Querverweise) mit **Belegen auf die Originaldokumente**,
 - aus **beliebigen Claude-Desktop-Chats** erlaubt:
   1. Ergebnisse einer Diskussion als neues Dokument abzulegen,
@@ -167,7 +168,7 @@ Ein persönliches Wissensmanagement (PKM), das
 └──────────┬───────────────────┘                        │
            ▼                                            ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Vault  <PKM_ROOT>  (Cloud-Ordner, in Obsidian geöffnet)             │
+│  Vault  <PKM_ROOT>  (Cloud-Ordner, optional in Obsidian geöffnet)    │
 │  documents/  (inkl. _inbox/)     wiki/     CLAUDE.md     .pkm/       │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -675,7 +676,7 @@ Lint prüft, dass `[img:<name>]` im Dokument der belegten Version existiert.
 
 ### 5.1 Zuordnung beim Umsortieren
 
-Drei Mechanismen greifen nacheinander. Jeder deckt die Fälle ab, die der vorherige nicht abdeckt.
+Drei Mechanismen greifen nacheinander. Jeder deckt die Fälle ab, die der vorherige nicht abdeckt. Ohne Obsidian entfällt Mechanismus 1; dann greifen 2 und 3, und `fix-citations` schreibt Belege, `sources` und Wikilinks in Wiki-Seiten auf den neuen Ort um. Links in den Dokumenten des Nutzers bleiben dann unverändert.
 
 | # | Mechanismus | Deckt ab | Grenze |
 |---|---|---|---|
@@ -738,9 +739,9 @@ Mehrere Änderungen von Hand zwischen zwei Commits werden also zu **einer** Vers
 
 ### 5.5 Cloud-Speicher, Mac und Windows
 
-**PKM-Rechner:** Genau **ein** Rechner je Vault führt MCP-Server, Pflege-Agent, Git und Suchindex. Das kann ein Mac oder ein Windows-PC sein, beide Varianten sind gleichwertig. Alle anderen Rechner lesen und bearbeiten den Vault nur in Obsidian.
+**PKM-Rechner:** Genau **ein** Rechner je Vault führt MCP-Server, Pflege-Agent, Git und Suchindex. Das kann ein Mac oder ein Windows-PC sein, beide Varianten sind gleichwertig. Alle anderen Rechner lesen und bearbeiten den Vault nur mit einem Editor, üblicherweise Obsidian (optional, 13).
 
-| Rechner | Obsidian | MCP-Server, Pflege-Agent, Git |
+| Rechner | Obsidian bzw. anderer Editor | MCP-Server, Pflege-Agent, Git |
 |---|---|---|
 | PKM-Rechner (Mac **oder** Windows) | lesen, bearbeiten | **ja** (einziger Ort) |
 | weitere Rechner (Mac oder Windows) | lesen, bearbeiten | nein |
@@ -1367,6 +1368,8 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 ---
 
 ## 13. Obsidian-Einstellungen
+
+**Obsidian ist optional.** Der Vault besteht aus reinem Markdown; jeder Editor kann ihn lesen und bearbeiten, und keine Funktion der Werkzeuge setzt Obsidian voraus. Obsidian ist das empfohlene Frontend (Wikilinks, Backlinks, Anzeige der Properties und eingebetteter Bilder, Graph). Ohne Obsidian entfällt das automatische Umschreiben von Links beim Verschieben (5.1, Mechanismus 1); die Dateien unter `.obsidian/` legt `pkm init` trotzdem an, sie stören nicht. Die folgenden Einstellungen gelten, wenn Obsidian genutzt wird.
 
 `pkm init` trägt die folgenden Einstellungen in `.obsidian/app.json` ein, soweit sie fehlen; abweichende Werte bleiben und werden gemeldet. Obsidian liest die Datei nach einem Neustart.
 
