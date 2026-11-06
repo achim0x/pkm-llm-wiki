@@ -1,4 +1,4 @@
-"""Maintenance run as three steps for the MCP server ``pkm-pflege``: begin, write wiki page, finish.
+"""Maintenance run as three steps for the MCP server ``pkm-maintenance``: begin, write wiki page, finish.
 
 All steps are deterministic. The content work (writing pages, choosing citations) is done by
 the LLM; the mechanical maintenance commands run here bundled in a fixed order.

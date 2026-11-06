@@ -33,7 +33,7 @@ Befunde unten unter „Befunde“ sammeln; sie werden danach behoben (Code oder 
 
 **Erwartet**
 - [ ] Der Installer meldet „Git found: version control will be on.“ und installiert `pkm`,
-      `pkm-mcp` und `pkm-pflege-mcp` nach `~/.local/bin`.
+      `pkm-mcp` und `pkm-maintenance-mcp` nach `~/.local/bin`.
 - [ ] `pkm setup` erkennt den Cloud-Dienst des Vault-Ordners und meldet keine Dateien „nur online“.
 - [ ] Bei einer vorhandenen Installation zeigt `pkm setup` zuerst die gefundene Konfiguration mit
       Herkunft (z. B. `PKM_GIT_DIR` aus Claude Desktop) und fragt, ob es sie übernehmen soll; nach
@@ -43,7 +43,7 @@ Befunde unten unter „Befunde“ sammeln; sie werden danach behoben (Code oder 
       `PKM_VERSIONING = true`, `PKM_GIT` und `PKM_LANGUAGE` mit der gewählten Sprache.
 - [ ] `pkm setup` meldet, ob die Server in Claude Desktop schon eingetragen sind; fehlen sie oder
       weichen sie ab, zeigt es die Änderung und fragt, ob es `claude_desktop_config.json` ändern darf.
-- [ ] Bei „ja“: `pkm` und `pkm-pflege` nur mit `command`, andere Server unverändert, Sicherungskopie
+- [ ] Bei „ja“: `pkm` und `pkm-maintenance` nur mit `command`, andere Server unverändert, Sicherungskopie
       `claude_desktop_config.json.<datum>.bak` daneben.
 - [ ] Probe mit „nein“ (z. B. beim zweiten Lauf nach Entfernen eines Eintrags): die Datei bleibt
       unverändert, der Assistent zeigt den JSON-Text zum Selbst-Eintragen.
@@ -53,7 +53,7 @@ Befunde unten unter „Befunde“ sammeln; sie werden danach behoben (Code oder 
       einem Neustart.
 - [ ] Ein zweiter Lauf von `pkm setup` ändert nichts (keine neue Sicherungskopie).
 - [ ] Nach dem Neustart von Claude Desktop erscheinen die 15 `pkm`-Tools und der Server
-      `pkm-pflege`.
+      `pkm-maintenance`.
 
 Für die Prüfbefehle im Terminal (den Vault kennt `pkm` aus `config.toml`):
 
@@ -106,7 +106,7 @@ eine Datei.
 
 ## Schritt 2 – Erster Pflegelauf
 
-**Eingabe** (Projekt „PKM-Pflege“, Vault-Ordner verbunden): „Verarbeite neue Dokumente.“
+**Eingabe** (Projekt „PKM Maintenance“, Vault-Ordner verbunden): „Verarbeite neue Dokumente.“
 
 **Erwartet**
 - [ ] Der Agent beginnt mit `begin_maintenance` (doctor, versions, ids, pending) und schreibt

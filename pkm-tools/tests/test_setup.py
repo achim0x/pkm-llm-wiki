@@ -90,12 +90,13 @@ def test_setup_with_git(paths):
     assert git(paths["env"], "log", "-1", "--format=%s").strip() == "pkm: init"
     assert git(paths["env"], "config", "commit.gpgsign").strip() == "false"
     servers = json.loads(paths["claude"].read_text(encoding="utf-8"))["mcpServers"]
-    assert set(servers) == {"pkm", "pkm-pflege"} and servers["pkm"]["command"].replace(".exe", "").endswith("pkm-mcp")
+    assert set(servers) == {"pkm", "pkm-maintenance"}
+    assert servers["pkm"]["command"].replace(".exe", "").endswith("pkm-mcp")
     assert servers["pkm"]["env"] == {"PKM_CONFIG": str(paths["config"])}  # not the default folder in the tests
     with zipfile.ZipFile(paths["skills"] / "pkm-access.zip") as zf:
         assert "pkm-access/SKILL.md" in zf.namelist()
     assert (paths["root"] / ".obsidian" / "app.json").is_file()
-    assert "PKM-Pflege" in out
+    assert "PKM Maintenance" in out
 
 
 def test_setup_asks_before_changing_claude_desktop(paths):
@@ -119,12 +120,14 @@ def test_setup_asks_before_changing_claude_desktop(paths):
 
     res, out = _setup(paths, ask=no)
     claude = res["claude"]
-    assert claude["status"] == "declined" and claude["missing"] == ["pkm-pflege"] and claude["differing"] == ["pkm"]
+    assert claude["status"] == "declined" and claude["missing"] == ["pkm-maintenance"]
+    assert claude["differing"] == ["pkm"]
     assert sum("Claude Desktop configuration" in q for q in questions) == 1
     assert json.loads(paths["claude"].read_text(encoding="utf-8")) == old
     assert not list(paths["claude"].parent.glob("*.bak"))
     manual = json.loads(claude["manual"])["mcpServers"]
-    assert set(manual) == {"pkm", "pkm-pflege"} and "Enter the following by hand" in out and "pkm-pflege-mcp" in out
+    assert set(manual) == {"pkm", "pkm-maintenance"} and "Enter the following by hand" in out
+    assert "pkm-maintenance-mcp" in out
 
 
 def test_setup_changes_claude_desktop_with_permission_and_is_repeatable(paths):
@@ -136,7 +139,7 @@ def test_setup_changes_claude_desktop_with_permission_and_is_repeatable(paths):
     assert res["claude"]["status"] == "changed"
     data = json.loads(paths["claude"].read_text(encoding="utf-8"))
     assert data["theme"] == "dark" and data["mcpServers"]["other"] == {"command": "x"}
-    assert data["mcpServers"]["pkm"]["command"] != "old" and "pkm-pflege" in data["mcpServers"]
+    assert data["mcpServers"]["pkm"]["command"] != "old" and "pkm-maintenance" in data["mcpServers"]
     assert len(list(paths["claude"].parent.glob("*.bak"))) == 1
 
     def no_claude_question(question):
@@ -154,6 +157,19 @@ def test_setup_changes_claude_desktop_with_permission_and_is_repeatable(paths):
     res, out = _setup(paths, ask=no_claude_question)
     assert res["claude"]["status"] == "unchanged" and "already entered" in out
     assert len(list(paths["claude"].parent.glob("*.bak"))) == 1
+
+
+def test_setup_replaces_old_maintenance_entry(paths):
+    """The old entry pkm-pflege (name up to 0.2.0) is replaced by pkm-maintenance; other servers stay."""
+    paths["claude"].parent.mkdir(parents=True)
+    old = {"mcpServers": {"pkm-pflege": {"command": "/x/pkm-pflege-mcp"}, "other": {"command": "x"}}}
+    paths["claude"].write_text(json.dumps(old), encoding="utf-8")
+    res, out = _setup(paths)
+    servers = json.loads(paths["claude"].read_text(encoding="utf-8"))["mcpServers"]
+    assert set(servers) == {"pkm", "pkm-maintenance", "other"} and res["claude"]["obsolete"] == ["pkm-pflege"]
+    assert "old name of pkm-maintenance" in out
+    res, _ = _setup(paths)
+    assert res["claude"]["status"] == "unchanged" and not res["claude"]["obsolete"]
 
 
 def test_setup_with_unreadable_claude_config(paths):

@@ -1,6 +1,6 @@
 # pkm-tools
 
-MCP servers `pkm-mcp` (chats) and `pkm-pflege-mcp` (wiki maintenance) as well as the CLI `pkm` for the PKM with LLM wiki.
+MCP servers `pkm-mcp` (chats) and `pkm-maintenance-mcp` (wiki maintenance) as well as the CLI `pkm` for the PKM with LLM wiki.
 Basis: [specification](../docs/specification.md), [implementation plan](../docs/implementation-plan.md).
 
 ## Status
@@ -22,7 +22,7 @@ Basis: [specification](../docs/specification.md), [implementation plan](../docs/
 `show_citations`.
 
 **Images (4.9):** `create_document`, `rewrite_document`, `append_to_document`, `edit_document` with
-`images`, plus `add_image` and `read_image` (also in `pkm-pflege-mcp`). Modules `images.py` (detection,
+`images`, plus `add_image` and `read_image` (also in `pkm-maintenance-mcp`). Modules `images.py` (detection,
 SVG sanitizing, PNG check, encoding, placeholders), `docimages.py` (insertion, files, `read`,
 `read_image`), `assets.py` (associated image files, `state.json` `assets`, orphaned attachments),
 `imagelint.py`.
@@ -31,7 +31,7 @@ SVG sanitizing, PNG check, encoding, placeholders), `docimages.py` (insertion, f
 proposal, fix, comparison "only the image notation"), `citeraise.py` (raising citations). Writing
 tools with `fix_images`/`image_alt`, tool `fix_images` in both servers, CLI `pkm fix-images`.
 
-**MCP tools of `pkm-pflege-mcp`:** the reading tools as well as `begin_maintenance` (doctor, versions, ids,
+**MCP tools of `pkm-maintenance-mcp`:** the reading tools as well as `begin_maintenance` (doctor, versions, ids,
 pending with `missing_fields`, `known_tags`, fix-citations), `set_document_metadata` (only `title`,
 `context`, `tags`, `kind`, `short_citation` after confirmation; new version with `PKM-Source: agent`),
 `write_wiki_page` (only `wiki/topics|entities|summaries|syntheses/`, with
@@ -106,7 +106,7 @@ skill ZIPs and the wheel to every release tag `v*`.
 - `pkm init` creates `.obsidian/types.json` with the property types of the schema or adds
   missing ones; existing types stay. `pkm doctor` warns about missing or differing types.
 - **Maintenance via MCP instead of a shell:** Cowork/Claude Desktop offer no shell on the PKM host.
-  Maintenance therefore runs via the second server `pkm-pflege-mcp` (`maintrun.py`) with three
+  Maintenance therefore runs via the second server `pkm-maintenance-mcp` (`maintrun.py`) with three
   tools instead of CLI calls. `pkm mark` determines the pages itself from the footnotes there.
   The server cannot be restricted to one project in Claude Desktop; it is only enabled in
   maintenance conversations.

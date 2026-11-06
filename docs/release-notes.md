@@ -11,7 +11,7 @@ Changes compared to `V0.2.0`. Specification now **0.27**.
 - The server `pkm` names the language and its section names in its instructions (German:
   Ergebnis, Entscheidungen, Offene Punkte, Kontext / Begründung). The skill `pkm-access` writes new
   documents in that language; continued documents keep theirs.
-- The server `pkm-pflege` names the wiki language, the section names and the summary label
+- The server `pkm-maintenance` names the wiki language, the section names and the summary label
   (German: Kurzfassung, Inhalt, Widersprüche / offene Fragen, Siehe auch, Belege). The skill
   `pkm-wiki` writes new wiki pages, log entries and reports in it; existing pages keep their
   language. Generated files (`index.md`, `_status.md`, lint reports) stay English.
@@ -22,12 +22,23 @@ Changes compared to `V0.2.0`. Specification now **0.27**.
   entries in Claude Desktop (installations from before `pkm setup` kept them there) and in
   `config.toml`, shows them with their source and offers to take them over.
 - PKM entries in Claude Desktop are also recognized under other names by their programs
-  (`pkm-mcp`, `pkm-pflege-mcp`). If no source names the vault, it is read from the existing Git
+  (`pkm-mcp`, `pkm-maintenance-mcp`). If no source names the vault, it is read from the existing Git
   directory (`core.worktree`).
 - Taken over, the values are the defaults of the questions and are written to `config.toml`, so a
   custom `PKM_GIT_DIR` and with it the version history stay in use. Declined, the setup starts anew
   and backs up `config.toml`.
 - Closed input (end of file) no longer makes `pkm setup` fail; it takes the defaults.
+
+### English names for the maintenance server
+
+- The second MCP server is now called `pkm-maintenance` (program `pkm-maintenance-mcp`, module
+  `maintenance_server.py`) instead of `pkm-pflege` (`pkm-pflege-mcp`, `pflege_server.py`); the
+  Claude project is called "PKM Maintenance" instead of "PKM-Pflege".
+- The old program name `pkm-pflege-mcp` stays as an alias, so existing Claude Desktop entries keep
+  working until `pkm setup` runs. `pkm setup` replaces the old entry `pkm-pflege` with
+  `pkm-maintenance` (after asking; other servers stay).
+- Rename the project "PKM-Pflege" in Claude Desktop to "PKM Maintenance" if you like; the name of
+  the project does not matter to the tools.
 
 ### Documentation
 
@@ -38,7 +49,8 @@ Changes compared to `V0.2.0`. Specification now **0.27**.
 
 1. Run the installer again.
 2. In `pkm setup`, confirm taking over the existing configuration and choose the language.
-3. Upload the new skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart Claude Desktop.
+3. Let `pkm setup` replace the old Claude Desktop entry `pkm-pflege` with `pkm-maintenance`.
+4. Upload the new skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart Claude Desktop.
 
 ## V0.2.0
 

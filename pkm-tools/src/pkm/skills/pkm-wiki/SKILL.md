@@ -1,11 +1,11 @@
 ---
 name: pkm-wiki
-description: Maintenance of the PKM wiki via the MCP server "pkm-pflege" (project "PKM-Pflege") – process new and changed documents (ingest), lint, wiki questions in the maintenance project, adjust the schema. Use for "process new documents", "ingest", "lint", "check the wiki", "what does the wiki say about …" in the maintenance project.
+description: Maintenance of the PKM wiki via the MCP server "pkm-maintenance" (project "PKM Maintenance") – process new and changed documents (ingest), lint, wiki questions in the maintenance project, adjust the schema. Use for "process new documents", "ingest", "lint", "check the wiki", "what does the wiki say about …" in the maintenance project.
 ---
 
 # Maintaining the PKM wiki
 
-You work with the tools of the MCP server **`pkm-pflege`**. It runs on the user's PKM host;
+You work with the tools of the MCP server **`pkm-maintenance`**. It runs on the user's PKM host;
 you need neither a shell nor the CLI `pkm` (there is none in Cowork).
 
 | Tool | Purpose |
@@ -18,7 +18,7 @@ you need neither a shell nor the CLI `pkm` (there is none in Cowork).
 | `fix_images` | Only after confirmation: fix the notation of nonconforming image data URIs of a document |
 | `finish_maintenance` | Finish: citations (moved, renamed, `v:` raised for unchanged sections), `sources`, processing state, log, index, status, lint, agent commit |
 
-**Language:** the instructions of the server `pkm-pflege` name the **wiki language** (set during
+**Language:** the instructions of the server `pkm-maintenance` name the **wiki language** (set during
 installation, `PKM_LANGUAGE`). New wiki pages and summaries, the log entry and the report are
 written in it, with these names:
 

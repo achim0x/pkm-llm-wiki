@@ -29,7 +29,7 @@ Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnisse
 | 3 | Schreibende MCP-Tools inkl. Versionierung und Commit | Ablegen und Aktualisieren aus Chats | 3,5 |
 | 4 | Pflege-CLI: `ids`, `versions`, `pending`, `mark`, `sha`, `show`, `history`, `restore`, `index`, `status`, `reindex`, `commit-wiki` | Pflege-Grundlage | 3,5 |
 | 5 | Belege: Parser, Auflösung, `show_citations`, `fix-/sync-citations`, `lint`, `doctor` | Rückverfolgbarkeit | 4 |
-| 6 | Skills `pkm-access`, `pkm-wiki`, Projekt „PKM-Pflege“, Einrichtung auf dem PKM-Rechner (Mac oder Windows) | Erster echter Ingest-Lauf | 2 |
+| 6 | Skills `pkm-access`, `pkm-wiki`, Projekt „PKM Maintenance“, Einrichtung auf dem PKM-Rechner (Mac oder Windows) | Erster echter Ingest-Lauf | 2 |
 | 7 | Manuelle Abnahme (14), Nacharbeiten | Freigabe | 1,5 |
 | 7a–7d | Nacharbeiten aus Abnahme und Spezifikation 0.13–0.26 (Pflege über MCP, Bilder, Windows, Englisch, Cloud-Speicher, Git optional, Installation) | umgesetzt | – |
 | 8 | Später, nur auf Anweisung: geplante Aufgabe | Automatische Verarbeitung | 0,5 |
@@ -86,7 +86,7 @@ Damit ist keine Klärung mehr offen.
 
 ## 3. Paketaufbau
 
-Ein Python-Paket `pkm-tools` mit den Einstiegspunkten `pkm`, `pkm-mcp` und (seit 7a) `pkm-pflege-mcp`. Ursprünglich installierbar über `uvx --from <pfad>`; seit 7d über die Installer `install.sh`/`install.ps1` und `pkm setup` (Spezifikation 15.1, [architecture.md](architecture.md)).
+Ein Python-Paket `pkm-tools` mit den Einstiegspunkten `pkm`, `pkm-mcp` und (seit 7a) `pkm-maintenance-mcp`. Ursprünglich installierbar über `uvx --from <pfad>`; seit 7d über die Installer `install.sh`/`install.ps1` und `pkm setup` (Spezifikation 15.1, [architecture.md](architecture.md)).
 
 ```
 pkm-tools/
@@ -227,7 +227,7 @@ Kern ist `writer.apply_change(target, transform, note, source="chat")`, über de
 - **`skills/pkm-access/SKILL.md`** (schlank): Trigger aus 10; Grundregel „immer erst Entwurf, keine Ausnahme“; Abläufe Ablegen, Fortsetzen (6.2 Standard, 6.3 nur auf Anweisung), kleine Änderungen, Verlauf, Abfragen, Quellen, Korrekturen; Umgang mit `conflict`, `large_shortening` und `ambiguous` bei Abschnitten; Hinweis, dass `update_frontmatter` Kommentare im Frontmatter entfernt (K8).
 - **`skills/pkm-wiki/SKILL.md`**: Abläufe Ingest (9.1, Schritt für Schritt mit CLI-Aufrufen, Abschluss mit `pkm commit-wiki`), Lint (9.2), Abfrage (9.3), Schema (9.4), feste Regeln (9.5), Beleg-Format mit Beispiel inkl. `§:`, Umgang mit `meta_changed` und `renamed`, Verhalten im unbeaufsichtigten Lauf.
 - **`CLAUDE.md`-Vorlage** im Vault (über `pkm init`): Konventionen aus 4 und 9.5 in Kurzform.
-- **Einrichtungsanleitung** `docs/installation.de.md`: ursprünglich `uv` installieren, Git-Identität, `pkm init`, `claude_desktop_config.json` (7.6) von Hand, Skills packen, Projekt „PKM-Pflege“, Obsidian-Einstellungen (13), `PKM_CACHE_DIR` außerhalb des Cloud-Ordners. Seit 7d ersetzt durch Installer und `pkm setup`.
+- **Einrichtungsanleitung** `docs/installation.de.md`: ursprünglich `uv` installieren, Git-Identität, `pkm init`, `claude_desktop_config.json` (7.6) von Hand, Skills packen, Projekt „PKM Maintenance“, Obsidian-Einstellungen (13), `PKM_CACHE_DIR` außerhalb des Cloud-Ordners. Seit 7d ersetzt durch Installer und `pkm setup`.
 - **Probelauf** mit 3–5 selbst angelegten Dokumenten (keine Startbefüllung, 16 Nr. 7).
 
 ### Phase 7 – Abnahme (1,5 PT)
@@ -238,13 +238,13 @@ Abnahmeschritte aus 14 auf dem Mac mit echtem Vault im Cloud-Speicher und Window
 
 **Befund:** Claude Desktop bzw. Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus (lokale VM, seit Oktober 2026 bei Pro/Max/Ultra in der Cloud). Darin fehlen `pkm`, Git und das Git-Verzeichnis; der Pflegeablauf aus 9.1 mit CLI-Aufrufen läuft dort nicht. Lokale MCP-Server erreicht Cowork dagegen über die Desktop-App.
 
-**Umsetzung:** zweiter MCP-Server `pkm-pflege-mcp` (`pflege_server.py`, Logik in `maintrun.py`) mit den lesenden Tools und drei Pflege-Tools:
+**Umsetzung:** zweiter MCP-Server `pkm-maintenance-mcp` (`maintenance_server.py`, Logik in `maintrun.py`) mit den lesenden Tools und drei Pflege-Tools:
 
 - `begin_maintenance`: `doctor --short` (bei Fehlern `blocked`), `versions`, `ids` (doppelte IDs → `needs_decision`), `pending`, bei Verschiebungen `fix-citations`; optional Lint.
 - `write_wiki_page`: Seite unter `wiki/topics|entities|summaries|syntheses/` anlegen oder ersetzen, mit `expected_hash`, ohne Commit; generierte Dateien gesperrt.
 - `finish_maintenance`: `fix-citations`, `sync-citations`, `mark` (Seiten aus den Fußnoten ermittelt), Austragen gelöschter Dokumente, Log-Eintrag mit Zeitstempel, `index`, `status` (mit Rückfragen), `lint`, `commit-wiki`.
 
-Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI bleibt für Einrichtung und Fehlersuche. Offener Punkt: Claude Desktop kann einen Server nicht auf ein Projekt beschränken. `pkm-pflege` wird nur in Pflege-Unterhaltungen eingeschaltet (organisatorische statt technischer Sperre); Spezifikation 7/9/11 entsprechend anpassen.
+Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI bleibt für Einrichtung und Fehlersuche. Offener Punkt: Claude Desktop kann einen Server nicht auf ein Projekt beschränken. `pkm-maintenance` wird nur in Pflege-Unterhaltungen eingeschaltet (organisatorische statt technischer Sperre); Spezifikation 7/9/11 entsprechend anpassen.
 
 ### Phase 7b – Änderungsauftrag aus den Pflegeläufen (2026-11-02)
 
@@ -271,7 +271,7 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - **Einfachere Installation** (15.1): `config.toml` statt Umgebungsvariablen, Git-Suche (`PKM_GIT`, `PATH`, übliche Orte), `.obsidian/app.json` durch `pkm init`, Assistent `pkm setup` (`setupwiz.py`), Skills im Paket, Installer `install.sh`/`install.ps1` (laden das GitHub-Archiv, funktionieren ohne Git), Release-Workflow mit Skill-ZIPs und Wheel. Die CI führt beide Installer auf Linux, macOS und Windows aus.
 - **Tests:** `test_no_git.py`, `test_setup.py`; 405 Tests auf allen drei Systemen grün.
 - **Erledigt:** Merge auf `main`, Release `v0.2.0`.
-- **Dokumentsprache** (0.27): `pkm setup` fragt, ob im Chat erzeugte Dokumente hauptsächlich englisch oder deutsch sind (`PKM_LANGUAGE`, Option `--language`); der Server `pkm` nennt Sprache und Abschnittsnamen in seinen Anweisungen, der Skill `pkm-access` folgt ihnen; ebenso `pkm-pflege` mit Wiki-Sprache, Abschnittsnamen und Kurzfassungs-Label für den Skill `pkm-wiki` (`test_language.py`).
+- **Dokumentsprache** (0.27): `pkm setup` fragt, ob im Chat erzeugte Dokumente hauptsächlich englisch oder deutsch sind (`PKM_LANGUAGE`, Option `--language`); der Server `pkm` nennt Sprache und Abschnittsnamen in seinen Anweisungen, der Skill `pkm-access` folgt ihnen; ebenso `pkm-maintenance` mit Wiki-Sprache, Abschnittsnamen und Kurzfassungs-Label für den Skill `pkm-wiki` (`test_language.py`).
 - **Vorhandene Konfiguration übernehmen** (0.27): `pkm setup` zeigt Einstellungen aus Umgebung, `env`-Blöcken in Claude Desktop und `config.toml` und übernimmt sie nach Bestätigung (`test_setup_adopt.py`).
 
 ### Phase 7e – Abnahme mit der neuen Installation
@@ -280,7 +280,7 @@ Abnahme nach `docs/acceptance.md`, beginnend mit Schritt 0 (Installer und `pkm s
 
 ### Phase 8 – Automatik (später, 0,5 PT)
 
-Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im Projekt. Voraussetzung: mehrere manuelle Läufe ohne Nacharbeit. Geplante Cowork-Aufgaben laufen in der Cloud und erreichen `pkm-pflege` voraussichtlich nur bei laufendem PKM-Rechner mit geöffneter Desktop-App – vorher testen.
+Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im Projekt. Voraussetzung: mehrere manuelle Läufe ohne Nacharbeit. Geplante Cowork-Aufgaben laufen in der Cloud und erreichen `pkm-maintenance` voraussichtlich nur bei laufendem PKM-Rechner mit geöffneter Desktop-App – vorher testen.
 
 ---
 
@@ -308,7 +308,7 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 | Git-Verzeichnis außerhalb des Vaults geht verloren | Verlauf weg, Belege `v:` nicht mehr prüfbar | Time Machine (12), `doctor` prüft Erreichbarkeit; später optional Remote |
 | Claude Desktop startet MCP mit minimalem `PATH` | `git` nicht gefunden | `pkm setup` speichert den Git-Pfad in `config.toml` (`PKM_GIT`), Suche an den üblichen Orten, klare Fehlermeldung, `doctor` |
 | Git fehlt auf dem PKM-Rechner | keine Versionsgeschichte | bewusst erlaubt (0.26): Betrieb ohne Versionsverwaltung mit Hinweis; nachrüstbar durch `pkm setup` |
-| Installer ändert eine bestehende Claude-Desktop-Konfiguration | andere Server gehen verloren | nur Einträge `pkm`/`pkm-pflege`, Sicherungskopie, Ersetzen erst nach Rückfrage |
+| Installer ändert eine bestehende Claude-Desktop-Konfiguration | andere Server gehen verloren | nur Einträge `pkm`/`pkm-maintenance`, Sicherungskopie, Ersetzen erst nach Rückfrage |
 | Hash-Regeln werden später geändert | alle Einträge in `state.json` gelten als geändert | Testvektoren, Feld `version` in `state.json` als Formatversion, Migration bei Bedarf |
 | LLM hält Beleg-Format oder Regeln nicht ein | fehlerhafte Belege | `lint` als harte Kontrolle am Ende jedes Ingest, Skill mit Beispielen |
 | Kontextgrenze beim Ingest | unvollständige Verarbeitung | Etappen à ≤ 10 Dokumente (9.1), Verarbeitung nur geänderter Abschnitte |

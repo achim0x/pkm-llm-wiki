@@ -101,7 +101,7 @@ def _old_claude(paths):
     env = {"PKM_ROOT": str(paths["root"]), "PKM_VAULT_NAME": "MyVault", "PKM_GIT_DIR": str(paths["old_git"])}
     paths["claude"].parent.mkdir(parents=True)
     data = {"mcpServers": {"pkm": {"command": "pkm-mcp", "env": env},
-                           "pkm-pflege": {"command": "pkm-pflege-mcp", "env": env},
+                           "pkm-maintenance": {"command": "pkm-maintenance-mcp", "env": env},
                            "other": {"command": "x"}}}
     paths["claude"].write_text(json.dumps(data), encoding="utf-8")
 

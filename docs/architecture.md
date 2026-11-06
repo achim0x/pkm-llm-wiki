@@ -25,7 +25,7 @@ users is [installation.md](installation.md) (German: [installation.de.md](instal
 - [8. Verification and releases](#8-verification-and-releases)
 - [9. pkm-tools: package structure](#9-pkm-tools-package-structure)
 - [10. Entry points](#10-entry-points)
-  - [10.1 pkm-mcp and pkm-pflege-mcp](#101-pkm-mcp-and-pkm-pflege-mcp)
+  - [10.1 pkm-mcp and pkm-maintenance-mcp](#101-pkm-mcp-and-pkm-maintenance-mcp)
   - [10.2 pkm (CLI)](#102-pkm-cli)
 - [11. Service and the write path](#11-service-and-the-write-path)
 - [12. Vault model, text and hashes](#12-vault-model-text-and-hashes)
@@ -54,7 +54,7 @@ flowchart LR
     subgraph Host["PKM host (Mac or Windows)"]
         CD["Claude Desktop / Cowork"]
         MCP["pkm-mcp<br/>(chats)"]
-        PFL["pkm-pflege-mcp<br/>(maintenance)"]
+        PFL["pkm-maintenance-mcp<br/>(maintenance)"]
         CLI["pkm<br/>(CLI, setup)"]
         VAULT[("Vault<br/>documents/ wiki/ scratch/<br/>.pkm/state.json")]
         subgraph App["App folder (outside the cloud folder)"]
@@ -84,7 +84,7 @@ flowchart LR
 | Component | Role |
 |---|---|
 | `pkm-mcp` | MCP server for all chats: search, read, create and continue documents, citations, images |
-| `pkm-pflege-mcp` | MCP server for the maintenance project: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` plus the reading tools |
+| `pkm-maintenance-mcp` | MCP server for the maintenance project: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` plus the reading tools |
 | `pkm` | CLI for setup, checks (`doctor`, `lint`) and troubleshooting; contains the same maintenance building blocks |
 | Skills `pkm-access`, `pkm-wiki` | Instructions for Claude in normal chats and in the maintenance project |
 | Vault | Markdown files in the cloud folder (or a local folder without cloud storage); never contains `.git` or the search index |
@@ -98,7 +98,7 @@ network connections; the content work is done by Claude in Claude Desktop.
 
 | Item | macOS | Windows | Linux (tests, CI) |
 |---|---|---|---|
-| Programs | `~/.local/bin/pkm`, `pkm-mcp`, `pkm-pflege-mcp` | `%USERPROFILE%\.local\bin\*.exe` | `~/.local/bin/` |
+| Programs | `~/.local/bin/pkm`, `pkm-mcp`, `pkm-maintenance-mcp` | `%USERPROFILE%\.local\bin\*.exe` | `~/.local/bin/` |
 | App folder | `~/Library/Application Support/pkm/` | `%APPDATA%\pkm\` | `$XDG_DATA_HOME/pkm` or `~/.local/share/pkm/` |
 | Configuration | `<app folder>/config.toml` (or `PKM_CONFIG`) | same | same |
 | Git directory | `<app folder>/git/` (or `PKM_GIT_DIR`) | same | same |
@@ -126,7 +126,7 @@ flowchart TD
     E --> G["Download the repository ZIP<br/>(PKM_ARCHIVE or GitHub main)"]
     F --> G
     G --> H["Unpack to a temporary folder,<br/>find pkm-tools/"]
-    H --> I["uv tool install --force --reinstall pkm-tools<br/>-> pkm, pkm-mcp, pkm-pflege-mcp"]
+    H --> I["uv tool install --force --reinstall pkm-tools<br/>-> pkm, pkm-mcp, pkm-maintenance-mcp"]
     I --> J["Remove the temporary folder"]
     J --> K[["pkm setup<br/>(section 4)"]]
     K --> L{"pkm doctor without errors?"}
@@ -135,7 +135,7 @@ flowchart TD
 ```
 
 After the installer the user does three things by hand, because Claude Desktop offers no interface
-for them: upload the two skill ZIP files, create the project "PKM-Pflege" with the printed
+for them: upload the two skill ZIP files, create the project "PKM Maintenance" with the printed
 instructions, and restart Claude Desktop (and Obsidian, if used, so that it reads the new settings).
 
 ## 3. The installers
@@ -155,7 +155,7 @@ instructions, and restart Claude Desktop (and Obsidian, if used, so that it read
    The archive is used instead of `uv tool install git+https://…` because that would require Git,
    and uv ignores the `subdirectory` of archive URLs.
 4. **Package.** `uv tool install --force --reinstall <unpacked>/pkm-tools` creates an isolated
-   environment for the package and links `pkm`, `pkm-mcp` and `pkm-pflege-mcp` into
+   environment for the package and links `pkm`, `pkm-mcp` and `pkm-maintenance-mcp` into
    `~/.local/bin`. The temporary folder is removed on exit.
 5. **Setup.** Starts `~/.local/bin/pkm setup` and passes all arguments of the installer on. When
    the installer was started via `curl … | sh`, standard input is the script itself; the answers
@@ -187,7 +187,7 @@ should be uploaded again.
 `pkm setup` (module `setupwiz.py`) is an interactive, idempotent wizard. It starts by collecting an
 existing configuration from the environment, the `env` blocks of the PKM entries in Claude Desktop
 (where installations from before `pkm setup` kept their settings; `is_pkm_entry()` recognizes them
-by the names `pkm`/`pkm-pflege` or by the programs `pkm-mcp`/`pkm-pflege-mcp`) and `config.toml`,
+by the names `pkm`/`pkm-maintenance` or by the programs `pkm-mcp`/`pkm-maintenance-mcp`) and `config.toml`,
 in this order of precedence, for all keys of `CONFIG_KEYS`. If none of them sets `PKM_ROOT`, the
 vault is read from `core.worktree` in the config of the Git directory (`worktree_of()`), provided the
 folder contains `.pkm/state.json`. It shows them with their
@@ -246,7 +246,7 @@ flowchart TD
     IC -- "yes" --> CD
     IC1 --> CD["Check claude_desktop_config.json,<br/>change it only with permission<br/>(section 4.3)"]
     CD --> SKZ["Write pkm-access.zip and pkm-wiki.zip"]
-    SKZ --> PI["Print the project instructions<br/>for PKM-Pflege"]
+    SKZ --> PI["Print the project instructions<br/>for PKM Maintenance"]
     PI --> DR["pkm doctor --short"]
     DR --> E{"errors?"}
     E -- "no" --> OK(["Setup finished, exit code 0"])
@@ -269,10 +269,10 @@ PKM_VERSIONING = true
 ```
 
 `PKM_LANGUAGE` (`en` or `de`) is the main language of documents created in chat and of the wiki.
-The servers `pkm` and `pkm-pflege` read it at start (`configured_language()`, which falls back to `en` if the setting is missing or
+The servers `pkm` and `pkm-maintenance` read it at start (`configured_language()`, which falls back to `en` if the setting is missing or
 invalid, so the server always starts) and appends a sentence to its MCP instructions naming the
 language and its section names (`Result`, `Decisions`, `Open points`, `Context / rationale` or
-`Ergebnis`, `Entscheidungen`, `Offene Punkte`, `Kontext / Begründung`); `pkm-pflege`
+`Ergebnis`, `Entscheidungen`, `Offene Punkte`, `Kontext / Begründung`); `pkm-maintenance`
 (`wiki_language_instructions()`) names the wiki sections and the summary label (`Summary`, `Content`,
 `Contradictions / open questions`, `See also`, `Citations` or `Kurzfassung`, `Inhalt`,
 `Widersprüche / offene Fragen`, `Siehe auch`, `Belege`). The skills `pkm-access` and `pkm-wiki`
@@ -301,25 +301,25 @@ environment without the user's shell profile.
 
 ### 4.3 Claude Desktop configuration
 
-`pkm setup` first checks whether `pkm` and `pkm-pflege` are already entered as needed. Only if an
+`pkm setup` first checks whether `pkm` and `pkm-maintenance` are already entered as needed. Only if an
 entry is missing or different does it show the change and ask **once** whether it may change the
 file. If the answer is no, nothing is changed and the entries are printed so that the user can add
 them by hand (in Claude Desktop: Settings > Developer > Edit Config). With `--yes` the answer is yes.
 
 ```mermaid
 flowchart TD
-    A["Find pkm-mcp and pkm-pflege-mcp<br/>(next to pkm, else PATH)"] --> F{"programs found?"}
+    A["Find pkm-mcp and pkm-maintenance-mcp<br/>(next to pkm, else PATH)"] --> F{"programs found?"}
     F -- "no" --> SK(["Warning, status skipped"])
     F -- "yes" --> B["Read claude_desktop_config.json<br/>(missing file = empty)"]
     B --> P{"valid JSON?"}
     P -- "no" --> W["Warning, file unchanged"]
     W --> MAN
-    P -- "yes" --> C{"pkm and pkm-pflege<br/>entered as needed?"}
+    P -- "yes" --> C{"pkm and pkm-maintenance<br/>entered as needed?"}
     C -- "yes" --> OK(["Already entered: status unchanged,<br/>no question"])
     C -- "no" --> SHOW["Show missing entries and<br/>differing entries (old and new)"]
     SHOW --> ASK{"May pkm setup change<br/>the configuration?"}
     ASK -- "yes" --> BAK["Backup claude_desktop_config.json.DATE.bak<br/>(if the file exists)"]
-    BAK --> WR["Add or replace only pkm and pkm-pflege,<br/>write the file: status changed"]
+    BAK --> WR["Add or replace only pkm and pkm-maintenance,<br/>write the file: status changed"]
     ASK -- "no" --> MAN["Print the JSON entries for entering by hand<br/>status declined or unreadable"]
     WR --> RS(["Restart Claude Desktop"])
     MAN --> RS
@@ -331,7 +331,7 @@ Other servers and all other keys of the file are kept. An entry looks like this:
 {
   "mcpServers": {
     "pkm": { "command": "/Users/name/.local/bin/pkm-mcp" },
-    "pkm-pflege": { "command": "/Users/name/.local/bin/pkm-pflege-mcp" }
+    "pkm-maintenance": { "command": "/Users/name/.local/bin/pkm-maintenance-mcp" }
   }
 }
 ```
@@ -410,7 +410,7 @@ sequenceDiagram
 ```
 
 The servers run only while Claude Desktop is open on the PKM host; Cowork reaches them through the
-desktop app. `pkm-pflege` should only be enabled in maintenance conversations, because Claude Desktop
+desktop app. `pkm-maintenance` should only be enabled in maintenance conversations, because Claude Desktop
 cannot restrict a server to one project.
 
 ## 7. Manual installation
@@ -450,7 +450,7 @@ flowchart TB
     subgraph EP["Entry points"]
         direction LR
         mcp_server["mcp_server<br/>pkm-mcp"]
-        pflege_server["pflege_server<br/>pkm-pflege-mcp"]
+        maintenance_server["maintenance_server<br/>pkm-maintenance-mcp"]
         cli["cli<br/>pkm"]
     end
     subgraph APP["Application"]
@@ -492,7 +492,7 @@ flowchart TB
 
 | Layer | Modules | Responsibility |
 |---|---|---|
-| Entry points | `mcp_server`, `pflege_server`, `cli` | Thin wrappers: register tools or subcommands, turn `PkmError` into a status, log calls |
+| Entry points | `mcp_server`, `maintenance_server`, `cli` | Thin wrappers: register tools or subcommands, turn `PkmError` into a status, log calls |
 | Application | `service`, `maintrun`, `setupwiz` | One method per tool or command; the maintenance run in three steps; the setup wizard |
 | Domain | `writer`, `docimages`, `maint`, `citations`, `citeraise`, `lint`, `imagelint`, `doctor`, `wikigen`, `images`, `imagescan`, `imagefix`, `assets`, `index` | Writing with versions, maintenance commands, citations, checks, generated wiki files, images, search |
 | Model and storage | `vault`, `state`, `gitlayer`, `vaultinit`, `cloudsync` | Files in the vault, processing state, Git with a separate directory, vault structure, cloud storage |
@@ -504,30 +504,30 @@ atomically (`fsutil`); all writes go through one lock file.
 
 ## 10. Entry points
 
-### 10.1 `pkm-mcp` and `pkm-pflege-mcp`
+### 10.1 `pkm-mcp` and `pkm-maintenance-mcp`
 
 ```mermaid
 flowchart LR
     subgraph mcp["MCP layer"]
         mcp_server["mcp_server<br/>register_read_tools()<br/>register_write_tools()<br/>call(), image_content()"]
-        pflege_server["pflege_server<br/>register maintenance tools"]
+        maintenance_server["maintenance_server<br/>register maintenance tools"]
     end
     SDK["mcp SDK<br/>(FastMCP / MCPServer, stdio)"]
     service["service.Service"]
     maintrun["maintrun"]
     config["config.Config"]
     log[(".pkm/mcp.log")]
-    pflege_server -- "reuses read tools" --> mcp_server
+    maintenance_server -- "reuses read tools" --> mcp_server
     mcp_server --> SDK
-    pflege_server --> SDK
+    maintenance_server --> SDK
     mcp_server --> service
-    pflege_server --> maintrun
+    maintenance_server --> maintrun
     maintrun --> service
     mcp_server --> config
     mcp_server --> log
 ```
 
-Both servers are built from the same functions: `pkm-pflege-mcp` registers the reading tools of
+Both servers are built from the same functions: `pkm-maintenance-mcp` registers the reading tools of
 `pkm-mcp` (`register_read_tools`) plus the maintenance tools, but none of the document writing tools.
 Every tool goes through `call()`:
 

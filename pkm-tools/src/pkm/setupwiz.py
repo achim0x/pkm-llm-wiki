@@ -65,7 +65,8 @@ from .vaultinit import init_vault
 # Variables *******************************************************************
 
 SKILLS = ("pkm-access", "pkm-wiki")
-SERVERS = {"pkm": "pkm-mcp", "pkm-pflege": "pkm-pflege-mcp"}
+SERVERS = {"pkm": "pkm-mcp", "pkm-maintenance": "pkm-maintenance-mcp"}
+LEGACY_SERVERS = {"pkm-pflege": "pkm-pflege-mcp"}  # old name of the maintenance server (up to 0.2.0)
 NO_GIT_HINT = (
     "Git was not found. The PKM works without version control: documents get IDs and version numbers, "
     "but there is no history, no diff and no restoring of earlier versions. To turn version control on "
@@ -73,7 +74,7 @@ NO_GIT_HINT = (
 )
 PROJECT_INSTRUCTIONS = (
     "This is the maintenance project for the PKM. Use the skill `pkm-wiki` and the tools of the server "
-    "`pkm-pflege`. You do not change documents in `documents/`."
+    "`pkm-maintenance`. You do not change documents in `documents/`."
 )
 
 # Classes *********************************************************************
@@ -186,7 +187,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
 
         Sources in order of precedence: environment variables, the ``env`` blocks of the PKM entries
         in Claude Desktop (where installations before ``pkm setup`` kept their settings; found by the
-        names ``pkm``/``pkm-pflege`` or by the programs ``pkm-mcp``/``pkm-pflege-mcp``) and
+        names ``pkm``/``pkm-maintenance`` or by the programs ``pkm-mcp``/``pkm-maintenance-mcp``) and
         ``config.toml``. Without ``PKM_ROOT`` in any of them, the vault is taken from the Git directory
         (``core.worktree``, set by every installation with Git).
 
@@ -413,15 +414,15 @@ class Setup:  # pylint: disable=too-many-instance-attributes
     def _claude(self) -> dict[str, Any]:
         """Check the entries in the configuration of Claude Desktop and update them only with permission.
 
-        First checks whether ``pkm`` and ``pkm-pflege`` are already entered as needed. If something is
-        missing or different, it shows the changes and asks whether it may change the file (backup
-        first). If the answer is no (or the file cannot be read), it shows the entries for entering
-        them by hand.
+        First checks whether ``pkm`` and ``pkm-maintenance`` are already entered as needed. If something is
+        missing or different, or an entry has the old name ``pkm-pflege``, it shows the changes and asks
+        whether it may change the file (backup first; the old entry is removed). If the answer is no (or
+        the file cannot be read), it shows the entries for entering them by hand.
 
         Returns:
             Path, ``status`` (``unchanged``, ``changed``, ``declined``, ``unreadable`` or ``skipped`` if the
-            programs are not found), missing and
-            differing entries and, if the user enters them by hand, the text to enter (``manual``).
+            programs are not found), missing, differing and ``obsolete`` entries (old names) and, if the
+            user enters them by hand, the text to enter (``manual``).
         """
         path = self._claude_config_path()
         entries = self._server_entries()
@@ -429,14 +430,15 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         servers = (data or {}).get("mcpServers") or {}
         missing = [n for n in entries if n not in servers]
         differing = [n for n, entry in entries.items() if n in servers and servers[n] != entry]
+        obsolete = [n for n in LEGACY_SERVERS if n in servers] if entries else []
         result: dict[str, Any] = {"path": str(path), "status": "unchanged", "missing": missing,
-                                  "differing": differing, "manual": None}
+                                  "differing": differing, "obsolete": obsolete, "manual": None}
         if not entries:
             result["status"] = "skipped"
         elif data is None:
             self.warn(f"{path} is not valid JSON; Claude Desktop was not changed.")
             result.update(status="unreadable", manual=self._manual_claude(path, entries))
-        elif not missing and not differing:
+        elif not missing and not differing and not obsolete:
             self.say(f"Claude Desktop: the servers {', '.join(entries)} are already entered ({path}).")
         else:
             for name in missing:
@@ -444,21 +446,26 @@ class Setup:  # pylint: disable=too-many-instance-attributes
             for name in differing:
                 self.say(f"Claude Desktop: server {name} is entered as {json.dumps(servers[name])}; "
                          f"new entry: {json.dumps(entries[name])}")
+            for name in obsolete:
+                self.say(f"Claude Desktop: server {name} is the old name of pkm-maintenance; the entry is removed.")
             if self._confirm(f"May pkm setup change the Claude Desktop configuration {path}? "
                              "(Other servers stay, a backup is made first.)"):
                 data.setdefault("mcpServers", {}).update({n: entries[n] for n in missing + differing})
+                for name in obsolete:
+                    data["mcpServers"].pop(name, None)
                 self._write_claude(path, data)
                 result["status"] = "changed"
             else:
-                result.update(status="declined", manual=self._manual_claude(path, entries))
+                result.update(status="declined", manual=self._manual_claude(path, entries, obsolete))
         return result
 
-    def _manual_claude(self, path: Path, entries: dict[str, dict[str, Any]]) -> str:
+    def _manual_claude(self, path: Path, entries: dict[str, dict[str, Any]], obsolete: list[str] | None = None) -> str:
         """Show the entries for Claude Desktop so that the user can enter them by hand.
 
         Args:
             path: Path of ``claude_desktop_config.json``.
             entries: Server name → entry.
+            obsolete: Entries with an old name that should be removed.
 
         Returns:
             The JSON text to enter.
@@ -466,7 +473,9 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         text = json.dumps({"mcpServers": entries}, indent=2, ensure_ascii=False)
         self.say(f"Enter the following by hand in {path} (in Claude Desktop: Settings > Developer > "
                  "Edit Config). If the file already has \"mcpServers\", add only the two entries inside it "
-                 "and keep the other servers. Then restart Claude Desktop.\n" + text)
+                 "and keep the other servers. "
+                 + (f"Remove the old entries {', '.join(obsolete)}. " if obsolete else "")
+                 + "Then restart Claude Desktop.\n" + text)
         return text
 
     def _write_claude(self, path: Path, data: dict[str, Any]) -> None:
@@ -524,7 +533,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
                 init = init_vault(cfg)
         claude = self._claude()
         skills = self._skills()
-        self.say("Project \"PKM-Pflege\" in Claude Desktop - project instructions:\n  " + PROJECT_INSTRUCTIONS)
+        self.say("Project \"PKM Maintenance\" in Claude Desktop - project instructions:\n  " + PROJECT_INSTRUCTIONS)
         check = doctor(Service(cfg), short=True)
         for c in check["checks"]:
             self.say(f"Error: {c['message']}")
@@ -545,8 +554,9 @@ def is_pkm_entry(name: str, entry: Any) -> bool:
         entry: Entry (``command``, ``args``, ``env``).
 
     Returns:
-        ``True`` for the names ``pkm``/``pkm-pflege`` or the programs ``pkm-mcp``/``pkm-pflege-mcp``,
-        also when started via ``uv``/``uvx`` with the program as an argument.
+        ``True`` for the names ``pkm``/``pkm-maintenance`` or the programs ``pkm-mcp``/``pkm-maintenance-mcp``
+        (also the old names ``pkm-pflege``/``pkm-pflege-mcp``), also when started via ``uv``/``uvx`` with the
+        program as an argument.
     """
     words: list[str] = [name]
     if isinstance(entry, dict):
@@ -555,7 +565,8 @@ def is_pkm_entry(name: str, entry: Any) -> bool:
         if isinstance(args, list):
             words.extend(a for a in args if isinstance(a, str))
     stems = {Path(w.replace("\\", "/")).name.lower().removesuffix(".exe") for w in words if w}
-    ok = isinstance(entry, dict) and (name in SERVERS or bool(stems & set(SERVERS.values())))
+    known = {**SERVERS, **LEGACY_SERVERS}
+    ok = isinstance(entry, dict) and (name in known or bool(stems & set(known.values())))
     return ok and (not entry.get("env") or isinstance(entry.get("env"), dict))
 
 

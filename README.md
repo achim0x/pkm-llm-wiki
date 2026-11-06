@@ -174,12 +174,12 @@ flowchart LR
     subgraph Chats["Any Claude chat"]
         A["Skill pkm-access"]
     end
-    subgraph Projekt["Claude project PKM-Pflege (chat or Cowork)"]
+    subgraph Projekt["Claude project PKM Maintenance (chat or Cowork)"]
         B["Skill pkm-wiki"]
     end
     subgraph Host["PKM host (Mac or Windows)"]
         M["pkm-mcp<br/>(MCP server)"]
-        P["pkm-pflege-mcp<br/>(MCP server, maintenance)"]
+        P["pkm-maintenance-mcp<br/>(MCP server, maintenance)"]
         C["pkm<br/>(CLI, setup)"]
         G[("Git history, optional<br/>outside the cloud storage")]
         I[("Search index<br/>(cache)")]
@@ -210,10 +210,10 @@ flowchart LR
 | Component | Role |
 |---|---|
 | **pkm-mcp** | MCP server for Claude Desktop. 15 tools for searching, reading, filing, continuing, for images, the history and the citations. |
-| **pkm-pflege-mcp** | MCP server for wiki maintenance from Claude Desktop or Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` plus the reading tools. Writes to `wiki/` and `.pkm/state.json`; on documents only IDs and – after your confirmation – `title`, `context`, `tags`, `kind`, `short_citation`. Enable it only in maintenance conversations. |
+| **pkm-maintenance-mcp** | MCP server for wiki maintenance from Claude Desktop or Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` plus the reading tools. Writes to `wiki/` and `.pkm/state.json`; on documents only IDs and – after your confirmation – `title`, `context`, `tags`, `kind`, `short_citation`. Enable it only in maintenance conversations. |
 | **pkm** | Command line for setup (`pkm setup`), checks and troubleshooting (the same maintenance commands, one by one). |
 | **Skill `pkm-access`** | Tells Claude in normal chats when and how to use the tools, e.g. "always a draft first". |
-| **Skill `pkm-wiki`** | Rules and flows for the maintenance agent in the project "PKM-Pflege". |
+| **Skill `pkm-wiki`** | Rules and flows for the maintenance agent in the project "PKM Maintenance". |
 | **Git (optional)** | Version history of every document and traceability of the agent's work. Only local on the PKM host, part of the backup. |
 
 The MCP servers and the maintenance run on **one** PKM host, a Mac or a Windows PC, as long as
@@ -396,8 +396,8 @@ enough to name the topic.
 
 #### In the maintenance project
 
-In the Claude project "PKM-Pflege" (chat or Cowork) the skill `pkm-wiki` is active and the server
-`pkm-pflege` is enabled in the conversation. The agent needs no shell. You start maintenance runs
+In the Claude project "PKM Maintenance" (chat or Cowork) the skill `pkm-wiki` is active and the server
+`pkm-maintenance` is enabled in the conversation. The agent needs no shell. You start maintenance runs
 yourself:
 
 | You say | The agent does |
@@ -509,7 +509,7 @@ Status that Claude names for "Where does this come from?":
 
 ### CLI reference
 
-The maintenance agent does not need the CLI; it uses `pkm-pflege-mcp`, which bundles the same
+The maintenance agent does not need the CLI; it uses `pkm-maintenance-mcp`, which bundles the same
 commands. Useful for you are `setup`, `init`, `doctor`, `lint`, `history`, `show`, `fix-frontmatter`
 and `fix-images`. The output is JSON (except for `pkm setup`). The CLI knows the vault from the
 configuration file written by `pkm setup`; otherwise it finds it from inside the vault folder.
@@ -589,7 +589,7 @@ pkm-llm-wiki/
 │   ├── architecture.md          ← architecture, installation flow, pkm-tools internals (English)
 │   ├── acceptance.md            ← acceptance protocol (German)
 │   └── release-notes.md         ← release notes (English)
-├── pkm-tools/                   ← Python package: pkm-mcp, pkm-pflege-mcp and pkm
+├── pkm-tools/                   ← Python package: pkm-mcp, pkm-maintenance-mcp and pkm
 │   ├── src/pkm/
 │   │   └── skills/              ← pkm-access, pkm-wiki
 │   └── tests/
@@ -784,12 +784,12 @@ flowchart LR
     subgraph Chats["Beliebiger Claude-Chat"]
         A["Skill pkm-access"]
     end
-    subgraph Projekt["Claude-Projekt PKM-Pflege (Chat oder Cowork)"]
+    subgraph Projekt["Claude-Projekt PKM Maintenance (Chat oder Cowork)"]
         B["Skill pkm-wiki"]
     end
     subgraph Mac["PKM-Rechner (Mac oder Windows)"]
         M["pkm-mcp<br/>(MCP-Server)"]
-        P["pkm-pflege-mcp<br/>(MCP-Server Pflege)"]
+        P["pkm-maintenance-mcp<br/>(MCP-Server Pflege)"]
         C["pkm<br/>(CLI, Einrichtung)"]
         G[("Git-Verlauf, optional<br/>außerhalb des Cloud-Speichers")]
         I[("Suchindex<br/>(Cache)")]
@@ -820,10 +820,10 @@ flowchart LR
 | Komponente | Rolle |
 |---|---|
 | **pkm-mcp** | MCP-Server für Claude Desktop. 15 Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für Bilder, den Verlauf und die Belege. |
-| **pkm-pflege-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` plus die lesenden Tools. Schreibt in `wiki/` und `.pkm/state.json`, an Dokumenten nur IDs und – nach deiner Bestätigung – `title`, `context`, `tags`, `kind`, `short_citation`; nur in Pflege-Unterhaltungen einschalten. |
+| **pkm-maintenance-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` plus die lesenden Tools. Schreibt in `wiki/` und `.pkm/state.json`, an Dokumenten nur IDs und – nach deiner Bestätigung – `title`, `context`, `tags`, `kind`, `short_citation`; nur in Pflege-Unterhaltungen einschalten. |
 | **pkm** | Kommandozeile für Einrichtung (`pkm setup`), Prüfung und Fehlersuche (dieselben Pflege-Befehle, einzeln). |
 | **Skill `pkm-access`** | Sagt Claude in normalen Chats, wann und wie die Tools zu nutzen sind, z. B. „immer erst ein Entwurf“. |
-| **Skill `pkm-wiki`** | Regeln und Abläufe für den Pflege-Agenten im Projekt „PKM-Pflege“. |
+| **Skill `pkm-wiki`** | Regeln und Abläufe für den Pflege-Agenten im Projekt „PKM Maintenance“. |
 | **Git (optional)** | Versionsgeschichte jedes Dokuments und Nachvollziehbarkeit der Agentenarbeit. Nur lokal auf dem PKM-Rechner, Teil der Datensicherung. |
 
 Der MCP-Server und die Pflege laufen auf **einem** PKM-Rechner, einem Mac oder einem Windows-PC,
@@ -1011,8 +1011,8 @@ Chat reicht es, das Thema zu nennen.
 
 #### Im Pflegeprojekt
 
-Im Claude-Projekt „PKM-Pflege“ (Chat oder Cowork) ist der Skill `pkm-wiki` aktiv und in der
-Unterhaltung der Server `pkm-pflege` eingeschaltet. Eine Shell braucht der Agent nicht.
+Im Claude-Projekt „PKM Maintenance“ (Chat oder Cowork) ist der Skill `pkm-wiki` aktiv und in der
+Unterhaltung der Server `pkm-maintenance` eingeschaltet. Eine Shell braucht der Agent nicht.
 Pflegeläufe stößt du selbst an:
 
 | Du sagst | Der Agent macht |
@@ -1131,7 +1131,7 @@ Status, den Claude bei „Woher stammt das?“ nennt:
 
 ### CLI-Referenz
 
-Der Pflege-Agent braucht die CLI nicht; er nutzt `pkm-pflege-mcp`, das dieselben Befehle bündelt.
+Der Pflege-Agent braucht die CLI nicht; er nutzt `pkm-maintenance-mcp`, das dieselben Befehle bündelt.
 Für dich sind `setup`, `init`, `doctor`, `lint`, `history`, `show`, `fix-frontmatter` und `fix-images` nützlich.
 Ausgabe ist JSON (außer bei `pkm setup`). Den Vault kennt die CLI aus der Konfigurationsdatei von
 `pkm setup`; sonst findet sie ihn im Vault-Ordner selbst.
@@ -1214,7 +1214,7 @@ pkm-llm-wiki/
 │   ├── architecture.md          ← Architektur, Installationsablauf, Aufbau von pkm-tools (englisch)
 │   ├── acceptance.md            ← Abnahmeprotokoll
 │   └── release-notes.md         ← Release Notes (nur englisch)
-├── pkm-tools/                   ← Python-Paket: pkm-mcp, pkm-pflege-mcp und pkm
+├── pkm-tools/                   ← Python-Paket: pkm-mcp, pkm-maintenance-mcp und pkm
 │   ├── src/pkm/
 │   │   └── skills/              ← pkm-access, pkm-wiki
 │   └── tests/

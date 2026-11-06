@@ -1,4 +1,4 @@
-"""MCP server ``pkm-pflege-mcp`` for wiki maintenance from Claude Desktop or Cowork.
+"""MCP server ``pkm-maintenance-mcp`` for wiki maintenance from Claude Desktop or Cowork.
 
 Runs locally on the PKM host like ``pkm-mcp``. Besides the reading tools it offers the maintenance tools
 ``begin_maintenance``, ``write_wiki_page``, ``set_document_metadata`` and ``finish_maintenance``. It writes
@@ -151,14 +151,14 @@ def build_server(language: str | None = None) -> Server:
         The server.
     """
     instructions = INSTRUCTIONS + wiki_language_instructions(language or configured_language())
-    server = Server("pkm-pflege", instructions=instructions)
+    server = Server("pkm-maintenance", instructions=instructions)
     register_read_tools(server)
     _register_maintenance_tools(server)
     return server
 
 
 def main() -> None:
-    """Entry point ``pkm-pflege-mcp``: start the server via stdio."""
+    """Entry point ``pkm-maintenance-mcp``: start the server via stdio."""
     build_server().run()
 
 # Main ************************************************************************

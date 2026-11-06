@@ -1,7 +1,7 @@
 # PKM – schema and rules
 
 This folder is a personal knowledge management (PKM) system with an LLM wiki. Maintenance is
-done by the skill `pkm-wiki` in the Claude project "PKM-Pflege". Change this file only with
+done by the skill `pkm-wiki` in the Claude project "PKM Maintenance". Change this file only with
 the user's consent.
 
 ## Areas and ownership
