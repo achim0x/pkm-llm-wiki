@@ -1,22 +1,41 @@
 # Release notes
 
-## Unreleased
+## V0.2.1
 
-- **Document language:** `pkm setup` asks whether documents created in chat should be mainly in
-  English or German (`PKM_LANGUAGE` in `config.toml`, `en` or `de`, default `en`, option
-  `--language`). The server `pkm` names the language and its section names in its instructions
-  (German: Ergebnis, Entscheidungen, Offene Punkte, Kontext / Begründung); the skill `pkm-access`
-  writes new documents in that language, continued documents keep theirs. Specification 0.27.
-- **Existing configuration:** `pkm setup` first looks for settings in environment variables, in
-  the `env` blocks of the Claude Desktop entries (installations from before `pkm setup`) and in
-  `config.toml`, shows them with their source and offers to take them over. PKM entries are also
-  recognized under other names by their programs; without any `PKM_ROOT` the vault is read from
-  the existing Git directory. Taken over, they are
-  the defaults and are written to `config.toml` – so a custom `PKM_GIT_DIR` and with it the version
-  history stay in use. Declined, the setup starts anew and backs up `config.toml`. Closed input no
-  longer makes `pkm setup` fail; it takes the defaults.
-- **Upgrading:** run `pkm setup` again (it asks for the language), upload the new skill ZIP of
-  `pkm-access` and restart Claude Desktop.
+Changes compared to `V0.2.0`. Specification now **0.27**.
+
+### Document language
+
+- `pkm setup` asks whether documents created in chat should be mainly in English or German
+  (`PKM_LANGUAGE` in `config.toml`, `en` or `de`, default `en`, option `--language`).
+- The server `pkm` names the language and its section names in its instructions (German:
+  Ergebnis, Entscheidungen, Offene Punkte, Kontext / Begründung). The skill `pkm-access` writes new
+  documents in that language; continued documents keep theirs. Tools, maintenance and wiki do not
+  depend on it.
+
+### Taking over an existing configuration
+
+- `pkm setup` first looks for settings in environment variables, in the `env` blocks of the PKM
+  entries in Claude Desktop (installations from before `pkm setup` kept them there) and in
+  `config.toml`, shows them with their source and offers to take them over.
+- PKM entries in Claude Desktop are also recognized under other names by their programs
+  (`pkm-mcp`, `pkm-pflege-mcp`). If no source names the vault, it is read from the existing Git
+  directory (`core.worktree`).
+- Taken over, the values are the defaults of the questions and are written to `config.toml`, so a
+  custom `PKM_GIT_DIR` and with it the version history stay in use. Declined, the setup starts anew
+  and backs up `config.toml`.
+- Closed input (end of file) no longer makes `pkm setup` fail; it takes the defaults.
+
+### Documentation
+
+- Development installation from a local clone (editable `uv tool install`, test vault with its own
+  Git directory and search index): [installation.md](installation.md), appendix B.
+
+### Upgrading from V0.2.0 or older
+
+1. Run the installer again.
+2. In `pkm setup`, confirm taking over the existing configuration and choose the document language.
+3. Upload the new skill ZIP of `pkm-access` in Claude Desktop and restart Claude Desktop.
 
 ## V0.2.0
 
