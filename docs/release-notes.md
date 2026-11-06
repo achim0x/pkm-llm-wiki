@@ -1,5 +1,50 @@
 # Release notes
 
+## V0.2.2
+
+Changes compared to `V0.2.1`. Specification now **0.28**.
+
+### Wiki language
+
+- The language setting `PKM_LANGUAGE` now applies to the wiki too. The question in `pkm setup`
+  and `--language` name chat documents and the wiki.
+- The maintenance server names the wiki language, the section names and the summary label in its
+  instructions (German: Kurzfassung, Inhalt, Widersprüche / offene Fragen, Siehe auch, Belege;
+  English: Summary, Content, Contradictions / open questions, See also, Citations). The skill
+  `pkm-wiki` writes new wiki pages, summaries, log entries and reports in that language; existing
+  pages keep their language, quotes in citations stay literal.
+- Citation checks and lint accept both variants. Generated files (`index.md`, `_status.md`, lint
+  reports) stay English.
+
+### English names for the maintenance server
+
+- The second MCP server is now called `pkm-maintenance` (program `pkm-maintenance-mcp`, module
+  `maintenance_server.py`) instead of `pkm-pflege` (`pkm-pflege-mcp`, `pflege_server.py`); the
+  Claude project is called "PKM Maintenance" instead of "PKM-Pflege".
+- The old program name `pkm-pflege-mcp` stays as an alias, so existing Claude Desktop entries keep
+  working until `pkm setup` runs. `pkm setup` replaces the old entry `pkm-pflege` with
+  `pkm-maintenance` (after asking; other servers stay).
+- The name of the Claude project does not matter to the tools; rename "PKM-Pflege" to
+  "PKM Maintenance" if you like.
+
+### Updating `CLAUDE.md` in the vault
+
+- `pkm init` creates `CLAUDE.md` only if it is missing, so older vaults kept the text of their
+  first installation. `pkm setup` now compares it with the template of the installed version. If
+  it differs (older version or own edits), it asks whether to replace it: yes backs up the old file
+  to `<app folder>/backups/` (outside the vault), writes the template and commits it with Git; no
+  keeps the file and writes the template next to it as `CLAUDE.md.new` to merge by hand.
+
+### Upgrading from V0.2.1
+
+1. Run the installer again.
+2. In `pkm setup`, confirm taking over the existing configuration and the language, let it
+   replace the old Claude Desktop entry `pkm-pflege` with `pkm-maintenance` and update `CLAUDE.md`
+   (or merge `CLAUDE.md.new` by hand if you have own edits).
+3. Upload the new skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart Claude Desktop.
+
+For an upgrade from V0.2.0 or older, see also the notes of V0.2.1.
+
 ## V0.2.1
 
 Changes compared to `V0.2.0`. Specification now **0.27**.

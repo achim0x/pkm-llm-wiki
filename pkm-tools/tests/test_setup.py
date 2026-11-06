@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -90,12 +91,13 @@ def test_setup_with_git(paths):
     assert git(paths["env"], "log", "-1", "--format=%s").strip() == "pkm: init"
     assert git(paths["env"], "config", "commit.gpgsign").strip() == "false"
     servers = json.loads(paths["claude"].read_text(encoding="utf-8"))["mcpServers"]
-    assert set(servers) == {"pkm", "pkm-pflege"} and servers["pkm"]["command"].replace(".exe", "").endswith("pkm-mcp")
+    assert set(servers) == {"pkm", "pkm-maintenance"}
+    assert servers["pkm"]["command"].replace(".exe", "").endswith("pkm-mcp")
     assert servers["pkm"]["env"] == {"PKM_CONFIG": str(paths["config"])}  # not the default folder in the tests
     with zipfile.ZipFile(paths["skills"] / "pkm-access.zip") as zf:
         assert "pkm-access/SKILL.md" in zf.namelist()
     assert (paths["root"] / ".obsidian" / "app.json").is_file()
-    assert "PKM-Pflege" in out
+    assert "PKM Maintenance" in out
 
 
 def test_setup_asks_before_changing_claude_desktop(paths):
@@ -119,12 +121,14 @@ def test_setup_asks_before_changing_claude_desktop(paths):
 
     res, out = _setup(paths, ask=no)
     claude = res["claude"]
-    assert claude["status"] == "declined" and claude["missing"] == ["pkm-pflege"] and claude["differing"] == ["pkm"]
+    assert claude["status"] == "declined" and claude["missing"] == ["pkm-maintenance"]
+    assert claude["differing"] == ["pkm"]
     assert sum("Claude Desktop configuration" in q for q in questions) == 1
     assert json.loads(paths["claude"].read_text(encoding="utf-8")) == old
     assert not list(paths["claude"].parent.glob("*.bak"))
     manual = json.loads(claude["manual"])["mcpServers"]
-    assert set(manual) == {"pkm", "pkm-pflege"} and "Enter the following by hand" in out and "pkm-pflege-mcp" in out
+    assert set(manual) == {"pkm", "pkm-maintenance"} and "Enter the following by hand" in out
+    assert "pkm-maintenance-mcp" in out
 
 
 def test_setup_changes_claude_desktop_with_permission_and_is_repeatable(paths):
@@ -136,7 +140,7 @@ def test_setup_changes_claude_desktop_with_permission_and_is_repeatable(paths):
     assert res["claude"]["status"] == "changed"
     data = json.loads(paths["claude"].read_text(encoding="utf-8"))
     assert data["theme"] == "dark" and data["mcpServers"]["other"] == {"command": "x"}
-    assert data["mcpServers"]["pkm"]["command"] != "old" and "pkm-pflege" in data["mcpServers"]
+    assert data["mcpServers"]["pkm"]["command"] != "old" and "pkm-maintenance" in data["mcpServers"]
     assert len(list(paths["claude"].parent.glob("*.bak"))) == 1
 
     def no_claude_question(question):
@@ -154,6 +158,65 @@ def test_setup_changes_claude_desktop_with_permission_and_is_repeatable(paths):
     res, out = _setup(paths, ask=no_claude_question)
     assert res["claude"]["status"] == "unchanged" and "already entered" in out
     assert len(list(paths["claude"].parent.glob("*.bak"))) == 1
+
+
+def test_setup_replaces_old_maintenance_entry(paths):
+    """The old entry pkm-pflege (name up to 0.2.1) is replaced by pkm-maintenance; other servers stay."""
+    paths["claude"].parent.mkdir(parents=True)
+    old = {"mcpServers": {"pkm-pflege": {"command": "/x/pkm-pflege-mcp"}, "other": {"command": "x"}}}
+    paths["claude"].write_text(json.dumps(old), encoding="utf-8")
+    res, out = _setup(paths)
+    servers = json.loads(paths["claude"].read_text(encoding="utf-8"))["mcpServers"]
+    assert set(servers) == {"pkm", "pkm-maintenance", "other"} and res["claude"]["obsolete"] == ["pkm-pflege"]
+    assert "old name of pkm-maintenance" in out
+    res, _ = _setup(paths)
+    assert res["claude"]["status"] == "unchanged" and not res["claude"]["obsolete"]
+
+
+def test_setup_claude_md_current_after_init(paths):
+    """A CLAUDE.md written by pkm init is current; nothing is asked or changed."""
+    res, _ = _setup(paths)
+    assert res["claude_md"]["status"] == "current"
+    assert not (paths["root"] / "CLAUDE.md.new").exists()
+
+
+def test_setup_replaces_outdated_claude_md_with_backup_and_commit(paths):
+    """Outdated CLAUDE.md: after yes it is backed up outside the vault, replaced and committed."""
+    _setup(paths)
+    schema = paths["root"] / "CLAUDE.md"
+    template = schema.read_text(encoding="utf-8")
+    schema.write_text("# Old schema\nmy own rule\n", encoding="utf-8")
+    git(paths["env"], "add", "CLAUDE.md")
+    git(paths["env"], "commit", "-q", "-m", "old schema")
+    res, out = _setup(paths)
+    info = res["claude_md"]
+    assert info["status"] == "replaced" and schema.read_text(encoding="utf-8") == template
+    backup = Path(info["backup"])
+    assert backup.read_text(encoding="utf-8") == "# Old schema\nmy own rule\n"
+    assert paths["root"] not in backup.parents and backup.parent.name == "backups"
+    assert info["commit"] and "updated to the current template" in git(paths["env"], "log", "-1", "--format=%s")
+    assert "differs from the template" in out
+
+
+def test_setup_keeps_claude_md_and_writes_new_on_no(paths):
+    """Declined: CLAUDE.md stays, the template is written next to it as CLAUDE.md.new."""
+    _setup(paths)
+    schema = paths["root"] / "CLAUDE.md"
+    template = schema.read_text(encoding="utf-8")
+    schema.write_text("# Mine\n", encoding="utf-8")
+    res, _ = _setup(paths, ask=lambda q: "n" if "Replace CLAUDE.md" in q else "")
+    assert res["claude_md"]["status"] == "kept" and schema.read_text(encoding="utf-8") == "# Mine\n"
+    assert (paths["root"] / "CLAUDE.md.new").read_text(encoding="utf-8") == template
+
+
+def test_setup_replaces_claude_md_without_git(paths):
+    """Without version control the file is replaced and backed up, without a commit."""
+    _setup(paths, git_finder=lambda: None)
+    schema = paths["root"] / "CLAUDE.md"
+    schema.write_text("# Old\n", encoding="utf-8")
+    res, _ = _setup(paths, git_finder=lambda: None)
+    assert res["versioning"] is False and res["claude_md"]["status"] == "replaced"
+    assert res["claude_md"]["commit"] is None and Path(res["claude_md"]["backup"]).is_file()
 
 
 def test_setup_with_unreadable_claude_config(paths):

@@ -1,4 +1,4 @@
-"""MCP server ``pkm-pflege-mcp`` for wiki maintenance from Claude Desktop or Cowork.
+"""MCP server ``pkm-maintenance-mcp`` for wiki maintenance from Claude Desktop or Cowork.
 
 Runs locally on the PKM host like ``pkm-mcp``. Besides the reading tools it offers the maintenance tools
 ``begin_maintenance``, ``write_wiki_page``, ``set_document_metadata`` and ``finish_maintenance``. It writes
@@ -31,6 +31,7 @@ Enable only in maintenance conversations.
 from __future__ import annotations
 
 from . import maintrun
+from .config import DEFAULT_LANGUAGE, DOC_LANGUAGES, WIKI_SECTIONS, configured_language
 from .mcp_server import Server, call, register_read_tools
 
 # Variables *******************************************************************
@@ -122,20 +123,42 @@ def _register_maintenance_tools(server: Server) -> None:
                     lint_report=lint_report)
 
 
-def build_server() -> Server:
+def wiki_language_instructions(language: str) -> str:
+    """Instruction for the language of the wiki (``PKM_LANGUAGE``).
+
+    Args:
+        language: ``en`` or ``de``.
+
+    Returns:
+        Sentence with the language, the section names of wiki pages and the summary label.
+    """
+    key = language if language in DOC_LANGUAGES else DEFAULT_LANGUAGE
+    name = DOC_LANGUAGES[key][0]
+    label, sections = WIKI_SECTIONS[key]
+    headings = ", ".join(f"## {s}" for s in sections)
+    return (f" Wiki language: {name}. Write new wiki pages and summaries, the log entry and the report in {name}: "
+            f"first line '> **{label}:** …', sections {headings}. When updating an existing page keep its "
+            "language and section names. Quotes in citations stay literal in the language of the document.")
+
+
+def build_server(language: str | None = None) -> Server:
     """Build the maintenance server with the reading tools and the maintenance tools.
+
+    Args:
+        language: Wiki language ``en`` or ``de``; from the configuration if omitted.
 
     Returns:
         The server.
     """
-    server = Server("pkm-pflege", instructions=INSTRUCTIONS)
+    instructions = INSTRUCTIONS + wiki_language_instructions(language or configured_language())
+    server = Server("pkm-maintenance", instructions=instructions)
     register_read_tools(server)
     _register_maintenance_tools(server)
     return server
 
 
 def main() -> None:
-    """Entry point ``pkm-pflege-mcp``: start the server via stdio."""
+    """Entry point ``pkm-maintenance-mcp``: start the server via stdio."""
     build_server().run()
 
 # Main ************************************************************************

@@ -1,6 +1,11 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.27 (Entwurf zum Review) · **Stand:** 05.11.2026
+**Version:** 0.28 (Entwurf zum Review) · **Stand:** 05.11.2026
+
+> **Änderungen in 0.28**
+> - **`CLAUDE.md` aktualisieren:** `pkm setup` erkennt eine vom aktuellen Template abweichende `CLAUDE.md` im Vault und bietet an, sie zu ersetzen (Sicherung außerhalb des Vaults, Commit) oder die Vorlage als `CLAUDE.md.new` daneben zu legen (15.1).
+> - **Wiki-Sprache:** `PKM_LANGUAGE` gilt auch für das Wiki. Der Pflege-Server nennt Sprache, Abschnittsnamen und das Label der ersten Zeile in seinen Anweisungen (Deutsch: Kurzfassung, Inhalt, Widersprüche / offene Fragen, Siehe auch, Belege); der Skill `pkm-wiki` schreibt neue Wiki-Seiten, Log-Einträge und Berichte in dieser Sprache, bestehende Seiten behalten ihre Sprache. Erzeugte Dateien bleiben englisch (4.2, 7.1, 9, 15.1).
+> - **Englische Namen für den Pflege-Server:** `pkm-pflege` heißt jetzt `pkm-maintenance` (Programm `pkm-maintenance-mcp`, Modul `maintenance_server.py`), das Claude-Projekt „PKM Maintenance“. `pkm-pflege-mcp` bleibt als Alias, damit bestehende Einträge weiter laufen; `pkm setup` ersetzt den alten Eintrag in Claude Desktop nach Rückfrage (7.6, 7.7, 11, 15.1).
 
 > **Änderungen in 0.27**
 > - **Dokumentsprache wählbar:** `pkm setup` fragt, ob im Chat erzeugte Dokumente hauptsächlich englisch oder deutsch sein sollen (`PKM_LANGUAGE`, `en` oder `de`, Standard `en`, Option `--language`). Der Server `pkm` nennt die Sprache und die passenden Abschnittsnamen in seinen Anweisungen; der Skill `pkm-access` schreibt neue Dokumente in dieser Sprache, fortgeführte Dokumente behalten ihre Sprache. Werkzeuge, Pflege und Wiki sind davon unabhängig (4.1, 6.2, 7.1, 8, 10, 15.1).
@@ -21,7 +26,7 @@
 > **Änderungen in 0.24**
 > - **Prüfung von Data-URIs bei der Übernahme** (neuer Teil in 4.9): Jede Bild-Data-URI, die über ein Werkzeug, von Hand oder aus einer Wiki-Seite ins PKM kommt, wird auf Schreibweise, Kodierung, Bildnamen, Alternativtext, Größe und Sicherheit geprüft. Abweichungen werden mit Befundcodes und einem Korrekturvorschlag gemeldet. **Korrigiert wird nur nach Rückfrage**, nie automatisch und nie in unbeaufsichtigten Läufen. Anlass: SVG im Referenzstil mit nicht kodierten Zeichen (`[ref]: <data:image/svg+xml;utf8,<svg …>>`) zeigte Obsidian nicht an (4.9).
 > - Schreibende Werkzeuge melden eine abweichende Data-URI im übergebenen Text mit dem neuen Status `nonconforming_image` und schreiben nichts. Nach Bestätigung korrigiert der Server mit `fix_images: true`. Abweichende Bilder, die schon im Dokument stehen, nennt die Rückgabe unter `image_warnings` (7.2).
-> - Neues Werkzeug `fix_images` in `pkm-mcp` und `pkm-pflege-mcp` für bestehende Dokumente: ohne `apply` nur Vorschlag mit Diff (Status `proposal`), mit `apply: true` neue Version, in der sich nur die Bildschreibweise ändert. Neuer CLI-Befehl `pkm fix-images`, nur auf Anweisung (3, 7.2, 7.7, 8).
+> - Neues Werkzeug `fix_images` in `pkm-mcp` und `pkm-maintenance-mcp` für bestehende Dokumente: ohne `apply` nur Vorschlag mit Diff (Status `proposal`), mit `apply: true` neue Version, in der sich nur die Bildschreibweise ändert. Neuer CLI-Befehl `pkm fix-images`, nur auf Anweisung (3, 7.2, 7.7, 8).
 > - `read` erkennt Data-URIs in jeder Schreibweise (auch Referenzstil, HTML, spitze Klammern) und ersetzt sie durch Platzhalter. `images` nennt je Bild `conforming` und `problems` (7.3).
 > - `begin_maintenance` liefert Befunde je Dokument, der Pflege-Agent schlägt Korrekturen vor wie bei fehlenden Frontmatter-Feldern (9.1, 9.7). Belege auf Abschnitte, in denen sich nur die Bildschreibweise geändert hat, hebt `finish_maintenance` selbst an (4.9, 7.7). Lint meldet `nonconforming_image` (8).
 > - Bestehende eingebettete PNG bleiben unverändert (Grundsatz 4). Bei ihnen wird nach Rückfrage nur eine Schreibweise korrigiert, die die Darstellung verhindert; die Bilddaten bleiben byte-gleich, ein Name wird nicht eingetragen (4.9).
@@ -43,7 +48,7 @@
 >
 > **Änderungen in 0.19** (Befunde aus den ersten Pflegeläufen)
 > - **Dateinamen mit Datum am Ende:** Neue Dokumente aus Chats heißen `<slug>_YYYY-MM-DD.md`. Bei Namensgleichheit steht das Suffix vor dem Datum (`<slug>-2_YYYY-MM-DD.md`) (4.1, 7.2).
-> - **Pflege über einen eigenen MCP-Server `pkm-pflege-mcp` statt über Shell und CLI.** Claude Desktop bzw. Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus, in der `pkm`, Git und das Git-Verzeichnis fehlen. Der neue Server bündelt die Pflegebefehle in den Tools `begin_maintenance`, `write_wiki_page`, `set_document_metadata` und `finish_maintenance`. Er wird nur in Pflege-Unterhaltungen eingeschaltet. Die CLI bleibt für Einrichtung, Prüfung und Fehlersuche (1, 2, 3, 7.7, 8, 9, 11, 12, 15).
+> - **Pflege über einen eigenen MCP-Server `pkm-maintenance-mcp` statt über Shell und CLI.** Claude Desktop bzw. Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus, in der `pkm`, Git und das Git-Verzeichnis fehlen. Der neue Server bündelt die Pflegebefehle in den Tools `begin_maintenance`, `write_wiki_page`, `set_document_metadata` und `finish_maintenance`. Er wird nur in Pflege-Unterhaltungen eingeschaltet. Die CLI bleibt für Einrichtung, Prüfung und Fehlersuche (1, 2, 3, 7.7, 8, 9, 11, 12, 15).
 > - **Frontmatter-Vorschläge:** Fehlen bei neuen Dokumenten `title`, `context`, `tags` oder `kind`, schlägt der Pflege-Agent Werte vor. Nach ausdrücklicher Bestätigung trägt er `title`, `context`, `tags`, `kind` und `short_citation` ein (`set_document_metadata`), in unbeaufsichtigten Läufen nie (1, 3, 4.1, 7.7, 9.6).
 > - **Feldreihenfolge:** Werkzeuge fügen fehlende Felder an der Stelle aus dem Schema ein statt am Ende. `update_frontmatter` schreibt in Schema-Reihenfolge. Einfache Listen stehen ohne Anführungszeichen (`tags: [a, b]`) (4.1, 7.2).
 > - **`read` in Teilen:** neue Parameter `section`, `offset`/`max_chars` und `content`. Sehr große Inhalte kommen nur auf Anforderung (7.3).
@@ -149,14 +154,14 @@ Ein persönliches Wissensmanagement (PKM), das
 
 ```
 ┌──────────────────────────────┐        ┌───────────────────────────────┐
-│  Beliebiger Claude-Chat      │        │  Claude-Projekt „PKM-Pflege“  │
+│  Beliebiger Claude-Chat      │        │  Claude-Projekt „PKM Maintenance“  │
 │  (+ Skill pkm-access)        │        │  (Chat oder Cowork,           │
 │                              │        │   + Skill pkm-wiki)           │
 └──────────┬───────────────────┘        └───────────────┬───────────────┘
            │ MCP (stdio, lokal)                         │ MCP (stdio, lokal)
            ▼                                            ▼
 ┌──────────────────────────────┐        ┌───────────────────────────────┐
-│  pkm-mcp (Python)            │        │  pkm-pflege-mcp (gleiches     │
+│  pkm-mcp (Python)            │        │  pkm-maintenance-mcp (gleiches     │
 │  schreiben (nur documents/,  │        │   Paket)                      │
 │   je Änderung 1 Git-Commit): │        │  begin_maintenance            │
 │   create_document            │        │  write_wiki_page              │
@@ -181,11 +186,11 @@ Ein persönliches Wissensmanagement (PKM), das
 |---|---|---|
 | **Vault** | Ordner mit Git-Repo (Pflicht) | Einzige Datenquelle (Single Source of Truth), Versionsgeschichte |
 | **pkm-mcp** | lokaler MCP-Server (Python, stdio) | Ablegen, Aktualisieren und Versionsverlauf von Dokumenten, Abfragen des Wikis, Belege aus jedem Chat |
-| **pkm-pflege-mcp** | lokaler MCP-Server (Python, stdio), gleiches Paket | Wiki-Pflege aus Claude Desktop bzw. Cowork: bündelt die deterministischen Pflegeschritte, schreibt Wiki-Seiten (7.7). Nur in Pflege-Unterhaltungen eingeschaltet |
+| **pkm-maintenance-mcp** | lokaler MCP-Server (Python, stdio), gleiches Paket | Wiki-Pflege aus Claude Desktop bzw. Cowork: bündelt die deterministischen Pflegeschritte, schreibt Wiki-Seiten (7.7). Nur in Pflege-Unterhaltungen eingeschaltet |
 | **pkm CLI** | Kommandozeile, gleiches Python-Paket | Einrichtung (`pkm init`), Prüfung (`doctor`, `lint`) und Fehlersuche. Dieselben Pflegebefehle einzeln |
 | **Skill `pkm-wiki`** | Claude-Skill | Regeln und Abläufe der Wiki-Pflege |
 | **Skill `pkm-access`** | Claude-Skill (schlank) | Wann und wie Chats die MCP-Tools nutzen |
-| **Projekt „PKM-Pflege“** | Projekt in Claude Desktop (Chat oder Cowork) | Ort, an dem die Pflege läuft (Server `pkm-pflege` eingeschaltet) |
+| **Projekt „PKM Maintenance“** | Projekt in Claude Desktop (Chat oder Cowork) | Ort, an dem die Pflege läuft (Server `pkm-maintenance` eingeschaltet) |
 | **Geplante Aufgabe** (optional) | z. B. täglich | Neue und geänderte Dokumente automatisch verarbeiten |
 
 ---
@@ -235,7 +240,7 @@ Außerhalb des Cloud-Ordners, nur auf dem PKM-Rechner (5.5):
 | `CLAUDE.md` | lesen und schreiben (Änderungen committet `pkm versions`) | – | Änderungen nur nach Zustimmung |
 | `scratch/**` | alles | neu anlegen, ändern (nur `.md`, Bilder immer eingebettet), ohne Version und Commit | **ignoriert** |
 | `pkm_img_import/` | Bilder hineinlegen, aufräumen | nur lesen (`import_path`), kopiert ins Dokument | **ignoriert** |
-| `.pkm/` | – | `mcp.log` (nur anhängen) | `state.json` (über `pkm-pflege-mcp`) |
+| `.pkm/` | – | `mcp.log` (nur anhängen) | `state.json` (über `pkm-maintenance-mcp`) |
 
 Ein Dokument ist „unverarbeitet“, solange seine aktuelle Version nicht in `state.json` als verarbeitet steht. Wo es innerhalb von `documents/` liegt, ist dafür egal.
 
@@ -339,7 +344,7 @@ kind: standard
 | `## Offene Punkte` | `## Open points` |
 | `## Kontext / Begründung` | `## Context / rationale` |
 
-Der Server `pkm` nennt die Dokumentsprache und diese Abschnittsnamen in seinen Anweisungen an den Chat. Neue Dokumente entstehen in dieser Sprache (Titel, Text, Abschnitte), auch wenn der Chat in einer anderen Sprache geführt wird. Nur wenn der Nutzer ausdrücklich eine andere Sprache verlangt, gilt diese. Fortgeführte Dokumente behalten ihre Sprache und ihre Abschnittsnamen. Die Beispiele in dieser Spezifikation verwenden die deutschen Namen. Werkzeuge und Pflege behandeln beide Varianten gleich; die Gliederung der Wiki-Seiten (4.2) hängt nicht davon ab.
+Der Server `pkm` nennt die Dokumentsprache und diese Abschnittsnamen in seinen Anweisungen an den Chat. Neue Dokumente entstehen in dieser Sprache (Titel, Text, Abschnitte), auch wenn der Chat in einer anderen Sprache geführt wird. Nur wenn der Nutzer ausdrücklich eine andere Sprache verlangt, gilt diese. Fortgeführte Dokumente behalten ihre Sprache und ihre Abschnittsnamen. Die Beispiele in dieser Spezifikation verwenden die deutschen Namen. Werkzeuge und Pflege behandeln beide Varianten gleich. Für Wiki-Seiten gilt dieselbe Sprache (4.2).
 
 Bei einer fortgeführten Diskussion werden diese Abschnitte **aktualisiert**, nicht ergänzt (Abschnitt 6). Das Dokument zeigt immer den aktuellen Stand.
 
@@ -348,6 +353,15 @@ Bei einer fortgeführten Diskussion werden diese Abschnitte **aktualisiert**, ni
 **Nicht-Markdown-Dateien** (PDF, Bilder) haben kein Frontmatter und keine Versionsnummer. Sie werden über ihren Inhalts-Hash identifiziert. Eine neue Fassung eines PDFs gilt als neues Dokument (Abschnitt 5).
 
 ### 4.2 Wiki-Seite mit Belegen
+
+Neue Wiki-Seiten entstehen in der Sprache aus `PKM_LANGUAGE` (7.1), die der Server `pkm-maintenance` in seinen Anweisungen nennt; eine bestehende Seite behält bei Aktualisierungen ihre Sprache (keine gemischten Seiten). Zitate in Belegen bleiben wörtlich in der Sprache des Dokuments. Namen je Sprache:
+
+| | Deutsch (`de`) | Englisch (`en`, Standard) |
+|---|---|---|
+| Erste Zeile | `> **Kurzfassung:** …` | `> **Summary:** …` |
+| Abschnitte | `## Inhalt`, `## Widersprüche / offene Fragen`, `## Siehe auch`, `## Belege` | `## Content`, `## Contradictions / open questions`, `## See also`, `## Citations` |
+
+Belegprüfung und Lint erkennen beide Varianten. Das Beispiel verwendet die deutschen Namen.
 
 Dateiname: Kleinbuchstaben, Bindestriche, Umlaute ausgeschrieben (`regenwasser-ertrag.md`).
 
@@ -498,7 +512,7 @@ Alle Hashes werden voll (64 Hex-Zeichen) gespeichert, im Beispiel gekürzt. Was 
 | `pending`-Kategorien | `new`, `changed`, `meta_changed`, `moved`, `deleted`; je Abschnitt `added`, `removed`, `changed`, `renamed` |
 | Bereiche (`area`, `scope`) | `documents`, `scratch`; zusätzlich `wiki` und `all` (= `wiki` + `documents`) bei `search` |
 | MCP-Tools `pkm-mcp` | `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `add_image`, `fix_images`, `restore_document`, `search`, `read`, `read_image`, `history`, `show_citations`, `read_index`, `list_unprocessed` |
-| MCP-Tools `pkm-pflege-mcp` | `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` sowie die lesenden Tools von `pkm-mcp` |
+| MCP-Tools `pkm-maintenance-mcp` | `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` sowie die lesenden Tools von `pkm-mcp` |
 | Pflege-Rückgaben | `missing_fields`, `image_issues`, `known_tags`, `operation` (`ingest` \| `lint` \| `fix`), `processed`, `removed`, `questions` |
 | Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `unchanged`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding`, `not_versioned`, `svg_too_complex`, `too_large_for_inline`, `unknown_image`, `invalid_image`, `nonconforming_image`, `proposal`, `forbidden`, `protected_field`, `field_exists`, `blocked`, `needs_decision` |
 | CLI | `pkm init`, `ids`, `versions`, `pending`, `history`, `show`, `fix-citations`, `sync-citations`, `sha`, `mark`, `index`, `status`, `lint`, `restore`, `reindex`, `commit-wiki`, `fix-frontmatter`, `fix-images`, `doctor` |
@@ -863,7 +877,7 @@ Diese Form ist nie Standard. Der Skill schlägt sie auch nicht von sich aus vor.
 - Konfiguration über die Datei `config.toml` im Standardordner (macOS `~/Library/Application Support/pkm/`, Windows `%APPDATA%\pkm\`, andere Datei über `PKM_CONFIG`), geschrieben von `pkm setup`, mit flachen Schlüsseln wie die Umgebungsvariablen unten. Gesetzte Umgebungsvariablen haben Vorrang vor der Datei. Werte:
   - `PKM_ROOT` (Pflicht): absoluter Pfad zum Vault im Cloud-Ordner
   - `PKM_VERSIONING` (Standard `true`): Versionsverwaltung mit Git; `pkm setup` setzt `false`, wenn Git fehlt (5.4)
-  - `PKM_LANGUAGE` (Standard `en`): Hauptsprache von im Chat erzeugten Dokumenten, `en` (Englisch) oder `de` (Deutsch); auch die Namen `english`/`englisch`/`german`/`deutsch` werden angenommen, andere Werte sind ein Konfigurationsfehler. Der Server `pkm` übernimmt sie beim Start in seine Anweisungen (4.1); eine Änderung wirkt nach einem Neustart von Claude Desktop
+  - `PKM_LANGUAGE` (Standard `en`): Hauptsprache von im Chat erzeugten Dokumenten und vom Wiki, `en` (Englisch) oder `de` (Deutsch); auch die Namen `english`/`englisch`/`german`/`deutsch` werden angenommen, andere Werte sind ein Konfigurationsfehler. Die Server `pkm` und `pkm-maintenance` übernehmen sie beim Start in ihre Anweisungen (4.1, 4.2); eine Änderung wirkt nach einem Neustart von Claude Desktop
   - `PKM_GIT` (optional): Pfad des Git-Programms. Ohne Angabe wird Git im `PATH` und an den üblichen Orten gesucht (`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, `C:\Program Files\Git\cmd`); es zählt nur ein Git, das läuft (der Platzhalter `/usr/bin/git` auf macOS ohne Developer Tools zählt nicht)
   - `PKM_GIT_DIR` (Standard macOS `~/Library/Application Support/pkm/git`, Windows `%APPDATA%\pkm\git`): Git-Verzeichnis außerhalb des Cloud-Ordners
   - `PKM_CACHE_DIR` (Standard macOS `~/Library/Application Support/pkm`, Windows `%APPDATA%\pkm`): Suchindex. Muss außerhalb von `PKM_ROOT` und jedes Cloud-Ordners liegen. Liegt es nach `resolve()` innerhalb von `PKM_ROOT`, legt der Server keinen Index an und meldet einen Fehler. `search` ist dann nicht verfügbar, die übrigen lesenden Tools funktionieren weiter
@@ -1052,7 +1066,7 @@ Rückgabe: `id`, `version`, `path`, `frontmatter`, `content`, `content_length`, 
 | `image` | string | Bildname (bei eigenständigen Bildern weglassen) |
 | `as` | enum `auto` \| `image` \| `svg_text` | `auto`: PNG als Bild, SVG als Text. `image` für SVG nur mit `PKM_SVG_RASTER` |
 
-Rückgabe: das Bild (als Bildinhalt bzw. SVG-Text) mit Name, Alternativtext, Format, Größe und Hash. Verfügbar in `pkm-mcp` und `pkm-pflege-mcp`. Damit lassen sich Bilder ohne verbundenen Vault-Ordner ansehen.
+Rückgabe: das Bild (als Bildinhalt bzw. SVG-Text) mit Name, Alternativtext, Format, Größe und Hash. Verfügbar in `pkm-mcp` und `pkm-maintenance-mcp`. Damit lassen sich Bilder ohne verbundenen Vault-Ordner ansehen.
 
 #### `history`
 Für Dateien in `scratch/` kommt `not_versioned`.
@@ -1102,7 +1116,7 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 - Pfadprüfung mit `resolve()`. Kein `..`, keine absoluten Pfade, keine Symlinks nach außen. `import_path` nur innerhalb von `PKM_IMPORT_DIR`
 - Bilder: SVG-Bereinigung und PNG-Prüfung nach 4.9
 - `pkm-mcp` schreibt nur wie in 7.2 beschrieben. **Nie änderbar:** `wiki/`, `CLAUDE.md`, Nicht-Markdown-Dateien, alles außerhalb von `PKM_ROOT`
-- `pkm-pflege-mcp` schreibt nur wie in 7.7 beschrieben: Wiki-Seiten in den vier Seitenordnern, die generierten Dateien über `finish_maintenance`, `.pkm/state.json` und in Dokumenten nur `id`/`version` sowie die freigegebenen Metadaten. Löschen kann auch er nicht
+- `pkm-maintenance-mcp` schreibt nur wie in 7.7 beschrieben: Wiki-Seiten in den vier Seitenordnern, die generierten Dateien über `finish_maintenance`, `.pkm/state.json` und in Dokumenten nur `id`/`version` sowie die freigegebenen Metadaten. Löschen kann auch er nicht
 - Git-Aufrufe nur mit fest vorgegebenen Argumenten (kein Durchreichen von Eingaben als Optionen). Pfade werden nach `--` übergeben
 - Es gibt keine Git-Operation, die Geschichte umschreibt (`reset`, `rebase`, `push --force` usw.)
 - Rückgaben enthalten nur relative Pfade
@@ -1110,20 +1124,20 @@ Liste der Dokumente, deren aktueller Stand noch nicht im Wiki eingearbeitet ist 
 
 ### 7.6 Einbindung in Claude Desktop
 
-`pkm setup` prüft zuerst, ob beide Server in `claude_desktop_config.json` (macOS `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\`) schon passend eingetragen sind. Fehlt ein Eintrag oder weicht er ab, zeigt es die Änderung und fragt, ob es die Datei ändern darf. Bei „ja“ entsteht eine Sicherungskopie, die Einträge werden ergänzt bzw. ersetzt und andere Einträge bleiben unverändert. Bei „nein“ (oder wenn die Datei kein gültiges JSON ist) ändert es nichts und zeigt den JSON-Text, den der Nutzer selbst unter `mcpServers` einträgt. Weil Vault-Pfad, Git und alle übrigen Werte in `config.toml` stehen, braucht ein Eintrag nur den absoluten Pfad des Programms:
+`pkm setup` prüft zuerst, ob beide Server in `claude_desktop_config.json` (macOS `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\`) schon passend eingetragen sind. Fehlt ein Eintrag oder weicht er ab, zeigt es die Änderung und fragt, ob es die Datei ändern darf. Bei „ja“ entsteht eine Sicherungskopie, die Einträge werden ergänzt bzw. ersetzt und andere Einträge bleiben unverändert. Ein Eintrag mit dem alten Namen `pkm-pflege` (bis 0.2.1) wird dabei entfernt; das alte Programm `pkm-pflege-mcp` bleibt als Alias installiert, damit er bis dahin weiter läuft. Bei „nein“ (oder wenn die Datei kein gültiges JSON ist) ändert es nichts und zeigt den JSON-Text, den der Nutzer selbst unter `mcpServers` einträgt. Weil Vault-Pfad, Git und alle übrigen Werte in `config.toml` stehen, braucht ein Eintrag nur den absoluten Pfad des Programms:
 
 ```json
 {
   "mcpServers": {
     "pkm": { "command": "<HOME>/.local/bin/pkm-mcp" },
-    "pkm-pflege": { "command": "<HOME>/.local/bin/pkm-pflege-mcp" }
+    "pkm-maintenance": { "command": "<HOME>/.local/bin/pkm-maintenance-mcp" }
   }
 }
 ```
 
-Unter Windows heißen die Programme `pkm-mcp.exe` und `pkm-pflege-mcp.exe` (in JSON jeden Backslash verdoppeln). JSON kennt weder `~` noch Umgebungsvariablen, deshalb absolute Pfade. Ein `env`-Block ist weiter möglich und hat Vorrang; `pkm setup` schreibt `PKM_CONFIG` nur hinein, wenn die Konfigurationsdatei nicht im Standardordner liegt. Die Server sind erreichbar, solange die Desktop-App auf dem PKM-Rechner läuft, auch aus Cowork.
+Unter Windows heißen die Programme `pkm-mcp.exe` und `pkm-maintenance-mcp.exe` (in JSON jeden Backslash verdoppeln). JSON kennt weder `~` noch Umgebungsvariablen, deshalb absolute Pfade. Ein `env`-Block ist weiter möglich und hat Vorrang; `pkm setup` schreibt `PKM_CONFIG` nur hinein, wenn die Konfigurationsdatei nicht im Standardordner liegt. Die Server sind erreichbar, solange die Desktop-App auf dem PKM-Rechner läuft, auch aus Cowork.
 
-### 7.7 MCP-Server `pkm-pflege-mcp`
+### 7.7 MCP-Server `pkm-maintenance-mcp`
 
 Zweiter lokaler Server aus demselben Paket für die Wiki-Pflege aus Claude Desktop bzw. Cowork. Grund: Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus (lokale VM bzw. Cloud), in der `pkm`, Git und das Git-Verzeichnis fehlen. MCP-Server dagegen laufen auf dem PKM-Rechner und sind über die Desktop-App erreichbar. Technik, Konfiguration, Sicherheit und Protokoll wie 7.1, 7.5 und 7.2. Keine LLM-Aufrufe: Der Server bündelt nur die deterministischen Schritte. Inhaltliche Arbeit (Seiten formulieren, Belege wählen) macht der Agent.
 
@@ -1187,13 +1201,13 @@ Führt nacheinander aus: `fix-citations` (inkl. Wikilinks im Text), Anheben von 
 
 ## 8. CLI `pkm`
 
-Die CLI dient der Einrichtung, Prüfung und Fehlersuche. Der Pflege-Agent ruft sie nicht direkt auf, sondern nutzt `pkm-pflege-mcp` (7.7), das dieselben Funktionen bündelt.
+Die CLI dient der Einrichtung, Prüfung und Fehlersuche. Der Pflege-Agent ruft sie nicht direkt auf, sondern nutzt `pkm-maintenance-mcp` (7.7), das dieselben Funktionen bündelt.
 
 Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft nur, dass `scratch/` in `.gitignore` steht.
 
 | Befehl | Funktion |
 |---|---|
-| `pkm setup` | Geführte Einrichtung (15.1): vorhandene Konfiguration anzeigen und übernehmen, Vault-Ordner, Git-Prüfung (ohne Git Hinweis und Betrieb ohne Versionsverwaltung, 5.4), Git-Identität für das PKM-Repo, Dokumentsprache (`PKM_LANGUAGE`, 4.1), `config.toml`, `pkm init`, Einträge in Claude Desktop (7.6), Skill-ZIPs, Projektanweisung, `pkm doctor`. Wiederholbar; Optionen `--vault`, `--vault-name`, `--git-name`, `--git-email`, `--language`, `--yes`, `--claude-config`, `--skills-dir`, `--json` |
+| `pkm setup` | Geführte Einrichtung (15.1): vorhandene Konfiguration anzeigen und übernehmen, Vault-Ordner, Git-Prüfung (ohne Git Hinweis und Betrieb ohne Versionsverwaltung, 5.4), Git-Identität für das PKM-Repo, Sprache von Dokumenten und Wiki (`PKM_LANGUAGE`, 4.1, 4.2), `config.toml`, `pkm init`, Abgleich von `CLAUDE.md` mit der Vorlage (15.1), Einträge in Claude Desktop (7.6, alter Eintrag `pkm-pflege` wird ersetzt), Skill-ZIPs, Projektanweisung, `pkm doctor`. Wiederholbar; Optionen `--vault`, `--vault-name`, `--git-name`, `--git-email`, `--language`, `--yes`, `--claude-config`, `--skills-dir`, `--json` |
 | `pkm init` | Legt Struktur, `CLAUDE.md`, `wiki/index.md`, `log.md`, `_status.md`, `state.json`, `.gitignore`, den Importordner `pkm_img_import/`, `.obsidian/types.json` (Property-Typen, 13) und `.obsidian/app.json` (Einstellungen aus 13; fehlende Werte ergänzt, abweichende gemeldet) an und initialisiert mit Versionsverwaltung das Git-Verzeichnis außerhalb des Vaults, falls nötig (idempotent) |
 | `pkm ids` | Trägt fehlende `id`/`version` in Markdown-Dokumente ein und committet **je Dokument einzeln** (`doc: <title> v1`, `PKM-Source: agent`). Meldet doppelte IDs |
 | `pkm versions` | Committet alle von Hand geänderten Dokumente als neue Version (je Dokument eine, `PKM-Source: user`). Erkennt auch Verschiebungen (Markdown über die ID, PDF/Bild über den Hash) und committet sie mit: ein Commit enthält dann alten und neuen Pfad. Eine neue Version entsteht nur, wenn sich `body_hash` oder `meta_hash` geändert hat (4.8). Reines Verschieben ergibt den Commit `doc: <title> moved` ohne Versionssprung. Eine von Hand geänderte `CLAUDE.md` wird als eigener Commit `pkm: CLAUDE.md geändert` mit `PKM-Source: user` erfasst Ändert sich eine verlinkte Bilddatei, erhält jedes Dokument, das sie verwendet, eine neue Version im selben Commit wie das Bild (4.9). Zugehörige Bilddateien werden nicht als eigenständige Dokumente geführt. |
@@ -1218,9 +1232,9 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 
 ## 9. Skill `pkm-wiki` (Pflege, im Projekt)
 
-**Beschreibung (Trigger):** Pflege des PKM-Wikis über den MCP-Server `pkm-pflege`: neue und geänderte Dokumente verarbeiten, Lint, Wiki-Fragen im Pflegeprojekt.
+**Beschreibung (Trigger):** Pflege des PKM-Wikis über den MCP-Server `pkm-maintenance`: neue und geänderte Dokumente verarbeiten, Lint, Wiki-Fragen im Pflegeprojekt.
 
-Der Agent arbeitet ausschließlich über die Tools von `pkm-pflege-mcp` (7.7). Eine Shell oder die CLI braucht er nicht.
+Der Agent arbeitet ausschließlich über die Tools von `pkm-maintenance-mcp` (7.7). Eine Shell oder die CLI braucht er nicht. Neue Wiki-Seiten, Log-Eintrag und Bericht schreibt er in der Sprache, die der Server nennt (`PKM_LANGUAGE`, 4.2); bestehende Seiten behalten ihre Sprache.
 
 ### 9.1 Ablauf „Ingest“
 
@@ -1340,13 +1354,13 @@ Korrigiert wird erst nach **ausdrücklicher Bestätigung**: `read` → `hash` �
 
 ---
 
-## 11. Projekt „PKM-Pflege“ und Automatisierung
+## 11. Projekt „PKM Maintenance“ und Automatisierung
 
-- **Projekt** in Claude Desktop (Chat oder Cowork) mit der Anweisung: „Dies ist das Pflegeprojekt für das PKM. Nutze den Skill `pkm-wiki` und die Tools des Servers `pkm-pflege`. Dokumente in `documents/` änderst du nicht.“
-- **Server:** In Pflege-Unterhaltungen ist `pkm-pflege` eingeschaltet, in allen anderen ausgeschaltet (7.6). Der Agent arbeitet nur über dessen Tools (7.7). Die Shell in Cowork ist abgeschottet; dort gibt es weder `pkm` noch Git.
+- **Projekt** in Claude Desktop (Chat oder Cowork) mit der Anweisung: „Dies ist das Pflegeprojekt für das PKM. Nutze den Skill `pkm-wiki` und die Tools des Servers `pkm-maintenance`. Dokumente in `documents/` änderst du nicht.“
+- **Server:** In Pflege-Unterhaltungen ist `pkm-maintenance` eingeschaltet, in allen anderen ausgeschaltet (7.6). Der Agent arbeitet nur über dessen Tools (7.7). Die Shell in Cowork ist abgeschottet; dort gibt es weder `pkm` noch Git.
 - **Ordnerzugriff (optional):** Wird der Vault im Chat über „+“ → „Ordner hinzufügen“ verbunden, kann der Agent auch PDFs und Bilder lesen. Für Markdown ist das nicht nötig.
 - **Start: manuell.** Pflegeläufe werden im Projekt angestoßen („Verarbeite neue Dokumente“, „Lint“).
-- **Automatik (vorbereitet, später):** eine geplante Aufgabe, z. B. täglich „Ingest, danach Lint“. Geplante Cowork-Aufgaben laufen in der Cloud und erreichen `pkm-pflege` nur über die Desktop-App. Der PKM-Rechner muss dafür wach sein und die Claude-Desktop-App laufen; das ist vor dem Einschalten zu testen. Der Skill ist schon dafür ausgelegt: Im unbeaufsichtigten Lauf entscheidet er konservativ und schreibt Rückfragen in `wiki/_status.md` und ins Log, statt zu warten. Eingeschaltet wird die Automatik nur auf Anweisung des Nutzers.
+- **Automatik (vorbereitet, später):** eine geplante Aufgabe, z. B. täglich „Ingest, danach Lint“. Geplante Cowork-Aufgaben laufen in der Cloud und erreichen `pkm-maintenance` nur über die Desktop-App. Der PKM-Rechner muss dafür wach sein und die Claude-Desktop-App laufen; das ist vor dem Einschalten zu testen. Der Skill ist schon dafür ausgelegt: Im unbeaufsichtigten Lauf entscheidet er konservativ und schreibt Rückfragen in `wiki/_status.md` und ins Log, statt zu warten. Eingeschaltet wird die Automatik nur auf Anweisung des Nutzers.
 
 ---
 
@@ -1416,7 +1430,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 - `scratch/`: Anlegen mit `area: "scratch"` und `folder`, Ändern ohne Version und Commit, `history`/`restore_document` liefern `not_versioned`, `search` findet `scratch/` nur mit `scope: "scratch"`, `pending`, `ids`, `versions` und `lint` ignorieren den Bereich, Lint meldet einen Beleg im Wiki, der auf `scratch/` zeigt, Verschieben von `scratch/` nach `documents/` ergibt beim nächsten Lauf `version: 1` und einen Commit
 - Getrenntes Git-Verzeichnis: alle Git-Operationen mit `--git-dir`/`--work-tree`, im Vault entsteht nie ein `.git`
 - Dateinamen: `create_document` erzeugt `<slug>_YYYY-MM-DD.md`, bei Namensgleichheit `<slug>-2_YYYY-MM-DD.md`. Bei sehr langen Titeln wird der Slug gekürzt, Datum und Suffix bleiben vollständig, der Name hat höchstens 120 Zeichen
-- `pkm-pflege-mcp`: vollständiger Lauf (ID vergeben, Seite schreiben, abschließen, danach nichts offen), `blocked` bei Fehlern der Umgebung, `write_wiki_page` lehnt generierte Dateien, Bereiche außerhalb der Seitenordner und `..` ab und prüft `expected_hash`, `finish_maintenance` ermittelt die Seiten aus den Fußnoten und trägt `removed` aus. `set_document_metadata`: Whitelist, `field_exists` ohne `overwrite`, ungültiges `kind`, Tag-Vereinheitlichung, Commit mit `PKM-Source: agent`. `begin_maintenance` liefert `missing_fields` und `known_tags`. `pkm versions` committet eine geänderte `CLAUDE.md`
+- `pkm-maintenance-mcp`: vollständiger Lauf (ID vergeben, Seite schreiben, abschließen, danach nichts offen), `blocked` bei Fehlern der Umgebung, `write_wiki_page` lehnt generierte Dateien, Bereiche außerhalb der Seitenordner und `..` ab und prüft `expected_hash`, `finish_maintenance` ermittelt die Seiten aus den Fußnoten und trägt `removed` aus. `set_document_metadata`: Whitelist, `field_exists` ohne `overwrite`, ungültiges `kind`, Tag-Vereinheitlichung, Commit mit `PKM-Source: agent`. `begin_maintenance` liefert `missing_fields` und `known_tags`. `pkm versions` committet eine geänderte `CLAUDE.md`
 - `read` mit `section`, `offset`/`max_chars`, `content: false` und `content_omitted` bei großen Inhalten. Leere Abschnitte mit `empty: true`
 - Lint: keine Warnung für Zwischenüberschriften, Hervorhebungs- und Link-Zeilen und belegte Tabellen, weiterhin Warnung für unbelegte Tabellen und Sätze, `citation_empty_section`
 - Verschieben außerhalb von Obsidian bei veraltetem Index: `fix-citations` schreibt Beleg und Wikilink im Text um. Belege auf unveränderte Abschnitte werden angehoben, Belege auf geänderte nicht
@@ -1424,7 +1438,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 
 **Abnahme (manuell):**
 1. Aus einem Chat: „Leg das Ergebnis ins PKM.“ → Die Datei erscheint als `documents/_inbox/<slug>_YYYY-MM-DD.md` mit ID und `version: 1`, und es gibt einen Commit.
-2. Im Pflegeprojekt (Server `pkm-pflege` eingeschaltet): „Verarbeite neue Dokumente.“ → Zusammenfassung, Themenseiten mit Belegen (`v:1`), Index, Status, Log, Agenten-Commit, Vorschläge für fehlende Frontmatter-Felder. Nach Bestätigung werden sie eingetragen (neue Version mit `PKM-Source: agent`).
+2. Im Pflegeprojekt (Server `pkm-maintenance` eingeschaltet): „Verarbeite neue Dokumente.“ → Zusammenfassung, Themenseiten mit Belegen (`v:1`), Index, Status, Log, Agenten-Commit, Vorschläge für fehlende Frontmatter-Felder. Nach Bestätigung werden sie eingetragen (neue Version mit `PKM-Source: agent`).
 3. In Obsidian das Dokument einsortieren → Die Belege zeigen sofort auf den neuen Ort.
 4. In einem neuen Chat: „Führ die Diskussion zum Überlaufsensor weiter …“ → Der Chat findet das Dokument, zeigt die Änderungen pro Abschnitt und eine Notiz und schreibt nach Bestätigung `version: 2`. Das Dokument enthält keinen Fortsetzungsabschnitt.
 5. „Was hat sich geändert?“ → Verlauf v1 → v2 mit Notiz und Diff.
@@ -1448,7 +1462,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 | 4 | CLI: `ids`, `versions`, `pending`, `mark`, `sha`, `index`, `status` | Pflege-Grundlage |
 | 5 | Belege: `show_citations`, `fix-citations`, `sync-citations`, `lint` | Rückverfolgbarkeit |
 | 6 | Skills `pkm-access` und `pkm-wiki`, Projekt | Erster echter Ingest-Lauf |
-| 6a | MCP-Server `pkm-pflege-mcp` (7.7), Skill `pkm-wiki` darauf umgestellt | Pflege aus Claude Desktop bzw. Cowork ohne Shell |
+| 6a | MCP-Server `pkm-maintenance-mcp` (7.7), Skill `pkm-wiki` darauf umgestellt | Pflege aus Claude Desktop bzw. Cowork ohne Shell |
 | 7 | Später: geplante Aufgabe | Automatische Verarbeitung, erst auf Anweisung des Nutzers |
 | 8 | Einfachere Installation (15.1, umgesetzt in 0.26) | Einrichtung mit einem Skript und `pkm setup` statt rund zehn Handschritten |
 
@@ -1457,14 +1471,15 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 Vorher brauchte die Einrichtung rund zehn Handschritte. Jetzt: Installer ausführen, `pkm setup` beantworten, zwei ZIP-Dateien hochladen, Projekt anlegen, Claude Desktop und Obsidian neu starten.
 
 1. **Assistent `pkm setup`** (interaktiv, idempotent, auf Mac und Windows, Optionen in 8):
-   - sucht zuerst eine **vorhandene Konfiguration**: Umgebungsvariablen, die `env`-Blöcke der PKM-Einträge in Claude Desktop (dort lagen die Einstellungen vor `pkm setup`; erkannt an den Namen `pkm`/`pkm-pflege` oder an den Programmen `pkm-mcp`/`pkm-pflege-mcp`, auch unter anderem Namen) und `config.toml`, in dieser Rangfolge. Nennt keine Quelle `PKM_ROOT`, gilt der Vault aus `core.worktree` des Git-Verzeichnisses (`PKM_GIT_DIR` bzw. Standard), sofern dort `.pkm/state.json` liegt. Gefundene Werte (alle Schlüssel aus 7.1, z. B. `PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`) zeigt es mit ihrer Herkunft; überdeckte Werte aus nachrangigen Quellen sind gekennzeichnet. Es fragt, ob es sie übernehmen soll (`--yes`: ja). Übernommen sind sie die Vorgaben der folgenden Fragen und kommen in `config.toml`, sodass ein vorhandenes Git-Verzeichnis samt Verlauf weiter genutzt wird, auch wenn die Einträge in Claude Desktop danach ohne `env` auskommen. Bei „nein“ beginnt die Einrichtung mit einer neuen Konfiguration; eine vorhandene `config.toml` wird vorher gesichert (`config.toml.<Zeit>.bak`). Geschlossene Eingabe (Dateiende) gilt bei jeder Frage als leere Antwort, also als Vorgabe;
+   - sucht zuerst eine **vorhandene Konfiguration**: Umgebungsvariablen, die `env`-Blöcke der PKM-Einträge in Claude Desktop (dort lagen die Einstellungen vor `pkm setup`; erkannt an den Namen `pkm`/`pkm-maintenance` oder an den Programmen `pkm-mcp`/`pkm-maintenance-mcp`, auch unter anderem Namen) und `config.toml`, in dieser Rangfolge. Nennt keine Quelle `PKM_ROOT`, gilt der Vault aus `core.worktree` des Git-Verzeichnisses (`PKM_GIT_DIR` bzw. Standard), sofern dort `.pkm/state.json` liegt. Gefundene Werte (alle Schlüssel aus 7.1, z. B. `PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`) zeigt es mit ihrer Herkunft; überdeckte Werte aus nachrangigen Quellen sind gekennzeichnet. Es fragt, ob es sie übernehmen soll (`--yes`: ja). Übernommen sind sie die Vorgaben der folgenden Fragen und kommen in `config.toml`, sodass ein vorhandenes Git-Verzeichnis samt Verlauf weiter genutzt wird, auch wenn die Einträge in Claude Desktop danach ohne `env` auskommen. Bei „nein“ beginnt die Einrichtung mit einer neuen Konfiguration; eine vorhandene `config.toml` wird vorher gesichert (`config.toml.<Zeit>.bak`). Geschlossene Eingabe (Dateiende) gilt bei jeder Frage als leere Antwort, also als Vorgabe;
    - fragt den Vault-Ordner ab (legt ihn nach Bestätigung an) und erkennt den Cloud-Dienst (5.5); warnt bei Dateien „nur online“;
    - prüft Git. **Fehlt Git, gibt er einen Hinweis aus und schaltet die Versionsverwaltung ab** (5.4). Ist Git da und fehlt die Identität, fragt er Name und E-Mail ab und setzt sie nur für das PKM-Repo; die Commit-Signierung schaltet er für das PKM-Repo ab;
-   - fragt die Hauptsprache von im Chat erzeugten Dokumenten ab (Englisch oder Deutsch, `PKM_LANGUAGE`, 4.1; Vorgabe ist der bisherige Wert, sonst Englisch);
+   - fragt die Hauptsprache von im Chat erzeugten Dokumenten und vom Wiki ab (Englisch oder Deutsch, `PKM_LANGUAGE`, 4.1, 4.2; Vorgabe ist der bisherige Wert, sonst Englisch);
    - schreibt `config.toml` (7.1; andere Schlüssel in der Datei bleiben) und führt `pkm init` aus;
+   - prüft `CLAUDE.md` im Vault: `pkm init` legt die Datei nur an, wenn sie fehlt. Weicht eine vorhandene von der Vorlage der installierten Version ab (ältere Fassung oder eigene Änderungen), fragt der Assistent, ob er sie ersetzen soll. Bei „ja“ sichert er die alte nach `<App-Ordner>/backups/` (außerhalb des Vaults), schreibt die Vorlage und committet sie mit Versionsverwaltung (`PKM-Source: user`). Bei „nein“ bleibt die Datei und die Vorlage kommt daneben als `CLAUDE.md.new` (wird von Pflege und Suche nicht erfasst, da außerhalb von `documents/` und `wiki/`);
    - prüft die Einträge in Claude Desktop (7.6); fehlen sie oder weichen sie ab, fragt es, ob es die Datei ändern darf (dann mit Sicherungskopie, andere Server bleiben), sonst zeigt es den Text zum Selbst-Eintragen;
    - baut die ZIP-Dateien der Skills `pkm-access` und `pkm-wiki` nach `<Standardordner>/skills/` (das Hochladen bleibt Handarbeit);
-   - gibt die Projektanweisung für „PKM-Pflege“ aus (11) und endet mit `pkm doctor`.
+   - gibt die Projektanweisung für „PKM Maintenance“ aus (11) und endet mit `pkm doctor`.
 2. **Konfigurationsdatei statt Umgebungsvariablen** (7.1): Der Eintrag in Claude Desktop braucht nur `command`, kein `env`; Git wird über `PKM_GIT` bzw. an den üblichen Orten gefunden, sodass auch `PATH` entfällt. `pkm doctor` nennt, welches Git verwendet wird und ob die Versionsverwaltung an ist.
 3. **Obsidian-Einstellungen durch `pkm init`** (13): in `.obsidian/app.json`, wie die Property-Typen in `types.json`.
 4. **Installation ohne Klonen:** Die Skills liegen im Paket (`pkm/skills/`). Der Installer lädt das ZIP-Archiv des Repositorys von GitHub und installiert daraus; das funktioniert ohne Git (`uv tool install git+…` bräuchte Git). Mit Git geht alternativ `uv tool install "git+https://github.com/achim0x/pkm-llm-wiki#subdirectory=pkm-tools"` (Aktualisieren mit `uv tool upgrade pkm-tools`). Jede GitHub-Release (Tag `v*`) enthält die Skill-ZIPs und das Paket als Wheel. PyPI bleibt optional für später.
@@ -1516,7 +1531,7 @@ Nicht vorgesehen: eine reine Python-Git-Bibliothek statt Git (zu tiefer Eingriff
 
 | # | Thema | Entscheidung | Umgesetzt in |
 |---|---|---|---|
-| 27 | Pflege ohne Shell | Eigener lokaler MCP-Server `pkm-pflege-mcp` mit `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `finish_maintenance`. Nur in Pflege-Unterhaltungen eingeschaltet (organisatorische statt technischer Grenze). CLI nur noch für Einrichtung, Prüfung, Fehlersuche | 2, 7.6, 7.7, 8, 9, 11 |
+| 27 | Pflege ohne Shell | Eigener lokaler MCP-Server `pkm-maintenance-mcp` mit `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `finish_maintenance`. Nur in Pflege-Unterhaltungen eingeschaltet (organisatorische statt technischer Grenze). CLI nur noch für Einrichtung, Prüfung, Fehlersuche | 2, 7.6, 7.7, 8, 9, 11 |
 | 28 | Frontmatter-Vorschläge | Agent schlägt `title`, `context`, `tags`, `kind` vor und trägt sie mit `short_citation` nur nach ausdrücklicher Bestätigung ein, nie unbeaufsichtigt, kein Überschreiben ohne ausdrücklichen Wunsch | 1, 3, 4.1, 7.7, 9.6 |
 | 29 | Feldreihenfolge | Neue Felder an ihrer Stelle nach 4.1 statt am Ende, `update_frontmatter` in Schema-Reihenfolge, einfache Listen ohne Anführungszeichen | 4.1, 7.2 |
 | 30 | Dateinamen aus Chats | `<slug>_YYYY-MM-DD.md`, Suffix bei Namensgleichheit vor dem Datum | 4.1, 7.2 |
@@ -1530,8 +1545,10 @@ Nicht vorgesehen: eine reine Python-Git-Bibliothek statt Git (zu tiefer Eingriff
 | 38 | Data-URIs bei der Übernahme | Jede Bild-Data-URI wird geprüft (Werkzeuge, Pflegelauf, Lint, Wiki-Seiten). Abweichungen werden mit Befund und Vorschlag gemeldet und **nur nach Rückfrage** korrigiert (`fix_images: true`, Tool `fix_images`, `pkm fix-images`), nie unbeaufsichtigt. Nur die Bildschreibweise ändert sich, abgeleitete Namen bleiben, Belege werden angehoben. Bestehende Base64-PNG: nur Schreibweise, Bytes gleich, kein Name | 3, 4.7, 4.9, 5.4, 7.2, 7.3, 7.7, 8, 9.1, 9.2, 9.7, 10, 14 |
 | 39 | Cloud-Speicher allgemein | Jeder Dienst, der einen normalen lokalen Ordner synchronisiert. Vault vollständig lokal (keine Platzhalter), Git-Verzeichnis und Suchindex außerhalb jedes Cloud-Ordners. Konfliktkopien aller bekannten Dienste werden am Namen oder als Kopie mit gleicher ID neben dem Original erkannt und nicht verarbeitet | 5.3, 5.5, 7.1, 8, 12 |
 | 40 | Git optional, einfachere Installation | Fehlt Git, läuft das PKM ohne Versionsverwaltung (IDs und Versionsnummern ja, Commits, Verlauf und Wiederherstellen nein); nachrüsten durch Git installieren und `pkm setup` erneut ausführen. Installation mit Installer und `pkm setup`, Konfiguration in `config.toml`, Obsidian-Einstellungen durch `pkm init`, Skills im Paket | 5.4, 7.1, 7.6, 8, 13, 15.1 |
-| 41 | Dokumentsprache | Der Nutzer wählt bei der Einrichtung, ob im Chat erzeugte Dokumente hauptsächlich englisch oder deutsch sind (`PKM_LANGUAGE`). Der Server gibt die Sprache und die Abschnittsnamen in seinen Anweisungen weiter; fortgeführte Dokumente behalten ihre Sprache. Wiki und Werkzeuge bleiben sprachunabhängig | 4.1, 7.1, 10, 15.1 |
+| 41 | Sprache von Dokumenten und Wiki | Der Nutzer wählt bei der Einrichtung, ob im Chat erzeugte Dokumente und das Wiki hauptsächlich englisch oder deutsch sind (`PKM_LANGUAGE`). Beide Server geben die Sprache und die Abschnittsnamen in ihren Anweisungen weiter; bestehende Dokumente und Seiten behalten ihre Sprache. Werkzeuge erkennen beide Varianten, erzeugte Dateien bleiben englisch | 4.1, 4.2, 7.1, 9, 10, 15.1 |
 | 42 | Vorhandene Konfiguration übernehmen | `pkm setup` zeigt Einstellungen aus Umgebung, Claude Desktop (`env`) und `config.toml` und übernimmt sie nach Bestätigung nach `config.toml`. So bleiben bei einer Aktualisierung (auch von einer Installation vor `pkm setup`) Git-Verzeichnis, Suchindex und übrige Werte erhalten | 7.1, 7.6, 15.1 |
+| 43 | Englische Namen für den Pflege-Server | `pkm-maintenance` / `pkm-maintenance-mcp` statt `pkm-pflege` / `pkm-pflege-mcp`, Projekt „PKM Maintenance“. Der alte Programmname bleibt als Alias, `pkm setup` ersetzt den alten Eintrag in Claude Desktop nach Rückfrage | 7.6, 7.7, 11, 15.1 |
+| 44 | `CLAUDE.md` aktualisieren | `pkm init` überschreibt `CLAUDE.md` nie. `pkm setup` bietet bei Abweichung von der Vorlage an, sie zu ersetzen (Sicherung außerhalb des Vaults, Commit) oder die Vorlage als `CLAUDE.md.new` daneben zu legen; eigene Änderungen gehen so nicht verloren | 15.1 |
 
 ### Noch offen
 

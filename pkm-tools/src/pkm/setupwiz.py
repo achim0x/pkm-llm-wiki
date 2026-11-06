@@ -60,20 +60,22 @@ from .doctor import doctor
 from .errors import PkmError
 from .gitlayer import Git
 from .service import Service
-from .vaultinit import init_vault
+from .vaultinit import init_vault, initial_files
 
 # Variables *******************************************************************
 
 SKILLS = ("pkm-access", "pkm-wiki")
-SERVERS = {"pkm": "pkm-mcp", "pkm-pflege": "pkm-pflege-mcp"}
+SERVERS = {"pkm": "pkm-mcp", "pkm-maintenance": "pkm-maintenance-mcp"}
+LEGACY_SERVERS = {"pkm-pflege": "pkm-pflege-mcp"}  # old name of the maintenance server (up to 0.2.1)
 NO_GIT_HINT = (
     "Git was not found. The PKM works without version control: documents get IDs and version numbers, "
     "but there is no history, no diff and no restoring of earlier versions. To turn version control on "
     "later, install Git (https://git-scm.com/install/) and run `pkm setup` again."
 )
+SCHEMA_FILE = "CLAUDE.md"
 PROJECT_INSTRUCTIONS = (
     "This is the maintenance project for the PKM. Use the skill `pkm-wiki` and the tools of the server "
-    "`pkm-pflege`. You do not change documents in `documents/`."
+    "`pkm-maintenance`. You do not change documents in `documents/`."
 )
 
 # Classes *********************************************************************
@@ -91,7 +93,7 @@ class SetupOptions:  # pylint: disable=too-many-instance-attributes
         yes: Accept all defaults and confirmations without asking.
         claude_config: Path of ``claude_desktop_config.json`` (default per operating system).
         skills_dir: Target folder for the skill ZIP files (default ``<app folder>/skills``).
-        language: Main language of documents created in chat, ``en`` or ``de``.
+        language: Main language of documents created in chat and of the wiki, ``en`` or ``de``.
     """
 
     vault: str | None = None
@@ -186,7 +188,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
 
         Sources in order of precedence: environment variables, the ``env`` blocks of the PKM entries
         in Claude Desktop (where installations before ``pkm setup`` kept their settings; found by the
-        names ``pkm``/``pkm-pflege`` or by the programs ``pkm-mcp``/``pkm-pflege-mcp``) and
+        names ``pkm``/``pkm-maintenance`` or by the programs ``pkm-mcp``/``pkm-maintenance-mcp``) and
         ``config.toml``. Without ``PKM_ROOT`` in any of them, the vault is taken from the Git directory
         (``core.worktree``, set by every installation with Git).
 
@@ -293,7 +295,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         return exe
 
     def _language(self) -> str:
-        """Ask for the main language of documents created in chat.
+        """Ask for the main language of documents created in chat and of the wiki.
 
         Returns:
             ``en`` or ``de``.
@@ -303,7 +305,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         """
         known = self.env.get("PKM_LANGUAGE") or self._known("PKM_LANGUAGE")
         answer = self.opts.language or self._question(
-            "Main language of documents created in chat (en = English, de = German)",
+            "Main language of documents created in chat and of the wiki (en = English, de = German)",
             parse_language(known) if known else DEFAULT_LANGUAGE)
         language = parse_language(answer)
         self.say(f"Document language: {DOC_LANGUAGES[language][0]}.")
@@ -413,15 +415,15 @@ class Setup:  # pylint: disable=too-many-instance-attributes
     def _claude(self) -> dict[str, Any]:
         """Check the entries in the configuration of Claude Desktop and update them only with permission.
 
-        First checks whether ``pkm`` and ``pkm-pflege`` are already entered as needed. If something is
-        missing or different, it shows the changes and asks whether it may change the file (backup
-        first). If the answer is no (or the file cannot be read), it shows the entries for entering
-        them by hand.
+        First checks whether ``pkm`` and ``pkm-maintenance`` are already entered as needed. If something is
+        missing or different, or an entry has the old name ``pkm-pflege``, it shows the changes and asks
+        whether it may change the file (backup first; the old entry is removed). If the answer is no (or
+        the file cannot be read), it shows the entries for entering them by hand.
 
         Returns:
             Path, ``status`` (``unchanged``, ``changed``, ``declined``, ``unreadable`` or ``skipped`` if the
-            programs are not found), missing and
-            differing entries and, if the user enters them by hand, the text to enter (``manual``).
+            programs are not found), missing, differing and ``obsolete`` entries (old names) and, if the
+            user enters them by hand, the text to enter (``manual``).
         """
         path = self._claude_config_path()
         entries = self._server_entries()
@@ -429,14 +431,15 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         servers = (data or {}).get("mcpServers") or {}
         missing = [n for n in entries if n not in servers]
         differing = [n for n, entry in entries.items() if n in servers and servers[n] != entry]
+        obsolete = [n for n in LEGACY_SERVERS if n in servers] if entries else []
         result: dict[str, Any] = {"path": str(path), "status": "unchanged", "missing": missing,
-                                  "differing": differing, "manual": None}
+                                  "differing": differing, "obsolete": obsolete, "manual": None}
         if not entries:
             result["status"] = "skipped"
         elif data is None:
             self.warn(f"{path} is not valid JSON; Claude Desktop was not changed.")
             result.update(status="unreadable", manual=self._manual_claude(path, entries))
-        elif not missing and not differing:
+        elif not missing and not differing and not obsolete:
             self.say(f"Claude Desktop: the servers {', '.join(entries)} are already entered ({path}).")
         else:
             for name in missing:
@@ -444,21 +447,26 @@ class Setup:  # pylint: disable=too-many-instance-attributes
             for name in differing:
                 self.say(f"Claude Desktop: server {name} is entered as {json.dumps(servers[name])}; "
                          f"new entry: {json.dumps(entries[name])}")
+            for name in obsolete:
+                self.say(f"Claude Desktop: server {name} is the old name of pkm-maintenance; the entry is removed.")
             if self._confirm(f"May pkm setup change the Claude Desktop configuration {path}? "
                              "(Other servers stay, a backup is made first.)"):
                 data.setdefault("mcpServers", {}).update({n: entries[n] for n in missing + differing})
+                for name in obsolete:
+                    data["mcpServers"].pop(name, None)
                 self._write_claude(path, data)
                 result["status"] = "changed"
             else:
-                result.update(status="declined", manual=self._manual_claude(path, entries))
+                result.update(status="declined", manual=self._manual_claude(path, entries, obsolete))
         return result
 
-    def _manual_claude(self, path: Path, entries: dict[str, dict[str, Any]]) -> str:
+    def _manual_claude(self, path: Path, entries: dict[str, dict[str, Any]], obsolete: list[str] | None = None) -> str:
         """Show the entries for Claude Desktop so that the user can enter them by hand.
 
         Args:
             path: Path of ``claude_desktop_config.json``.
             entries: Server name → entry.
+            obsolete: Entries with an old name that should be removed.
 
         Returns:
             The JSON text to enter.
@@ -466,7 +474,9 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         text = json.dumps({"mcpServers": entries}, indent=2, ensure_ascii=False)
         self.say(f"Enter the following by hand in {path} (in Claude Desktop: Settings > Developer > "
                  "Edit Config). If the file already has \"mcpServers\", add only the two entries inside it "
-                 "and keep the other servers. Then restart Claude Desktop.\n" + text)
+                 "and keep the other servers. "
+                 + (f"Remove the old entries {', '.join(obsolete)}. " if obsolete else "")
+                 + "Then restart Claude Desktop.\n" + text)
         return text
 
     def _write_claude(self, path: Path, data: dict[str, Any]) -> None:
@@ -481,6 +491,60 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes((json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
         self.say(f"Claude Desktop configured: {path} (restart Claude Desktop).")
+
+    def _claude_md(self, cfg: Config) -> dict[str, Any]:
+        """Offer to bring the vault's ``CLAUDE.md`` (schema of the vault) up to the current template.
+
+        ``pkm init`` creates the file only if it is missing. If an existing one differs from the template
+        (older version or own edits), the setup asks. Yes: back it up to ``<app folder>/backups/``
+        (outside the vault), write the template and, with version control, commit it. No: write the
+        template next to it as ``CLAUDE.md.new`` for merging by hand.
+
+        Args:
+            cfg: Configuration.
+
+        Returns:
+            ``status`` (``current``, ``replaced`` or ``kept``), the ``backup``, the ``new`` file and the
+            ``commit``, where applicable.
+        """
+        path = cfg.root / SCHEMA_FILE
+        template = initial_files()[SCHEMA_FILE]
+        result: dict[str, Any] = {"status": "current", "backup": None, "new": None, "commit": None}
+        current = path.read_text(encoding="utf-8").replace("\r\n", "\n") if path.is_file() else template
+        if current != template:
+            self.say(f"{path} differs from the template of this version (older version or own edits).")
+            if self._confirm("Replace CLAUDE.md with the current template? (The old one is backed up.)"):
+                backup = backup_file(path, cfg.cache_dir / "backups")
+                path.write_bytes(template.encode("utf-8"))
+                self.say(f"CLAUDE.md replaced; backup of the old one: {backup}")
+                result.update(status="replaced", backup=str(backup), commit=self._commit_schema(cfg))
+            else:
+                new = path.with_name(SCHEMA_FILE + ".new")
+                new.write_bytes(template.encode("utf-8"))
+                self.say(f"CLAUDE.md kept; the current template is in {new} for merging by hand "
+                         "(delete it afterwards).")
+                result.update(status="kept", new=str(new))
+        return result
+
+    def _commit_schema(self, cfg: Config) -> str | None:
+        """Commit the replaced ``CLAUDE.md`` if version control is on and the repo has a first commit.
+
+        Args:
+            cfg: Configuration.
+
+        Returns:
+            Hash of the commit or ``None`` (then the next maintenance run commits it).
+        """
+        sha = None
+        if cfg.versioning:
+            git = Git(cfg.git_dir, cfg.root, exe=cfg.git_exe)
+            try:
+                if git.has_head() and git.has_changes(SCHEMA_FILE):
+                    sha = git.commit_paths([SCHEMA_FILE], "pkm: CLAUDE.md updated to the current template\n\n"
+                                           "PKM-Source: user\n", as_user=True)
+            except PkmError as exc:
+                self.warn(f"CLAUDE.md not committed ({exc.message}); the next maintenance run commits it.")
+        return sha
 
     def _skills(self) -> list[str]:
         """Build the skill ZIP files.
@@ -522,9 +586,10 @@ class Setup:  # pylint: disable=too-many-instance-attributes
             self._identity(cfg)
             if init["commit"] is None:
                 init = init_vault(cfg)
+        schema = self._claude_md(cfg)
         claude = self._claude()
         skills = self._skills()
-        self.say("Project \"PKM-Pflege\" in Claude Desktop - project instructions:\n  " + PROJECT_INSTRUCTIONS)
+        self.say("Project \"PKM Maintenance\" in Claude Desktop - project instructions:\n  " + PROJECT_INSTRUCTIONS)
         check = doctor(Service(cfg), short=True)
         for c in check["checks"]:
             self.say(f"Error: {c['message']}")
@@ -532,7 +597,8 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         return {"status": "ok" if not check["errors"] else "error", "root": str(root),
                 "config_file": str(self.config_path), "versioning": cfg.versioning, "git": git_exe,
                 "language": cfg.language,
-                "init": init, "claude": claude, "skills": skills, "warnings": self.warnings, "doctor": check}
+                "init": init, "claude_md": schema, "claude": claude, "skills": skills, "warnings": self.warnings,
+                "doctor": check}
 
 # Functions *******************************************************************
 
@@ -545,8 +611,9 @@ def is_pkm_entry(name: str, entry: Any) -> bool:
         entry: Entry (``command``, ``args``, ``env``).
 
     Returns:
-        ``True`` for the names ``pkm``/``pkm-pflege`` or the programs ``pkm-mcp``/``pkm-pflege-mcp``,
-        also when started via ``uv``/``uvx`` with the program as an argument.
+        ``True`` for the names ``pkm``/``pkm-maintenance`` or the programs ``pkm-mcp``/``pkm-maintenance-mcp``
+        (also the old names ``pkm-pflege``/``pkm-pflege-mcp``), also when started via ``uv``/``uvx`` with the
+        program as an argument.
     """
     words: list[str] = [name]
     if isinstance(entry, dict):
@@ -555,7 +622,8 @@ def is_pkm_entry(name: str, entry: Any) -> bool:
         if isinstance(args, list):
             words.extend(a for a in args if isinstance(a, str))
     stems = {Path(w.replace("\\", "/")).name.lower().removesuffix(".exe") for w in words if w}
-    ok = isinstance(entry, dict) and (name in SERVERS or bool(stems & set(SERVERS.values())))
+    known = {**SERVERS, **LEGACY_SERVERS}
+    ok = isinstance(entry, dict) and (name in known or bool(stems & set(known.values())))
     return ok and (not entry.get("env") or isinstance(entry.get("env"), dict))
 
 
@@ -578,21 +646,24 @@ def worktree_of(git_dir: Path) -> Path | None:
     return path if path is not None and path.is_absolute() else None
 
 
-def backup_file(path: Path) -> Path:
-    """Copy a file to ``<name>.<timestamp>.bak`` next to it.
+def backup_file(path: Path, folder: Path | None = None) -> Path:
+    """Copy a file to ``<name>.<timestamp>.bak``.
 
     Args:
         path: Existing file.
+        folder: Folder for the backup (created if needed); next to the file if omitted.
 
     Returns:
         Path of the backup.
     """
+    target = folder or path.parent
+    target.mkdir(parents=True, exist_ok=True)
     stem = f"{path.name}.{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    backup = path.with_name(f"{stem}.bak")
+    backup = target / f"{stem}.bak"
     n = 1
     while backup.exists():
         n += 1
-        backup = path.with_name(f"{stem}-{n}.bak")
+        backup = target / f"{stem}-{n}.bak"
     shutil.copy2(path, backup)
     return backup
 

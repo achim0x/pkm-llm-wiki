@@ -33,17 +33,20 @@ Befunde unten unter „Befunde“ sammeln; sie werden danach behoben (Code oder 
 
 **Erwartet**
 - [ ] Der Installer meldet „Git found: version control will be on.“ und installiert `pkm`,
-      `pkm-mcp` und `pkm-pflege-mcp` nach `~/.local/bin`.
+      `pkm-mcp` und `pkm-maintenance-mcp` nach `~/.local/bin`.
 - [ ] `pkm setup` erkennt den Cloud-Dienst des Vault-Ordners und meldet keine Dateien „nur online“.
 - [ ] Bei einer vorhandenen Installation zeigt `pkm setup` zuerst die gefundene Konfiguration mit
       Herkunft (z. B. `PKM_GIT_DIR` aus Claude Desktop) und fragt, ob es sie übernehmen soll; nach
       „ja“ stehen die Werte in `config.toml` und der bisherige Verlauf ist weiter da.
-- [ ] `pkm setup` fragt nach der Dokumentsprache für im Chat erzeugte Dokumente (`en` oder `de`).
+- [ ] Weicht die `CLAUDE.md` des Vaults von der Vorlage ab, fragt `pkm setup`, ob sie ersetzt werden
+      soll; nach „ja“ liegt die alte unter `<App-Ordner>/backups/` und es gibt einen Commit
+      „pkm: CLAUDE.md updated to the current template“, nach „nein“ liegt `CLAUDE.md.new` daneben.
+- [ ] `pkm setup` fragt nach der Sprache für im Chat erzeugte Dokumente und das Wiki (`en` oder `de`).
 - [ ] `~/Library/Application Support/pkm/config.toml` enthält `PKM_ROOT`, `PKM_VAULT_NAME`,
       `PKM_VERSIONING = true`, `PKM_GIT` und `PKM_LANGUAGE` mit der gewählten Sprache.
 - [ ] `pkm setup` meldet, ob die Server in Claude Desktop schon eingetragen sind; fehlen sie oder
       weichen sie ab, zeigt es die Änderung und fragt, ob es `claude_desktop_config.json` ändern darf.
-- [ ] Bei „ja“: `pkm` und `pkm-pflege` nur mit `command`, andere Server unverändert, Sicherungskopie
+- [ ] Bei „ja“: `pkm` und `pkm-maintenance` nur mit `command`, andere Server unverändert, Sicherungskopie
       `claude_desktop_config.json.<datum>.bak` daneben.
 - [ ] Probe mit „nein“ (z. B. beim zweiten Lauf nach Entfernen eines Eintrags): die Datei bleibt
       unverändert, der Assistent zeigt den JSON-Text zum Selbst-Eintragen.
@@ -53,7 +56,7 @@ Befunde unten unter „Befunde“ sammeln; sie werden danach behoben (Code oder 
       einem Neustart.
 - [ ] Ein zweiter Lauf von `pkm setup` ändert nichts (keine neue Sicherungskopie).
 - [ ] Nach dem Neustart von Claude Desktop erscheinen die 15 `pkm`-Tools und der Server
-      `pkm-pflege`.
+      `pkm-maintenance`.
 
 Für die Prüfbefehle im Terminal (den Vault kennt `pkm` aus `config.toml`):
 
@@ -106,7 +109,7 @@ eine Datei.
 
 ## Schritt 2 – Erster Pflegelauf
 
-**Eingabe** (Projekt „PKM-Pflege“, Vault-Ordner verbunden): „Verarbeite neue Dokumente.“
+**Eingabe** (Projekt „PKM Maintenance“, Vault-Ordner verbunden): „Verarbeite neue Dokumente.“
 
 **Erwartet**
 - [ ] Der Agent beginnt mit `begin_maintenance` (doctor, versions, ids, pending) und schreibt
@@ -344,6 +347,7 @@ pkm lint --report
 |---|---|---|---|
 | Sprache wechseln | `pkm setup --language en` (bzw. `de`), Claude Desktop neu starten, in einem deutschsprachigen Chat etwas ablegen | Neues Dokument in der anderen Sprache mit deren Abschnittsnamen; ein bestehendes Dokument behält beim Fortschreiben seine Sprache | ☐ |
 | Ausdrücklicher Wunsch | „Leg das auf Englisch ab“ bei Dokumentsprache Deutsch (bzw. umgekehrt) | Der Wunsch des Nutzers gilt | ☐ |
+| Wiki-Sprache | Mit `PKM_LANGUAGE = "de"` einen Pflegelauf mit einem neuen Dokument | Neue Wiki-Seiten mit `> **Kurzfassung:**`, `## Inhalt`, `## Widersprüche / offene Fragen`, `## Siehe auch`, `## Belege`; bestehende englische Seiten bleiben englisch; Lint ohne Fehler | ☐ |
 
 **Betrieb ohne Git** (mit einem Testvault, damit der echte Vault seine Versionsverwaltung behält):
 

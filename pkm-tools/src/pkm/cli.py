@@ -390,7 +390,8 @@ def _add_setup(sub: Any) -> None:
     se.add_argument("--yes", action="store_true", help="accept defaults and confirmations without asking")
     se.add_argument("--claude-config", help="path of claude_desktop_config.json")
     se.add_argument("--skills-dir", help="target folder for the skill ZIP files")
-    se.add_argument("--language", help="main language of documents created in chat: en (English) or de (German)")
+    se.add_argument("--language",
+                    help="main language of chat documents and of the wiki: en (English) or de (German)")
     se.add_argument("--json", action="store_true", help="print the result as JSON")
 
 

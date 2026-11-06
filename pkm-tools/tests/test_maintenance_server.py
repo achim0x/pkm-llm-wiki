@@ -1,4 +1,4 @@
-"""Tests: MCP server ``pkm-pflege`` with begin_maintenance, write_wiki_page and finish_maintenance.
+"""Tests: MCP server ``pkm-maintenance`` with begin_maintenance, write_wiki_page and finish_maintenance.
 
     Author: Achim0x
 """
@@ -27,7 +27,7 @@ import json
 
 import pytest
 
-from pkm import maintrun, pflege_server
+from pkm import maintenance_server, maintrun
 from pkm.errors import PkmError
 from pkm.state import load_state
 
@@ -78,7 +78,7 @@ def _page(svc, doc_id):
 
 def test_server_tools():
     """The maintenance server offers the reading tools and the three maintenance tools, but no document write tools."""
-    tools = {t.name for t in asyncio.run(pflege_server.build_server().list_tools())}
+    tools = {t.name for t in asyncio.run(maintenance_server.build_server().list_tools())}
     assert {"begin_maintenance", "write_wiki_page", "finish_maintenance", "read", "search", "history"} <= tools
     assert not tools & {"create_document", "rewrite_document", "edit_document", "append_to_document"}
 
@@ -185,7 +185,7 @@ def test_finish_removes_deleted(svc, cfg):
 @pytest.mark.usefixtures("cfg")
 def test_tool_call_returns_status():
     """Via the MCP wrapper domain errors come back as a status."""
-    server = pflege_server.build_server()
+    server = maintenance_server.build_server()
     result = asyncio.run(server.call_tool("write_wiki_page", {"path": "wiki/index.md", "content": "x"}))
     text = json.dumps(result, default=str)
     assert "forbidden" in text

@@ -1,6 +1,6 @@
 # pkm-tools
 
-MCP servers `pkm-mcp` (chats) and `pkm-pflege-mcp` (wiki maintenance) as well as the CLI `pkm` for the PKM with LLM wiki.
+MCP servers `pkm-mcp` (chats) and `pkm-maintenance-mcp` (wiki maintenance) as well as the CLI `pkm` for the PKM with LLM wiki.
 Basis: [specification](../docs/specification.md), [implementation plan](../docs/implementation-plan.md).
 
 ## Status
@@ -22,7 +22,7 @@ Basis: [specification](../docs/specification.md), [implementation plan](../docs/
 `show_citations`.
 
 **Images (4.9):** `create_document`, `rewrite_document`, `append_to_document`, `edit_document` with
-`images`, plus `add_image` and `read_image` (also in `pkm-pflege-mcp`). Modules `images.py` (detection,
+`images`, plus `add_image` and `read_image` (also in `pkm-maintenance-mcp`). Modules `images.py` (detection,
 SVG sanitizing, PNG check, encoding, placeholders), `docimages.py` (insertion, files, `read`,
 `read_image`), `assets.py` (associated image files, `state.json` `assets`, orphaned attachments),
 `imagelint.py`.
@@ -31,7 +31,7 @@ SVG sanitizing, PNG check, encoding, placeholders), `docimages.py` (insertion, f
 proposal, fix, comparison "only the image notation"), `citeraise.py` (raising citations). Writing
 tools with `fix_images`/`image_alt`, tool `fix_images` in both servers, CLI `pkm fix-images`.
 
-**MCP tools of `pkm-pflege-mcp`:** the reading tools as well as `begin_maintenance` (doctor, versions, ids,
+**MCP tools of `pkm-maintenance-mcp`:** the reading tools as well as `begin_maintenance` (doctor, versions, ids,
 pending with `missing_fields`, `known_tags`, fix-citations), `set_document_metadata` (only `title`,
 `context`, `tags`, `kind`, `short_citation` after confirmation; new version with `PKM-Source: agent`),
 `write_wiki_page` (only `wiki/topics|entities|summaries|syntheses/`, with
@@ -54,8 +54,10 @@ without these parameters `content` is left out (`content_omitted`).
 
 **Installation (15.1):** `install.sh` / `install.ps1` in the repository root install uv and the package
 from the GitHub archive (works without Git) and start `pkm setup` (`setupwiz.py`): vault folder, Git
-check, document language (`PKM_LANGUAGE`, `en`/`de`), `config.toml`, `pkm init`, check of the entries in `claude_desktop_config.json` (changed only after asking, with
-backup; otherwise the entries are printed for entering by hand), skill ZIPs, project instructions, `pkm doctor`. The workflow `release.yml` attaches the
+check, language of chat documents and wiki (`PKM_LANGUAGE`, `en`/`de`), existing configuration (shown and taken over after asking), `config.toml`, `pkm init`, comparison of the
+vault's `CLAUDE.md` with the template (replaced after asking with a backup outside the vault, otherwise
+written as `CLAUDE.md.new`), check of the entries in `claude_desktop_config.json` (changed only after asking, with
+backup; the old entry `pkm-pflege` is replaced; otherwise the entries are printed for entering by hand), skill ZIPs, project instructions, `pkm doctor`. The workflow `release.yml` attaches the
 skill ZIPs and the wheel to every release tag `v*`.
 **Setup:** [docs/installation.md](../docs/installation.md) (German: [docs/installation.de.md](../docs/installation.de.md)). **Acceptance:** [docs/acceptance.md](../docs/acceptance.md)
 (simulation of steps 1–9 and 11: `tests/test_acceptance_simulation.py`; step 10 and all
@@ -106,7 +108,7 @@ skill ZIPs and the wheel to every release tag `v*`.
 - `pkm init` creates `.obsidian/types.json` with the property types of the schema or adds
   missing ones; existing types stay. `pkm doctor` warns about missing or differing types.
 - **Maintenance via MCP instead of a shell:** Cowork/Claude Desktop offer no shell on the PKM host.
-  Maintenance therefore runs via the second server `pkm-pflege-mcp` (`maintrun.py`) with three
+  Maintenance therefore runs via the second server `pkm-maintenance-mcp` (`maintrun.py`) with three
   tools instead of CLI calls. `pkm mark` determines the pages itself from the footnotes there.
   The server cannot be restricted to one project in Claude Desktop; it is only enabled in
   maintenance conversations.

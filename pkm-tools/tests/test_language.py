@@ -31,6 +31,8 @@ import pytest
 from pkm import cli
 from pkm.config import Config, configured_language, parse_language, read_config_file
 from pkm.errors import PkmError
+from pkm.maintenance_server import build_server as build_maintenance_server
+from pkm.maintenance_server import wiki_language_instructions
 from pkm.mcp_server import build_server, language_instructions
 from pkm.setupwiz import Setup, SetupOptions
 
@@ -122,6 +124,19 @@ def test_server_instructions_name_language_and_sections():
     assert "English" in english and "## Open points" in english and "Ergebnis" not in english
     assert "## Offene Punkte" in build_server("de").instructions
     assert "## Open points" in build_server("en").instructions
+
+
+def test_maintenance_instructions_name_wiki_language_and_sections(isolated_env, tmp_path):
+    """The instructions of the server pkm-maintenance name the wiki language, sections and summary label."""
+    german = wiki_language_instructions("de")
+    assert "German" in german and "## Inhalt" in german and "## Belege" in german and "Kurzfassung" in german
+    english = wiki_language_instructions("en")
+    assert "## Content" in english and "**Summary:**" in english and "Inhalt" not in english
+    assert "## Widersprüche / offene Fragen" in build_maintenance_server("de").instructions
+    (tmp_path / "app").mkdir(exist_ok=True)
+    (tmp_path / "app" / "config.toml").write_text('PKM_LANGUAGE = "de"\n', encoding="utf-8")
+    assert "## Siehe auch" in build_maintenance_server().instructions  # from the configuration
+    assert isolated_env["root"].is_dir()
 
 
 def test_setup_asks_for_language_and_keeps_it(paths):

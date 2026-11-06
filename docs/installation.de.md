@@ -6,7 +6,7 @@ Diese Anleitung richtet das PKM auf dem **PKM-Rechner** ein (Spezifikation 5.5, 
 Wie Installer und `pkm setup` intern ablaufen, beschreibt [architecture.md](architecture.md) (englisch,
 mit Ablaufdiagrammen).
 Der PKM-Rechner ist der eine Rechner, auf dem Claude Desktop, die MCP-Server `pkm-mcp` und
-`pkm-pflege-mcp`, die CLI `pkm` und (mit Git) der Versionsverlauf liegen. Das kann ein **Mac** oder
+`pkm-maintenance-mcp`, die CLI `pkm` und (mit Git) der Versionsverlauf liegen. Das kann ein **Mac** oder
 ein **Windows-PC** sein; beide Varianten sind gleichwertig. Weitere Rechner (optional) brauchen nur
 den Client des Cloud-Speichers und einen Markdown-Editor, z. B. Obsidian.
 
@@ -17,10 +17,10 @@ Verlauf anlegen.
 Kurzfassung:
 
 1. Installer ausführen (installiert uv und das Paket, startet `pkm setup`).
-2. Die Fragen von `pkm setup` beantworten (Vault-Ordner, Dokumentsprache, ggf. Git-Name und
+2. Die Fragen von `pkm setup` beantworten (Vault-Ordner, Sprache, ggf. Git-Name und
    E-Mail).
 3. Die beiden Skill-ZIPs in Claude Desktop hochladen.
-4. Projekt „PKM-Pflege“ anlegen.
+4. Projekt „PKM Maintenance“ anlegen.
 5. Claude Desktop neu starten (und Obsidian, falls du es nutzt).
 
 Platzhalter:
@@ -95,7 +95,7 @@ Der Installer
 
 1. installiert `uv` nach `<HOME>/.local/bin`, falls es fehlt,
 2. prüft, ob Git vorhanden ist, und gibt sonst einen Hinweis aus,
-3. lädt `pkm-tools` von GitHub und installiert die Befehle `pkm`, `pkm-mcp` und `pkm-pflege-mcp`
+3. lädt `pkm-tools` von GitHub und installiert die Befehle `pkm`, `pkm-mcp` und `pkm-maintenance-mcp`
    nach `<HOME>/.local/bin` (unter Windows mit Endung `.exe`),
 4. startet `pkm setup` (Abschnitt 3).
 
@@ -113,8 +113,8 @@ idempotent.
 
 1. **Vorhandene Konfiguration prüfen:** `pkm setup` sucht Einstellungen in den
    Umgebungsvariablen, in den PKM-Einträgen von Claude Desktop (Installationen aus der Zeit vor
-   `pkm setup` hatten sie dort in einem `env`-Block; erkannt an den Namen `pkm`/`pkm-pflege` oder an
-   den Programmen `pkm-mcp`/`pkm-pflege-mcp`) und in `config.toml`. Nennt keine davon den Vault,
+   `pkm setup` hatten sie dort in einem `env`-Block; erkannt an den Namen `pkm`/`pkm-maintenance` oder an
+   den Programmen `pkm-mcp`/`pkm-maintenance-mcp`) und in `config.toml`. Nennt keine davon den Vault,
    liest es ihn aus dem vorhandenen Git-Verzeichnis (dort ist der Vault-Ordner vermerkt). Findet es
    Einstellungen (z. B. `PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`), zeigt es sie mit ihrer Herkunft und
    fragt, ob es sie **übernehmen** soll. Ja: Die Werte sind die Vorgaben der folgenden Fragen und
@@ -128,29 +128,36 @@ idempotent.
    Git-Identität, fragt `pkm setup` nach Name und E-Mail und trägt sie nur für das PKM-Repo ein;
    die Commit-Signierung wird für das PKM-Repo abgeschaltet. **Fehlt Git**, erscheint ein Hinweis
    und das PKM läuft ohne Versionsverwaltung.
-4. **Dokumentsprache** abfragen: Sollen im Chat erzeugte Dokumente hauptsächlich englisch oder
+4. **Sprache** abfragen: Sollen im Chat erzeugte Dokumente und das Wiki hauptsächlich englisch oder
    deutsch sein (`en` oder `de`, Vorgabe Englisch bzw. die bisherige Antwort; Option `--language`)?
-   Der Server `pkm` nennt Claude diese Sprache und die passenden Abschnittsnamen (Result, Decisions,
-   Open points, Context / rationale bzw. Ergebnis, Entscheidungen, Offene Punkte, Kontext /
-   Begründung). Fortgeführte Dokumente behalten ihre Sprache. Später ändern: `pkm setup` erneut
+   Die Server `pkm` und `pkm-maintenance` nennen Claude diese Sprache und die passenden Abschnittsnamen
+   (Chat-Dokumente: Result, Decisions, Open points, Context / rationale bzw. Ergebnis,
+   Entscheidungen, Offene Punkte, Kontext / Begründung; Wiki-Seiten: Summary, Content, … bzw.
+   Kurzfassung, Inhalt, …). Bestehende Dokumente und Wiki-Seiten behalten ihre Sprache; erzeugte
+   Dateien wie `index.md` bleiben englisch. Später ändern: `pkm setup` erneut
    ausführen und Claude Desktop neu starten.
 5. **Konfigurationsdatei** `<APPDIR>/config.toml` schreiben (Vault-Pfad, Vault-Name,
-   Versionsverwaltung an oder aus, Pfad zu Git, Dokumentsprache). Server und CLI lesen sie; gesetzte
+   Versionsverwaltung an oder aus, Pfad zu Git, Sprache). Server und CLI lesen sie; gesetzte
    Umgebungsvariablen haben Vorrang.
 6. **`pkm init`** ausführen: Ordnerstruktur, `CLAUDE.md`, `.gitignore`, `.pkm/state.json`,
    Obsidian-Einstellungen (`.obsidian/app.json`) und Property-Typen (`.obsidian/types.json`), mit
    Git zusätzlich das Repo außerhalb des Vaults mit einem ersten Commit. Bestehende Notizen bleiben
-   unverändert.
-7. **Claude Desktop prüfen:** `pkm setup` prüft, ob die Server `pkm` und `pkm-pflege` in
+   unverändert. Hat der Vault schon eine `CLAUDE.md`, die von der Vorlage dieser Version abweicht
+   (ältere Fassung oder eigene Änderungen), fragt `pkm setup`, ob sie ersetzt werden soll. Ja: Die
+   alte Datei wird nach `<APPDIR>/backups/` gesichert (außerhalb des Vaults), die Vorlage
+   geschrieben und mit Git committet. Nein: Die Datei bleibt, die Vorlage liegt daneben als
+   `CLAUDE.md.new` zum Abgleichen von Hand (danach löschen).
+7. **Claude Desktop prüfen:** `pkm setup` prüft, ob die Server `pkm` und `pkm-maintenance` in
    `claude_desktop_config.json` schon passend eingetragen sind (nur mit `command`, ohne weitere
    Angaben). Fehlt ein Eintrag oder weicht er ab, zeigt der Assistent die Änderung und **fragt, ob er
    die Datei ändern darf**. Bei „ja“ legt er eine Sicherungskopie an und trägt die Server ein; andere
    Server bleiben unverändert. Bei „nein“ ändert er nichts und zeigt den JSON-Text, den du selbst
    unter `mcpServers` einträgst (in Claude Desktop: Einstellungen → Entwickler → „Konfiguration
    bearbeiten“). Ist die Datei kein gültiges JSON, bleibt sie unangetastet und der Text wird ebenfalls
-   angezeigt.
+   angezeigt. Ein Eintrag mit dem alten Namen `pkm-pflege` (bis Version 0.2.1) wird im selben
+   Schritt durch `pkm-maintenance` ersetzt.
 8. **Skill-ZIPs** nach `<APPDIR>/skills/` schreiben (Abschnitt 4).
-9. Die **Projektanweisung** für „PKM-Pflege“ ausgeben (Abschnitt 5).
+9. Die **Projektanweisung** für „PKM Maintenance“ ausgeben (Abschnitt 5).
 10. **`pkm doctor`** ausführen und Fehler nennen.
 
 Optionen (alle optional): `--vault <ordner>`, `--vault-name <name>`, `--git-name <name>`,
@@ -167,10 +174,10 @@ hand“). Ein Verlauf für die Zeit davor entsteht nicht.
 Taskleiste) und neu starten. Im Chat erscheinen unter den Werkzeugen die 15 `pkm`-Tools (`search`,
 `read`, `read_image`, `history`, `show_citations`, `read_index`, `list_unprocessed`,
 `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`,
-`add_image`, `fix_images`, `restore_document`) sowie der Server `pkm-pflege`.
+`add_image`, `fix_images`, `restore_document`) sowie der Server `pkm-maintenance`.
 
-**`pkm-pflege` nur zur Pflege einschalten.** Claude Desktop gibt Server allen Unterhaltungen frei;
-auf ein Projekt beschränken lässt er sich nicht. Deshalb `pkm-pflege` in normalen Unterhaltungen im
+**`pkm-maintenance` nur zur Pflege einschalten.** Claude Desktop gibt Server allen Unterhaltungen frei;
+auf ein Projekt beschränken lässt er sich nicht. Deshalb `pkm-maintenance` in normalen Unterhaltungen im
 Werkzeug-Menü der Unterhaltung ausschalten und nur in Pflege-Unterhaltungen einschalten. Der Server
 schreibt nur in `wiki/` und `.pkm/state.json`, an Dokumenten nur `id`/`version` und nach deiner
 Bestätigung `title`, `context`, `tags`, `kind`, `short_citation`. Mit Git ist jeder Pflegelauf ein
@@ -188,24 +195,24 @@ App-Version „Einstellungen → Funktionen → Skills“) beide Dateien hochlad
 Nach einem Update die Skills erneut hochladen (die alten ersetzen). Bestehende andere Skills
 bleiben unberührt.
 
-## 5. Projekt „PKM-Pflege“
+## 5. Projekt „PKM Maintenance“
 
-Die Pflege läuft in Claude Desktop (Chat oder Cowork) über den Server `pkm-pflege`. Eine Shell auf
+Die Pflege läuft in Claude Desktop (Chat oder Cowork) über den Server `pkm-maintenance`. Eine Shell auf
 diesem Rechner ist nicht nötig.
 
-1. In Claude Desktop ein Projekt „PKM-Pflege“ anlegen.
+1. In Claude Desktop ein Projekt „PKM Maintenance“ anlegen.
 2. Projektanweisung (gibt auch `pkm setup` aus):
 
    > This is the maintenance project for the PKM. Use the skill `pkm-wiki` and the tools of the
-   > server `pkm-pflege`. You do not change documents in `documents/`.
+   > server `pkm-maintenance`. You do not change documents in `documents/`.
 
-3. In der Pflege-Unterhaltung den Server `pkm-pflege` einschalten.
+3. In der Pflege-Unterhaltung den Server `pkm-maintenance` einschalten.
 4. Optional den Vault-Ordner verbinden („+“ → „Ordner hinzufügen“). Das ist nur nötig, damit
    Claude den Inhalt von PDFs und Bildern lesen kann; Markdown liest es über `read`.
 5. Pflegeläufe werden manuell angestoßen: „Verarbeite neue Dokumente“, „Lint“.
    Eine geplante Aufgabe (täglich „Ingest, danach Lint“) wird erst später und nur auf
    ausdrückliche Anweisung eingerichtet. Geplante Cowork-Aufgaben laufen in der Cloud und
-   erreichen `pkm-pflege` voraussichtlich nur, solange dieser Rechner an und Claude Desktop
+   erreichen `pkm-maintenance` voraussichtlich nur, solange dieser Rechner an und Claude Desktop
    geöffnet ist.
 
 ## 6. Obsidian (optional)
@@ -404,7 +411,7 @@ entpacken und den Ordner `pkm-tools` installieren (Aktualisieren: neues ZIP, gle
 uv tool install --force --reinstall <ENTPACKT>/pkm-tools
 ```
 
-Danach liegen `pkm`, `pkm-mcp` und `pkm-pflege-mcp` in `<HOME>/.local/bin` (Windows mit `.exe`).
+Danach liegen `pkm`, `pkm-mcp` und `pkm-maintenance-mcp` in `<HOME>/.local/bin` (Windows mit `.exe`).
 Meldet ein neues Terminal, dass `pkm` nicht gefunden wird:
 
 ```bash
@@ -446,8 +453,8 @@ PKM_LANGUAGE = "en"
 - `PKM_ROOT`: absoluter Pfad des Vault-Ordners (mit Cloud-Speicher im Ordner des Dienstes, sonst ein
   lokaler Ordner).
 - `PKM_VERSIONING = false`, wenn Git fehlt oder nicht genutzt werden soll; `PKM_GIT` entfällt dann.
-- `PKM_LANGUAGE`: Hauptsprache von im Chat erzeugten Dokumenten, `"en"` (Englisch, Standard) oder
-  `"de"` (Deutsch).
+- `PKM_LANGUAGE`: Hauptsprache von im Chat erzeugten Dokumenten und vom Wiki, `"en"` (Englisch,
+  Standard) oder `"de"` (Deutsch).
 - Weitere optionale Schlüssel: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (beide nie in einen Cloud-Ordner),
   `PKM_TZ`, `PKM_MAX_KB`, `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`, `PKM_INLINE_MAX_KB` (24),
   `PKM_SVG_MAX_KB` (200), `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER`
@@ -517,7 +524,7 @@ Mac:
 {
   "mcpServers": {
     "pkm": { "command": "/Users/name/.local/bin/pkm-mcp" },
-    "pkm-pflege": { "command": "/Users/name/.local/bin/pkm-pflege-mcp" }
+    "pkm-maintenance": { "command": "/Users/name/.local/bin/pkm-maintenance-mcp" }
   }
 }
 ```
@@ -528,7 +535,7 @@ Windows (in JSON jeden Backslash verdoppeln):
 {
   "mcpServers": {
     "pkm": { "command": "C:\\Users\\name\\.local\\bin\\pkm-mcp.exe" },
-    "pkm-pflege": { "command": "C:\\Users\\name\\.local\\bin\\pkm-pflege-mcp.exe" }
+    "pkm-maintenance": { "command": "C:\\Users\\name\\.local\\bin\\pkm-maintenance-mcp.exe" }
   }
 }
 ```
@@ -563,7 +570,7 @@ Beide ZIP-Dateien in Claude Desktop hochladen (Abschnitt 4).
 pkm doctor
 ```
 
-Erwartet: `"status": "ok"`. Danach weiter mit Abschnitt 5 (Projekt „PKM-Pflege“) und, falls
+Erwartet: `"status": "ok"`. Danach weiter mit Abschnitt 5 (Projekt „PKM Maintenance“) und, falls
 genutzt, Abschnitt 6 (Obsidian neu starten, damit es die Einstellungen aus `app.json` liest).
 
 **Aktualisieren:** Paket neu installieren (A.3), Skills neu packen und hochladen (A.8). Die
@@ -572,7 +579,7 @@ genutzt, Abschnitt 6 (Obsidian neu starten, damit es die Einstellungen aus `app.
 ## Anhang B: Entwicklungsinstallation
 
 Für die Arbeit am PKM selbst: Das Paket wird **editierbar** aus einer lokalen Kopie (Clone) des
-Repositorys installiert. Die Programme `pkm`, `pkm-mcp` und `pkm-pflege-mcp` laden Code und Skills
+Repositorys installiert. Die Programme `pkm`, `pkm-mcp` und `pkm-maintenance-mcp` laden Code und Skills
 dann direkt aus `<REPO>/pkm-tools/src/pkm`; eine Änderung in der Kopie braucht keine neue
 Installation. Voraussetzungen wie in Abschnitt 1, dazu Git zum Klonen; uv wie in A.1.
 
@@ -592,7 +599,7 @@ Unter Windows dieselben Befehle mit `<REPO>\pkm-tools`. Danach wie gewohnt einri
 pkm setup
 ```
 
-`pkm setup` (Abschnitt 3) fragt den Vault ab, prüft Git, fragt die Dokumentsprache ab, schreibt
+`pkm setup` (Abschnitt 3) fragt den Vault ab, prüft Git, fragt die Sprache ab, schreibt
 `config.toml`, trägt die Server in Claude Desktop ein und baut die Skill-ZIPs – aus den Skills in
 der Kopie. Weiter mit den Abschnitten 4–6.
 

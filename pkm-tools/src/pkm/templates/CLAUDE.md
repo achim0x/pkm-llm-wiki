@@ -1,7 +1,7 @@
 # PKM – schema and rules
 
 This folder is a personal knowledge management (PKM) system with an LLM wiki. Maintenance is
-done by the skill `pkm-wiki` in the Claude project "PKM-Pflege". Change this file only with
+done by the skill `pkm-wiki` in the Claude project "PKM Maintenance". Change this file only with
 the user's consent.
 
 ## Areas and ownership
@@ -66,5 +66,9 @@ freely in Obsidian; documents are found by their ID, not by their path.
 
 ## Language
 
-Content, headings, change notes and reports: English. Interfaces (fields, values, tools,
-CLI): English.
+Content, headings, change notes and reports follow the language setting `PKM_LANGUAGE`
+(`en` English, `de` German; the servers name it in their instructions): chat documents and new
+wiki pages are written in it, existing documents and pages keep their language. German wiki pages
+use `> **Kurzfassung:** …`, `## Inhalt`, `## Widersprüche / offene Fragen`, `## Siehe auch`,
+`## Belege`. Generated files (`index.md`, `_status.md`, lint reports) and interfaces (fields,
+values, tools, CLI) are English.

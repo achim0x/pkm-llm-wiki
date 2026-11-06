@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pkm-tools"
-version = "0.2.1"
+version = "0.2.2"
 description = "PKM with LLM wiki: MCP servers and CLI"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,7 +23,8 @@ dev = ["pytest>=8", "pytest-cov", "ruff", "pylint>=3"]
 [project.scripts]
 pkm = "pkm.cli:main"
 pkm-mcp = "pkm.mcp_server:main"
-pkm-pflege-mcp = "pkm.pflege_server:main"
+pkm-maintenance-mcp = "pkm.maintenance_server:main"
+pkm-pflege-mcp = "pkm.maintenance_server:main"  # old name, keeps entries of older installations working
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pkm"]
