@@ -29,6 +29,7 @@ run again at any time.
 
 from __future__ import annotations
 
+import configparser
 import json
 import os
 import shutil
@@ -183,9 +184,11 @@ class Setup:  # pylint: disable=too-many-instance-attributes
     def _existing(self) -> dict[str, list[tuple[str, str]]]:
         """Collect the settings of an existing configuration.
 
-        Sources in order of precedence: environment variables, the ``env`` blocks of the entries
-        ``pkm`` and ``pkm-pflege`` in Claude Desktop (where installations before ``pkm setup`` kept
-        their settings) and ``config.toml``.
+        Sources in order of precedence: environment variables, the ``env`` blocks of the PKM entries
+        in Claude Desktop (where installations before ``pkm setup`` kept their settings; found by the
+        names ``pkm``/``pkm-pflege`` or by the programs ``pkm-mcp``/``pkm-pflege-mcp``) and
+        ``config.toml``. Without ``PKM_ROOT`` in any of them, the vault is taken from the Git directory
+        (``core.worktree``, set by every installation with Git).
 
         Returns:
             Key → list of (value, source), the value that applies first.
@@ -193,10 +196,9 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         sources: list[tuple[str, Mapping[str, Any]]] = [("environment", self.env)]
         claude = self._read_claude(self._claude_config_path()) or {}
         servers = claude.get("mcpServers") if isinstance(claude.get("mcpServers"), dict) else {}
-        for name in SERVERS:
-            entry = servers.get(name) if isinstance(servers.get(name), dict) else {}
-            block = entry.get("env") if isinstance(entry.get("env"), dict) else {}
-            sources.append((f"Claude Desktop ({name})", block))
+        for name, entry in servers.items():
+            if is_pkm_entry(name, entry):
+                sources.append((f"Claude Desktop ({name})", entry.get("env") or {}))
         try:
             sources.append((str(self.config_path), read_config_file(self.config_path)))
         except PkmError as exc:
@@ -207,6 +209,11 @@ class Setup:  # pylint: disable=too-many-instance-attributes
                 value = values.get(key)
                 if value not in (None, "") and not any(v == str(value) for v, _ in found.get(key, [])):
                     found.setdefault(key, []).append((str(value), source))
+        if "PKM_ROOT" not in found:
+            git_dir = Path((found.get("PKM_GIT_DIR") or [(str(self._app_dir() / "git"), "")])[0][0]).expanduser()
+            vault = worktree_of(git_dir)
+            if vault is not None and (vault / ".pkm" / "state.json").is_file():
+                found["PKM_ROOT"] = [(str(vault), f"Git directory {git_dir}")]
         return found
 
     def _adopt(self) -> None:
@@ -528,6 +535,47 @@ class Setup:  # pylint: disable=too-many-instance-attributes
                 "init": init, "claude": claude, "skills": skills, "warnings": self.warnings, "doctor": check}
 
 # Functions *******************************************************************
+
+
+def is_pkm_entry(name: str, entry: Any) -> bool:
+    """Check whether an entry in Claude Desktop belongs to the PKM.
+
+    Args:
+        name: Server name in ``mcpServers``.
+        entry: Entry (``command``, ``args``, ``env``).
+
+    Returns:
+        ``True`` for the names ``pkm``/``pkm-pflege`` or the programs ``pkm-mcp``/``pkm-pflege-mcp``,
+        also when started via ``uv``/``uvx`` with the program as an argument.
+    """
+    words: list[str] = [name]
+    if isinstance(entry, dict):
+        words.append(str(entry.get("command") or ""))
+        args = entry.get("args")
+        if isinstance(args, list):
+            words.extend(a for a in args if isinstance(a, str))
+    stems = {Path(w.replace("\\", "/")).name.lower().removesuffix(".exe") for w in words if w}
+    ok = isinstance(entry, dict) and (name in SERVERS or bool(stems & set(SERVERS.values())))
+    return ok and (not entry.get("env") or isinstance(entry.get("env"), dict))
+
+
+def worktree_of(git_dir: Path) -> Path | None:
+    """Vault of a PKM Git directory, read from ``core.worktree`` in its ``config`` (without Git).
+
+    Args:
+        git_dir: Git directory outside the vault.
+
+    Returns:
+        Absolute path of the vault or ``None``.
+    """
+    parser = configparser.ConfigParser(strict=False, interpolation=None)
+    try:
+        parser.read(git_dir / "config", encoding="utf-8")
+        value = parser.get("core", "worktree", fallback="").strip().strip('"')
+    except (configparser.Error, OSError, UnicodeDecodeError):
+        value = ""
+    path = Path(value).expanduser() if value else None
+    return path if path is not None and path.is_absolute() else None
 
 
 def backup_file(path: Path) -> Path:

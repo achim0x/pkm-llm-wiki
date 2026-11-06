@@ -112,9 +112,11 @@ Installation ohne Installer: [Anhang A](#anhang-a-manuelle-installation).
 idempotent.
 
 1. **Vorhandene Konfiguration prüfen:** `pkm setup` sucht Einstellungen in den
-   Umgebungsvariablen, in den Einträgen `pkm` und `pkm-pflege` von Claude Desktop (Installationen
-   aus der Zeit vor `pkm setup` hatten sie dort in einem `env`-Block) und in `config.toml`. Findet
-   es welche (z. B. `PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`), zeigt es sie mit ihrer Herkunft und
+   Umgebungsvariablen, in den PKM-Einträgen von Claude Desktop (Installationen aus der Zeit vor
+   `pkm setup` hatten sie dort in einem `env`-Block; erkannt an den Namen `pkm`/`pkm-pflege` oder an
+   den Programmen `pkm-mcp`/`pkm-pflege-mcp`) und in `config.toml`. Nennt keine davon den Vault,
+   liest es ihn aus dem vorhandenen Git-Verzeichnis (dort ist der Vault-Ordner vermerkt). Findet es
+   Einstellungen (z. B. `PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`), zeigt es sie mit ihrer Herkunft und
    fragt, ob es sie **übernehmen** soll. Ja: Die Werte sind die Vorgaben der folgenden Fragen und
    kommen in `config.toml`, damit ein vorhandenes Git-Verzeichnis samt Verlauf weiter genutzt wird.
    Nein: Die Einrichtung beginnt mit einer neuen Konfiguration; eine vorhandene `config.toml` wird

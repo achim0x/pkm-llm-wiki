@@ -172,4 +172,30 @@ def test_closed_input_counts_as_empty_answer(paths):
     assert res["root"] == str(paths["root"])
     assert read_config_file(paths["config"])["PKM_GIT_DIR"] == str(paths["old_git"])
 
+def test_finds_pkm_entries_by_program_name(paths):
+    """Entries under another name are recognized by their program; unrelated servers are ignored."""
+    paths["claude"].parent.mkdir(parents=True)
+    data = {"mcpServers": {
+        "knowledge": {"command": "C:\\Users\\me\\.local\\bin\\pkm-mcp.exe",
+                      "env": {"PKM_ROOT": str(paths["root"]), "PKM_GIT_DIR": str(paths["old_git"])}},
+        "other": {"command": "x", "env": {"PKM_TZ": "UTC"}}}}
+    paths["claude"].write_text(json.dumps(data), encoding="utf-8")
+    res, _, out = _run(paths)
+    assert "[Claude Desktop (knowledge)]" in out and "PKM_TZ" not in out
+    assert res["root"] == str(paths["root"]) and (paths["old_git"] / "HEAD").is_file()
+
+
+def test_vault_from_git_directory(paths):
+    """Without PKM_ROOT anywhere, the vault comes from core.worktree of the default Git directory."""
+    setup = Setup(SetupOptions(yes=True))
+    git_dir = setup._app_dir() / "git"  # pylint: disable=protected-access
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(f"[core]\n\tbare = false\n\tworktree = {paths['root'].as_posix()}\n",
+                                    encoding="utf-8")
+    (paths["root"] / ".pkm").mkdir(exist_ok=True)
+    (paths["root"] / ".pkm" / "state.json").write_text("{}", encoding="utf-8")
+    res, asked, out = _run(paths, {"Vault folder": ""})
+    assert f"[Git directory {git_dir}]" in out and any(QUESTION in q for q in asked)
+    assert res["root"] == str(paths["root"])
+
 # Main ************************************************************************

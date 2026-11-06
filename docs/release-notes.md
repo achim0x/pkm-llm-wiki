@@ -9,7 +9,9 @@
   writes new documents in that language, continued documents keep theirs. Specification 0.27.
 - **Existing configuration:** `pkm setup` first looks for settings in environment variables, in
   the `env` blocks of the Claude Desktop entries (installations from before `pkm setup`) and in
-  `config.toml`, shows them with their source and offers to take them over. Taken over, they are
+  `config.toml`, shows them with their source and offers to take them over. PKM entries are also
+  recognized under other names by their programs; without any `PKM_ROOT` the vault is read from
+  the existing Git directory. Taken over, they are
   the defaults and are written to `config.toml` – so a custom `PKM_GIT_DIR` and with it the version
   history stay in use. Declined, the setup starts anew and backs up `config.toml`. Closed input no
   longer makes `pkm setup` fail; it takes the defaults.

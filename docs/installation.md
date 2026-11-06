@@ -109,8 +109,10 @@ Installation without the installer: [Appendix A](#appendix-a-manual-installation
 `pkm setup` guides you through the setup and can be run again at any time; every step is idempotent.
 
 1. **Check for an existing configuration:** `pkm setup` looks for settings in the environment
-   variables, in the entries `pkm` and `pkm-pflege` of Claude Desktop (installations from before
-   `pkm setup` kept them in an `env` block there) and in `config.toml`. If it finds any (e.g.
+   variables, in the PKM entries of Claude Desktop (installations from before `pkm setup` kept them
+   in an `env` block there; recognized by the names `pkm`/`pkm-pflege` or by the programs
+   `pkm-mcp`/`pkm-pflege-mcp`) and in `config.toml`. If none of them names the vault, it is read from
+   the existing Git directory (which records the vault folder). If it finds any settings (e.g.
    `PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`), it shows them with their source and asks whether to
    **take them over**. Yes: the values become the defaults of the following questions and are
    written to `config.toml`, so an existing Git directory and its history stay in use. No: the setup
