@@ -65,14 +65,15 @@ outside the vault and any cloud folder.
 
 ## 2. Installation
 
-There are two ways:
+There are three ways:
 
 | Way | For whom | Where described |
 |---|---|---|
 | **Installer** (recommended) | The normal case: one command, then `pkm setup` guides you through the setup | this section and section 3 |
 | **Manual installation** | If you want to run and see every step yourself, do not want to run scripts from the internet, or need a different setup (e.g. other folders) | [Appendix A](#appendix-a-manual-installation) |
+| **Development installation** | If you want to change the code or the skills: the programs run directly from a local clone of the repository | [Appendix B](#appendix-b-development-installation) |
 
-Both ways lead to the same result; they can also be combined (e.g. install the package by hand and
+All ways lead to the same result; they can also be combined (e.g. install the package by hand and
 then run `pkm setup`).
 
 ### 2.1 With the installer
@@ -548,3 +549,79 @@ section 6 (restart Obsidian so that it reads the settings from `app.json`).
 
 **Updating:** reinstall the package (A.3), pack and upload the skills again (A.8). The other steps
 stay valid.
+
+## Appendix B: Development installation
+
+For working on the PKM itself: the package is installed **editable** from a local clone of the
+repository. The programs `pkm`, `pkm-mcp` and `pkm-pflege-mcp` then load the code and the skills
+directly from `<REPO>/pkm-tools/src/pkm`; a change in the clone needs no new installation.
+Requirements as in section 1, plus Git for cloning; uv as in A.1.
+
+### B.1 Install
+
+```bash
+git clone https://github.com/achim0x/pkm-llm-wiki.git <REPO>
+```
+
+```bash
+uv tool install --editable <REPO>/pkm-tools
+```
+
+On Windows the same commands with `<REPO>\pkm-tools`. Then set up as usual:
+
+```bash
+pkm setup
+```
+
+`pkm setup` (section 3) asks for the vault, checks Git, asks for the document language, writes
+`config.toml`, enters the servers in Claude Desktop and builds the skill ZIP files – from the skills
+in the clone. Continue with sections 4–6.
+
+### B.2 Working with it
+
+| Change | What to do |
+|---|---|
+| Python code | Takes effect the next time a program starts. For the MCP servers: quit Claude Desktop completely and start it again |
+| Skills (`pkm-tools/src/pkm/skills/`) | Run `pkm setup` again (packs the ZIP files anew), upload them in Claude Desktop again (section 4) |
+| Other branch (`git checkout …`) | The installed programs use the code of the branch that is checked out; restart Claude Desktop |
+| Dependencies in `pyproject.toml` | Install again: `uv tool install --editable --force <REPO>/pkm-tools` |
+
+Tests and checks run in a separate environment `<REPO>/pkm-tools/.venv` (see the
+[pkm-tools README](../pkm-tools/README.md)); it does not affect the installed programs.
+
+**Use a test vault** while you develop, so that your real vault and its history stay untouched. It
+needs its own configuration file with its **own Git directory and search index**; otherwise the
+test vault would use the Git directory of the real one (both default to the app folder). Create
+`<HOME>/pkm-dev/config.toml` first (absolute paths, outside any cloud folder; forward slashes also
+work on Windows):
+
+```toml
+PKM_GIT_DIR = "<HOME>/pkm-dev/git"
+PKM_CACHE_DIR = "<HOME>/pkm-dev/cache"
+```
+
+Then run `pkm setup` with this file (it keeps the two keys and adds the rest):
+
+```bash
+PKM_CONFIG=<HOME>/pkm-dev/config.toml pkm setup --vault <HOME>/pkm-dev/vault
+```
+
+Windows (PowerShell):
+
+```powershell
+$env:PKM_CONFIG = "<HOME>\pkm-dev\config.toml"; pkm setup --vault <HOME>\pkm-dev\vault
+```
+
+`pkm setup` enters `PKM_CONFIG` in the Claude Desktop entries, so Claude Desktop then works with the
+test vault. To switch back to the real vault, run `pkm setup` again without `PKM_CONFIG` (in
+PowerShell first `Remove-Item Env:PKM_CONFIG`).
+
+### B.3 Back to a normal installation
+
+Run the installer again (section 2.1) or install the package without `--editable` (A.3). Both
+replace the editable installation; configuration and vault stay as they are.
+
+**Installing a fixed state of the clone** instead (without editable): the installer also takes a
+local ZIP of the repository, e.g. `git -C <REPO> archive --format=zip --prefix=pkm-llm-wiki/ -o
+<HOME>/pkm.zip HEAD` and then `PKM_ARCHIVE=file://<HOME>/pkm.zip sh <REPO>/install.sh` (Windows:
+`$env:PKM_ARCHIVE = "<HOME>\pkm.zip"` before `install.ps1`).

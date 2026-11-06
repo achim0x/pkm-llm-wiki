@@ -594,7 +594,9 @@ pkm-llm-wiki/
 └── install.sh, install.ps1      ← installers (Mac/Linux, Windows)
 ```
 
-Development and tests: see [pkm-tools/README.md](pkm-tools/README.md). The tests run on Linux,
+Development and tests: see [pkm-tools/README.md](pkm-tools/README.md). To run the PKM directly from
+a local clone of the repository (editable install, with a test vault), see
+[installation, appendix B](docs/installation.md#appendix-b-development-installation). The tests run on Linux,
 macOS and Windows (GitHub Actions).
 
 **Status:** phases 0–6 and the follow-up work are implemented. The acceptance run (phase 7) is
@@ -1217,7 +1219,9 @@ pkm-llm-wiki/
 ```
 
 Entwicklung und Tests: siehe [pkm-tools/README.md](pkm-tools/README.md). Die Tests laufen auf
-Linux, macOS und Windows (GitHub Actions).
+Linux, macOS und Windows (GitHub Actions). Das PKM direkt aus einer lokalen Kopie des Repositorys
+betreiben (editierbare Installation, mit Testvault): siehe
+[Einrichtung, Anhang B](docs/installation.de.md#anhang-b-entwicklungsinstallation).
 
 **Stand:** Phasen 0–6 und die Nacharbeiten sind umgesetzt. Die Abnahme (Phase 7) steht aus. Die automatische
 Pflege (Phase 8) folgt nur auf Anweisung.
