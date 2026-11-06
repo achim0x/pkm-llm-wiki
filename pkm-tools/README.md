@@ -54,8 +54,10 @@ without these parameters `content` is left out (`content_omitted`).
 
 **Installation (15.1):** `install.sh` / `install.ps1` in the repository root install uv and the package
 from the GitHub archive (works without Git) and start `pkm setup` (`setupwiz.py`): vault folder, Git
-check, language of chat documents and wiki (`PKM_LANGUAGE`, `en`/`de`), `config.toml`, `pkm init`, check of the entries in `claude_desktop_config.json` (changed only after asking, with
-backup; otherwise the entries are printed for entering by hand), skill ZIPs, project instructions, `pkm doctor`. The workflow `release.yml` attaches the
+check, language of chat documents and wiki (`PKM_LANGUAGE`, `en`/`de`), existing configuration (shown and taken over after asking), `config.toml`, `pkm init`, comparison of the
+vault's `CLAUDE.md` with the template (replaced after asking with a backup outside the vault, otherwise
+written as `CLAUDE.md.new`), check of the entries in `claude_desktop_config.json` (changed only after asking, with
+backup; the old entry `pkm-pflege` is replaced; otherwise the entries are printed for entering by hand), skill ZIPs, project instructions, `pkm doctor`. The workflow `release.yml` attaches the
 skill ZIPs and the wheel to every release tag `v*`.
 **Setup:** [docs/installation.md](../docs/installation.md) (German: [docs/installation.de.md](../docs/installation.de.md)). **Acceptance:** [docs/acceptance.md](../docs/acceptance.md)
 (simulation of steps 1–9 and 11: `tests/test_acceptance_simulation.py`; step 10 and all

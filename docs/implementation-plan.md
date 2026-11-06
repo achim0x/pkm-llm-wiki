@@ -272,6 +272,10 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - **Tests:** `test_no_git.py`, `test_setup.py`; 405 Tests auf allen drei Systemen grün.
 - **Erledigt:** Merge auf `main`, Release `v0.2.0`.
 - **Dokumentsprache** (0.27): `pkm setup` fragt, ob im Chat erzeugte Dokumente hauptsächlich englisch oder deutsch sind (`PKM_LANGUAGE`, Option `--language`); der Server `pkm` nennt Sprache und Abschnittsnamen in seinen Anweisungen, der Skill `pkm-access` folgt ihnen; ebenso `pkm-maintenance` mit Wiki-Sprache, Abschnittsnamen und Kurzfassungs-Label für den Skill `pkm-wiki` (`test_language.py`).
+- **Erledigt:** Release `v0.2.1` (Dokumentsprache, vorhandene Konfiguration übernehmen, Entwicklungsinstallation).
+- **Wiki-Sprache** (0.28): `PKM_LANGUAGE` gilt auch für das Wiki; der Pflege-Server nennt Sprache, Abschnittsnamen und Kurzfassungs-Label.
+- **Englische Namen** (0.28): Pflege-Server `pkm-maintenance` (`pkm-maintenance-mcp`, `maintenance_server.py`), Projekt „PKM Maintenance“; `pkm-pflege-mcp` als Alias, `pkm setup` ersetzt den alten Eintrag (`test_setup.py`).
+- **`CLAUDE.md` aktualisieren** (0.28): `pkm setup` vergleicht die `CLAUDE.md` des Vaults mit der Vorlage und bietet Ersetzen mit Sicherung und Commit oder `CLAUDE.md.new` an (`test_setup.py`).
 - **Vorhandene Konfiguration übernehmen** (0.27): `pkm setup` zeigt Einstellungen aus Umgebung, `env`-Blöcken in Claude Desktop und `config.toml` und übernimmt sie nach Bestätigung (`test_setup_adopt.py`).
 
 ### Phase 7e – Abnahme mit der neuen Installation
@@ -340,6 +344,6 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 
 ## 8. Nächste Schritte
 
-1. Erledigt: Merge auf `main` und Release `v0.2.0` mit Skill-ZIPs.
+1. Erledigt: Releases `v0.2.0` und `v0.2.1`; `v0.2.2` (Wiki-Sprache, englische Namen, `CLAUDE.md` aktualisieren) nach Merge von PR #3 taggen.
 2. Abnahme nach Phase 7e auf dem PKM-Rechner (`docs/acceptance.md`, ab Schritt 0).
 3. Befunde beheben; erst danach Phase 8 (Automatik) und nur auf Anweisung.

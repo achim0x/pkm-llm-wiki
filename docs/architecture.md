@@ -193,7 +193,11 @@ vault is read from `core.worktree` in the config of the Git directory (`worktree
 folder contains `.pkm/state.json`. It shows them with their
 source and, if confirmed, takes them over as defaults and into `config.toml`; this keeps e.g. a
 custom `PKM_GIT_DIR` and so the version history. If declined, an existing `config.toml` is backed up
-and the setup starts anew. End of input counts as an empty answer (the default). Every answer can be given
+and the setup starts anew. After `pkm init` (which never overwrites an existing `CLAUDE.md`) the
+wizard compares the vault's `CLAUDE.md` with the template of the installed version; if it differs,
+it asks whether to replace it (backup to `<app folder>/backups/`, commit with Git) or writes the
+template as `CLAUDE.md.new` next to it. An old Claude Desktop entry `pkm-pflege` is replaced by
+`pkm-maintenance` in the Claude Desktop step. End of input counts as an empty answer (the default). Every answer can be given
 in advance as an option; `--yes` accepts all defaults and confirmations (used by the installers in
 CI).
 
