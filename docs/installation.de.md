@@ -142,7 +142,11 @@ idempotent.
 6. **`pkm init`** ausführen: Ordnerstruktur, `CLAUDE.md`, `.gitignore`, `.pkm/state.json`,
    Obsidian-Einstellungen (`.obsidian/app.json`) und Property-Typen (`.obsidian/types.json`), mit
    Git zusätzlich das Repo außerhalb des Vaults mit einem ersten Commit. Bestehende Notizen bleiben
-   unverändert.
+   unverändert. Hat der Vault schon eine `CLAUDE.md`, die von der Vorlage dieser Version abweicht
+   (ältere Fassung oder eigene Änderungen), fragt `pkm setup`, ob sie ersetzt werden soll. Ja: Die
+   alte Datei wird nach `<APPDIR>/backups/` gesichert (außerhalb des Vaults), die Vorlage
+   geschrieben und mit Git committet. Nein: Die Datei bleibt, die Vorlage liegt daneben als
+   `CLAUDE.md.new` zum Abgleichen von Hand (danach löschen).
 7. **Claude Desktop prüfen:** `pkm setup` prüft, ob die Server `pkm` und `pkm-maintenance` in
    `claude_desktop_config.json` schon passend eingetragen sind (nur mit `command`, ohne weitere
    Angaben). Fehlt ein Eintrag oder weicht er ab, zeigt der Assistent die Änderung und **fragt, ob er

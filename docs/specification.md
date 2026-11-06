@@ -3,6 +3,7 @@
 **Version:** 0.28 (Entwurf zum Review) · **Stand:** 05.11.2026
 
 > **Änderungen in 0.28**
+> - **`CLAUDE.md` aktualisieren:** `pkm setup` erkennt eine vom aktuellen Template abweichende `CLAUDE.md` im Vault und bietet an, sie zu ersetzen (Sicherung außerhalb des Vaults, Commit) oder die Vorlage als `CLAUDE.md.new` daneben zu legen (15.1).
 > - **Wiki-Sprache:** `PKM_LANGUAGE` gilt auch für das Wiki. Der Pflege-Server nennt Sprache, Abschnittsnamen und das Label der ersten Zeile in seinen Anweisungen (Deutsch: Kurzfassung, Inhalt, Widersprüche / offene Fragen, Siehe auch, Belege); der Skill `pkm-wiki` schreibt neue Wiki-Seiten, Log-Einträge und Berichte in dieser Sprache, bestehende Seiten behalten ihre Sprache. Erzeugte Dateien bleiben englisch (4.2, 7.1, 9, 15.1).
 > - **Englische Namen für den Pflege-Server:** `pkm-pflege` heißt jetzt `pkm-maintenance` (Programm `pkm-maintenance-mcp`, Modul `maintenance_server.py`), das Claude-Projekt „PKM Maintenance“. `pkm-pflege-mcp` bleibt als Alias, damit bestehende Einträge weiter laufen; `pkm setup` ersetzt den alten Eintrag in Claude Desktop nach Rückfrage (7.6, 7.7, 11, 15.1).
 
@@ -1475,6 +1476,7 @@ Vorher brauchte die Einrichtung rund zehn Handschritte. Jetzt: Installer ausfüh
    - prüft Git. **Fehlt Git, gibt er einen Hinweis aus und schaltet die Versionsverwaltung ab** (5.4). Ist Git da und fehlt die Identität, fragt er Name und E-Mail ab und setzt sie nur für das PKM-Repo; die Commit-Signierung schaltet er für das PKM-Repo ab;
    - fragt die Hauptsprache von im Chat erzeugten Dokumenten und vom Wiki ab (Englisch oder Deutsch, `PKM_LANGUAGE`, 4.1, 4.2; Vorgabe ist der bisherige Wert, sonst Englisch);
    - schreibt `config.toml` (7.1; andere Schlüssel in der Datei bleiben) und führt `pkm init` aus;
+   - prüft `CLAUDE.md` im Vault: `pkm init` legt die Datei nur an, wenn sie fehlt. Weicht eine vorhandene von der Vorlage der installierten Version ab (ältere Fassung oder eigene Änderungen), fragt der Assistent, ob er sie ersetzen soll. Bei „ja“ sichert er die alte nach `<App-Ordner>/backups/` (außerhalb des Vaults), schreibt die Vorlage und committet sie mit Versionsverwaltung (`PKM-Source: user`). Bei „nein“ bleibt die Datei und die Vorlage kommt daneben als `CLAUDE.md.new` (wird von Pflege und Suche nicht erfasst, da außerhalb von `documents/` und `wiki/`);
    - prüft die Einträge in Claude Desktop (7.6); fehlen sie oder weichen sie ab, fragt es, ob es die Datei ändern darf (dann mit Sicherungskopie, andere Server bleiben), sonst zeigt es den Text zum Selbst-Eintragen;
    - baut die ZIP-Dateien der Skills `pkm-access` und `pkm-wiki` nach `<Standardordner>/skills/` (das Hochladen bleibt Handarbeit);
    - gibt die Projektanweisung für „PKM Maintenance“ aus (11) und endet mit `pkm doctor`.

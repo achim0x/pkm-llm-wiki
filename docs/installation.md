@@ -136,7 +136,11 @@ Installation without the installer: [Appendix A](#appendix-a-manual-installation
    on or off, path of Git, language). Servers and CLI read it; environment variables take precedence.
 6. Run **`pkm init`**: folder structure, `CLAUDE.md`, `.gitignore`, `.pkm/state.json`, Obsidian
    settings (`.obsidian/app.json`) and property types (`.obsidian/types.json`), with Git also the
-   repo outside the vault with a first commit. Existing notes stay unchanged.
+   repo outside the vault with a first commit. Existing notes stay unchanged. If the vault already
+   has a `CLAUDE.md` that differs from the template of this version (older version or own edits),
+   `pkm setup` asks whether to replace it. Yes: the old file is backed up to `<APPDIR>/backups/`
+   (outside the vault), the template is written and, with Git, committed. No: the file stays and the
+   template is written next to it as `CLAUDE.md.new` to merge by hand (delete it afterwards).
 7. **Check Claude Desktop:** `pkm setup` checks whether the servers `pkm` and `pkm-maintenance` are
    already entered as needed in `claude_desktop_config.json` (with `command` only, nothing else). If
    an entry is missing or different, the wizard shows the change and **asks whether it may change

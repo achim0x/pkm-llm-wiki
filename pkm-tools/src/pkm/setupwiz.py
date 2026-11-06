@@ -60,7 +60,7 @@ from .doctor import doctor
 from .errors import PkmError
 from .gitlayer import Git
 from .service import Service
-from .vaultinit import init_vault
+from .vaultinit import init_vault, initial_files
 
 # Variables *******************************************************************
 
@@ -72,6 +72,7 @@ NO_GIT_HINT = (
     "but there is no history, no diff and no restoring of earlier versions. To turn version control on "
     "later, install Git (https://git-scm.com/install/) and run `pkm setup` again."
 )
+SCHEMA_FILE = "CLAUDE.md"
 PROJECT_INSTRUCTIONS = (
     "This is the maintenance project for the PKM. Use the skill `pkm-wiki` and the tools of the server "
     "`pkm-maintenance`. You do not change documents in `documents/`."
@@ -491,6 +492,60 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         path.write_bytes((json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
         self.say(f"Claude Desktop configured: {path} (restart Claude Desktop).")
 
+    def _claude_md(self, cfg: Config) -> dict[str, Any]:
+        """Offer to bring the vault's ``CLAUDE.md`` (schema of the vault) up to the current template.
+
+        ``pkm init`` creates the file only if it is missing. If an existing one differs from the template
+        (older version or own edits), the setup asks. Yes: back it up to ``<app folder>/backups/``
+        (outside the vault), write the template and, with version control, commit it. No: write the
+        template next to it as ``CLAUDE.md.new`` for merging by hand.
+
+        Args:
+            cfg: Configuration.
+
+        Returns:
+            ``status`` (``current``, ``replaced`` or ``kept``), the ``backup``, the ``new`` file and the
+            ``commit``, where applicable.
+        """
+        path = cfg.root / SCHEMA_FILE
+        template = initial_files()[SCHEMA_FILE]
+        result: dict[str, Any] = {"status": "current", "backup": None, "new": None, "commit": None}
+        current = path.read_text(encoding="utf-8").replace("\r\n", "\n") if path.is_file() else template
+        if current != template:
+            self.say(f"{path} differs from the template of this version (older version or own edits).")
+            if self._confirm("Replace CLAUDE.md with the current template? (The old one is backed up.)"):
+                backup = backup_file(path, cfg.cache_dir / "backups")
+                path.write_bytes(template.encode("utf-8"))
+                self.say(f"CLAUDE.md replaced; backup of the old one: {backup}")
+                result.update(status="replaced", backup=str(backup), commit=self._commit_schema(cfg))
+            else:
+                new = path.with_name(SCHEMA_FILE + ".new")
+                new.write_bytes(template.encode("utf-8"))
+                self.say(f"CLAUDE.md kept; the current template is in {new} for merging by hand "
+                         "(delete it afterwards).")
+                result.update(status="kept", new=str(new))
+        return result
+
+    def _commit_schema(self, cfg: Config) -> str | None:
+        """Commit the replaced ``CLAUDE.md`` if version control is on and the repo has a first commit.
+
+        Args:
+            cfg: Configuration.
+
+        Returns:
+            Hash of the commit or ``None`` (then the next maintenance run commits it).
+        """
+        sha = None
+        if cfg.versioning:
+            git = Git(cfg.git_dir, cfg.root, exe=cfg.git_exe)
+            try:
+                if git.has_head() and git.has_changes(SCHEMA_FILE):
+                    sha = git.commit_paths([SCHEMA_FILE], "pkm: CLAUDE.md updated to the current template\n\n"
+                                           "PKM-Source: user\n", as_user=True)
+            except PkmError as exc:
+                self.warn(f"CLAUDE.md not committed ({exc.message}); the next maintenance run commits it.")
+        return sha
+
     def _skills(self) -> list[str]:
         """Build the skill ZIP files.
 
@@ -531,6 +586,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
             self._identity(cfg)
             if init["commit"] is None:
                 init = init_vault(cfg)
+        schema = self._claude_md(cfg)
         claude = self._claude()
         skills = self._skills()
         self.say("Project \"PKM Maintenance\" in Claude Desktop - project instructions:\n  " + PROJECT_INSTRUCTIONS)
@@ -541,7 +597,8 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         return {"status": "ok" if not check["errors"] else "error", "root": str(root),
                 "config_file": str(self.config_path), "versioning": cfg.versioning, "git": git_exe,
                 "language": cfg.language,
-                "init": init, "claude": claude, "skills": skills, "warnings": self.warnings, "doctor": check}
+                "init": init, "claude_md": schema, "claude": claude, "skills": skills, "warnings": self.warnings,
+                "doctor": check}
 
 # Functions *******************************************************************
 
@@ -589,21 +646,24 @@ def worktree_of(git_dir: Path) -> Path | None:
     return path if path is not None and path.is_absolute() else None
 
 
-def backup_file(path: Path) -> Path:
-    """Copy a file to ``<name>.<timestamp>.bak`` next to it.
+def backup_file(path: Path, folder: Path | None = None) -> Path:
+    """Copy a file to ``<name>.<timestamp>.bak``.
 
     Args:
         path: Existing file.
+        folder: Folder for the backup (created if needed); next to the file if omitted.
 
     Returns:
         Path of the backup.
     """
+    target = folder or path.parent
+    target.mkdir(parents=True, exist_ok=True)
     stem = f"{path.name}.{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    backup = path.with_name(f"{stem}.bak")
+    backup = target / f"{stem}.bak"
     n = 1
     while backup.exists():
         n += 1
-        backup = path.with_name(f"{stem}-{n}.bak")
+        backup = target / f"{stem}-{n}.bak"
     shutil.copy2(path, backup)
     return backup
 

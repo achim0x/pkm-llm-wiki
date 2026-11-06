@@ -235,7 +235,7 @@ flowchart TD
     L --> W["Write config.toml<br/>(other keys are kept)"]
     W --> I["pkm init:<br/>structure, CLAUDE.md, .gitignore, state.json,<br/>.obsidian/app.json, .obsidian/types.json"]
     I --> R{"version control on?"}
-    R -- "no" --> CD
+    R -- "no" --> SM
     R -- "yes" --> R1["Create the Git repo outside the vault<br/>core.autocrlf=false"]
     R1 --> ID{"user.name and user.email set?"}
     ID -- "no" --> ID1["Ask for name and e-mail,<br/>set them for the PKM repo only"]
@@ -243,8 +243,14 @@ flowchart TD
     ID1 --> GPG["commit.gpgsign=false for the PKM repo"]
     GPG --> IC{"initial commit exists?"}
     IC -- "no" --> IC1["pkm init again:<br/>commit pkm: init"]
-    IC -- "yes" --> CD
-    IC1 --> CD["Check claude_desktop_config.json,<br/>change it only with permission<br/>(section 4.3)"]
+    IC -- "yes" --> SM
+    IC1 --> SM{"CLAUDE.md in the vault<br/>differs from the template?"}
+    SM -- "no" --> CD
+    SM -- "yes" --> SM1{"replace it?"}
+    SM1 -- "yes" --> SM2["back up to app folder/backups,<br/>write template, commit (with Git)"]
+    SM1 -- "no" --> SM3["write the template<br/>as CLAUDE.md.new"]
+    SM2 --> CD
+    SM3 --> CD["Check claude_desktop_config.json,<br/>change it only with permission<br/>(section 4.3)"]
     CD --> SKZ["Write pkm-access.zip and pkm-wiki.zip"]
     SKZ --> PI["Print the project instructions<br/>for PKM Maintenance"]
     PI --> DR["pkm doctor --short"]

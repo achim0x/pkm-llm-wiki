@@ -38,6 +38,9 @@ Befunde unten unter „Befunde“ sammeln; sie werden danach behoben (Code oder 
 - [ ] Bei einer vorhandenen Installation zeigt `pkm setup` zuerst die gefundene Konfiguration mit
       Herkunft (z. B. `PKM_GIT_DIR` aus Claude Desktop) und fragt, ob es sie übernehmen soll; nach
       „ja“ stehen die Werte in `config.toml` und der bisherige Verlauf ist weiter da.
+- [ ] Weicht die `CLAUDE.md` des Vaults von der Vorlage ab, fragt `pkm setup`, ob sie ersetzt werden
+      soll; nach „ja“ liegt die alte unter `<App-Ordner>/backups/` und es gibt einen Commit
+      „pkm: CLAUDE.md updated to the current template“, nach „nein“ liegt `CLAUDE.md.new` daneben.
 - [ ] `pkm setup` fragt nach der Sprache für im Chat erzeugte Dokumente und das Wiki (`en` oder `de`).
 - [ ] `~/Library/Application Support/pkm/config.toml` enthält `PKM_ROOT`, `PKM_VAULT_NAME`,
       `PKM_VERSIONING = true`, `PKM_GIT` und `PKM_LANGUAGE` mit der gewählten Sprache.

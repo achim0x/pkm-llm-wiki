@@ -27,11 +27,20 @@ Changes compared to `V0.2.1`. Specification now **0.28**.
 - The name of the Claude project does not matter to the tools; rename "PKM-Pflege" to
   "PKM Maintenance" if you like.
 
+### Updating `CLAUDE.md` in the vault
+
+- `pkm init` creates `CLAUDE.md` only if it is missing, so older vaults kept the text of their
+  first installation. `pkm setup` now compares it with the template of the installed version. If
+  it differs (older version or own edits), it asks whether to replace it: yes backs up the old file
+  to `<app folder>/backups/` (outside the vault), writes the template and commits it with Git; no
+  keeps the file and writes the template next to it as `CLAUDE.md.new` to merge by hand.
+
 ### Upgrading from V0.2.1
 
 1. Run the installer again.
-2. In `pkm setup`, confirm taking over the existing configuration and the language, and let it
-   replace the old Claude Desktop entry `pkm-pflege` with `pkm-maintenance`.
+2. In `pkm setup`, confirm taking over the existing configuration and the language, let it
+   replace the old Claude Desktop entry `pkm-pflege` with `pkm-maintenance` and update `CLAUDE.md`
+   (or merge `CLAUDE.md.new` by hand if you have own edits).
 3. Upload the new skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart Claude Desktop.
 
 For an upgrade from V0.2.0 or older, see also the notes of V0.2.1.
