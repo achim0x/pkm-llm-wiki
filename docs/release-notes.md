@@ -35,6 +35,12 @@ Changes compared to `V0.2.1`. Specification now **0.28**.
   to `<app folder>/backups/` (outside the vault), writes the template and commits it with Git; no
   keeps the file and writes the template next to it as `CLAUDE.md.new` to merge by hand.
 
+### Showing the installed version
+
+- `pkm --version` prints the installed version (`pkm-tools 0.2.2`). `pkm setup` prints it as its
+  first line, and `pkm doctor` reports it as `version` (so it is also visible in
+  `begin_maintenance`).
+
 ### Upgrading from V0.2.1
 
 1. Run the installer again.

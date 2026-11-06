@@ -317,6 +317,7 @@ Die vollständige Abnahme steht in [acceptance.md](acceptance.md) bzw. Abschnitt
 
 | Problem | Prüfen |
 |---|---|
+| Welche Version ist installiert? | `pkm --version`; `pkm setup` gibt sie als erste Zeile aus und `pkm doctor` meldet sie als `version` (auch in `begin_maintenance` zu sehen). `uv tool list` zeigt die von uv installierte Version (bei editierbarer Installation ggf. veraltet) |
 | Tools erscheinen nicht in Claude Desktop | `pkm setup` erneut ausführen (trägt die Server ein), Claude Desktop vollständig beenden und neu starten, Log von Claude Desktop |
 | `git_unavailable` | `pkm doctor`: Git gefunden, Repo vorhanden, Identität gesetzt. Git deinstalliert? `pkm setup` erneut ausführen (schaltet die Versionsverwaltung ab) |
 | `not_versioned` bei `history`/`restore_document` | Versionsverwaltung ist aus (kein Git) oder die Datei liegt in `scratch/` |

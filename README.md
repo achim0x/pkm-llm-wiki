@@ -516,6 +516,7 @@ configuration file written by `pkm setup`; otherwise it finds it from inside the
 
 | Command | Purpose |
 |---|---|
+| `pkm --version` | show the installed version of pkm-tools (also reported by `pkm setup` and `pkm doctor`) |
 | `pkm setup` | guided setup: existing configuration, vault, Git check, language, `CLAUDE.md` update, Claude Desktop, skills (repeatable) |
 | `pkm init` | create structure, Obsidian settings and (with Git) the Git directory (idempotent) |
 | `pkm doctor [--short]` | check the environment |
@@ -1138,6 +1139,7 @@ Ausgabe ist JSON (außer bei `pkm setup`). Den Vault kennt die CLI aus der Konfi
 
 | Befehl | Zweck |
 |---|---|
+| `pkm --version` | installierte Version von pkm-tools anzeigen (melden auch `pkm setup` und `pkm doctor`) |
 | `pkm setup` | geführte Einrichtung: vorhandene Konfiguration, Vault, Git-Prüfung, Sprache, `CLAUDE.md` aktualisieren, Claude Desktop, Skills (wiederholbar) |
 | `pkm init` | Struktur, Obsidian-Einstellungen und (mit Git) Git-Verzeichnis anlegen (idempotent) |
 | `pkm doctor [--short]` | Umgebung prüfen |

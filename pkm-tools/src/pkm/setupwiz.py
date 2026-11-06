@@ -42,6 +42,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
+from . import __version__
 from .cloudsync import cloud_service, online_only_files
 from .config import (
     CONFIG_FILE,
@@ -573,8 +574,9 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         """Run all steps.
 
         Returns:
-            Results of the steps, notes and the result of ``pkm doctor``.
+            Installed version, results of the steps, notes and the result of ``pkm doctor``.
         """
+        self.say(f"pkm-tools {__version__}")
         self._adopt()
         root = self._vault()
         git_exe = self._git()
@@ -594,7 +596,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         for c in check["checks"]:
             self.say(f"Error: {c['message']}")
         self.say("Setup finished." if not check["errors"] else "Setup finished with errors (see above, `pkm doctor`).")
-        return {"status": "ok" if not check["errors"] else "error", "root": str(root),
+        return {"status": "ok" if not check["errors"] else "error", "version": __version__, "root": str(root),
                 "config_file": str(self.config_path), "versioning": cfg.versioning, "git": git_exe,
                 "language": cfg.language,
                 "init": init, "claude_md": schema, "claude": claude, "skills": skills, "warnings": self.warnings,

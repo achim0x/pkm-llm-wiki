@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 
-from pkm import cli
+from pkm import __version__, cli
 from pkm.config import read_config_file
 from pkm.setupwiz import NO_GIT_HINT, Setup, SetupOptions
 
@@ -248,6 +248,16 @@ def test_setup_asks_and_sets_git_identity(paths, monkeypatch, tmp_path):
     res, _ = _setup(paths, ask=lambda q: next((v for k, v in answers.items() if k in q), ""))
     assert res["status"] == "ok" and res["init"]["commit"]
     assert git(paths["env"], "config", "--local", "user.name").strip() == "Ada"
+
+
+def test_version_in_cli_setup_and_doctor(paths, capsys):
+    """pkm --version prints the installed version; setup and doctor report it too."""
+    with pytest.raises(SystemExit) as stop:
+        cli.main(["--version"])
+    assert stop.value.code == 0 and capsys.readouterr().out.strip() == f"pkm-tools {__version__}"
+    res, out = _setup(paths)
+    assert res["version"] == __version__ and res["doctor"]["version"] == __version__
+    assert out.splitlines()[0] == f"pkm-tools {__version__}"
 
 
 def test_setup_cli(paths, capsys):

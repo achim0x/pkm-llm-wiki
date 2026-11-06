@@ -31,7 +31,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import docimages, imagefix
+from . import __version__, docimages, imagefix
 from .citations import fix_citations, sync_citations
 from .config import Config
 from .doctor import doctor
@@ -402,6 +402,8 @@ def build_parser() -> argparse.ArgumentParser:
         The parser.
     """
     p = argparse.ArgumentParser(prog="pkm", description="PKM tools (maintenance)")
+    p.add_argument("--version", action="version", version=f"pkm-tools {__version__}",
+                   help="show the installed version of pkm-tools and exit")
     sub = p.add_subparsers(dest="command", required=True)
     _add_setup(sub)
     _add(sub, "init", "Create structure and Git directory (idempotent)", cmd_init)

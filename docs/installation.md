@@ -309,6 +309,7 @@ specification.
 
 | Problem | Check |
 |---|---|
+| Which version is installed? | `pkm --version`; `pkm setup` prints it as its first line and `pkm doctor` reports it as `version` (also seen in `begin_maintenance`). `uv tool list` shows the version uv installed (with an editable install it can be outdated) |
 | Tools do not appear in Claude Desktop | Run `pkm setup` again (it enters the servers), quit Claude Desktop completely and restart it, log of Claude Desktop |
 | `git_unavailable` | `pkm doctor`: Git found, repo present, identity set. Git uninstalled? Run `pkm setup` again (turns version control off) |
 | `not_versioned` for `history`/`restore_document` | Version control is off (no Git) or the file is in `scratch/` |

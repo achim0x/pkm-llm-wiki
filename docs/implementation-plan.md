@@ -275,6 +275,7 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - **Erledigt:** Release `v0.2.1` (Dokumentsprache, vorhandene Konfiguration übernehmen, Entwicklungsinstallation).
 - **Wiki-Sprache** (0.28): `PKM_LANGUAGE` gilt auch für das Wiki; der Pflege-Server nennt Sprache, Abschnittsnamen und Kurzfassungs-Label.
 - **Englische Namen** (0.28): Pflege-Server `pkm-maintenance` (`pkm-maintenance-mcp`, `maintenance_server.py`), Projekt „PKM Maintenance“; `pkm-pflege-mcp` als Alias, `pkm setup` ersetzt den alten Eintrag (`test_setup.py`).
+- **Version anzeigen** (0.28): `pkm --version`, Version in `pkm setup` und `pkm doctor`.
 - **`CLAUDE.md` aktualisieren** (0.28): `pkm setup` vergleicht die `CLAUDE.md` des Vaults mit der Vorlage und bietet Ersetzen mit Sicherung und Commit oder `CLAUDE.md.new` an (`test_setup.py`).
 - **Vorhandene Konfiguration übernehmen** (0.27): `pkm setup` zeigt Einstellungen aus Umgebung, `env`-Blöcken in Claude Desktop und `config.toml` und übernimmt sie nach Bestätigung (`test_setup_adopt.py`).
 

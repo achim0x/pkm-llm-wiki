@@ -3,6 +3,7 @@
 **Version:** 0.28 (Entwurf zum Review) · **Stand:** 05.11.2026
 
 > **Änderungen in 0.28**
+> - **Version anzeigen:** `pkm --version`; `pkm setup` und `pkm doctor` melden die installierte Version (8).
 > - **`CLAUDE.md` aktualisieren:** `pkm setup` erkennt eine vom aktuellen Template abweichende `CLAUDE.md` im Vault und bietet an, sie zu ersetzen (Sicherung außerhalb des Vaults, Commit) oder die Vorlage als `CLAUDE.md.new` daneben zu legen (15.1).
 > - **Wiki-Sprache:** `PKM_LANGUAGE` gilt auch für das Wiki. Der Pflege-Server nennt Sprache, Abschnittsnamen und das Label der ersten Zeile in seinen Anweisungen (Deutsch: Kurzfassung, Inhalt, Widersprüche / offene Fragen, Siehe auch, Belege); der Skill `pkm-wiki` schreibt neue Wiki-Seiten, Log-Einträge und Berichte in dieser Sprache, bestehende Seiten behalten ihre Sprache. Erzeugte Dateien bleiben englisch (4.2, 7.1, 9, 15.1).
 > - **Englische Namen für den Pflege-Server:** `pkm-pflege` heißt jetzt `pkm-maintenance` (Programm `pkm-maintenance-mcp`, Modul `maintenance_server.py`), das Claude-Projekt „PKM Maintenance“. `pkm-pflege-mcp` bleibt als Alias, damit bestehende Einträge weiter laufen; `pkm setup` ersetzt den alten Eintrag in Claude Desktop nach Rückfrage (7.6, 7.7, 11, 15.1).
@@ -1207,6 +1208,7 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 
 | Befehl | Funktion |
 |---|---|
+| `pkm --version` | Gibt die installierte Version von `pkm-tools` aus (`pkm-tools <Version>`). `pkm setup` nennt sie in der ersten Ausgabezeile und im Ergebnis (`version`), `pkm doctor` im Ergebnis (`version`, damit auch in `begin_maintenance`) |
 | `pkm setup` | Geführte Einrichtung (15.1): vorhandene Konfiguration anzeigen und übernehmen, Vault-Ordner, Git-Prüfung (ohne Git Hinweis und Betrieb ohne Versionsverwaltung, 5.4), Git-Identität für das PKM-Repo, Sprache von Dokumenten und Wiki (`PKM_LANGUAGE`, 4.1, 4.2), `config.toml`, `pkm init`, Abgleich von `CLAUDE.md` mit der Vorlage (15.1), Einträge in Claude Desktop (7.6, alter Eintrag `pkm-pflege` wird ersetzt), Skill-ZIPs, Projektanweisung, `pkm doctor`. Wiederholbar; Optionen `--vault`, `--vault-name`, `--git-name`, `--git-email`, `--language`, `--yes`, `--claude-config`, `--skills-dir`, `--json` |
 | `pkm init` | Legt Struktur, `CLAUDE.md`, `wiki/index.md`, `log.md`, `_status.md`, `state.json`, `.gitignore`, den Importordner `pkm_img_import/`, `.obsidian/types.json` (Property-Typen, 13) und `.obsidian/app.json` (Einstellungen aus 13; fehlende Werte ergänzt, abweichende gemeldet) an und initialisiert mit Versionsverwaltung das Git-Verzeichnis außerhalb des Vaults, falls nötig (idempotent) |
 | `pkm ids` | Trägt fehlende `id`/`version` in Markdown-Dokumente ein und committet **je Dokument einzeln** (`doc: <title> v1`, `PKM-Source: agent`). Meldet doppelte IDs |

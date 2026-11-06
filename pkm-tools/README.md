@@ -42,7 +42,7 @@ status, lint, commit-wiki).
 `read` (both servers) supports `section`, `offset`/`max_chars` and `content: false`; above 40,000 characters
 without these parameters `content` is left out (`content_omitted`).
 
-**CLI:** `pkm setup`, `init`, `ids`, `versions`, `pending`, `mark <id>… [--pages <page>…] [--remove]`,
+**CLI:** `pkm --version`, `pkm setup`, `init`, `ids`, `versions`, `pending`, `mark <id>… [--pages <page>…] [--remove]`,
 `sha <target> [--section <key>] [--full]`, `index`, `status [--question <text>]…`,
 `commit-wiki -m <text>`, `fix-frontmatter [<target>…] [--all]`, `fix-images [<target>…] [--all] [--apply]`,
 `history <target> [--diff <from> [<to>]]`, `show <target> --version <n> [--section <key>]`,
