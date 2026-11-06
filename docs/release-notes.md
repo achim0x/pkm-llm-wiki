@@ -1,33 +1,20 @@
 # Release notes
 
-## V0.2.1
+## V0.2.2
 
-Changes compared to `V0.2.0`. Specification now **0.27**.
+Changes compared to `V0.2.1`. Specification now **0.28**.
 
-### Language of documents and wiki
+### Wiki language
 
-- `pkm setup` asks whether documents created in chat and the wiki should be mainly in English or
-  German (`PKM_LANGUAGE` in `config.toml`, `en` or `de`, default `en`, option `--language`).
-- The server `pkm` names the language and its section names in its instructions (German:
-  Ergebnis, Entscheidungen, Offene Punkte, Kontext / Begründung). The skill `pkm-access` writes new
-  documents in that language; continued documents keep theirs.
-- The server `pkm-maintenance` names the wiki language, the section names and the summary label
-  (German: Kurzfassung, Inhalt, Widersprüche / offene Fragen, Siehe auch, Belege). The skill
-  `pkm-wiki` writes new wiki pages, log entries and reports in it; existing pages keep their
-  language. Generated files (`index.md`, `_status.md`, lint reports) stay English.
-
-### Taking over an existing configuration
-
-- `pkm setup` first looks for settings in environment variables, in the `env` blocks of the PKM
-  entries in Claude Desktop (installations from before `pkm setup` kept them there) and in
-  `config.toml`, shows them with their source and offers to take them over.
-- PKM entries in Claude Desktop are also recognized under other names by their programs
-  (`pkm-mcp`, `pkm-maintenance-mcp`). If no source names the vault, it is read from the existing Git
-  directory (`core.worktree`).
-- Taken over, the values are the defaults of the questions and are written to `config.toml`, so a
-  custom `PKM_GIT_DIR` and with it the version history stay in use. Declined, the setup starts anew
-  and backs up `config.toml`.
-- Closed input (end of file) no longer makes `pkm setup` fail; it takes the defaults.
+- The language setting `PKM_LANGUAGE` now applies to the wiki too. The question in `pkm setup`
+  and `--language` name chat documents and the wiki.
+- The maintenance server names the wiki language, the section names and the summary label in its
+  instructions (German: Kurzfassung, Inhalt, Widersprüche / offene Fragen, Siehe auch, Belege;
+  English: Summary, Content, Contradictions / open questions, See also, Citations). The skill
+  `pkm-wiki` writes new wiki pages, summaries, log entries and reports in that language; existing
+  pages keep their language, quotes in citations stay literal.
+- Citation checks and lint accept both variants. Generated files (`index.md`, `_status.md`, lint
+  reports) stay English.
 
 ### English names for the maintenance server
 
@@ -37,8 +24,43 @@ Changes compared to `V0.2.0`. Specification now **0.27**.
 - The old program name `pkm-pflege-mcp` stays as an alias, so existing Claude Desktop entries keep
   working until `pkm setup` runs. `pkm setup` replaces the old entry `pkm-pflege` with
   `pkm-maintenance` (after asking; other servers stay).
-- Rename the project "PKM-Pflege" in Claude Desktop to "PKM Maintenance" if you like; the name of
-  the project does not matter to the tools.
+- The name of the Claude project does not matter to the tools; rename "PKM-Pflege" to
+  "PKM Maintenance" if you like.
+
+### Upgrading from V0.2.1
+
+1. Run the installer again.
+2. In `pkm setup`, confirm taking over the existing configuration and the language, and let it
+   replace the old Claude Desktop entry `pkm-pflege` with `pkm-maintenance`.
+3. Upload the new skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart Claude Desktop.
+
+For an upgrade from V0.2.0 or older, see also the notes of V0.2.1.
+
+## V0.2.1
+
+Changes compared to `V0.2.0`. Specification now **0.27**.
+
+### Document language
+
+- `pkm setup` asks whether documents created in chat should be mainly in English or German
+  (`PKM_LANGUAGE` in `config.toml`, `en` or `de`, default `en`, option `--language`).
+- The server `pkm` names the language and its section names in its instructions (German:
+  Ergebnis, Entscheidungen, Offene Punkte, Kontext / Begründung). The skill `pkm-access` writes new
+  documents in that language; continued documents keep theirs. Tools, maintenance and wiki do not
+  depend on it.
+
+### Taking over an existing configuration
+
+- `pkm setup` first looks for settings in environment variables, in the `env` blocks of the PKM
+  entries in Claude Desktop (installations from before `pkm setup` kept them there) and in
+  `config.toml`, shows them with their source and offers to take them over.
+- PKM entries in Claude Desktop are also recognized under other names by their programs
+  (`pkm-mcp`, `pkm-pflege-mcp`). If no source names the vault, it is read from the existing Git
+  directory (`core.worktree`).
+- Taken over, the values are the defaults of the questions and are written to `config.toml`, so a
+  custom `PKM_GIT_DIR` and with it the version history stay in use. Declined, the setup starts anew
+  and backs up `config.toml`.
+- Closed input (end of file) no longer makes `pkm setup` fail; it takes the defaults.
 
 ### Documentation
 
@@ -48,9 +70,8 @@ Changes compared to `V0.2.0`. Specification now **0.27**.
 ### Upgrading from V0.2.0 or older
 
 1. Run the installer again.
-2. In `pkm setup`, confirm taking over the existing configuration and choose the language.
-3. Let `pkm setup` replace the old Claude Desktop entry `pkm-pflege` with `pkm-maintenance`.
-4. Upload the new skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart Claude Desktop.
+2. In `pkm setup`, confirm taking over the existing configuration and choose the document language.
+3. Upload the new skill ZIP of `pkm-access` in Claude Desktop and restart Claude Desktop.
 
 ## V0.2.0
 

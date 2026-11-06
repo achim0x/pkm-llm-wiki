@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Umsetzungsplan
 
-**Bezug:** [Spezifikation v0.27](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 05.11.2026 · **Plan-Version:** 4
+**Bezug:** [Spezifikation v0.28](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 05.11.2026 · **Plan-Version:** 4
 
 Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnissen, Tests und Abnahmekriterien. Abschnittsnummern in Klammern (z. B. „5.4“) verweisen auf die Spezifikation.
 

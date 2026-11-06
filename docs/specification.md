@@ -1,11 +1,14 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.27 (Entwurf zum Review) · **Stand:** 05.11.2026
+**Version:** 0.28 (Entwurf zum Review) · **Stand:** 05.11.2026
+
+> **Änderungen in 0.28**
+> - **Wiki-Sprache:** `PKM_LANGUAGE` gilt auch für das Wiki. Der Pflege-Server nennt Sprache, Abschnittsnamen und das Label der ersten Zeile in seinen Anweisungen (Deutsch: Kurzfassung, Inhalt, Widersprüche / offene Fragen, Siehe auch, Belege); der Skill `pkm-wiki` schreibt neue Wiki-Seiten, Log-Einträge und Berichte in dieser Sprache, bestehende Seiten behalten ihre Sprache. Erzeugte Dateien bleiben englisch (4.2, 7.1, 9, 15.1).
+> - **Englische Namen für den Pflege-Server:** `pkm-pflege` heißt jetzt `pkm-maintenance` (Programm `pkm-maintenance-mcp`, Modul `maintenance_server.py`), das Claude-Projekt „PKM Maintenance“. `pkm-pflege-mcp` bleibt als Alias, damit bestehende Einträge weiter laufen; `pkm setup` ersetzt den alten Eintrag in Claude Desktop nach Rückfrage (7.6, 7.7, 11, 15.1).
 
 > **Änderungen in 0.27**
-> - **Sprache wählbar:** `pkm setup` fragt, ob im Chat erzeugte Dokumente und das Wiki hauptsächlich englisch oder deutsch sein sollen (`PKM_LANGUAGE`, `en` oder `de`, Standard `en`, Option `--language`). Die Server `pkm` und `pkm-maintenance` nennen die Sprache und die passenden Abschnittsnamen in ihren Anweisungen; die Skills `pkm-access` und `pkm-wiki` schreiben neue Dokumente bzw. Wiki-Seiten in dieser Sprache, bestehende behalten ihre Sprache. Werkzeuge erkennen beide Varianten; erzeugte Dateien (`index.md`, `_status.md`, Lint-Berichte) bleiben englisch (4.1, 4.2, 6.2, 7.1, 8, 9, 10, 15.1).
-> - **Englische Namen für den Pflege-Server:** `pkm-pflege` heißt jetzt `pkm-maintenance` (Programm `pkm-maintenance-mcp`, Modul `maintenance_server.py`), das Claude-Projekt „PKM Maintenance“. `pkm-pflege-mcp` bleibt als Alias, damit bestehende Einträge weiter laufen; `pkm setup` ersetzt den alten Eintrag in Claude Desktop nach Rückfrage (7.6, 7.7, 11, 15.1).
-> - **Vorhandene Konfiguration übernehmen:** `pkm setup` sucht zuerst Einstellungen in Umgebungsvariablen, in den `env`-Blöcken der PKM-Einträge von Claude Desktop (Installationen vor `pkm setup`) und in `config.toml`, zeigt sie mit Herkunft und übernimmt sie nach Bestätigung (z. B. `PKM_GIT_DIR`, damit der Verlauf erhalten bleibt). Bei „nein“ beginnt es neu und sichert eine vorhandene `config.toml` (15.1).
+> - **Dokumentsprache wählbar:** `pkm setup` fragt, ob im Chat erzeugte Dokumente hauptsächlich englisch oder deutsch sein sollen (`PKM_LANGUAGE`, `en` oder `de`, Standard `en`, Option `--language`). Der Server `pkm` nennt die Sprache und die passenden Abschnittsnamen in seinen Anweisungen; der Skill `pkm-access` schreibt neue Dokumente in dieser Sprache, fortgeführte Dokumente behalten ihre Sprache. Werkzeuge, Pflege und Wiki sind davon unabhängig (4.1, 6.2, 7.1, 8, 10, 15.1).
+> - **Vorhandene Konfiguration übernehmen:** `pkm setup` sucht zuerst Einstellungen in Umgebungsvariablen, in den `env`-Blöcken der Einträge `pkm` und `pkm-pflege` von Claude Desktop (Installationen vor `pkm setup`) und in `config.toml`, zeigt sie mit Herkunft und übernimmt sie nach Bestätigung (z. B. `PKM_GIT_DIR`, damit der Verlauf erhalten bleibt). Bei „nein“ beginnt es neu und sichert eine vorhandene `config.toml` (15.1).
 
 > **Änderungen in 0.26**
 > - **Git ist optional.** Ohne Git läuft das PKM ohne Versionsverwaltung: Dokumente bekommen weiter IDs und Versionsnummern, geschrieben wird ohne Commit, Änderungen von Hand erkennt der Pflegelauf über die Hashes in `state.json`. Verlauf, Diff, alte Versionen und Wiederherstellen gibt es dann nicht (`not_versioned`). Nachrüsten: Git installieren und `pkm setup` erneut ausführen (5.4, 7.1–7.3, 8, 12, 16).
