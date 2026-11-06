@@ -148,7 +148,7 @@ Installation without the installer: [Appendix A](#appendix-a-manual-installation
    "no" it changes nothing and shows the JSON text that you enter yourself under `mcpServers` (in
    Claude Desktop: Settings → Developer → "Edit Config"). If the file is not valid JSON, it is left
    alone and the text is shown as well. An entry with the old name `pkm-pflege` (up to version
-   0.2.0) is replaced by `pkm-maintenance` in the same step.
+   0.2.1) is replaced by `pkm-maintenance` in the same step.
 8. Write the **skill ZIP files** to `<APPDIR>/skills/` (section 4).
 9. Print the **project instructions** for "PKM Maintenance" (section 5).
 10. Run **`pkm doctor`** and name any errors.

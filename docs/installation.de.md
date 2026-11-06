@@ -154,7 +154,7 @@ idempotent.
    Server bleiben unverändert. Bei „nein“ ändert er nichts und zeigt den JSON-Text, den du selbst
    unter `mcpServers` einträgst (in Claude Desktop: Einstellungen → Entwickler → „Konfiguration
    bearbeiten“). Ist die Datei kein gültiges JSON, bleibt sie unangetastet und der Text wird ebenfalls
-   angezeigt. Ein Eintrag mit dem alten Namen `pkm-pflege` (bis Version 0.2.0) wird im selben
+   angezeigt. Ein Eintrag mit dem alten Namen `pkm-pflege` (bis Version 0.2.1) wird im selben
    Schritt durch `pkm-maintenance` ersetzt.
 8. **Skill-ZIPs** nach `<APPDIR>/skills/` schreiben (Abschnitt 4).
 9. Die **Projektanweisung** für „PKM Maintenance“ ausgeben (Abschnitt 5).

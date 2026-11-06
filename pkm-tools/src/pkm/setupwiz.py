@@ -66,7 +66,7 @@ from .vaultinit import init_vault, initial_files
 
 SKILLS = ("pkm-access", "pkm-wiki")
 SERVERS = {"pkm": "pkm-mcp", "pkm-maintenance": "pkm-maintenance-mcp"}
-LEGACY_SERVERS = {"pkm-pflege": "pkm-pflege-mcp"}  # old name of the maintenance server (up to 0.2.0)
+LEGACY_SERVERS = {"pkm-pflege": "pkm-pflege-mcp"}  # old name of the maintenance server (up to 0.2.1)
 NO_GIT_HINT = (
     "Git was not found. The PKM works without version control: documents get IDs and version numbers, "
     "but there is no history, no diff and no restoring of earlier versions. To turn version control on "

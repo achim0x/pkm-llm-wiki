@@ -161,7 +161,7 @@ def test_setup_changes_claude_desktop_with_permission_and_is_repeatable(paths):
 
 
 def test_setup_replaces_old_maintenance_entry(paths):
-    """The old entry pkm-pflege (name up to 0.2.0) is replaced by pkm-maintenance; other servers stay."""
+    """The old entry pkm-pflege (name up to 0.2.1) is replaced by pkm-maintenance; other servers stay."""
     paths["claude"].parent.mkdir(parents=True)
     old = {"mcpServers": {"pkm-pflege": {"command": "/x/pkm-pflege-mcp"}, "other": {"command": "x"}}}
     paths["claude"].write_text(json.dumps(old), encoding="utf-8")
