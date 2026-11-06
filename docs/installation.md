@@ -16,7 +16,8 @@ synchronized. A second PKM host for the same vault would create a second, diverg
 Summary:
 
 1. Run the installer (installs uv and the package, starts `pkm setup`).
-2. Answer the questions of `pkm setup` (vault folder, possibly Git name and e-mail).
+2. Answer the questions of `pkm setup` (vault folder, document language, possibly Git name and
+   e-mail).
 3. Upload the two skill ZIP files in Claude Desktop.
 4. Create the project "PKM-Pflege".
 5. Restart Claude Desktop (and Obsidian, if you use it).
@@ -64,14 +65,15 @@ outside the vault and any cloud folder.
 
 ## 2. Installation
 
-There are two ways:
+There are three ways:
 
 | Way | For whom | Where described |
 |---|---|---|
 | **Installer** (recommended) | The normal case: one command, then `pkm setup` guides you through the setup | this section and section 3 |
 | **Manual installation** | If you want to run and see every step yourself, do not want to run scripts from the internet, or need a different setup (e.g. other folders) | [Appendix A](#appendix-a-manual-installation) |
+| **Development installation** | If you want to change the code or the skills: the programs run directly from a local clone of the repository | [Appendix B](#appendix-b-development-installation) |
 
-Both ways lead to the same result; they can also be combined (e.g. install the package by hand and
+All ways lead to the same result; they can also be combined (e.g. install the package by hand and
 then run `pkm setup`).
 
 ### 2.1 With the installer
@@ -97,7 +99,8 @@ The installer
 4. starts `pkm setup` (section 3).
 
 Apart from `uv` and the package the installer changes nothing without asking. **Updating:** run the
-installer again. If a new terminal reports that `pkm` is not found, run `uv tool update-shell` once.
+installer again; `pkm setup` offers to take over the existing configuration (section 3), also
+from an installation made before `pkm setup` existed. If a new terminal reports that `pkm` is not found, run `uv tool update-shell` once.
 
 Installation without the installer: [Appendix A](#appendix-a-manual-installation).
 
@@ -105,31 +108,47 @@ Installation without the installer: [Appendix A](#appendix-a-manual-installation
 
 `pkm setup` guides you through the setup and can be run again at any time; every step is idempotent.
 
-1. Ask for the **vault folder** (absolute path; with cloud storage inside the folder of the service;
+1. **Check for an existing configuration:** `pkm setup` looks for settings in the environment
+   variables, in the PKM entries of Claude Desktop (installations from before `pkm setup` kept them
+   in an `env` block there; recognized by the names `pkm`/`pkm-pflege` or by the programs
+   `pkm-mcp`/`pkm-pflege-mcp`) and in `config.toml`. If none of them names the vault, it is read from
+   the existing Git directory (which records the vault folder). If it finds any settings (e.g.
+   `PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`), it shows them with their source and asks whether to
+   **take them over**. Yes: the values become the defaults of the following questions and are
+   written to `config.toml`, so an existing Git directory and its history stay in use. No: the setup
+   starts with a new configuration; an existing `config.toml` is backed up first
+   (`config.toml.<time>.bak`).
+2. Ask for the **vault folder** (absolute path; with cloud storage inside the folder of the service;
    created if it is missing). The cloud service is detected as well; files that exist only online
    are reported (section 7).
-2. **Check Git.** If Git is available, version control is turned on. If the Git identity is
+3. **Check Git.** If Git is available, version control is turned on. If the Git identity is
    missing, `pkm setup` asks for name and e-mail and sets them for the PKM repo only; commit signing
    is turned off for the PKM repo. **If Git is missing**, a note is shown and the PKM runs without
    version control.
-3. Write the **configuration file** `<APPDIR>/config.toml` (vault path, vault name, version control
-   on or off, path of Git). Servers and CLI read it; environment variables take precedence.
-4. Run **`pkm init`**: folder structure, `CLAUDE.md`, `.gitignore`, `.pkm/state.json`, Obsidian
+4. Ask for the **document language**: should documents created in chat be mainly in English or
+   German (`en` or `de`, default English or the previous answer; option `--language`)? The server
+   `pkm` tells Claude this language and the matching section names (Result, Decisions, Open points,
+   Context / rationale or Ergebnis, Entscheidungen, Offene Punkte, Kontext / Begründung). Continued
+   documents keep their language. To change it later, run `pkm setup` again and restart Claude
+   Desktop.
+5. Write the **configuration file** `<APPDIR>/config.toml` (vault path, vault name, version control
+   on or off, path of Git, document language). Servers and CLI read it; environment variables take precedence.
+6. Run **`pkm init`**: folder structure, `CLAUDE.md`, `.gitignore`, `.pkm/state.json`, Obsidian
    settings (`.obsidian/app.json`) and property types (`.obsidian/types.json`), with Git also the
    repo outside the vault with a first commit. Existing notes stay unchanged.
-5. **Check Claude Desktop:** `pkm setup` checks whether the servers `pkm` and `pkm-pflege` are
+7. **Check Claude Desktop:** `pkm setup` checks whether the servers `pkm` and `pkm-pflege` are
    already entered as needed in `claude_desktop_config.json` (with `command` only, nothing else). If
    an entry is missing or different, the wizard shows the change and **asks whether it may change
    the file**. On "yes" it makes a backup and enters the servers; other servers stay unchanged. On
    "no" it changes nothing and shows the JSON text that you enter yourself under `mcpServers` (in
    Claude Desktop: Settings → Developer → "Edit Config"). If the file is not valid JSON, it is left
    alone and the text is shown as well.
-6. Write the **skill ZIP files** to `<APPDIR>/skills/` (section 4).
-7. Print the **project instructions** for "PKM-Pflege" (section 5).
-8. Run **`pkm doctor`** and name any errors.
+8. Write the **skill ZIP files** to `<APPDIR>/skills/` (section 4).
+9. Print the **project instructions** for "PKM-Pflege" (section 5).
+10. Run **`pkm doctor`** and name any errors.
 
 Options (all optional): `--vault <folder>`, `--vault-name <name>`, `--git-name <name>`,
-`--git-email <address>`, `--yes` (defaults without asking), `--claude-config <file>`,
+`--git-email <address>`, `--language en|de`, `--yes` (defaults without asking), `--claude-config <file>`,
 `--skills-dir <folder>`, `--json`.
 
 **Turning version control on later:** install Git (section 1) and run `pkm setup` again. The wizard
@@ -403,6 +422,7 @@ PKM_ROOT = "/Users/name/Nextcloud/Vault"
 PKM_VAULT_NAME = "Vault"
 PKM_VERSIONING = true
 PKM_GIT = "/usr/bin/git"
+PKM_LANGUAGE = "en"
 ```
 
 Windows, e.g. `%APPDATA%\pkm\config.toml` (paths in single quotes, so the backslashes stay as they
@@ -413,11 +433,14 @@ PKM_ROOT = 'C:\Users\name\Nextcloud\Vault'
 PKM_VAULT_NAME = "Vault"
 PKM_VERSIONING = true
 PKM_GIT = 'C:\Program Files\Git\cmd\git.exe'
+PKM_LANGUAGE = "en"
 ```
 
 - `PKM_ROOT`: absolute path of the vault folder (with cloud storage inside the folder of the
   service, otherwise a local folder).
 - `PKM_VERSIONING = false` if Git is missing or should not be used; `PKM_GIT` is then omitted.
+- `PKM_LANGUAGE`: main language of documents created in chat, `"en"` (English, default) or `"de"`
+  (German).
 - Further optional keys: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (both never in a cloud folder), `PKM_TZ`,
   `PKM_MAX_KB`, `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`, `PKM_INLINE_MAX_KB` (24), `PKM_SVG_MAX_KB` (200),
   `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER` (`false`; to rasterize SVG
@@ -537,3 +560,79 @@ section 6 (restart Obsidian so that it reads the settings from `app.json`).
 
 **Updating:** reinstall the package (A.3), pack and upload the skills again (A.8). The other steps
 stay valid.
+
+## Appendix B: Development installation
+
+For working on the PKM itself: the package is installed **editable** from a local clone of the
+repository. The programs `pkm`, `pkm-mcp` and `pkm-pflege-mcp` then load the code and the skills
+directly from `<REPO>/pkm-tools/src/pkm`; a change in the clone needs no new installation.
+Requirements as in section 1, plus Git for cloning; uv as in A.1.
+
+### B.1 Install
+
+```bash
+git clone https://github.com/achim0x/pkm-llm-wiki.git <REPO>
+```
+
+```bash
+uv tool install --editable <REPO>/pkm-tools
+```
+
+On Windows the same commands with `<REPO>\pkm-tools`. Then set up as usual:
+
+```bash
+pkm setup
+```
+
+`pkm setup` (section 3) asks for the vault, checks Git, asks for the document language, writes
+`config.toml`, enters the servers in Claude Desktop and builds the skill ZIP files – from the skills
+in the clone. Continue with sections 4–6.
+
+### B.2 Working with it
+
+| Change | What to do |
+|---|---|
+| Python code | Takes effect the next time a program starts. For the MCP servers: quit Claude Desktop completely and start it again |
+| Skills (`pkm-tools/src/pkm/skills/`) | Run `pkm setup` again (packs the ZIP files anew), upload them in Claude Desktop again (section 4) |
+| Other branch (`git checkout …`) | The installed programs use the code of the branch that is checked out; restart Claude Desktop |
+| Dependencies in `pyproject.toml` | Install again: `uv tool install --editable --force <REPO>/pkm-tools` |
+
+Tests and checks run in a separate environment `<REPO>/pkm-tools/.venv` (see the
+[pkm-tools README](../pkm-tools/README.md)); it does not affect the installed programs.
+
+**Use a test vault** while you develop, so that your real vault and its history stay untouched. It
+needs its own configuration file with its **own Git directory and search index**; otherwise the
+test vault would use the Git directory of the real one (both default to the app folder). Create
+`<HOME>/pkm-dev/config.toml` first (absolute paths, outside any cloud folder; forward slashes also
+work on Windows):
+
+```toml
+PKM_GIT_DIR = "<HOME>/pkm-dev/git"
+PKM_CACHE_DIR = "<HOME>/pkm-dev/cache"
+```
+
+Then run `pkm setup` with this file (it keeps the two keys and adds the rest):
+
+```bash
+PKM_CONFIG=<HOME>/pkm-dev/config.toml pkm setup --vault <HOME>/pkm-dev/vault
+```
+
+Windows (PowerShell):
+
+```powershell
+$env:PKM_CONFIG = "<HOME>\pkm-dev\config.toml"; pkm setup --vault <HOME>\pkm-dev\vault
+```
+
+`pkm setup` enters `PKM_CONFIG` in the Claude Desktop entries, so Claude Desktop then works with the
+test vault. To switch back to the real vault, run `pkm setup` again without `PKM_CONFIG` (in
+PowerShell first `Remove-Item Env:PKM_CONFIG`).
+
+### B.3 Back to a normal installation
+
+Run the installer again (section 2.1) or install the package without `--editable` (A.3). Both
+replace the editable installation; configuration and vault stay as they are.
+
+**Installing a fixed state of the clone** instead (without editable): the installer also takes a
+local ZIP of the repository, e.g. `git -C <REPO> archive --format=zip --prefix=pkm-llm-wiki/ -o
+<HOME>/pkm.zip HEAD` and then `PKM_ARCHIVE=file://<HOME>/pkm.zip sh <REPO>/install.sh` (Windows:
+`$env:PKM_ARCHIVE = "<HOME>\pkm.zip"` before `install.ps1`).

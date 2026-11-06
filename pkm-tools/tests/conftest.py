@@ -67,6 +67,9 @@ def fixture_isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dic
     root.mkdir(parents=True)
     app = tmp_path / "app"
     monkeypatch.setenv("HOME", str(home))
+    # Default app folder (Windows: %APPDATA%, Linux: $XDG_DATA_HOME) inside the test home, never the real one
+    monkeypatch.setenv("APPDATA", str(home / "AppData" / "Roaming"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(home / ".local" / "share"))
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(gitconfig))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.setenv("PKM_ROOT", str(root))
@@ -76,7 +79,7 @@ def fixture_isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dic
     monkeypatch.setenv("PKM_CONFIG", str(app / "config.toml"))
     for var in ("PKM_MAX_KB", "PKM_VAULT_NAME", "PKM_GIT_AUTHOR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
                 "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_IMPORT_DIR", "PKM_SVG_RASTER", "PKM_VERSIONING",
-                "PKM_GIT"):
+                "PKM_GIT", "PKM_LANGUAGE"):
         monkeypatch.delenv(var, raising=False)
     return {"root": root, "git_dir": app / "git", "cache_dir": app, "home": home, "gitconfig": gitconfig}
 

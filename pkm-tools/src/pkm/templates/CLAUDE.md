@@ -41,7 +41,9 @@ freely in Obsidian; documents are found by their ID, not by their path.
   alt text. Existing embedded PNGs stay unchanged. Citations of images quote
   `[img:<name>]`.
 - Recommended structure for chat results: `## Result`, `## Decisions`,
-  `## Open points`, `## Context / rationale`. Continuations update these sections.
+  `## Open points`, `## Context / rationale` – or, with the document language German
+  (`PKM_LANGUAGE = "de"`), `## Ergebnis`, `## Entscheidungen`, `## Offene Punkte`,
+  `## Kontext / Begründung`. Continuations update these sections and keep their language.
 - Sections are headings of level 1 and 2 (`#`, `##`). Avoid duplicate headings, the
   characters `# ^ [ ] |` and headings that end in `#` plus digits ("Version#2" →
   better "Version 2").

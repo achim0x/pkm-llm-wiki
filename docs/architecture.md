@@ -184,7 +184,16 @@ should be uploaded again.
 
 ## 4. `pkm setup`
 
-`pkm setup` (module `setupwiz.py`) is an interactive, idempotent wizard. Every answer can be given
+`pkm setup` (module `setupwiz.py`) is an interactive, idempotent wizard. It starts by collecting an
+existing configuration from the environment, the `env` blocks of the PKM entries in Claude Desktop
+(where installations from before `pkm setup` kept their settings; `is_pkm_entry()` recognizes them
+by the names `pkm`/`pkm-pflege` or by the programs `pkm-mcp`/`pkm-pflege-mcp`) and `config.toml`,
+in this order of precedence, for all keys of `CONFIG_KEYS`. If none of them sets `PKM_ROOT`, the
+vault is read from `core.worktree` in the config of the Git directory (`worktree_of()`), provided the
+folder contains `.pkm/state.json`. It shows them with their
+source and, if confirmed, takes them over as defaults and into `config.toml`; this keeps e.g. a
+custom `PKM_GIT_DIR` and so the version history. If declined, an existing `config.toml` is backed up
+and the setup starts anew. End of input counts as an empty answer (the default). Every answer can be given
 in advance as an option; `--yes` accepts all defaults and confirmations (used by the installers in
 CI).
 
@@ -193,6 +202,7 @@ CI).
 | `--vault <folder>` | Vault folder (absolute path) |
 | `--vault-name <name>` | Name of the Obsidian vault (default: folder name), for `obsidian://` links |
 | `--git-name`, `--git-email` | Git identity for the PKM repo if none is set |
+| `--language en\|de` | Main language of documents created in chat (`PKM_LANGUAGE`, default `en`) |
 | `--yes` | Take defaults, confirm everything |
 | `--claude-config <file>` | Path of `claude_desktop_config.json` (default per OS) |
 | `--skills-dir <folder>` | Target folder of the skill ZIP files |
@@ -202,7 +212,13 @@ CI).
 
 ```mermaid
 flowchart TD
-    S(["pkm setup"]) --> V["Vault folder:<br/>--vault, PKM_ROOT, config.toml<br/>or a vault above the current folder"]
+    S(["pkm setup"]) --> EX{"existing settings?<br/>environment, Claude Desktop env,<br/>config.toml, Git directory"}
+    EX -- "no" --> V
+    EX -- "yes" --> EX1{"show them,<br/>take them over?"}
+    EX1 -- "yes" --> EX2["adopted values = defaults,<br/>written to config.toml"]
+    EX1 -- "no" --> EX3["back up config.toml,<br/>start a new configuration"]
+    EX2 --> V
+    EX3 --> V["Vault folder:<br/>--vault, PKM_ROOT or adopted value<br/>or a vault above the current folder"]
     V --> V1{"absolute path?"}
     V1 -- "no" --> X1(["config_error"])
     V1 -- "yes" --> V2{"folder exists?"}
@@ -214,8 +230,9 @@ flowchart TD
     CS --> G{"Git found and working?<br/>(PKM_GIT, PATH, usual locations)"}
     G -- "no" --> G0["Note: no version control<br/>PKM_VERSIONING = false"]
     G -- "yes" --> G1["PKM_VERSIONING = true<br/>PKM_GIT = path"]
-    G0 --> W["Write config.toml<br/>(other keys are kept)"]
-    G1 --> W
+    G0 --> L["Document language for chat documents:<br/>--language, previous value or en<br/>PKM_LANGUAGE = en | de"]
+    G1 --> L
+    L --> W["Write config.toml<br/>(other keys are kept)"]
     W --> I["pkm init:<br/>structure, CLAUDE.md, .gitignore, state.json,<br/>.obsidian/app.json, .obsidian/types.json"]
     I --> R{"version control on?"}
     R -- "no" --> CD
@@ -245,10 +262,18 @@ specification 7.1, for example:
 # PKM configuration, written by `pkm setup`. Environment variables take precedence.
 
 PKM_GIT = "/usr/bin/git"
+PKM_LANGUAGE = "en"
 PKM_ROOT = "/Users/name/Nextcloud/Vault"
 PKM_VAULT_NAME = "Vault"
 PKM_VERSIONING = true
 ```
+
+`PKM_LANGUAGE` (`en` or `de`) is the main language of documents created in chat. The server `pkm`
+reads it at start (`configured_language()`, which falls back to `en` if the setting is missing or
+invalid, so the server always starts) and appends a sentence to its MCP instructions naming the
+language and its section names (`Result`, `Decisions`, `Open points`, `Context / rationale` or
+`Ergebnis`, `Entscheidungen`, `Offene Punkte`, `Kontext / Begründung`). The skill `pkm-access`
+follows these instructions; the tools themselves do not depend on the language.
 
 Every program (server or CLI) resolves its configuration the same way:
 

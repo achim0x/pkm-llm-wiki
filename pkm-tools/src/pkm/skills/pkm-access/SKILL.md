@@ -24,9 +24,14 @@ always use the **ID** – the location can change.
 
 ## Filing something new
 
-1. Condense the result into the sections:
-   `## Result`, `## Decisions`, `## Open points`, `## Context / rationale`.
-   Include only what is reliable, mark hypotheses as such.
+1. Condense the result into the sections of the **document language** that the instructions of the
+   server `pkm` name (set during installation, `PKM_LANGUAGE`):
+   - English: `## Result`, `## Decisions`, `## Open points`, `## Context / rationale`
+   - German: `## Ergebnis`, `## Entscheidungen`, `## Offene Punkte`, `## Kontext / Begründung`
+
+   Write title and text in that language, even if the chat is in another language. Only if the
+   user explicitly asks for another language, use that one. Include only what is reliable, mark
+   hypotheses as such.
 2. Propose a title, `tags` (lower case, hyphens) and possibly `related`. When creating, pass
    `toolchain` with your own model name and `pkm-mcp`, e.g.
    `"Claude Opus 5.5 (pkm-mcp)"`. For standards or laws pass `kind` (`standard`/`regulation`) and,
@@ -47,20 +52,21 @@ always use the **ID** – the location can change.
    Large document (`content_omitted`, or recognized beforehand with `content: false` from `content_length`):
    read sections one by one with `section` and change them only with `edit_document` or
    `append_to_document`, **never** `rewrite_document` with a part of the content.
-3. Create a new version that shows the **current overall state**:
-   - Rephrase "Result".
-   - "Decisions": replace changed ones, add new ones. Do not leave anything "outdated".
-   - "Open points": remove done ones, add new ones.
-   - "Context / rationale": add the reasons for changes where needed.
+3. Create a new version that shows the **current overall state**. Keep the language and the
+   section names of the document (the German names in brackets):
+   - Rephrase "Result" ("Ergebnis").
+   - "Decisions" ("Entscheidungen"): replace changed ones, add new ones. Do not leave anything "outdated".
+   - "Open points" ("Offene Punkte"): remove done ones, add new ones.
+   - "Context / rationale" ("Kontext / Begründung"): add the reasons for changes where needed.
 4. Show **before/after per section** plus a one-line change note
    (e.g. "Sensor: float switch instead of ultrasound"). Have it confirmed.
 5. Several sections affected → **one** `rewrite_document` with `expected_hash` and `note`.
    Small, targeted change → `edit_document` or `append_to_document`.
 6. Briefly name the new version and the diff.
 
-**Dated continuation section** (`## Continuation YYYY-MM-DD`) only if the user **explicitly**
-asks for it ("document it as a continuation", "with history in the document"). Never
-propose it on your own. Then: `append_to_document` with the section (context, result,
+**Dated continuation section** (`## Continuation YYYY-MM-DD`, German `## Fortsetzung YYYY-MM-DD`)
+only if the user **explicitly** asks for it ("document it as a continuation", "with history in the
+document"). Never propose it on your own. Then: `append_to_document` with the section (context, result,
 decisions, open points; on the same day suffix "(2)"), mark revised decisions in the
 original with `edit_document`:
 ` — *outdated on YYYY-MM-DD, see [[#Continuation YYYY-MM-DD]]*`.

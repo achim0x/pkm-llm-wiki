@@ -56,6 +56,9 @@ a purely local folder works as well. Obsidian is the recommended front end, but 
 - "Put this into the PKM": Claude condenses the result of a discussion into the sections
   **Result · Decisions · Open points · Context / rationale** and shows you a **draft**. It saves only
   after you confirm.
+- **Document language:** during installation you choose whether documents created in chat are mainly
+  English or German (`pkm setup`, `PKM_LANGUAGE`). With German the sections are called **Ergebnis ·
+  Entscheidungen · Offene Punkte · Kontext / Begründung**. Continued documents keep their language.
 - New documents land in `documents/_inbox/` and get a fixed **ID** (`d-20261031-2340-k7q2`) and
   `version: 1`.
 - Before that, Claude searches for an existing document on the topic and asks whether it should be
@@ -511,7 +514,7 @@ configuration file written by `pkm setup`; otherwise it finds it from inside the
 
 | Command | Purpose |
 |---|---|
-| `pkm setup` | guided setup: vault, Git check, Claude Desktop, skills (repeatable) |
+| `pkm setup` | guided setup: vault, Git check, document language, Claude Desktop, skills (repeatable) |
 | `pkm init` | create structure, Obsidian settings and (with Git) the Git directory (idempotent) |
 | `pkm doctor [--short]` | check the environment |
 | `pkm lint [--report]` | lint report (with `--report` to `wiki/_lint/`) |
@@ -591,7 +594,9 @@ pkm-llm-wiki/
 └── install.sh, install.ps1      ← installers (Mac/Linux, Windows)
 ```
 
-Development and tests: see [pkm-tools/README.md](pkm-tools/README.md). The tests run on Linux,
+Development and tests: see [pkm-tools/README.md](pkm-tools/README.md). To run the PKM directly from
+a local clone of the repository (editable install, with a test vault), see
+[installation, appendix B](docs/installation.md#appendix-b-development-installation). The tests run on Linux,
 macOS and Windows (GitHub Actions).
 
 **Status:** phases 0–6 and the follow-up work are implemented. The acceptance run (phase 7) is
@@ -657,6 +662,10 @@ Voraussetzung.
 - „Leg das ins PKM“: Claude verdichtet das Ergebnis einer Diskussion in die Abschnitte
   **Ergebnis · Entscheidungen · Offene Punkte · Kontext / Begründung** und zeigt dir einen
   **Entwurf**. Erst nach deiner Bestätigung wird gespeichert.
+- **Dokumentsprache:** Bei der Installation legst du fest, ob im Chat erzeugte Dokumente
+  hauptsächlich englisch oder deutsch sind (`pkm setup`, `PKM_LANGUAGE`). Mit Englisch heißen die
+  Abschnitte **Result · Decisions · Open points · Context / rationale**. Fortgeführte Dokumente
+  behalten ihre Sprache.
 - Neue Dokumente landen in `documents/_inbox/` und bekommen eine feste **ID**
   (`d-20261031-2340-k7q2`) sowie `version: 1`.
 - Vorher sucht Claude, ob es zum Thema schon ein Dokument gibt, und fragt, ob es fortgeschrieben
@@ -1126,7 +1135,7 @@ Ausgabe ist JSON (außer bei `pkm setup`). Den Vault kennt die CLI aus der Konfi
 
 | Befehl | Zweck |
 |---|---|
-| `pkm setup` | geführte Einrichtung: Vault, Git-Prüfung, Claude Desktop, Skills (wiederholbar) |
+| `pkm setup` | geführte Einrichtung: Vault, Git-Prüfung, Dokumentsprache, Claude Desktop, Skills (wiederholbar) |
 | `pkm init` | Struktur, Obsidian-Einstellungen und (mit Git) Git-Verzeichnis anlegen (idempotent) |
 | `pkm doctor [--short]` | Umgebung prüfen |
 | `pkm lint [--report]` | Prüfbericht (mit `--report` nach `wiki/_lint/`) |
@@ -1210,7 +1219,9 @@ pkm-llm-wiki/
 ```
 
 Entwicklung und Tests: siehe [pkm-tools/README.md](pkm-tools/README.md). Die Tests laufen auf
-Linux, macOS und Windows (GitHub Actions).
+Linux, macOS und Windows (GitHub Actions). Das PKM direkt aus einer lokalen Kopie des Repositorys
+betreiben (editierbare Installation, mit Testvault): siehe
+[Einrichtung, Anhang B](docs/installation.de.md#anhang-b-entwicklungsinstallation).
 
 **Stand:** Phasen 0–6 und die Nacharbeiten sind umgesetzt. Die Abnahme (Phase 7) steht aus. Die automatische
 Pflege (Phase 8) folgt nur auf Anweisung.
