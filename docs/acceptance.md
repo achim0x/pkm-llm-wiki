@@ -38,7 +38,7 @@ Befunde unten unter „Befunde“ sammeln; sie werden danach behoben (Code oder 
 - [ ] Bei einer vorhandenen Installation zeigt `pkm setup` zuerst die gefundene Konfiguration mit
       Herkunft (z. B. `PKM_GIT_DIR` aus Claude Desktop) und fragt, ob es sie übernehmen soll; nach
       „ja“ stehen die Werte in `config.toml` und der bisherige Verlauf ist weiter da.
-- [ ] `pkm setup` fragt nach der Dokumentsprache für im Chat erzeugte Dokumente (`en` oder `de`).
+- [ ] `pkm setup` fragt nach der Sprache für im Chat erzeugte Dokumente und das Wiki (`en` oder `de`).
 - [ ] `~/Library/Application Support/pkm/config.toml` enthält `PKM_ROOT`, `PKM_VAULT_NAME`,
       `PKM_VERSIONING = true`, `PKM_GIT` und `PKM_LANGUAGE` mit der gewählten Sprache.
 - [ ] `pkm setup` meldet, ob die Server in Claude Desktop schon eingetragen sind; fehlen sie oder
@@ -344,6 +344,7 @@ pkm lint --report
 |---|---|---|---|
 | Sprache wechseln | `pkm setup --language en` (bzw. `de`), Claude Desktop neu starten, in einem deutschsprachigen Chat etwas ablegen | Neues Dokument in der anderen Sprache mit deren Abschnittsnamen; ein bestehendes Dokument behält beim Fortschreiben seine Sprache | ☐ |
 | Ausdrücklicher Wunsch | „Leg das auf Englisch ab“ bei Dokumentsprache Deutsch (bzw. umgekehrt) | Der Wunsch des Nutzers gilt | ☐ |
+| Wiki-Sprache | Mit `PKM_LANGUAGE = "de"` einen Pflegelauf mit einem neuen Dokument | Neue Wiki-Seiten mit `> **Kurzfassung:**`, `## Inhalt`, `## Widersprüche / offene Fragen`, `## Siehe auch`, `## Belege`; bestehende englische Seiten bleiben englisch; Lint ohne Fehler | ☐ |
 
 **Betrieb ohne Git** (mit einem Testvault, damit der echte Vault seine Versionsverwaltung behält):
 

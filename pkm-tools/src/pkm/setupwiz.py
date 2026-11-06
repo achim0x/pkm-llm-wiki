@@ -91,7 +91,7 @@ class SetupOptions:  # pylint: disable=too-many-instance-attributes
         yes: Accept all defaults and confirmations without asking.
         claude_config: Path of ``claude_desktop_config.json`` (default per operating system).
         skills_dir: Target folder for the skill ZIP files (default ``<app folder>/skills``).
-        language: Main language of documents created in chat, ``en`` or ``de``.
+        language: Main language of documents created in chat and of the wiki, ``en`` or ``de``.
     """
 
     vault: str | None = None
@@ -293,7 +293,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         return exe
 
     def _language(self) -> str:
-        """Ask for the main language of documents created in chat.
+        """Ask for the main language of documents created in chat and of the wiki.
 
         Returns:
             ``en`` or ``de``.
@@ -303,7 +303,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         """
         known = self.env.get("PKM_LANGUAGE") or self._known("PKM_LANGUAGE")
         answer = self.opts.language or self._question(
-            "Main language of documents created in chat (en = English, de = German)",
+            "Main language of documents created in chat and of the wiki (en = English, de = German)",
             parse_language(known) if known else DEFAULT_LANGUAGE)
         language = parse_language(answer)
         self.say(f"Document language: {DOC_LANGUAGES[language][0]}.")

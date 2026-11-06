@@ -58,6 +58,10 @@ CONFIG_KEYS = (
     "PKM_TZ", "PKM_MAX_KB", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
     "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_SVG_RASTER",
 )
+WIKI_SECTIONS = {
+    "en": ("Summary", ("Content", "Contradictions / open questions", "See also", "Citations")),
+    "de": ("Kurzfassung", ("Inhalt", "Widersprüche / offene Fragen", "Siehe auch", "Belege")),
+}
 LANGUAGE_ALIASES = {"en": "en", "english": "en", "englisch": "en", "de": "de", "german": "de", "deutsch": "de"}
 IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX_MB": 5,
                   "PKM_IMAGE_PARAM_MAX_KB": 512}
@@ -131,7 +135,8 @@ class Config:  # pylint: disable=too-many-instance-attributes
         images: Image settings (4.9).
         versioning: Version control with Git (``PKM_VERSIONING``; off if Git is not installed, 5.4).
         git_exe: Git program (``PKM_GIT``, otherwise found in ``PATH`` or the usual locations).
-        language: Main language of documents created in chat, ``en`` or ``de`` (``PKM_LANGUAGE``).
+        language: Main language of documents created in chat and of the wiki, ``en`` or ``de``
+            (``PKM_LANGUAGE``).
         config_file: Configuration file that was read, or ``None``.
     """
 

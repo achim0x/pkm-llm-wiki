@@ -18,7 +18,18 @@ you need neither a shell nor the CLI `pkm` (there is none in Cowork).
 | `fix_images` | Only after confirmation: fix the notation of nonconforming image data URIs of a document |
 | `finish_maintenance` | Finish: citations (moved, renamed, `v:` raised for unchanged sections), `sources`, processing state, log, index, status, lint, agent commit |
 
-Language of all content: **English**.
+**Language:** the instructions of the server `pkm-pflege` name the **wiki language** (set during
+installation, `PKM_LANGUAGE`). New wiki pages and summaries, the log entry and the report are
+written in it, with these names:
+
+| | English (`en`) | German (`de`) |
+|---|---|---|
+| First line | `> **Summary:** …` | `> **Kurzfassung:** …` |
+| Sections | `## Content`, `## Contradictions / open questions`, `## See also`, `## Citations` | `## Inhalt`, `## Widersprüche / offene Fragen`, `## Siehe auch`, `## Belege` |
+
+When you update an existing page, keep its language and section names (do not mix languages on
+one page). Quotes in citations stay literal, in the language of the document. Field names,
+values and tool parameters stay English.
 
 ## Fixed rules
 
@@ -146,13 +157,14 @@ table or in a line directly below it (e.g. `[^b3]` or `Source: [^b3]`).
 - Large documents: `read` with `content: false` (metadata, `sections`, `content_length` only),
   then section by section with `section` or page by page with `offset`/`max_chars`. If `content` is missing
   with `content_omitted`, the document was too large for one call.
-- Every factual statement in "Content" and "Contradictions / open questions" ends with at least one
+- Every factual statement in "Content" and "Contradictions / open questions" (German: "Inhalt",
+  "Widersprüche / offene Fragen") ends with at least one
   footnote (a paragraph from the same passage: one footnote at the end of the paragraph is enough).
 - Outdated statements keep their citation of the **old** version.
 - `confidence: low` if sources contradict each other or there is only one uncertain source.
 
-German section names of existing pages ("Inhalt", "Widersprüche / offene Fragen") are still
-recognized; new pages use the English names.
+Both variants of the section names are recognized by the tools (citation checks, lint); the
+example above uses the English ones.
 
 **Summary** (`wiki/summaries/<file-name-of-the-document>.md`, `type: summary`): summarizes exactly
 one document in its current version, with citations as above.
@@ -210,7 +222,8 @@ deliver the list as `log_entry`:
    changed): process nothing, only list it in `processed`; `finish_maintenance` raises the citations.
 5. **`deleted`**: **do not delete** the affected statements (see `wiki_pages`), but note under
    "Contradictions / open questions": "Original no longer exists (last state in
-   Git, v<n>; without version control: last processed v<n>)", `confidence: low`, question in the report. List the key in `removed`.
+   Git, v<n>; without version control: last processed v<n>)" (German page: „Original nicht mehr
+   vorhanden (letzter Stand in Git, v<n>; ohne Versionsverwaltung: zuletzt verarbeitete v<n>)“), `confidence: low`, question in the report. List the key in `removed`.
 6. **Corrections** (`kind: correction` in the frontmatter): the user's correction takes precedence over
    older sources and counts as a citation itself. Adjust the affected page (see `related`), note the
    old statement as replaced in the log. If the correction contradicts a **newer** source

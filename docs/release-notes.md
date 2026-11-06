@@ -4,14 +4,17 @@
 
 Changes compared to `V0.2.0`. Specification now **0.27**.
 
-### Document language
+### Language of documents and wiki
 
-- `pkm setup` asks whether documents created in chat should be mainly in English or German
-  (`PKM_LANGUAGE` in `config.toml`, `en` or `de`, default `en`, option `--language`).
+- `pkm setup` asks whether documents created in chat and the wiki should be mainly in English or
+  German (`PKM_LANGUAGE` in `config.toml`, `en` or `de`, default `en`, option `--language`).
 - The server `pkm` names the language and its section names in its instructions (German:
   Ergebnis, Entscheidungen, Offene Punkte, Kontext / Begründung). The skill `pkm-access` writes new
-  documents in that language; continued documents keep theirs. Tools, maintenance and wiki do not
-  depend on it.
+  documents in that language; continued documents keep theirs.
+- The server `pkm-pflege` names the wiki language, the section names and the summary label
+  (German: Kurzfassung, Inhalt, Widersprüche / offene Fragen, Siehe auch, Belege). The skill
+  `pkm-wiki` writes new wiki pages, log entries and reports in it; existing pages keep their
+  language. Generated files (`index.md`, `_status.md`, lint reports) stay English.
 
 ### Taking over an existing configuration
 
@@ -34,8 +37,8 @@ Changes compared to `V0.2.0`. Specification now **0.27**.
 ### Upgrading from V0.2.0 or older
 
 1. Run the installer again.
-2. In `pkm setup`, confirm taking over the existing configuration and choose the document language.
-3. Upload the new skill ZIP of `pkm-access` in Claude Desktop and restart Claude Desktop.
+2. In `pkm setup`, confirm taking over the existing configuration and choose the language.
+3. Upload the new skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart Claude Desktop.
 
 ## V0.2.0
 

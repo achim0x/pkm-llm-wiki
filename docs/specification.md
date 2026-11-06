@@ -3,7 +3,7 @@
 **Version:** 0.27 (Entwurf zum Review) · **Stand:** 05.11.2026
 
 > **Änderungen in 0.27**
-> - **Dokumentsprache wählbar:** `pkm setup` fragt, ob im Chat erzeugte Dokumente hauptsächlich englisch oder deutsch sein sollen (`PKM_LANGUAGE`, `en` oder `de`, Standard `en`, Option `--language`). Der Server `pkm` nennt die Sprache und die passenden Abschnittsnamen in seinen Anweisungen; der Skill `pkm-access` schreibt neue Dokumente in dieser Sprache, fortgeführte Dokumente behalten ihre Sprache. Werkzeuge, Pflege und Wiki sind davon unabhängig (4.1, 6.2, 7.1, 8, 10, 15.1).
+> - **Sprache wählbar:** `pkm setup` fragt, ob im Chat erzeugte Dokumente und das Wiki hauptsächlich englisch oder deutsch sein sollen (`PKM_LANGUAGE`, `en` oder `de`, Standard `en`, Option `--language`). Die Server `pkm` und `pkm-pflege` nennen die Sprache und die passenden Abschnittsnamen in ihren Anweisungen; die Skills `pkm-access` und `pkm-wiki` schreiben neue Dokumente bzw. Wiki-Seiten in dieser Sprache, bestehende behalten ihre Sprache. Werkzeuge erkennen beide Varianten; erzeugte Dateien (`index.md`, `_status.md`, Lint-Berichte) bleiben englisch (4.1, 4.2, 6.2, 7.1, 8, 9, 10, 15.1).
 > - **Vorhandene Konfiguration übernehmen:** `pkm setup` sucht zuerst Einstellungen in Umgebungsvariablen, in den `env`-Blöcken der Einträge `pkm` und `pkm-pflege` von Claude Desktop (Installationen vor `pkm setup`) und in `config.toml`, zeigt sie mit Herkunft und übernimmt sie nach Bestätigung (z. B. `PKM_GIT_DIR`, damit der Verlauf erhalten bleibt). Bei „nein“ beginnt es neu und sichert eine vorhandene `config.toml` (15.1).
 
 > **Änderungen in 0.26**
@@ -339,7 +339,7 @@ kind: standard
 | `## Offene Punkte` | `## Open points` |
 | `## Kontext / Begründung` | `## Context / rationale` |
 
-Der Server `pkm` nennt die Dokumentsprache und diese Abschnittsnamen in seinen Anweisungen an den Chat. Neue Dokumente entstehen in dieser Sprache (Titel, Text, Abschnitte), auch wenn der Chat in einer anderen Sprache geführt wird. Nur wenn der Nutzer ausdrücklich eine andere Sprache verlangt, gilt diese. Fortgeführte Dokumente behalten ihre Sprache und ihre Abschnittsnamen. Die Beispiele in dieser Spezifikation verwenden die deutschen Namen. Werkzeuge und Pflege behandeln beide Varianten gleich; die Gliederung der Wiki-Seiten (4.2) hängt nicht davon ab.
+Der Server `pkm` nennt die Dokumentsprache und diese Abschnittsnamen in seinen Anweisungen an den Chat. Neue Dokumente entstehen in dieser Sprache (Titel, Text, Abschnitte), auch wenn der Chat in einer anderen Sprache geführt wird. Nur wenn der Nutzer ausdrücklich eine andere Sprache verlangt, gilt diese. Fortgeführte Dokumente behalten ihre Sprache und ihre Abschnittsnamen. Die Beispiele in dieser Spezifikation verwenden die deutschen Namen. Werkzeuge und Pflege behandeln beide Varianten gleich. Für Wiki-Seiten gilt dieselbe Sprache (4.2).
 
 Bei einer fortgeführten Diskussion werden diese Abschnitte **aktualisiert**, nicht ergänzt (Abschnitt 6). Das Dokument zeigt immer den aktuellen Stand.
 
@@ -348,6 +348,15 @@ Bei einer fortgeführten Diskussion werden diese Abschnitte **aktualisiert**, ni
 **Nicht-Markdown-Dateien** (PDF, Bilder) haben kein Frontmatter und keine Versionsnummer. Sie werden über ihren Inhalts-Hash identifiziert. Eine neue Fassung eines PDFs gilt als neues Dokument (Abschnitt 5).
 
 ### 4.2 Wiki-Seite mit Belegen
+
+Neue Wiki-Seiten entstehen in der Sprache aus `PKM_LANGUAGE` (7.1), die der Server `pkm-pflege` in seinen Anweisungen nennt; eine bestehende Seite behält bei Aktualisierungen ihre Sprache (keine gemischten Seiten). Zitate in Belegen bleiben wörtlich in der Sprache des Dokuments. Namen je Sprache:
+
+| | Deutsch (`de`) | Englisch (`en`, Standard) |
+|---|---|---|
+| Erste Zeile | `> **Kurzfassung:** …` | `> **Summary:** …` |
+| Abschnitte | `## Inhalt`, `## Widersprüche / offene Fragen`, `## Siehe auch`, `## Belege` | `## Content`, `## Contradictions / open questions`, `## See also`, `## Citations` |
+
+Belegprüfung und Lint erkennen beide Varianten. Das Beispiel verwendet die deutschen Namen.
 
 Dateiname: Kleinbuchstaben, Bindestriche, Umlaute ausgeschrieben (`regenwasser-ertrag.md`).
 
@@ -863,7 +872,7 @@ Diese Form ist nie Standard. Der Skill schlägt sie auch nicht von sich aus vor.
 - Konfiguration über die Datei `config.toml` im Standardordner (macOS `~/Library/Application Support/pkm/`, Windows `%APPDATA%\pkm\`, andere Datei über `PKM_CONFIG`), geschrieben von `pkm setup`, mit flachen Schlüsseln wie die Umgebungsvariablen unten. Gesetzte Umgebungsvariablen haben Vorrang vor der Datei. Werte:
   - `PKM_ROOT` (Pflicht): absoluter Pfad zum Vault im Cloud-Ordner
   - `PKM_VERSIONING` (Standard `true`): Versionsverwaltung mit Git; `pkm setup` setzt `false`, wenn Git fehlt (5.4)
-  - `PKM_LANGUAGE` (Standard `en`): Hauptsprache von im Chat erzeugten Dokumenten, `en` (Englisch) oder `de` (Deutsch); auch die Namen `english`/`englisch`/`german`/`deutsch` werden angenommen, andere Werte sind ein Konfigurationsfehler. Der Server `pkm` übernimmt sie beim Start in seine Anweisungen (4.1); eine Änderung wirkt nach einem Neustart von Claude Desktop
+  - `PKM_LANGUAGE` (Standard `en`): Hauptsprache von im Chat erzeugten Dokumenten und vom Wiki, `en` (Englisch) oder `de` (Deutsch); auch die Namen `english`/`englisch`/`german`/`deutsch` werden angenommen, andere Werte sind ein Konfigurationsfehler. Die Server `pkm` und `pkm-pflege` übernehmen sie beim Start in ihre Anweisungen (4.1, 4.2); eine Änderung wirkt nach einem Neustart von Claude Desktop
   - `PKM_GIT` (optional): Pfad des Git-Programms. Ohne Angabe wird Git im `PATH` und an den üblichen Orten gesucht (`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, `C:\Program Files\Git\cmd`); es zählt nur ein Git, das läuft (der Platzhalter `/usr/bin/git` auf macOS ohne Developer Tools zählt nicht)
   - `PKM_GIT_DIR` (Standard macOS `~/Library/Application Support/pkm/git`, Windows `%APPDATA%\pkm\git`): Git-Verzeichnis außerhalb des Cloud-Ordners
   - `PKM_CACHE_DIR` (Standard macOS `~/Library/Application Support/pkm`, Windows `%APPDATA%\pkm`): Suchindex. Muss außerhalb von `PKM_ROOT` und jedes Cloud-Ordners liegen. Liegt es nach `resolve()` innerhalb von `PKM_ROOT`, legt der Server keinen Index an und meldet einen Fehler. `search` ist dann nicht verfügbar, die übrigen lesenden Tools funktionieren weiter
@@ -1220,7 +1229,7 @@ Alle Befehle außer `pkm reindex` ignorieren `scratch/` (3). `pkm doctor` prüft
 
 **Beschreibung (Trigger):** Pflege des PKM-Wikis über den MCP-Server `pkm-pflege`: neue und geänderte Dokumente verarbeiten, Lint, Wiki-Fragen im Pflegeprojekt.
 
-Der Agent arbeitet ausschließlich über die Tools von `pkm-pflege-mcp` (7.7). Eine Shell oder die CLI braucht er nicht.
+Der Agent arbeitet ausschließlich über die Tools von `pkm-pflege-mcp` (7.7). Eine Shell oder die CLI braucht er nicht. Neue Wiki-Seiten, Log-Eintrag und Bericht schreibt er in der Sprache, die der Server nennt (`PKM_LANGUAGE`, 4.2); bestehende Seiten behalten ihre Sprache.
 
 ### 9.1 Ablauf „Ingest“
 
@@ -1460,7 +1469,7 @@ Vorher brauchte die Einrichtung rund zehn Handschritte. Jetzt: Installer ausfüh
    - sucht zuerst eine **vorhandene Konfiguration**: Umgebungsvariablen, die `env`-Blöcke der PKM-Einträge in Claude Desktop (dort lagen die Einstellungen vor `pkm setup`; erkannt an den Namen `pkm`/`pkm-pflege` oder an den Programmen `pkm-mcp`/`pkm-pflege-mcp`, auch unter anderem Namen) und `config.toml`, in dieser Rangfolge. Nennt keine Quelle `PKM_ROOT`, gilt der Vault aus `core.worktree` des Git-Verzeichnisses (`PKM_GIT_DIR` bzw. Standard), sofern dort `.pkm/state.json` liegt. Gefundene Werte (alle Schlüssel aus 7.1, z. B. `PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`) zeigt es mit ihrer Herkunft; überdeckte Werte aus nachrangigen Quellen sind gekennzeichnet. Es fragt, ob es sie übernehmen soll (`--yes`: ja). Übernommen sind sie die Vorgaben der folgenden Fragen und kommen in `config.toml`, sodass ein vorhandenes Git-Verzeichnis samt Verlauf weiter genutzt wird, auch wenn die Einträge in Claude Desktop danach ohne `env` auskommen. Bei „nein“ beginnt die Einrichtung mit einer neuen Konfiguration; eine vorhandene `config.toml` wird vorher gesichert (`config.toml.<Zeit>.bak`). Geschlossene Eingabe (Dateiende) gilt bei jeder Frage als leere Antwort, also als Vorgabe;
    - fragt den Vault-Ordner ab (legt ihn nach Bestätigung an) und erkennt den Cloud-Dienst (5.5); warnt bei Dateien „nur online“;
    - prüft Git. **Fehlt Git, gibt er einen Hinweis aus und schaltet die Versionsverwaltung ab** (5.4). Ist Git da und fehlt die Identität, fragt er Name und E-Mail ab und setzt sie nur für das PKM-Repo; die Commit-Signierung schaltet er für das PKM-Repo ab;
-   - fragt die Hauptsprache von im Chat erzeugten Dokumenten ab (Englisch oder Deutsch, `PKM_LANGUAGE`, 4.1; Vorgabe ist der bisherige Wert, sonst Englisch);
+   - fragt die Hauptsprache von im Chat erzeugten Dokumenten und vom Wiki ab (Englisch oder Deutsch, `PKM_LANGUAGE`, 4.1, 4.2; Vorgabe ist der bisherige Wert, sonst Englisch);
    - schreibt `config.toml` (7.1; andere Schlüssel in der Datei bleiben) und führt `pkm init` aus;
    - prüft die Einträge in Claude Desktop (7.6); fehlen sie oder weichen sie ab, fragt es, ob es die Datei ändern darf (dann mit Sicherungskopie, andere Server bleiben), sonst zeigt es den Text zum Selbst-Eintragen;
    - baut die ZIP-Dateien der Skills `pkm-access` und `pkm-wiki` nach `<Standardordner>/skills/` (das Hochladen bleibt Handarbeit);
@@ -1530,7 +1539,7 @@ Nicht vorgesehen: eine reine Python-Git-Bibliothek statt Git (zu tiefer Eingriff
 | 38 | Data-URIs bei der Übernahme | Jede Bild-Data-URI wird geprüft (Werkzeuge, Pflegelauf, Lint, Wiki-Seiten). Abweichungen werden mit Befund und Vorschlag gemeldet und **nur nach Rückfrage** korrigiert (`fix_images: true`, Tool `fix_images`, `pkm fix-images`), nie unbeaufsichtigt. Nur die Bildschreibweise ändert sich, abgeleitete Namen bleiben, Belege werden angehoben. Bestehende Base64-PNG: nur Schreibweise, Bytes gleich, kein Name | 3, 4.7, 4.9, 5.4, 7.2, 7.3, 7.7, 8, 9.1, 9.2, 9.7, 10, 14 |
 | 39 | Cloud-Speicher allgemein | Jeder Dienst, der einen normalen lokalen Ordner synchronisiert. Vault vollständig lokal (keine Platzhalter), Git-Verzeichnis und Suchindex außerhalb jedes Cloud-Ordners. Konfliktkopien aller bekannten Dienste werden am Namen oder als Kopie mit gleicher ID neben dem Original erkannt und nicht verarbeitet | 5.3, 5.5, 7.1, 8, 12 |
 | 40 | Git optional, einfachere Installation | Fehlt Git, läuft das PKM ohne Versionsverwaltung (IDs und Versionsnummern ja, Commits, Verlauf und Wiederherstellen nein); nachrüsten durch Git installieren und `pkm setup` erneut ausführen. Installation mit Installer und `pkm setup`, Konfiguration in `config.toml`, Obsidian-Einstellungen durch `pkm init`, Skills im Paket | 5.4, 7.1, 7.6, 8, 13, 15.1 |
-| 41 | Dokumentsprache | Der Nutzer wählt bei der Einrichtung, ob im Chat erzeugte Dokumente hauptsächlich englisch oder deutsch sind (`PKM_LANGUAGE`). Der Server gibt die Sprache und die Abschnittsnamen in seinen Anweisungen weiter; fortgeführte Dokumente behalten ihre Sprache. Wiki und Werkzeuge bleiben sprachunabhängig | 4.1, 7.1, 10, 15.1 |
+| 41 | Sprache von Dokumenten und Wiki | Der Nutzer wählt bei der Einrichtung, ob im Chat erzeugte Dokumente und das Wiki hauptsächlich englisch oder deutsch sind (`PKM_LANGUAGE`). Beide Server geben die Sprache und die Abschnittsnamen in ihren Anweisungen weiter; bestehende Dokumente und Seiten behalten ihre Sprache. Werkzeuge erkennen beide Varianten, erzeugte Dateien bleiben englisch | 4.1, 4.2, 7.1, 9, 10, 15.1 |
 | 42 | Vorhandene Konfiguration übernehmen | `pkm setup` zeigt Einstellungen aus Umgebung, Claude Desktop (`env`) und `config.toml` und übernimmt sie nach Bestätigung nach `config.toml`. So bleiben bei einer Aktualisierung (auch von einer Installation vor `pkm setup`) Git-Verzeichnis, Suchindex und übrige Werte erhalten | 7.1, 7.6, 15.1 |
 
 ### Noch offen

@@ -17,7 +17,7 @@ Verlauf anlegen.
 Kurzfassung:
 
 1. Installer ausführen (installiert uv und das Paket, startet `pkm setup`).
-2. Die Fragen von `pkm setup` beantworten (Vault-Ordner, Dokumentsprache, ggf. Git-Name und
+2. Die Fragen von `pkm setup` beantworten (Vault-Ordner, Sprache, ggf. Git-Name und
    E-Mail).
 3. Die beiden Skill-ZIPs in Claude Desktop hochladen.
 4. Projekt „PKM-Pflege“ anlegen.
@@ -128,14 +128,16 @@ idempotent.
    Git-Identität, fragt `pkm setup` nach Name und E-Mail und trägt sie nur für das PKM-Repo ein;
    die Commit-Signierung wird für das PKM-Repo abgeschaltet. **Fehlt Git**, erscheint ein Hinweis
    und das PKM läuft ohne Versionsverwaltung.
-4. **Dokumentsprache** abfragen: Sollen im Chat erzeugte Dokumente hauptsächlich englisch oder
+4. **Sprache** abfragen: Sollen im Chat erzeugte Dokumente und das Wiki hauptsächlich englisch oder
    deutsch sein (`en` oder `de`, Vorgabe Englisch bzw. die bisherige Antwort; Option `--language`)?
-   Der Server `pkm` nennt Claude diese Sprache und die passenden Abschnittsnamen (Result, Decisions,
-   Open points, Context / rationale bzw. Ergebnis, Entscheidungen, Offene Punkte, Kontext /
-   Begründung). Fortgeführte Dokumente behalten ihre Sprache. Später ändern: `pkm setup` erneut
+   Die Server `pkm` und `pkm-pflege` nennen Claude diese Sprache und die passenden Abschnittsnamen
+   (Chat-Dokumente: Result, Decisions, Open points, Context / rationale bzw. Ergebnis,
+   Entscheidungen, Offene Punkte, Kontext / Begründung; Wiki-Seiten: Summary, Content, … bzw.
+   Kurzfassung, Inhalt, …). Bestehende Dokumente und Wiki-Seiten behalten ihre Sprache; erzeugte
+   Dateien wie `index.md` bleiben englisch. Später ändern: `pkm setup` erneut
    ausführen und Claude Desktop neu starten.
 5. **Konfigurationsdatei** `<APPDIR>/config.toml` schreiben (Vault-Pfad, Vault-Name,
-   Versionsverwaltung an oder aus, Pfad zu Git, Dokumentsprache). Server und CLI lesen sie; gesetzte
+   Versionsverwaltung an oder aus, Pfad zu Git, Sprache). Server und CLI lesen sie; gesetzte
    Umgebungsvariablen haben Vorrang.
 6. **`pkm init`** ausführen: Ordnerstruktur, `CLAUDE.md`, `.gitignore`, `.pkm/state.json`,
    Obsidian-Einstellungen (`.obsidian/app.json`) und Property-Typen (`.obsidian/types.json`), mit
@@ -446,8 +448,8 @@ PKM_LANGUAGE = "en"
 - `PKM_ROOT`: absoluter Pfad des Vault-Ordners (mit Cloud-Speicher im Ordner des Dienstes, sonst ein
   lokaler Ordner).
 - `PKM_VERSIONING = false`, wenn Git fehlt oder nicht genutzt werden soll; `PKM_GIT` entfällt dann.
-- `PKM_LANGUAGE`: Hauptsprache von im Chat erzeugten Dokumenten, `"en"` (Englisch, Standard) oder
-  `"de"` (Deutsch).
+- `PKM_LANGUAGE`: Hauptsprache von im Chat erzeugten Dokumenten und vom Wiki, `"en"` (Englisch,
+  Standard) oder `"de"` (Deutsch).
 - Weitere optionale Schlüssel: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (beide nie in einen Cloud-Ordner),
   `PKM_TZ`, `PKM_MAX_KB`, `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`, `PKM_INLINE_MAX_KB` (24),
   `PKM_SVG_MAX_KB` (200), `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER`
@@ -592,7 +594,7 @@ Unter Windows dieselben Befehle mit `<REPO>\pkm-tools`. Danach wie gewohnt einri
 pkm setup
 ```
 
-`pkm setup` (Abschnitt 3) fragt den Vault ab, prüft Git, fragt die Dokumentsprache ab, schreibt
+`pkm setup` (Abschnitt 3) fragt den Vault ab, prüft Git, fragt die Sprache ab, schreibt
 `config.toml`, trägt die Server in Claude Desktop ein und baut die Skill-ZIPs – aus den Skills in
 der Kopie. Weiter mit den Abschnitten 4–6.
 
