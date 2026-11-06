@@ -7,6 +7,12 @@
   `--language`). The server `pkm` names the language and its section names in its instructions
   (German: Ergebnis, Entscheidungen, Offene Punkte, Kontext / Begründung); the skill `pkm-access`
   writes new documents in that language, continued documents keep theirs. Specification 0.27.
+- **Existing configuration:** `pkm setup` first looks for settings in environment variables, in
+  the `env` blocks of the Claude Desktop entries (installations from before `pkm setup`) and in
+  `config.toml`, shows them with their source and offers to take them over. Taken over, they are
+  the defaults and are written to `config.toml` – so a custom `PKM_GIT_DIR` and with it the version
+  history stay in use. Declined, the setup starts anew and backs up `config.toml`. Closed input no
+  longer makes `pkm setup` fail; it takes the defaults.
 - **Upgrading:** run `pkm setup` again (it asks for the language), upload the new skill ZIP of
   `pkm-access` and restart Claude Desktop.
 

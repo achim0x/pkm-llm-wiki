@@ -44,6 +44,7 @@ from typing import Any
 from .cloudsync import cloud_service, online_only_files
 from .config import (
     CONFIG_FILE,
+    CONFIG_KEYS,
     DEFAULT_LANGUAGE,
     DOC_LANGUAGES,
     Config,
@@ -102,7 +103,7 @@ class SetupOptions:  # pylint: disable=too-many-instance-attributes
     language: str | None = None
 
 
-class Setup:
+class Setup:  # pylint: disable=too-many-instance-attributes
     """Guided installation; every step is idempotent."""
 
     def __init__(self, opts: SetupOptions, ask: Callable[[str], str] = input, say: Callable[[str], None] = print,
@@ -123,6 +124,7 @@ class Setup:
         self.git_finder = git_finder
         self.config_path = Path(self.env.get("PKM_CONFIG") or self._app_dir() / CONFIG_FILE).expanduser()
         self.warnings: list[str] = []
+        self.adopted: dict[str, str] = {}
 
     # Questions ****************************************************************
 
@@ -146,8 +148,24 @@ class Setup:
         """
         answer = ""
         if not self.opts.yes:
-            answer = self.ask(f"{text}{f' [{default}]' if default else ''}: ").strip()
+            answer = self._read(f"{text}{f' [{default}]' if default else ''}: ")
         return answer or (default or "")
+
+    def _read(self, prompt: str) -> str:
+        """Read an answer; closed input (end of file) counts as an empty answer.
+
+        Args:
+            prompt: Question with the default.
+
+        Returns:
+            The answer without surrounding blanks.
+        """
+        try:
+            answer = self.ask(prompt).strip()
+        except EOFError:
+            self.say("")
+            answer = ""
+        return answer
 
     def _confirm(self, text: str) -> bool:
         """Ask for a confirmation (default yes).
@@ -158,9 +176,70 @@ class Setup:
         Returns:
             ``True`` for yes.
         """
-        return self.opts.yes or self.ask(f"{text} [Y/n]: ").strip().lower() in ("", "y", "yes", "j", "ja")
+        return self.opts.yes or self._read(f"{text} [Y/n]: ").lower() in ("", "y", "yes", "j", "ja")
 
     # Steps ********************************************************************
+
+    def _existing(self) -> dict[str, list[tuple[str, str]]]:
+        """Collect the settings of an existing configuration.
+
+        Sources in order of precedence: environment variables, the ``env`` blocks of the entries
+        ``pkm`` and ``pkm-pflege`` in Claude Desktop (where installations before ``pkm setup`` kept
+        their settings) and ``config.toml``.
+
+        Returns:
+            Key → list of (value, source), the value that applies first.
+        """
+        sources: list[tuple[str, Mapping[str, Any]]] = [("environment", self.env)]
+        claude = self._read_claude(self._claude_config_path()) or {}
+        servers = claude.get("mcpServers") if isinstance(claude.get("mcpServers"), dict) else {}
+        for name in SERVERS:
+            entry = servers.get(name) if isinstance(servers.get(name), dict) else {}
+            block = entry.get("env") if isinstance(entry.get("env"), dict) else {}
+            sources.append((f"Claude Desktop ({name})", block))
+        try:
+            sources.append((str(self.config_path), read_config_file(self.config_path)))
+        except PkmError as exc:
+            self.warn(exc.message)
+        found: dict[str, list[tuple[str, str]]] = {}
+        for source, values in sources:
+            for key in CONFIG_KEYS:
+                value = values.get(key)
+                if value not in (None, "") and not any(v == str(value) for v, _ in found.get(key, [])):
+                    found.setdefault(key, []).append((str(value), source))
+        return found
+
+    def _adopt(self) -> None:
+        """Show an existing configuration and take it over if confirmed.
+
+        Taken over, its values are the defaults of the questions and are written to ``config.toml``
+        (e.g. ``PKM_GIT_DIR``, so the existing version history stays in use). Otherwise the setup
+        starts with a new configuration; an existing ``config.toml`` is backed up first.
+        """
+        found = self._existing()
+        if found:
+            lines = []
+            for key in CONFIG_KEYS:
+                for i, (value, source) in enumerate(found.get(key, [])):
+                    note = "" if i == 0 else "  (not used, overridden by the line above)"
+                    lines.append(f"  {key} = {value}   [{source}]{note}")
+            self.say("Existing configuration found:\n" + "\n".join(lines))
+            if self._confirm("Take over this configuration?"):
+                self.adopted = {key: values[0][0] for key, values in found.items()}
+                self.say("Existing configuration taken over.")
+            elif self.config_path.is_file():
+                self.say(f"Starting with a new configuration; backup of the old one: {backup_file(self.config_path)}")
+
+    def _known(self, key: str) -> str | None:
+        """Value of a taken-over setting.
+
+        Args:
+            key: Configuration key.
+
+        Returns:
+            The value or ``None``.
+        """
+        return self.adopted.get(key) or None
 
     def _vault(self) -> Path:
         """Determine the vault folder (create it if confirmed).
@@ -171,7 +250,7 @@ class Setup:
         Raises:
             PkmError: ``config_error`` without a usable folder.
         """
-        known = self.env.get("PKM_ROOT") or read_config_file(self.config_path).get("PKM_ROOT")
+        known = self.env.get("PKM_ROOT") or self._known("PKM_ROOT")
         found = find_vault(Path.cwd())
         default = known or (str(found) if found else None)
         answer = self.opts.vault or self._question(
@@ -197,7 +276,8 @@ class Setup:
         Returns:
             Path of the Git program or ``None`` (then without version control).
         """
-        exe = self.env.get("PKM_GIT") if self.env.get("PKM_GIT") and Path(self.env["PKM_GIT"]).is_file() else None
+        given = self.env.get("PKM_GIT") or self._known("PKM_GIT")
+        exe = given if given and Path(given).is_file() else None
         exe = exe or self.git_finder()
         if exe:
             self.say(f"Git: {exe} - version control is on.")
@@ -214,7 +294,7 @@ class Setup:
         Raises:
             PkmError: ``config_error`` for an unknown language.
         """
-        known = self.env.get("PKM_LANGUAGE") or read_config_file(self.config_path).get("PKM_LANGUAGE")
+        known = self.env.get("PKM_LANGUAGE") or self._known("PKM_LANGUAGE")
         answer = self.opts.language or self._question(
             "Main language of documents created in chat (en = English, de = German)",
             parse_language(known) if known else DEFAULT_LANGUAGE)
@@ -233,8 +313,9 @@ class Setup:
         Returns:
             Environment for the configuration of this setup.
         """
-        values: dict[str, str | bool] = dict(read_config_file(self.config_path))
-        values.update({"PKM_ROOT": str(root), "PKM_VAULT_NAME": self.opts.vault_name or root.name,
+        values: dict[str, str | bool] = dict(self.adopted)
+        values.update({"PKM_ROOT": str(root),
+                       "PKM_VAULT_NAME": self.opts.vault_name or self._known("PKM_VAULT_NAME") or root.name,
                        "PKM_VERSIONING": git_exe is not None, "PKM_LANGUAGE": language})
         if git_exe:
             values["PKM_GIT"] = git_exe
@@ -389,14 +470,7 @@ class Setup:
             data: New content.
         """
         if path.is_file():
-            stem = f"{path.name}.{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-            backup = path.with_name(f"{stem}.bak")
-            n = 1
-            while backup.exists():
-                n += 1
-                backup = path.with_name(f"{stem}-{n}.bak")
-            shutil.copy2(path, backup)
-            self.say(f"Backup of the Claude Desktop configuration: {backup}")
+            self.say(f"Backup of the Claude Desktop configuration: {backup_file(path)}")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes((json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
         self.say(f"Claude Desktop configured: {path} (restart Claude Desktop).")
@@ -430,6 +504,7 @@ class Setup:
         Returns:
             Results of the steps, notes and the result of ``pkm doctor``.
         """
+        self._adopt()
         root = self._vault()
         git_exe = self._git()
         language = self._language()
@@ -453,6 +528,25 @@ class Setup:
                 "init": init, "claude": claude, "skills": skills, "warnings": self.warnings, "doctor": check}
 
 # Functions *******************************************************************
+
+
+def backup_file(path: Path) -> Path:
+    """Copy a file to ``<name>.<timestamp>.bak`` next to it.
+
+    Args:
+        path: Existing file.
+
+    Returns:
+        Path of the backup.
+    """
+    stem = f"{path.name}.{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    backup = path.with_name(f"{stem}.bak")
+    n = 1
+    while backup.exists():
+        n += 1
+        backup = path.with_name(f"{stem}-{n}.bak")
+    shutil.copy2(path, backup)
+    return backup
 
 
 def find_program(name: str) -> str | None:

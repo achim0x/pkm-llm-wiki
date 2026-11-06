@@ -184,7 +184,13 @@ should be uploaded again.
 
 ## 4. `pkm setup`
 
-`pkm setup` (module `setupwiz.py`) is an interactive, idempotent wizard. Every answer can be given
+`pkm setup` (module `setupwiz.py`) is an interactive, idempotent wizard. It starts by collecting an
+existing configuration from the environment, the `env` blocks of the Claude Desktop entries `pkm`
+and `pkm-pflege` (where installations from before `pkm setup` kept their settings) and
+`config.toml`, in this order of precedence, for all keys of `CONFIG_KEYS`. It shows them with their
+source and, if confirmed, takes them over as defaults and into `config.toml`; this keeps e.g. a
+custom `PKM_GIT_DIR` and so the version history. If declined, an existing `config.toml` is backed up
+and the setup starts anew. End of input counts as an empty answer (the default). Every answer can be given
 in advance as an option; `--yes` accepts all defaults and confirmations (used by the installers in
 CI).
 
@@ -203,7 +209,13 @@ CI).
 
 ```mermaid
 flowchart TD
-    S(["pkm setup"]) --> V["Vault folder:<br/>--vault, PKM_ROOT, config.toml<br/>or a vault above the current folder"]
+    S(["pkm setup"]) --> EX{"existing settings?<br/>environment, Claude Desktop env,<br/>config.toml"}
+    EX -- "no" --> V
+    EX -- "yes" --> EX1{"show them,<br/>take them over?"}
+    EX1 -- "yes" --> EX2["adopted values = defaults,<br/>written to config.toml"]
+    EX1 -- "no" --> EX3["back up config.toml,<br/>start a new configuration"]
+    EX2 --> V
+    EX3 --> V["Vault folder:<br/>--vault, PKM_ROOT or adopted value<br/>or a vault above the current folder"]
     V --> V1{"absolute path?"}
     V1 -- "no" --> X1(["config_error"])
     V1 -- "yes" --> V2{"folder exists?"}

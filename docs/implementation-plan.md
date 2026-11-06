@@ -272,6 +272,7 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - **Tests:** `test_no_git.py`, `test_setup.py`; 405 Tests auf allen drei Systemen grün.
 - **Erledigt:** Merge auf `main`, Release `v0.2.0`.
 - **Dokumentsprache** (0.27): `pkm setup` fragt, ob im Chat erzeugte Dokumente hauptsächlich englisch oder deutsch sind (`PKM_LANGUAGE`, Option `--language`); der Server `pkm` nennt Sprache und Abschnittsnamen in seinen Anweisungen, der Skill `pkm-access` folgt ihnen (`test_language.py`).
+- **Vorhandene Konfiguration übernehmen** (0.27): `pkm setup` zeigt Einstellungen aus Umgebung, `env`-Blöcken in Claude Desktop und `config.toml` und übernimmt sie nach Bestätigung (`test_setup_adopt.py`).
 
 ### Phase 7e – Abnahme mit der neuen Installation
 

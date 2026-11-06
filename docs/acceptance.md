@@ -35,6 +35,9 @@ Befunde unten unter „Befunde“ sammeln; sie werden danach behoben (Code oder 
 - [ ] Der Installer meldet „Git found: version control will be on.“ und installiert `pkm`,
       `pkm-mcp` und `pkm-pflege-mcp` nach `~/.local/bin`.
 - [ ] `pkm setup` erkennt den Cloud-Dienst des Vault-Ordners und meldet keine Dateien „nur online“.
+- [ ] Bei einer vorhandenen Installation zeigt `pkm setup` zuerst die gefundene Konfiguration mit
+      Herkunft (z. B. `PKM_GIT_DIR` aus Claude Desktop) und fragt, ob es sie übernehmen soll; nach
+      „ja“ stehen die Werte in `config.toml` und der bisherige Verlauf ist weiter da.
 - [ ] `pkm setup` fragt nach der Dokumentsprache für im Chat erzeugte Dokumente (`en` oder `de`).
 - [ ] `~/Library/Application Support/pkm/config.toml` enthält `PKM_ROOT`, `PKM_VAULT_NAME`,
       `PKM_VERSIONING = true`, `PKM_GIT` und `PKM_LANGUAGE` mit der gewählten Sprache.

@@ -100,7 +100,8 @@ Der Installer
 4. startet `pkm setup` (Abschnitt 3).
 
 Außer `uv` und dem Paket ändert der Installer nichts ohne Rückfrage. **Aktualisieren:** den
-Installer erneut ausführen. Meldet ein neues Terminal, dass `pkm` nicht gefunden wird, einmal
+Installer erneut ausführen; `pkm setup` bietet an, die vorhandene Konfiguration zu übernehmen
+(Abschnitt 3), auch aus einer Installation aus der Zeit vor `pkm setup`. Meldet ein neues Terminal, dass `pkm` nicht gefunden wird, einmal
 `uv tool update-shell` ausführen.
 
 Installation ohne Installer: [Anhang A](#anhang-a-manuelle-installation).
@@ -110,27 +111,35 @@ Installation ohne Installer: [Anhang A](#anhang-a-manuelle-installation).
 `pkm setup` führt durch die Einrichtung und lässt sich jederzeit erneut ausführen; jeder Schritt ist
 idempotent.
 
-1. **Vault-Ordner** abfragen (absoluter Pfad; mit Cloud-Speicher im Ordner des Dienstes; wird
+1. **Vorhandene Konfiguration prüfen:** `pkm setup` sucht Einstellungen in den
+   Umgebungsvariablen, in den Einträgen `pkm` und `pkm-pflege` von Claude Desktop (Installationen
+   aus der Zeit vor `pkm setup` hatten sie dort in einem `env`-Block) und in `config.toml`. Findet
+   es welche (z. B. `PKM_ROOT`, `PKM_GIT_DIR`, `PKM_CACHE_DIR`), zeigt es sie mit ihrer Herkunft und
+   fragt, ob es sie **übernehmen** soll. Ja: Die Werte sind die Vorgaben der folgenden Fragen und
+   kommen in `config.toml`, damit ein vorhandenes Git-Verzeichnis samt Verlauf weiter genutzt wird.
+   Nein: Die Einrichtung beginnt mit einer neuen Konfiguration; eine vorhandene `config.toml` wird
+   vorher gesichert (`config.toml.<Zeit>.bak`).
+2. **Vault-Ordner** abfragen (absoluter Pfad; mit Cloud-Speicher im Ordner des Dienstes; wird
    angelegt, wenn er fehlt). Erkannt wird auch der Cloud-Dienst; Dateien, die nur online vorliegen, meldet der
    Assistent (Abschnitt 7).
-2. **Git prüfen.** Ist Git vorhanden, wird die Versionsverwaltung eingeschaltet. Fehlt die
+3. **Git prüfen.** Ist Git vorhanden, wird die Versionsverwaltung eingeschaltet. Fehlt die
    Git-Identität, fragt `pkm setup` nach Name und E-Mail und trägt sie nur für das PKM-Repo ein;
    die Commit-Signierung wird für das PKM-Repo abgeschaltet. **Fehlt Git**, erscheint ein Hinweis
    und das PKM läuft ohne Versionsverwaltung.
-3. **Dokumentsprache** abfragen: Sollen im Chat erzeugte Dokumente hauptsächlich englisch oder
+4. **Dokumentsprache** abfragen: Sollen im Chat erzeugte Dokumente hauptsächlich englisch oder
    deutsch sein (`en` oder `de`, Vorgabe Englisch bzw. die bisherige Antwort; Option `--language`)?
    Der Server `pkm` nennt Claude diese Sprache und die passenden Abschnittsnamen (Result, Decisions,
    Open points, Context / rationale bzw. Ergebnis, Entscheidungen, Offene Punkte, Kontext /
    Begründung). Fortgeführte Dokumente behalten ihre Sprache. Später ändern: `pkm setup` erneut
    ausführen und Claude Desktop neu starten.
-4. **Konfigurationsdatei** `<APPDIR>/config.toml` schreiben (Vault-Pfad, Vault-Name,
+5. **Konfigurationsdatei** `<APPDIR>/config.toml` schreiben (Vault-Pfad, Vault-Name,
    Versionsverwaltung an oder aus, Pfad zu Git, Dokumentsprache). Server und CLI lesen sie; gesetzte
    Umgebungsvariablen haben Vorrang.
-5. **`pkm init`** ausführen: Ordnerstruktur, `CLAUDE.md`, `.gitignore`, `.pkm/state.json`,
+6. **`pkm init`** ausführen: Ordnerstruktur, `CLAUDE.md`, `.gitignore`, `.pkm/state.json`,
    Obsidian-Einstellungen (`.obsidian/app.json`) und Property-Typen (`.obsidian/types.json`), mit
    Git zusätzlich das Repo außerhalb des Vaults mit einem ersten Commit. Bestehende Notizen bleiben
    unverändert.
-6. **Claude Desktop prüfen:** `pkm setup` prüft, ob die Server `pkm` und `pkm-pflege` in
+7. **Claude Desktop prüfen:** `pkm setup` prüft, ob die Server `pkm` und `pkm-pflege` in
    `claude_desktop_config.json` schon passend eingetragen sind (nur mit `command`, ohne weitere
    Angaben). Fehlt ein Eintrag oder weicht er ab, zeigt der Assistent die Änderung und **fragt, ob er
    die Datei ändern darf**. Bei „ja“ legt er eine Sicherungskopie an und trägt die Server ein; andere
@@ -138,9 +147,9 @@ idempotent.
    unter `mcpServers` einträgst (in Claude Desktop: Einstellungen → Entwickler → „Konfiguration
    bearbeiten“). Ist die Datei kein gültiges JSON, bleibt sie unangetastet und der Text wird ebenfalls
    angezeigt.
-7. **Skill-ZIPs** nach `<APPDIR>/skills/` schreiben (Abschnitt 4).
-8. Die **Projektanweisung** für „PKM-Pflege“ ausgeben (Abschnitt 5).
-9. **`pkm doctor`** ausführen und Fehler nennen.
+8. **Skill-ZIPs** nach `<APPDIR>/skills/` schreiben (Abschnitt 4).
+9. Die **Projektanweisung** für „PKM-Pflege“ ausgeben (Abschnitt 5).
+10. **`pkm doctor`** ausführen und Fehler nennen.
 
 Optionen (alle optional): `--vault <ordner>`, `--vault-name <name>`, `--git-name <name>`,
 `--git-email <adresse>`, `--language en|de`, `--yes` (Standardwerte ohne Rückfrage), `--claude-config <datei>`,

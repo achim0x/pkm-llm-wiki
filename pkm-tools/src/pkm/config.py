@@ -53,6 +53,11 @@ DOC_LANGUAGES = {
     "en": ("English", ("Result", "Decisions", "Open points", "Context / rationale")),
     "de": ("German", ("Ergebnis", "Entscheidungen", "Offene Punkte", "Kontext / Begründung")),
 }
+CONFIG_KEYS = (
+    "PKM_ROOT", "PKM_VAULT_NAME", "PKM_LANGUAGE", "PKM_VERSIONING", "PKM_GIT", "PKM_GIT_DIR", "PKM_CACHE_DIR",
+    "PKM_TZ", "PKM_MAX_KB", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
+    "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_SVG_RASTER",
+)
 LANGUAGE_ALIASES = {"en": "en", "english": "en", "englisch": "en", "de": "de", "german": "de", "deutsch": "de"}
 IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX_MB": 5,
                   "PKM_IMAGE_PARAM_MAX_KB": 512}
