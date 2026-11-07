@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.29 (Entwurf zum Review) · **Stand:** 05.11.2026
+**Version:** 0.29 (Entwurf zum Review) · **Stand:** 07.11.2026
 
 > **Änderungen in 0.29** (pkm-tools 0.3.0; Anlass: Pflegeläufe vom 05./06.11.2026 mit einer Enzyklopädie mit 106 Bilddateien und einem Artikel mit 2,2 MB eingebetteten PNG)
 > - **Verlinkte Bilder sind Anhänge, unabhängig vom Ordner:** Links werden relativ zum Dokument, ab der Vault-Wurzel, ohne Rücksicht auf Groß- und Kleinschreibung, über Obsidians kürzesten Pfad und über den bloßen Dateinamen aufgelöst, auch in spitzen Klammern. Anhänge erscheinen nicht als eigene `pending`-Einträge (`images` bei `new`, `images_changed` bei `changed`), brauchen keinen `processed`-Eintrag und lösen keine Warnung „no wiki page cites“ aus. Verwaist ist ein Anhang unabhängig vom Ordner (4.9, 7.7, 9).

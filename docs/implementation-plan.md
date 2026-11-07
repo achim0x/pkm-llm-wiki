@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Umsetzungsplan
 
-**Bezug:** [Spezifikation v0.29](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 05.11.2026 · **Plan-Version:** 4
+**Bezug:** [Spezifikation v0.29](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 07.11.2026 · **Plan-Version:** 4
 
 Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnissen, Tests und Abnahmekriterien. Abschnittsnummern in Klammern (z. B. „5.4“) verweisen auf die Spezifikation.
 
@@ -277,7 +277,7 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - **Englische Namen** (0.28): Pflege-Server `pkm-maintenance` (`pkm-maintenance-mcp`, `maintenance_server.py`), Projekt „PKM Maintenance“; `pkm-pflege-mcp` als Alias, `pkm setup` ersetzt den alten Eintrag (`test_setup.py`).
 - **Version anzeigen** (0.28): `pkm --version`, Version in `pkm setup` und `pkm doctor`.
 - **`CLAUDE.md` aktualisieren** (0.28): `pkm setup` vergleicht die `CLAUDE.md` des Vaults mit der Vorlage und bietet Ersetzen mit Sicherung und Commit oder `CLAUDE.md.new` an (`test_setup.py`).
-- **Bilder und Größengrenze, pkm-tools 0.3.0** (0.29): verlinkte Bilder als Anhänge unabhängig vom Ordner (robuste Link-Auflösung, `images`/`images_changed` in `pending`, kein `processed`-Eintrag), Ablageort `PKM_IMAGE_FOLDER`, Dubletten einmal abgelegt, eigenständige Dateien über Pfad und Hash (kein `moved` für Dubletten), `PKM_MAX_KB` für den Text ohne Data-URIs, `fix_images` mit `extract`, Lint `large_embedded_image`/`generic_alt_text`/`duplicate_image`, `wiki_language` in `begin_maintenance` (`test_image_attachments.py`).
+- **Bilder und Größengrenze, pkm-tools 0.3.0** (0.29): verlinkte Bilder als Anhänge unabhängig vom Ordner (robuste Link-Auflösung, `images`/`images_changed` in `pending`, kein `processed`-Eintrag), Ablageort `PKM_IMAGE_FOLDER`, Dubletten einmal abgelegt, eigenständige Dateien über Pfad und Hash (kein `moved` für Dubletten), `PKM_MAX_KB` für den Text ohne Data-URIs (nach Bestätigung mit `confirm_large` für einen Aufruf überschreibbar), `fix_images` mit `extract`, Lint `large_embedded_image`/`generic_alt_text`/`duplicate_image`, `wiki_language` in `begin_maintenance` (`test_image_attachments.py`).
 - **Vorhandene Konfiguration übernehmen** (0.27): `pkm setup` zeigt Einstellungen aus Umgebung, `env`-Blöcken in Claude Desktop und `config.toml` und übernimmt sie nach Bestätigung (`test_setup_adopt.py`).
 
 ### Phase 7e – Abnahme mit der neuen Installation
