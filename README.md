@@ -123,7 +123,8 @@ missing. To add it later: install Git and run `pkm setup` again.
   processes it with the document, not as a source of its own.
 - **Large embedded images** (e.g. from a web article) can be stored as files after your confirmation
   (`fix_images` with `extract`); the bytes stay the same. The size limit `PKM_MAX_KB` only counts the
-  text, not embedded images.
+  text, not embedded images; if a document should still be larger, Claude asks you and writes it after
+  your confirmation.
 - **Photos from the chat:** Claude cannot pass on uploaded images byte for byte. You put the file
   (PNG or JPEG) into the folder `pkm_img_import/` in the vault, also from your phone via the app of
   your cloud storage; Claude takes it from there. For JPEG the server removes GPS and camera data.
@@ -741,7 +742,8 @@ Wiederherstellen fehlen. Nachrüsten: Git installieren und `pkm setup` erneut au
   Pflege verarbeitet sie mit dem Dokument, nicht als eigene Quelle.
 - **Große eingebettete Bilder** (z. B. aus einem Web-Artikel) lassen sich nach deiner Bestätigung als
   Datei ablegen (`fix_images` mit `extract`); die Bytes bleiben gleich. Die Größengrenze
-  `PKM_MAX_KB` zählt nur den Text, nicht die eingebetteten Bilder.
+  `PKM_MAX_KB` zählt nur den Text, nicht die eingebetteten Bilder; soll ein Dokument trotzdem größer
+  werden, fragt Claude nach und schreibt es nach deiner Bestätigung.
 - **Fotos aus dem Chat:** Claude kann hochgeladene Bilder nicht byte-genau weitergeben. Du legst die
   Datei (PNG oder JPEG) in den Ordner `pkm_img_import/` im Vault, auch vom Smartphone über die App deines Cloud-Speichers;
   Claude übernimmt sie von dort. Bei JPEG entfernt der Server GPS- und Kameradaten.

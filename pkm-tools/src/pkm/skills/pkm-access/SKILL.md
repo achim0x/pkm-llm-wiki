@@ -155,7 +155,9 @@ original with `edit_document`:
 - Existing embedded PNGs stay unchanged; for them at most the notation is fixed after
   confirmation – or, also only after confirmation, they are stored as files (see next point).
 - **`too_large`** names the text size (without embedded images, the limit applies to it) and the size of the
-  embedded images separately. **Large embedded images** (lint `large_embedded_image`, or `too_large` for a
+  embedded images separately. Tell the user the size (`text_kb`, limit `max_kb`) and ask whether the document
+  should still become that large; **only after explicit confirmation** repeat the same call with
+  `confirm_large: true`. Otherwise propose splitting the content into several documents. **Large embedded images** (lint `large_embedded_image`, or `too_large` for a
   document with little text): offer to store them as files with `fix_images` and `extract: true` (optionally
   `min_kb`, default 32). After confirmation first without `apply` (show the list `files` and the diff),
   then with `apply: true`. The bytes and the image names stay, citations stay valid. Frontmatter changes

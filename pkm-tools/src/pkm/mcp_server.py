@@ -57,6 +57,9 @@ IMAGES_DOC = (
 
 INSTRUCTIONS = (
     "Access to the personal knowledge management (PKM). The wiki is read-only. "
+    "Size limit: too_large means the text without embedded images is larger than PKM_MAX_KB. Tell the user the "
+    "size and ask; only after explicit confirmation call the same tool again with confirm_large=true. For large "
+    "embedded images offer fix_images with extract instead. "
     "Documents are created or changed only after a draft has been shown and confirmed. "
     "Every change needs `expected_hash` from `read` and results in a new version (with a Git commit if version "
     "control is on; without it history/restore return not_versioned). "
@@ -227,7 +230,7 @@ def _register_write_tools(server: Server) -> None:
     """
 
     @server.tool()
-    def create_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def create_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
         title: str,
         content: str,
         tags: list[str] | None = None,
@@ -243,52 +246,59 @@ def _register_write_tools(server: Server) -> None:
         images: list[dict] | None = None,
         fix_images: bool = False,
         image_alt: dict | None = None,
+        confirm_large: bool = False,
     ) -> dict:
         """Create a new document in documents/_inbox/ (version 1, commit) or with area="scratch"
         a short-lived note/todo list in scratch/[folder/] (without version and commit, never in the wiki).
         Only after a draft has been shown and confirmed. content without frontmatter. tags: lower case with
         hyphens. kind: note | standard | regulation | correction. toolchain: own model name plus
-        "(pkm-mcp)", becomes toolchain_markdown. Images see images."""
+        "(pkm-mcp)", becomes toolchain_markdown. Images see images. too_large: see confirm_large in the
+        instructions."""
         return call("create_document", Service.create_document, title=title, content=content, tags=tags,
                     short_citation=short_citation, date_document=date_document, context=context, related=related,
                     kind=kind, toolchain=toolchain, note=note, area=area, folder=folder, images=images,
-                    fix_images=fix_images, image_alt=image_alt)
+                    fix_images=fix_images, image_alt=image_alt, confirm_large=confirm_large)
 
     @server.tool()
     def rewrite_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str, content: str, expected_hash: str, note: str | None = None, confirm_shortening: bool = False,
         images: list[dict] | None = None, fix_images: bool = False, image_alt: dict | None = None,
+        confirm_large: bool = False,
     ) -> dict:
         """Replace the entire content below the frontmatter (the normal case for continuations).
         On a clear shortening or missing sections status large_shortening: have the user confirm the
         shortening and call again with confirm_shortening=true. Leave image placeholders from read
-        (pkm-image:…) unchanged; missing images count as removed (large_shortening)."""
+        (pkm-image:…) unchanged; missing images count as removed (large_shortening). too_large: see confirm_large
+        in the instructions."""
         return call("rewrite_document", Service.rewrite_document, target=target, content=content,
                     expected_hash=expected_hash, note=note, confirm_shortening=confirm_shortening, images=images,
-                    fix_images=fix_images, image_alt=image_alt)
+                    fix_images=fix_images, image_alt=image_alt, confirm_large=confirm_large)
 
     @server.tool()
     def append_to_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str, text: str, expected_hash: str, section: str | None = None, note: str | None = None,
         images: list[dict] | None = None, fix_images: bool = False, image_alt: dict | None = None,
+        confirm_large: bool = False,
     ) -> dict:
         """Append text: at the end of section section (key, e.g. "Open points",
-        "Notes#2" or "_preamble"), a new section if it does not exist, without section at the end of the file."""
+        "Notes#2" or "_preamble"), a new section if it does not exist, without section at the end of the file.
+        too_large: see confirm_large in the instructions."""
         return call("append_to_document", Service.append_to_document, target=target, text=text,
                     expected_hash=expected_hash, section=section, note=note, images=images, fix_images=fix_images,
-                    image_alt=image_alt)
+                    image_alt=image_alt, confirm_large=confirm_large)
 
     @server.tool()
     def edit_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str, old: str, new: str, expected_hash: str, note: str | None = None,
         images: list[dict] | None = None, confirm_shortening: bool = False, fix_images: bool = False,
-        image_alt: dict | None = None,
+        image_alt: dict | None = None, confirm_large: bool = False,
     ) -> dict:
         """Replace the passage old (must occur exactly once, in the text with image placeholders from read) by new.
-        new may be empty. If the change removes an image: large_shortening, after confirmation confirm_shortening."""
+        new may be empty. If the change removes an image: large_shortening, after confirmation confirm_shortening.
+        too_large: see confirm_large in the instructions."""
         return call("edit_document", Service.edit_document, target=target, old=old, new=new,
                     expected_hash=expected_hash, note=note, images=images, confirm_shortening=confirm_shortening,
-                    fix_images=fix_images, image_alt=image_alt)
+                    fix_images=fix_images, image_alt=image_alt, confirm_large=confirm_large)
 
     @server.tool()
     def add_image(  # pylint: disable=too-many-arguments,too-many-positional-arguments

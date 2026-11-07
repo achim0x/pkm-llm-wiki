@@ -32,6 +32,9 @@ PNGs).
 - The limit applies to the text without data URIs (as `read` counts it), not to the file size.
   `set_document_metadata`, `update_frontmatter` and `fix_images` are exempt. `too_large` names the
   text size and the size of the embedded images separately and suggests `extract`.
+- The user can override the limit for a single call: after explicit confirmation the chat repeats
+  `create_document`, `rewrite_document`, `append_to_document` or `edit_document` with
+  `confirm_large: true`. Wiki pages of the maintenance agent stay under the limit.
 
 ### `fix_images` with `extract`
 

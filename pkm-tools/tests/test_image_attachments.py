@@ -33,6 +33,7 @@ import pytest
 
 from pkm import imagefix, imagelint, images, maintrun
 from pkm.config import Config, ImageConfig
+from pkm.errors import PkmError
 from pkm.lint import lint
 from pkm.maint import Maintenance
 from pkm.service import Service
@@ -274,6 +275,27 @@ def test_size_limit_counts_text_without_data_uris(svc, monkeypatch):
         svc.writer.append_to_document(rel, long_text, res["new_hash"])
     message = str(err.value)
     assert "KB of text without embedded images" in message and "extract" in message
+    assert "confirm_large=true" in message
+    res = svc.writer.append_to_document(rel, long_text, res["new_hash"], confirm_large=True)
+    assert res["status"] == "changed"
+
+
+def test_confirm_large_overrides_limit(svc, monkeypatch):
+    """confirm_large lets the user override PKM_MAX_KB for a single call; without it the call is refused."""
+    monkeypatch.setenv("PKM_MAX_KB", "1")
+    svc = Service(Config.from_env())
+    text = "## Long\n" + "line of text\n" * 200  # about 2.6 KB
+    with pytest.raises(Exception) as err:
+        svc.writer.create_document(title="Long", content=text)
+    assert getattr(err.value, "status", "") == "too_large"
+    res = svc.writer.create_document(title="Long", content=text, confirm_large=True)
+    assert res["status"] == "created"
+    with pytest.raises(PkmError, match="confirm_large"):
+        svc.writer.rewrite_document(res["path"], text + "more\n", res["new_hash"])
+    res = svc.writer.rewrite_document(res["path"], text + "more\n", res["new_hash"], confirm_large=True)
+    assert res["status"] == "changed"
+    res = svc.writer.edit_document(res["path"], "more", "more text", res["new_hash"], confirm_large=True)
+    assert res["status"] == "changed"
 
 
 def test_extract_embedded_images(svc, isolated_env):

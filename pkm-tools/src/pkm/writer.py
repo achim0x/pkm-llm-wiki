@@ -43,12 +43,12 @@ from .frontmatter import PROTECTED, dump_meta, set_fields_linewise
 from .fsutil import file_lock, replace_file
 from .gitlayer import Commit, build_message
 from .ids import new_id
-from .images import find_images, to_placeholders
 from .normalize import encode, normalize_fragment, normalize_text
-from .parse import split_sections, strip_frontmatter
+from .parse import strip_frontmatter
 from .paths import MAX_NAME, fit_stem, is_platform_safe_name, slugify
 from .schema import DEFAULT_KIND, DEFAULT_TOOLCHAIN, FIELD_ORDER, KINDS, normalize_tags, order_meta, stamp
 from .vault import SCRATCH, Doc, load_text_doc
+from .writeguard import check_shortening, check_size
 
 if TYPE_CHECKING:
     from .service import Service
@@ -58,7 +58,6 @@ if TYPE_CHECKING:
 INBOX = "documents/_inbox"
 CREATE_AREAS = ("documents", SCRATCH)
 DIFF_LINES = 80
-SHORTENING_RATIO = 0.6
 FILE_MODE_MASK = 0o777
 
 # Classes *********************************************************************
@@ -135,29 +134,15 @@ class Writer:
         """
         return stamp(self.svc.now())
 
-    def check_size(self, text: str, what: str) -> None:
-        """Check the size limit ``PKM_MAX_KB`` against the text without data URIs.
-
-        The limit protects the context of the model, so it applies to the text as ``read`` returns it
-        (embedded images replaced by placeholders), not to the size of the file.
+    def check_size(self, text: str, what: str, confirmed: bool = False) -> None:
+        """Check the size limit ``PKM_MAX_KB`` against the text without data URIs (``writeguard``).
 
         Args:
             text: Text to check.
             what: Label for the error message.
-
-        Raises:
-            PkmError: ``too_large`` if the text without embedded images is larger; the message names the
-                text and the embedded images separately and suggests ``fix_images`` with ``extract``.
+            confirmed: Larger text confirmed by the user (``confirm_large``).
         """
-        text_bytes = len(to_placeholders(text).encode("utf-8"))
-        if text_bytes > self.cfg.max_bytes:
-            image_bytes = sum(len(r.link) for r in find_images(text) if r.inline)
-            hint = (" Large embedded images can be moved to files with fix_images (extract: true)."
-                    if image_bytes else "")
-            raise PkmError("too_large", f"{what} has {text_bytes // 1024} KB of text without embedded images "
-                           f"(limit {self.cfg.max_kb} KB, PKM_MAX_KB) and {image_bytes // 1024} KB of embedded "
-                           f"images.{hint}", text_kb=text_bytes // 1024, embedded_images_kb=image_bytes // 1024,
-                           max_kb=self.cfg.max_kb)
+        check_size(text, what, self.cfg.max_kb, confirmed)
 
     def write_atomic(self, rel: str, text: str) -> None:
         """Write a file atomically (temporary file, then rename), keeping the file permissions.
@@ -482,6 +467,7 @@ class Writer:
         images: list[dict[str, Any]] | None = None,
         fix_images: bool = False,
         image_alt: dict[str, str] | None = None,
+        confirm_large: bool = False,
     ) -> dict[str, Any]:
         """Tool ``create_document``: new document in ``documents/_inbox/`` (version 1) or note in ``scratch/``.
 
@@ -501,6 +487,7 @@ class Writer:
             images: Images for placeholders ``{{image:<name>}}`` in the content (4.9).
             fix_images: Fix nonconforming data URIs in the text after confirmation (4.9).
             image_alt: Alt texts per image name for ``missing_alt``.
+            confirm_large: Text larger than ``PKM_MAX_KB`` confirmed by the user.
 
         Returns:
             ``{id, path, status: created, version: 1, new_hash, commit, diff}``; for ``scratch``
@@ -513,7 +500,7 @@ class Writer:
         title = " ".join((title or "").split())
         _check_create_args(title, area, folder, kind)
         body = strip_frontmatter(normalize_fragment(content or ""))
-        self.check_size(body, "The content")
+        self.check_size(body, "The content", confirm_large)
         values = {
             "title": title,
             "short_citation": " ".join(short_citation.split()) if short_citation else None,
@@ -664,7 +651,7 @@ class Writer:
     def rewrite_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, target: str, content: str, expected_hash: str | None, note: str | None = None,
         confirm_shortening: bool = False, images: list[dict[str, Any]] | None = None, fix_images: bool = False,
-        image_alt: dict[str, str] | None = None,
+        image_alt: dict[str, str] | None = None, confirm_large: bool = False,
     ) -> dict[str, Any]:
         """Tool ``rewrite_document``: replace the entire content below the frontmatter.
 
@@ -677,6 +664,7 @@ class Writer:
             images: New images for placeholders ``{{image:<name>}}`` (4.9).
             fix_images: Fix nonconforming data URIs in the text after confirmation (4.9).
             image_alt: Alt texts per image name for ``missing_alt``.
+            confirm_large: Text larger than ``PKM_MAX_KB`` confirmed by the user.
 
         Returns:
             Return value of ``finish``.
@@ -687,21 +675,22 @@ class Writer:
                 ``unknown_image`` for unknown placeholders.
         """
         new_body = normalize_text(strip_frontmatter(normalize_fragment(content or "")))
-        self.check_size(new_body, "The content")
+        self.check_size(new_body, "The content", confirm_large)
 
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
             body = docimages.restore_body(doc.parsed.body, new_body)
-            _check_shortening(doc, body, confirm_shortening)
+            check_shortening(doc, body, confirm_shortening)
             fm = doc.parsed.frontmatter_text
             return fm + ("\n" if fm else "") + body.lstrip("\n")
 
         return self.change(target, expected_hash, transform, note or "rewritten", images=images,
-                           fix={"fix_images": fix_images, "image_alt": image_alt})
+                           fix={"fix_images": fix_images, "image_alt": image_alt}, check_limit=not confirm_large)
 
     def append_to_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, target: str, text: str, expected_hash: str | None, section: str | None = None, note: str | None = None,
         images: list[dict[str, Any]] | None = None, fix_images: bool = False, image_alt: dict[str, str] | None = None,
+        confirm_large: bool = False,
     ) -> dict[str, Any]:
         """Tool ``append_to_document``.
 
@@ -715,6 +704,7 @@ class Writer:
             images: New images for placeholders ``{{image:<name>}}`` (4.9).
             fix_images: Fix nonconforming data URIs in the text after confirmation (4.9).
             image_alt: Alt texts per image name for ``missing_alt``.
+            confirm_large: Text larger than ``PKM_MAX_KB`` confirmed by the user.
 
         Returns:
             Return value of ``finish``.
@@ -725,7 +715,7 @@ class Writer:
         block = normalize_fragment(text or "").strip("\n").split("\n")
         if not "".join(block).strip():
             raise PkmError("invalid_argument", "text is empty.")
-        self.check_size("\n".join(block), "The text")
+        self.check_size("\n".join(block), "The text", confirm_large)
 
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
@@ -733,12 +723,12 @@ class Writer:
 
         default = f"appended: {section}" if section else "appended at the end"
         return self.change(target, expected_hash, transform, note or default, images=images,
-                           fix={"fix_images": fix_images, "image_alt": image_alt})
+                           fix={"fix_images": fix_images, "image_alt": image_alt}, check_limit=not confirm_large)
 
     def edit_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, target: str, old: str, new: str, expected_hash: str | None, note: str | None = None,
         images: list[dict[str, Any]] | None = None, confirm_shortening: bool = False, fix_images: bool = False,
-        image_alt: dict[str, str] | None = None,
+        image_alt: dict[str, str] | None = None, confirm_large: bool = False,
     ) -> dict[str, Any]:
         """Tool ``edit_document``: replace a passage.
 
@@ -752,6 +742,7 @@ class Writer:
             confirm_shortening: Confirm the removal of images.
             fix_images: Fix nonconforming data URIs in the text after confirmation (4.9).
             image_alt: Alt texts per image name for ``missing_alt``.
+            confirm_large: Text larger than ``PKM_MAX_KB`` confirmed by the user.
 
         Returns:
             Return value of ``finish``.
@@ -764,7 +755,7 @@ class Writer:
         new_n = normalize_fragment(new or "")
         if not old_n:
             raise PkmError("invalid_argument", "old is empty.")
-        self.check_size(new_n, "The text")
+        self.check_size(new_n, "The text", confirm_large)
 
         def transform(doc: Doc) -> str:
             assert doc.parsed is not None
@@ -777,7 +768,7 @@ class Writer:
             return doc.parsed.frontmatter_text + new_body
 
         return self.change(target, expected_hash, transform, note or "passage changed", images=images,
-                           fix={"fix_images": fix_images, "image_alt": image_alt})
+                           fix={"fix_images": fix_images, "image_alt": image_alt}, check_limit=not confirm_large)
 
     def add_image(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, target: str, expected_hash: str | None, image: dict[str, Any], section: str | None = None,
@@ -929,33 +920,6 @@ def _check_create_args(title: str, area: str, folder: str | None, kind: str | No
         raise PkmError("invalid_argument", "folder only exists for area scratch.")
     if kind is not None and kind not in KINDS:
         raise PkmError("invalid_argument", f"kind must be one of {', '.join(KINDS)}.")
-
-
-def _check_shortening(doc: Doc, new_body: str, confirmed: bool) -> None:
-    """Shortening protection of ``rewrite_document`` (less than 60 % or missing sections).
-
-    Args:
-        doc: Document before the change.
-        new_body: New, normalized body.
-        confirmed: Shortening was confirmed by the user.
-
-    Raises:
-        PkmError: ``large_shortening`` with the missing sections.
-    """
-    assert doc.parsed is not None
-    old_body = normalize_text(doc.parsed.body)
-    new_keys = {s.key for s in split_sections(new_body)}
-    missing = [k for k in doc.parsed.section_keys() if k not in new_keys]
-    removed = docimages.removed_images(old_body, new_body)
-    ratio = len(new_body) / len(old_body) if old_body else 1.0
-    if not confirmed and (ratio < SHORTENING_RATIO or missing or removed):
-        raise PkmError(
-            "large_shortening",
-            "The new content is clearly shorter or sections are missing. "
-            "Please have the user confirm it and call again with confirm_shortening=true.",
-            missing_sections=missing, removed_images=removed, old_chars=len(old_body), new_chars=len(new_body),
-            ratio=round(ratio, 2), path=doc.rel,
-        )
 
 
 def _updated_meta(

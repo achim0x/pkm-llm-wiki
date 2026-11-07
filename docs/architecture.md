@@ -851,8 +851,9 @@ skips it in `processed`. Standalone files are classified by path and hash (`main
 neither. New image files go to `ImageConfig.folder_for(doc)` (`PKM_IMAGE_FOLDER`), and
 `imagefix.store_image` reuses an identical file there.
 
-**Size limit and extract:** `Writer.check_size` measures the text without data URIs; frontmatter
-changes and `fix_images` skip it. `imagefix.extract_text` (``fix_images`` with ``extract``) writes
+**Size limit and extract:** `writeguard.check_size` measures the text without data URIs; frontmatter
+changes and `fix_images` skip it, and `confirm_large` (after the user's confirmation) skips it for a
+single call of the four writing tools. `writeguard.check_shortening` is the shortening protection. `imagefix.extract_text` (``fix_images`` with ``extract``) writes
 embedded raster images unchanged to files; `imagefix.canonical` compares linked files by hash, so the
 follow-up run sees `image_notation_only` and `citeraise` raises the citations.
 
