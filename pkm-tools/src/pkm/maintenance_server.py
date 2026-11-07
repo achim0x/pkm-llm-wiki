@@ -76,14 +76,17 @@ def _register_maintenance_tools(server: Server) -> None:
     @server.tool(name="fix_images")
     def fix_images_tool(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str, expected_hash: str, images: list[str] | None = None, image_alt: dict | None = None,
-        apply: bool = False, confirm_shortening: bool = False, note: str | None = None,
+        apply: bool = False, confirm_shortening: bool = False, note: str | None = None, extract: bool = False,
+        min_kb: int = 32,
     ) -> dict:
         """Only after explicit confirmation by the user, never unattended: fix the notation of nonconforming
         image data URIs of a document in documents/ per 4.9 (image_issues from begin_maintenance).
-        Without apply only a proposal with diff; apply=true writes a new version (PKM-Fix: images)."""
+        Without apply only a proposal with diff; apply=true writes a new version (PKM-Fix: images).
+        extract=true: store embedded raster images of at least min_kb KB as files and link them (bytes
+        unchanged, PKM-Fix: images-extract), e.g. for lint large_embedded_image."""
         return call("fix_images", maintrun.fix_document_images, target=target, expected_hash=expected_hash,
                     images_only=images, image_alt=image_alt, apply=apply, confirm_shortening=confirm_shortening,
-                    note=note)
+                    note=note, extract=extract, min_kb=min_kb)
 
     @server.tool()
     def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positional-arguments

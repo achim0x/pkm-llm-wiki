@@ -41,10 +41,31 @@ if TYPE_CHECKING:
 # Variables *******************************************************************
 
 IMG_QUOTE_RE = re.compile(r"^\[img:(?P<name>[a-z0-9-]+)\]$")
+GENERIC_ALT = {
+    "image", "images", "img", "bild", "bilder", "picture", "pic", "photo", "foto", "figure", "fig", "abbildung",
+    "abb", "grafik", "graphic", "graphics", "screenshot", "icon", "logo", "untitled", "alt", "alt text", "diagram",
+    "diagramm", "chart",
+}
+GENERIC_ALT_RE = re.compile(r"^(?:img|image|bild|dsc|dcim|pxl|photo|foto|screenshot|pasted image|figure|fig|abb)"
+                            r"[\s_.-]*\d[\w .-]*$|\.(?:png|jpe?g|gif|webp|svg)$", re.IGNORECASE)
+LARGE_EMBEDDED_KB = 32
 
 # Classes *********************************************************************
 
 # Functions *******************************************************************
+
+
+def is_generic_alt(alt: str) -> bool:
+    """Check whether an alt text says nothing about the image (lint ``generic_alt_text``).
+
+    Args:
+        alt: Alt text (without ``|width``).
+
+    Returns:
+        ``True`` for words like "Image" or "Bild", file names and numbered names like ``IMG_068``.
+    """
+    text = " ".join(alt.split()).strip(" .:")
+    return text.casefold() in GENERIC_ALT or bool(GENERIC_ALT_RE.search(text))
 
 
 def image_quote(quote: str | None) -> str | None:
@@ -92,6 +113,15 @@ def _check_refs(add: Any, doc: Doc, limits: Any) -> None:
     for ref in refs:
         if not ref.alt:
             add("image_without_alt", "info", doc.rel, f"Image \"{ref.name}\" without alt text.", image=ref.name)
+    for ref in images.find_images(body):
+        if ref.alt and is_generic_alt(ref.alt):
+            add("generic_alt_text", "info", doc.rel, f"Image \"{ref.name}\" has a generic alt text \"{ref.alt}\"; "
+                "propose a description of the image.", image=ref.name, alt=ref.alt)
+        size = len(ref.data()) if ref.inline and ref.fmt in imagefix.RASTER_FORMATS else 0
+        if size > LARGE_EMBEDDED_KB * 1024:
+            add("large_embedded_image", "info", doc.rel, f"Embedded image \"{ref.name}\" has {size // 1024} KB; "
+                "propose fix_images with extract (stores it as a file, after confirmation).", image=ref.name,
+                size_kb=size // 1024)
     for issue in imagefix.image_issues(body, limits, wiki=doc.area == "wiki"):
         severe = {"svg_unsafe", "invalid_data"} & set(issue["problems"])
         add("nonconforming_image", "error" if severe else "warning", doc.rel,
@@ -124,7 +154,19 @@ def check_images(add: Any, svc: Service, docs: list[Doc], pages: list[Doc]) -> N
         entries = load_state(svc.cfg)["documents"]
     except PkmError:
         entries = {}
-    for rel in AssetMap(svc, docs).orphans(known_assets(entries)):
+    amap = AssetMap(svc, docs)
+    for rel in amap.orphans(known_assets(entries)):
         add("orphaned_attachment", "info", rel, "Orphaned attachment: no document links to this image file.")
+    referenced = amap.referenced()
+    by_hash: dict[str, list[str]] = {}
+    for doc in docs:
+        if doc.kind == "bin" and doc.bin_hash and doc.rel.lower().endswith(images.IMAGE_EXTENSIONS):
+            by_hash.setdefault(doc.bin_hash, []).append(doc.rel)
+    for paths in by_hash.values():
+        if len(paths) > 1:
+            paths = sorted(paths)
+            add("duplicate_image", "info", paths[0], f"The same image is stored {len(paths)} times: "
+                + ", ".join(paths) + ". Propose to link one file and delete the others.", paths=paths,
+                linked_by={p: referenced.get(p, []) for p in paths})
 
 # Main ************************************************************************

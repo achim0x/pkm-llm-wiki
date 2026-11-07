@@ -15,12 +15,13 @@ you need neither a shell nor the CLI `pkm` (there is none in Cowork).
 | `read_image` | View images (PNG as an image, SVG as text) |
 | `write_wiki_page` | Create or completely replace a wiki page (without commit) |
 | `set_document_metadata` | Only after confirmation: enter `title`, `context`, `tags`, `kind`, `short_citation` of a document |
-| `fix_images` | Only after confirmation: fix the notation of nonconforming image data URIs of a document |
+| `fix_images` | Only after confirmation: fix the notation of nonconforming image data URIs of a document, or with `extract: true` store large embedded images as files |
 | `finish_maintenance` | Finish: citations (moved, renamed, `v:` raised for unchanged sections), `sources`, processing state, log, index, status, lint, agent commit |
 
-**Language:** the instructions of the server `pkm-maintenance` name the **wiki language** (set during
-installation, `PKM_LANGUAGE`). New wiki pages and summaries, the log entry and the report are
-written in it, with these names:
+**Language:** `begin_maintenance` returns the **wiki language** under `wiki_language` (`code`, `name`,
+`summary_label`, `sections`; set during installation, `PKM_LANGUAGE`); the server instructions name it
+too, but do not reach you in every client. New wiki pages and summaries, the log entry and the report
+are written in it, with these names:
 
 | | English (`en`) | German (`de`) |
 |---|---|---|
@@ -98,6 +99,21 @@ no name. **Never fix unattended**, proposals go via `questions`.
 
 Your own wiki pages: if `write_wiki_page` reports `nonconforming_image`, fix it without asking with
 `fix_images: true` or rebuild the SVG. Leave placeholders `pkm-image:…` from `read` in place.
+
+**Storing large embedded images as files (`extract`):** if lint reports `large_embedded_image`, or a
+tool reports `too_large` for a document whose text is small but whose embedded images are large,
+propose to store them as files. Only after **explicit confirmation**, never unattended: `read` →
+`hash` → `fix_images` with `extract: true` (optionally `min_kb`, default 32) without `apply` (check
+the list `files` and the diff) → the same with `apply: true`. The bytes stay unchanged, the images
+keep their names, citations `[img:<name>]` stay valid. In the next run the document has
+`image_notation_only: true`: process nothing, only list it in `processed`.
+
+**Attachments:** an image file that a document links to (Markdown link or `![[…]]`) is an attachment of
+that document, in whatever folder it lies (`documents/_attachments/`, a folder `<document>_img/` next to
+the document or elsewhere). Attachments never appear as `pending` entries of their own: a new
+document lists them under `images`, a changed one names changed image files under `images_changed`.
+They get **no entry in `processed`** and no summary of their own. Only images that no document links
+to are standalone sources.
 
 ## Formats
 
@@ -229,14 +245,15 @@ deliver the list as `log_entry`:
    old statement as replaced in the log. If the correction contradicts a **newer** source
    → ask.
 7. **Images**: view every new or changed image (embedded or linked, see `images` in
-   `read`) with `read_image`. Take over the content in words and cite it with `[img:<name>]` as the
-   quote. Associated images get no summary of their own; standalone images
-   (without a document that links to them) as before. **PDF**: `read` only returns size and `hash`.
+   `read`, and `images`/`images_changed` in `pending`) with `read_image`. Take over the content in
+   words and cite it with `[img:<name>]` as the quote. Attachments get no summary and no `processed`
+   entry of their own; standalone images (without a document that links to them) as before. **PDF**: `read` only returns size and `hash`.
    You read the content if the vault folder is connected in the conversation; otherwise do not list the PDF
    in `processed` and name it in the report.
 8. Finish with `finish_maintenance`:
-   - `processed`: IDs (or paths for PDF/image) of all documents processed in this run –
-     also the moved ones and those changed only in their metadata. The tool determines the citing pages
+   - `processed`: IDs (or paths for PDF/standalone image) of all documents processed in this run –
+     also the moved ones and those changed only in their metadata. Not the attachments of a document
+     (if listed anyway, they are skipped without a warning). The tool determines the citing pages
      from the footnotes; `warnings` names documents without a citation.
    - `removed`: keys of processed deleted documents.
    - `log_entry`, `log_title`, if needed `questions` (questions for `wiki/_status.md`).
@@ -258,7 +275,11 @@ Conflict copies of the cloud storage are never processed; the user merges them i
    under "Frontmatter proposals"), nonconforming data URIs (`nonconforming_image`, see "Fixing
    data URIs"), contradictions in content, merging pages, new
    pages, duplicate IDs, citations with `newer_version` that could not be raised
-   automatically, hints on documents (you do not touch `documents/`).
+   automatically, hints on documents (you do not touch `documents/`). Image hints (all `info`):
+   `large_embedded_image` → propose `fix_images` with `extract`; `generic_alt_text` (alt text like
+   "Image", "Bild" or a file name) → propose a description after viewing the image; `duplicate_image`
+   (same image at several paths) → propose to link one file and delete the others;
+   `orphaned_attachment` (no document links to it any more) → ask whether to delete or link it.
 4. `finish_maintenance` with `operation: lint`, `lint_report: true` (report to
    `wiki/_lint/YYYY-MM-DD.md`) and a log entry.
 

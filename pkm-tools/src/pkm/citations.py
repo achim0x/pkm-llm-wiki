@@ -235,6 +235,19 @@ class Resolver:
         self.svc = svc
         self._versions: dict[tuple[str, int], Doc | None] = {}
         self._bin_index: dict[str, list[str]] | None = None
+        self._assets: Any = None
+
+    def asset_map(self) -> Any:
+        """References of all documents to image files (built on first use).
+
+        Returns:
+            ``assets.AssetMap``.
+        """
+        if self._assets is None:
+            from .assets import AssetMap  # pylint: disable=import-outside-toplevel  # avoids an import cycle
+            from .maint import Maintenance  # pylint: disable=import-outside-toplevel
+            self._assets = AssetMap(self.svc, Maintenance(self.svc).documents()[0])
+        return self._assets
 
     def version_doc(self, doc_id: str, version: int) -> Doc | None:
         """Document in a version from Git.

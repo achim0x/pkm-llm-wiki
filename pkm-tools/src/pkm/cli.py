@@ -229,7 +229,10 @@ def cmd_fix_frontmatter(svc: Service, args: argparse.Namespace) -> Any:
 
 
 def cmd_fix_images(svc: Service, args: argparse.Namespace) -> Any:
-    """``pkm fix-images <target>… [--all] [--apply] [--alt <name>=<text>]`` (only on instruction, 4.9).
+    """``pkm fix-images <target>… [--all] [--apply] [--alt <name>=<text>] [--extract [--min-kb N]]`` (4.9).
+
+    Only on instruction. With ``--extract`` embedded raster images of at least ``--min-kb`` KB are stored as
+    files instead (``--all``: all documents with such images).
 
     Without a target and without ``--all`` the command only lists the affected files. Without ``--apply`` it
     shows findings, proposals and diff; with ``--apply`` every changed file is committed as a new version
@@ -237,7 +240,7 @@ def cmd_fix_images(svc: Service, args: argparse.Namespace) -> Any:
 
     Args:
         svc: Service.
-        args: ``targets``, ``all``, ``apply``, ``alt``.
+        args: ``targets``, ``all``, ``apply``, ``alt``, ``extract``, ``min_kb``.
 
     Returns:
         List of the affected files or results per file.
@@ -249,13 +252,16 @@ def cmd_fix_images(svc: Service, args: argparse.Namespace) -> Any:
         raise PkmError("invalid_argument", "--alt expects <name>=<text>.")
     alt = dict(a.split("=", 1) for a in args.alt)
     docs = [d for d in Maintenance(svc).documents()[0] if d.kind == "md" and d.parsed is not None and not d.error]
-    affected = [d.rel for d in docs if imagefix.image_issues(d.body or "", svc.cfg.images)]
+    if args.extract:
+        affected = [d.rel for d in docs if imagefix.extract_candidates(d.body or "", args.min_kb)]
+    else:
+        affected = [d.rel for d in docs if imagefix.image_issues(d.body or "", svc.cfg.images)]
     targets = list(args.targets) or (affected if args.all else [])
     result: dict[str, Any] = {"status": "ok", "affected": affected}
     if targets:
         result["results"] = [
             docimages.fix_document(svc.writer, t, svc.read(t, content=False)["hash"], image_alt=alt, apply=args.apply,
-                                   source="user", areas=("documents/",))
+                                   source="user", areas=("documents/",), extract=args.extract, min_kb=args.min_kb)
             for t in targets
         ]
     return result
@@ -439,6 +445,8 @@ def build_parser() -> argparse.ArgumentParser:
     fi.add_argument("--all", action="store_true", help="all affected documents")
     fi.add_argument("--apply", action="store_true", help="write the fix (new version)")
     fi.add_argument("--alt", action="append", default=[], metavar="NAME=TEXT", help="alt text per image")
+    fi.add_argument("--extract", action="store_true", help="store large embedded raster images as files")
+    fi.add_argument("--min-kb", type=int, default=32, help="threshold for --extract in KB (default 32)")
     _add(sub, "index", "Regenerate wiki/index.md", cmd_index)
     st = _add(sub, "status", "Regenerate wiki/_status.md", cmd_status)
     st.add_argument("--question", action="append", default=[], help="add a question (repeatable)")

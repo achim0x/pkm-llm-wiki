@@ -32,8 +32,10 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from . import docimages, imagefix, images
+from .assets import AssetMap
 from .citations import fix_citations, parse_page, sync_citations
 from .citeraise import raise_versions
+from .config import DEFAULT_LANGUAGE, DOC_LANGUAGES, WIKI_SECTIONS
 from .doctor import doctor
 from .errors import PkmError
 from .frontmatter import set_fields_linewise
@@ -70,10 +72,12 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
 
     Returns:
         ``status`` (``ok``, ``blocked`` for environment errors, ``needs_decision`` for duplicate
-        IDs), the results of the individual steps and the documents to process.
+        IDs), ``wiki_language`` (also given here because server instructions do not reach the model
+        in every client, e.g. Cowork), the results of the individual steps and the documents to process.
     """
     check = doctor(svc, short=True)
-    result: dict[str, Any] = {"status": "blocked", "doctor": check["checks"]}
+    result: dict[str, Any] = {"status": "blocked", "wiki_language": wiki_language(svc.cfg.language),
+                              "doctor": check["checks"]}
     if check["status"] == "ok":
         maint = Maintenance(svc)
         versions = maint.versions()
@@ -83,6 +87,7 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
         fixed = fix_citations(svc) if pend["moved"] else None
         result = {
             "status": "needs_decision" if ids["duplicates"] else "ok",
+            "wiki_language": result["wiki_language"],
             "versions": {"committed": versions["committed"], "skipped": versions["skipped"]},
             "ids": {k: ids[k] for k in ("assigned", "duplicates", "skipped", "problems")},
             "pending": pend,
@@ -92,6 +97,20 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
         if with_lint:
             result["lint"] = lint(svc)
     return result
+
+
+def wiki_language(language: str) -> dict[str, Any]:
+    """Language of new wiki pages, log entries and reports (``PKM_LANGUAGE``, 4.2).
+
+    Args:
+        language: ``en`` or ``de``.
+
+    Returns:
+        ``code``, ``name``, ``summary_label`` and ``sections`` (headings of new wiki pages).
+    """
+    key = language if language in WIKI_SECTIONS else DEFAULT_LANGUAGE
+    label, sections = WIKI_SECTIONS[key]
+    return {"code": key, "name": DOC_LANGUAGES[key][0], "summary_label": label, "sections": list(sections)}
 
 
 def _empty(value: Any) -> bool:
@@ -229,7 +248,7 @@ def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positi
         return set_fields_linewise(doc.text or "", fields) if fields else doc.text or ""
 
     default = "metadata after confirmation: " + ", ".join(fields or set or add or {})
-    return svc.writer.change(rel, expected_hash, transform, note or default, source="agent")
+    return svc.writer.change(rel, expected_hash, transform, note or default, source="agent", check_limit=False)
 
 
 def _page_path(path: str) -> str:
@@ -329,7 +348,7 @@ def _checked_page(svc: Service, rel: str, content: str, exists: bool, fix_images
 def fix_document_images(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     svc: Service, target: str, expected_hash: str, images_only: list[str] | None = None,
     image_alt: dict[str, str] | None = None, apply: bool = False, confirm_shortening: bool = False,
-    note: str | None = None,
+    note: str | None = None, extract: bool = False, min_kb: int = imagefix.EXTRACT_MIN_KB,
 ) -> dict[str, Any]:
     """Tool ``fix_images`` in the maintenance server: only ``documents/``, commit with ``PKM-Source: agent`` (7.7).
 
@@ -342,13 +361,15 @@ def fix_document_images(  # pylint: disable=too-many-arguments,too-many-position
         apply: Write instead of only proposing.
         confirm_shortening: Removal of unused definitions confirmed.
         note: Change note.
+        extract: Store large embedded raster images as files.
+        min_kb: Threshold for ``extract``.
 
     Returns:
         Return value of ``docimages.fix_document``.
     """
     return docimages.fix_document(svc.writer, target, expected_hash, images_only=images_only, image_alt=image_alt,
                                   apply=apply, confirm_shortening=confirm_shortening, note=note, source="agent",
-                                  areas=("documents/",))
+                                  areas=("documents/",), extract=extract, min_kb=min_kb)
 
 
 def _load_target(svc: Service, target: str) -> Doc:
@@ -391,14 +412,21 @@ def _mark_processed(svc: Service, processed: list[str]) -> tuple[list[dict[str, 
         svc: Service.
         processed: IDs or paths.
 
+    Attachments (image files linked by a document, 4.9) need no entry of their own: they are processed
+    with their document and are skipped without a warning.
+
     Returns:
         Tuple of (entries, warnings for documents without a citation).
     """
     maint = Maintenance(svc)
     marked: list[dict[str, Any]] = []
     warnings: list[str] = []
+    referenced = AssetMap(svc, maint.documents()[0]).referenced() if processed else {}
     for target in processed:
         doc = _load_target(svc, target)
+        if doc.kind == "bin" and doc.rel in referenced:
+            marked.append({"path": doc.rel, "skipped": "attachment", "attachment_of": referenced[doc.rel]})
+            continue
         pages = citing_pages(svc, doc)
         if not pages:
             warnings.append(f"{doc.rel}: no wiki page cites this document.")

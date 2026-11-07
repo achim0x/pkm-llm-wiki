@@ -43,6 +43,7 @@ from .frontmatter import PROTECTED, dump_meta, set_fields_linewise
 from .fsutil import file_lock, replace_file
 from .gitlayer import Commit, build_message
 from .ids import new_id
+from .images import find_images, to_placeholders
 from .normalize import encode, normalize_fragment, normalize_text
 from .parse import split_sections, strip_frontmatter
 from .paths import MAX_NAME, fit_stem, is_platform_safe_name, slugify
@@ -135,17 +136,28 @@ class Writer:
         return stamp(self.svc.now())
 
     def check_size(self, text: str, what: str) -> None:
-        """Check the size limit ``PKM_MAX_KB``.
+        """Check the size limit ``PKM_MAX_KB`` against the text without data URIs.
+
+        The limit protects the context of the model, so it applies to the text as ``read`` returns it
+        (embedded images replaced by placeholders), not to the size of the file.
 
         Args:
             text: Text to check.
             what: Label for the error message.
 
         Raises:
-            PkmError: ``too_large`` if the text is larger.
+            PkmError: ``too_large`` if the text without embedded images is larger; the message names the
+                text and the embedded images separately and suggests ``fix_images`` with ``extract``.
         """
-        if len(text.encode("utf-8")) > self.cfg.max_bytes:
-            raise PkmError("too_large", f"{what} is larger than {self.cfg.max_kb} KB (PKM_MAX_KB).")
+        text_bytes = len(to_placeholders(text).encode("utf-8"))
+        if text_bytes > self.cfg.max_bytes:
+            image_bytes = sum(len(r.link) for r in find_images(text) if r.inline)
+            hint = (" Large embedded images can be moved to files with fix_images (extract: true)."
+                    if image_bytes else "")
+            raise PkmError("too_large", f"{what} has {text_bytes // 1024} KB of text without embedded images "
+                           f"(limit {self.cfg.max_kb} KB, PKM_MAX_KB) and {image_bytes // 1024} KB of embedded "
+                           f"images.{hint}", text_kb=text_bytes // 1024, embedded_images_kb=image_bytes // 1024,
+                           max_kb=self.cfg.max_kb)
 
     def write_atomic(self, rel: str, text: str) -> None:
         """Write a file atomically (temporary file, then rename), keeping the file permissions.
@@ -327,7 +339,7 @@ class Writer:
 
     def finish(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, doc: Doc, new_text: str, note: str, source: str = "chat", extra_paths: list[str] | None = None,
-        trailer: str | None = None,
+        trailer: str | None = None, check_limit: bool = True,
     ) -> dict[str, Any]:
         """Write the new version as a new version and commit it.
 
@@ -338,6 +350,7 @@ class Writer:
             source: ``chat``, ``user`` or ``agent``.
             extra_paths: Further files in the same commit (e.g. new image files).
             trailer: Additional commit line, e.g. ``PKM-Fix: images``.
+            check_limit: Check ``PKM_MAX_KB`` (off for pure frontmatter changes and ``fix_images``).
 
         Returns:
             ``{id, path, status, version, new_hash, commit, diff}``; ``status`` is ``changed``
@@ -356,7 +369,8 @@ class Writer:
         else:
             version = (doc.version or 0) + 1
             new_text = set_fields_linewise(new_text, {"version": version, "date_updated": self.now_stamp()})
-            self.check_size(new_text, "The document")
+            if check_limit:
+                self.check_size(new_text, "The document")
             new_doc = load_text_doc(doc.rel, new_text.encode("utf-8"))
             if new_doc.error:
                 raise PkmError(new_doc.error, new_doc.error_message or "Result invalid.")
@@ -370,9 +384,9 @@ class Writer:
             }
         return result
 
-    def change(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def change(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
         self, target: str, expected_hash: str | None, transform: Callable[[Doc], str], note: str, source: str = "chat",
-        images: list[dict[str, Any]] | None = None, fix: dict[str, Any] | None = None,
+        images: list[dict[str, Any]] | None = None, fix: dict[str, Any] | None = None, check_limit: bool = True,
     ) -> dict[str, Any]:
         """Common flow of all change tools.
 
@@ -384,6 +398,7 @@ class Writer:
             source: ``chat`` or ``user``.
             images: New images for placeholders ``{{image:<name>}}`` in the text (4.9).
             fix: ``fix_images`` and ``image_alt`` for data URIs in the given text (4.9, 7.2).
+            check_limit: Check ``PKM_MAX_KB`` (off for pure frontmatter changes).
 
         Returns:
             Return value of ``finish``, with ``images`` for new images, with ``image_warnings`` for
@@ -400,8 +415,8 @@ class Writer:
             try:
                 text, new_files, infos = docimages.place_images(self, doc, text, images)
                 files += new_files
-                result = (self.finish(doc, text, note, source, files) if doc.versioned
-                          else self.finish_scratch(doc, text))
+                result = (self.finish(doc, text, note, source, files, check_limit=check_limit) if doc.versioned
+                          else self.finish_scratch(doc, text, check_limit=check_limit))
             except PkmError:
                 docimages.remove_files(self, files)
                 raise
@@ -411,7 +426,7 @@ class Writer:
             result["image_warnings"] = warnings
         return result
 
-    def finish_scratch(self, doc: Doc, new_text: str) -> dict[str, Any]:
+    def finish_scratch(self, doc: Doc, new_text: str, check_limit: bool = True) -> dict[str, Any]:
         """Write a new version of a file in ``scratch/``: without version and without commit.
 
         ``date_updated`` is only set if the file has a frontmatter.
@@ -419,6 +434,7 @@ class Writer:
         Args:
             doc: File before the change.
             new_text: New full text.
+            check_limit: Check ``PKM_MAX_KB``.
 
         Returns:
             ``{path, status, new_hash, diff}``; ``status`` is ``changed`` or ``unchanged``.
@@ -437,7 +453,8 @@ class Writer:
                 new_doc = load_text_doc(doc.rel, new_text.encode("utf-8"))
             if new_doc.error:
                 raise PkmError(new_doc.error, new_doc.error_message or "Result invalid.")
-            self.check_size(new_text, "The file")
+            if check_limit:
+                self.check_size(new_text, "The file")
             self.write_atomic(doc.rel, new_text)
             result = {
                 "path": doc.rel, "status": "changed",
@@ -825,7 +842,7 @@ class Writer:
             return dump_meta(meta) + doc.parsed.body
 
         default = f"metadata: {', '.join(dict.fromkeys(touched))}"
-        return self.change(target, expected_hash, transform, note or default)
+        return self.change(target, expected_hash, transform, note or default, check_limit=False)
 
     def restore_document(
         self, target: str, version: int, expected_hash: str | None, source: str = "chat"

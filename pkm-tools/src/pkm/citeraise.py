@@ -97,9 +97,11 @@ def _notation_only(cit: Citation, res: Resolution, resolver: Resolver) -> bool:
     limits = resolver.svc.cfg.images
     old_sec = section_text(cited, cit.section_key) if cited else None
     new_sec = section_text(res.doc, cit.section_key) if res.doc else None
-    same_sec = old_sec is not None and new_sec is not None and imagefix.notation_only(old_sec, new_sec, limits)
+    link_hash = resolver.asset_map().link_hash(res.doc.rel) if res.doc is not None else None
+    same_sec = old_sec is not None and new_sec is not None and imagefix.notation_only(
+        old_sec, new_sec, limits, link_hash, link_hash)
     same_body = cited is not None and res.doc is not None and imagefix.body_notation_only(
-        cited.body or "", res.doc.body or "", limits)
+        cited.body or "", res.doc.body or "", limits, link_hash, link_hash)
     return same_sec or same_body
 
 

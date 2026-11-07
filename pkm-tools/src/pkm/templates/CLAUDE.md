@@ -37,9 +37,12 @@ freely in Obsidian; documents are found by their ID, not by their path.
   `PKM-Source` (`chat` | `user` | `agent`). The history lives in Git, not in the document.
 - Images (4.9): PNG, JPEG and SVG (diagrams as SVG). Handover from the chat via `pkm_img_import/`
   (not in Git, never in the wiki). Up to 24 KB embedded as a data URI with the title
-  `"pkm:<name>"`, larger ones as a file in `documents/_attachments/`. Every new image has an
-  alt text. Existing embedded PNGs stay unchanged. Citations of images quote
-  `[img:<name>]`.
+  `"pkm:<name>"`, larger ones as a file in `documents/_attachments/` (or, with
+  `PKM_IMAGE_FOLDER = "document"`, in `<document name>_img/` next to the document). An image file
+  that a document links to is an attachment of it, in any folder: no entry of its own in the wiki
+  or in `processed`. Every new image has a describing alt text (not "Image"). Existing embedded PNGs
+  stay unchanged unless the user confirms storing them as files (`fix_images`, `extract`). Citations
+  of images quote `[img:<name>]`.
 - Recommended structure for chat results: `## Result`, `## Decisions`,
   `## Open points`, `## Context / rationale` – or, with the document language German
   (`PKM_LANGUAGE = "de"`), `## Ergebnis`, `## Entscheidungen`, `## Offene Punkte`,

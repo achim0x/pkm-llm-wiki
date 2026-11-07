@@ -216,12 +216,20 @@ class Maintenance:
             committed += self._commit_schema()
         return {"status": "ok", "committed": committed, "skipped": skipped}
 
-    def _image_findings(self, docs: list[Doc], result: dict[str, list[dict[str, Any]]]) -> None:
+    def _image_findings(
+        self, docs: list[Doc], result: dict[str, list[dict[str, Any]]], amap: AssetMap,
+        entries: dict[str, dict[str, Any]],
+    ) -> None:
         """Report findings on data URIs (``image_issues``) and pure changes of the image notation (4.9).
+
+        A change counts as image notation only also if embedded images were stored as files with the same
+        bytes (``fix_images`` with ``extract``); the earlier state uses the recorded ``assets`` hashes.
 
         Args:
             docs: Documents.
             result: Result lists of ``pending`` (added to).
+            amap: References to image files.
+            entries: Entries from ``state.json``.
         """
         by_rel = {d.rel: d for d in docs if d.kind == "md" and d.parsed is not None and not d.error}
         limits = self.cfg.images
@@ -233,13 +241,15 @@ class Maintenance:
             if issues:
                 item["image_issues"] = issues
             old = item.get("processed_version")
-            if item in result.get("changed", []) and doc.id and old and "assets_changed" not in item:
+            if item in result.get("changed", []) and doc.id and old:
                 try:
                     _, text = self.svc.text_at_version(doc.id, int(old))
                 except PkmError:
                     text = None
                 old_body = load_text_doc(doc.rel, text.encode("utf-8")).body if text is not None else None
-                if old_body is not None and imagefix.body_notation_only(old_body, doc.body or "", limits):
+                recorded = (entries.get(doc.id) or {}).get("assets") or {}
+                if old_body is not None and imagefix.body_notation_only(
+                        old_body, doc.body or "", limits, amap.link_hash(doc.rel, recorded), amap.link_hash(doc.rel)):
                     item["image_notation_only"] = True
 
     def _commit_changed_images(self, modified: set[str]) -> tuple[list[dict[str, Any]], set[str]]:
@@ -424,13 +434,21 @@ class Maintenance:
         problems.extend({"problem": "duplicate_id", "id": i, "paths": paths} for i, paths in dups.items())
         result: dict[str, list[dict[str, Any]]] = {c: [] for c in PENDING_CATEGORIES}
         present: set[str] = set()
+        standalone: list[Doc] = []
         for doc in docs:
             if doc.kind == "bin" and (doc.rel in referenced or doc.rel in orphans):
                 present.add(state_key(doc) or "")  # associated or orphaned images are not documents
-            elif not (doc.kind == "md" and doc.error):
+            elif doc.kind == "bin":
+                standalone.append(doc)
+            elif not doc.error:
                 self._pending_doc(doc, entries, dups, result, present)
+        _pending_files(standalone, {d.rel for d in docs if d.kind == "bin"}, entries, result, present)
         _asset_pending(docs, entries, amap, result)
-        self._image_findings(docs, result)
+        for item in result["new"]:
+            linked = sorted(amap.links.get(item.get("path") or "", {}))
+            if linked:
+                item["images"] = linked
+        self._image_findings(docs, result, amap, entries)
         result["deleted"] = _deleted_entries(entries, present)
         result.pop("invalid", None)
         counts = {k: len(v) for k, v in result.items()}
@@ -520,7 +538,10 @@ class Maintenance:
         key = state_key(doc)
         if key is None or (doc.kind == "md" and (doc.error or doc.hashes is None)):
             raise PkmError("invalid_argument", f"{doc.rel} has no valid ID/frontmatter.", path=doc.rel)
-        wiki_pages = list(dict.fromkeys([*docs_state.get(key, {}).get("wiki_pages", []), *page_refs]))
+        previous = [k for k, e in docs_state.items() if doc.kind == "bin" and k != key and k.startswith("sha:")
+                    and e.get("path") == doc.rel]  # same path, other content: the entry is replaced
+        old_pages = [p for k in previous for p in docs_state.pop(k).get("wiki_pages", [])]
+        wiki_pages = list(dict.fromkeys([*old_pages, *docs_state.get(key, {}).get("wiki_pages", []), *page_refs]))
         now = self.svc.now().isoformat(timespec="seconds")
         entry: dict[str, Any] = {"path": doc.rel, "processed_at": now, "wiki_pages": wiki_pages}
         if doc.hashes is not None:
@@ -699,7 +720,47 @@ def _asset_pending(
                 result["changed"].append(item)
             known = {s["key"] for s in item.get("sections", [])}
             item["sections"] = item.get("sections", []) + [s for s in sections if s["key"] not in known]
-            item["assets_changed"] = sorted(changed)
+            item["images_changed"] = sorted(changed)
+            item["assets_changed"] = item["images_changed"]  # old name, kept for compatibility
+
+
+def _pending_files(
+    files: list[Doc], existing: set[str], entries: dict[str, dict[str, Any]],
+    result: dict[str, list[dict[str, Any]]], present: set[str],
+) -> None:
+    """Classify standalone files (images without a linking document, PDFs …) by path and hash (4.9).
+
+    The path identifies a file, the hash its content: same path with another hash is ``changed``;
+    ``moved`` only if the recorded path no longer exists and the hash appears at a new path. The same
+    hash at two existing paths is a duplicate: it is neither ``new`` nor ``moved`` (lint reports
+    ``duplicate_image``), and of several new identical files only the first is ``new``.
+
+    Args:
+        files: Standalone files.
+        existing: Paths of all files in ``documents/``.
+        entries: Entries from ``state.json``.
+        result: Result lists of ``pending`` (added to).
+        present: Keys found (added to).
+    """
+    by_path = {e.get("path"): k for k, e in entries.items() if k.startswith("sha:")}
+    seen_new: dict[str, str] = {}
+    for doc in sorted(files, key=lambda d: d.rel):
+        key = state_key(doc) or ""
+        entry = entries.get(key)
+        base = {"id": None, "key": key, "path": doc.rel, "title": doc.title}
+        if entry is not None:
+            present.add(key)
+            old = entry.get("path")
+            if old and old != doc.rel and old not in existing:
+                result["moved"].append({**base, "from": old, "to": doc.rel})
+        elif doc.rel in by_path:
+            present.add(by_path[doc.rel])
+            result["changed"].append({**base, "previous_key": by_path[doc.rel]})
+        elif key in seen_new:
+            present.add(key)
+        else:
+            seen_new[key] = doc.rel
+            result["new"].append(base)
 
 
 def page_ref(rel: str) -> str:

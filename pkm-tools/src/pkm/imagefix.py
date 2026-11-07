@@ -2,7 +2,7 @@
 
 ``image_issues`` reports deviations with finding codes and a proposal; ``fix_text`` writes the images
 in the form of 4.9. Fixes happen only after asking; these functions do not change files themselves,
-except that ``fix_text`` creates image files in ``documents/_attachments/`` with a writer.
+except that ``fix_text`` creates image files at the configured storage location with a writer.
 
     Author: Achim0x
 """
@@ -31,6 +31,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
@@ -47,10 +48,10 @@ if TYPE_CHECKING:
 
 # Variables *******************************************************************
 
-ATTACHMENTS = "documents/_attachments"
 LEGACY_PROBLEMS = ("reference_style", "html_img", "angle_brackets", "base64_whitespace", "media_type_mismatch",
                    "invalid_data")
 NOTATION_PROBLEMS = {"reference": "reference_style", "html": "html_img", "angle": "angle_brackets"}
+LinkHash = Callable[[images.ImageRef], "str | None"]
 MIME = {"png": "png", "jpg": "jpeg", "gif": "gif", "webp": "webp"}
 SVG_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 
@@ -421,25 +422,25 @@ def _unique(name: str, used: set[str]) -> str:
     return candidate
 
 
-def _target_link(a: Analysis, writer: Writer | None, doc_rel: str, files: list[str]) -> str:
-    """Storage as a file in ``documents/_attachments/`` (for dry runs only the future path).
+def _target_link(a: Analysis, ctx: dict[str, Any]) -> str:
+    """Storage as a file at the configured storage location (for dry runs only the future path).
 
     Args:
         a: Check result.
-        writer: Writer or ``None`` (proposal without writing).
-        doc_rel: Path of the document.
-        files: Newly written files (added to).
+        ctx: ``writer`` (``None``: proposal without writing), ``doc_rel``, ``limits`` and ``files``
+            (newly written files, added to).
 
     Returns:
         Relative link to the file.
     """
+    writer, doc_rel, files = ctx["writer"], ctx["doc_rel"], ctx["files"]
     stem = slugify(a.ref.name, MAX_NAME)
+    folder = ctx["limits"].folder_for(doc_rel)
     if writer is None:
-        rel = f"{ATTACHMENTS}/{stem}_YYYY-MM-DD.{a.fmt}"
+        rel = f"{folder}/{stem}_YYYY-MM-DD.{a.fmt}"
     else:
-        rel = writer.free_name(ATTACHMENTS, stem, f"_{writer.svc.now().date().isoformat()}", f".{a.fmt}")
-        write_bytes_atomic(writer.vault.path(rel), a.data)
-        files.append(rel)
+        rel, new = store_image(writer, folder, stem, a.fmt, a.data)
+        files += [rel] if new else []
     return images.relative_link(doc_rel, rel)
 
 
@@ -470,7 +471,7 @@ def _replacement(a: Analysis, ctx: dict[str, Any]) -> str:
         keep_width = raw_alt.split("|", 1)[1] if "|" in raw_alt else occ.width if occ is not None else None
         alt = f"{alt}|{keep_width}" if keep_width else alt
         to_file = not ctx["no_files"] and {"too_large_for_inline", "unsupported_type"} & set(a.problems)
-        link = _target_link(a, ctx["writer"], ctx["doc_rel"], ctx["files"]) if to_file else _conforming_uri(a)
+        link = _target_link(a, ctx) if to_file else _conforming_uri(a)
         result = f'![{alt}]({link} "pkm:{name}")'
     return result
 
@@ -528,7 +529,8 @@ def fix_text(  # pylint: disable=too-many-arguments,too-many-locals
     """
     found = [a for a in analyses(text, limits, legacy=legacy, scratch=scratch, wiki=wiki, only_links=only_links)
              if a.problems and a.fixable and (names is None or a.ref.name in names)]
-    ctx: dict[str, Any] = {"writer": writer, "doc_rel": doc_rel, "files": [], "image_alt": dict(image_alt or {}),
+    ctx: dict[str, Any] = {"writer": writer, "doc_rel": doc_rel, "limits": limits, "files": [],
+                           "image_alt": dict(image_alt or {}),
                            "used": {r.name for r in images.find_images(text)}, "no_files": scratch or wiki,
                            "kept": set(),
                            "proposals": {i["ref"]: i["proposal"]["alt"] for i in image_issues(
@@ -557,22 +559,30 @@ def fix_text(  # pylint: disable=too-many-arguments,too-many-locals
 
 
 # Comparison ******************************************************************
-def canonical(text: str, limits: ImageConfig) -> tuple[str, list[str]]:
+def canonical(text: str, limits: ImageConfig, link_hash: LinkHash | None = None) -> tuple[str, list[str]]:
     """Text for the comparison "only the image notation changed" (4.9, citations after a fix).
 
     Every embedded image becomes ``![<alt>](pkm-image:<name>)``, reference definitions are dropped,
     whitespace is collapsed. Plus the hashes of the decoded images (SVG after sanitizing;
-    unsafe SVG get a marker of their own so that they count as changed).
+    unsafe SVG get a marker of their own so that they count as changed). With ``link_hash`` linked
+    image files count the same way with the hash of the file, so an image moved from a data URI into
+    a file with the same bytes (``fix_images`` with ``extract``) counts as a change of notation only.
 
     Args:
         text: Markdown (e.g. a section).
         limits: Image limits.
+        link_hash: Function that returns the SHA-256 of the file of a linked image (``None`` if not found).
 
     Returns:
-        Tuple of (canonical text, image hashes in order).
+        Tuple of (canonical text, image hashes in text order).
     """
     spans: list[tuple[int, int, str]] = []
-    digests: list[str] = []
+    ordered: list[tuple[int, str]] = []
+    if link_hash is not None:
+        for ref in images.find_images(text):
+            if not ref.inline:
+                spans.append((ref.start, ref.end, f"![{ref.alt}](pkm-image:{ref.name})"))
+                ordered.append((ref.start, link_hash(ref) or f"missing:{ref.link}"))
     for a in analyses(text, limits, legacy=True):
         spans.append((a.ref.start, a.ref.end, f"![{a.ref.alt}](pkm-image:{a.ref.name})"))
         if a.ref.occ is not None and a.ref.occ.def_span is not None:
@@ -583,7 +593,8 @@ def canonical(text: str, limits: ImageConfig) -> tuple[str, list[str]]:
                 data = images.sanitize_svg(a.data.decode("utf-8", "replace"), 10 ** 6).encode("utf-8")
             except PkmError:
                 data = a.data
-        digests.append(("unsafe:" if a.removed else "") + hashlib.sha256(data).hexdigest())
+        ordered.append((a.ref.start, ("unsafe:" if a.removed else "") + hashlib.sha256(data).hexdigest()))
+    digests = [d for _, d in sorted(ordered)]
     for occ in find_data_images(text):
         if occ.notation == "reference" and not occ.usages and occ.def_span is not None:
             spans.append((occ.def_span[0], occ.def_span[1], ""))
@@ -595,32 +606,133 @@ def canonical(text: str, limits: ImageConfig) -> tuple[str, list[str]]:
     return " ".join(("".join(out) + text[pos:]).split()), digests
 
 
-def body_notation_only(old: str, new: str, limits: ImageConfig) -> bool:
+def body_notation_only(
+    old: str, new: str, limits: ImageConfig, old_hash: LinkHash | None = None, new_hash: LinkHash | None = None,
+) -> bool:
     """Check whether two whole bodies differ only in the image notation.
 
     Args:
         old: Earlier body.
         new: Current body.
         limits: Image limits.
+        old_hash: Hashes of linked image files for the earlier body.
+        new_hash: Hashes of linked image files for the current body.
 
     Returns:
         Like ``notation_only`` for the whole text (also covers references across sections).
     """
-    return notation_only(old, new, limits)
+    return notation_only(old, new, limits, old_hash, new_hash)
 
 
-def notation_only(old: str, new: str, limits: ImageConfig) -> bool:
+def notation_only(
+    old: str, new: str, limits: ImageConfig, old_hash: LinkHash | None = None, new_hash: LinkHash | None = None,
+) -> bool:
     """Check whether two texts differ only in the image notation.
 
     Args:
         old: Earlier text.
         new: Current text.
         limits: Image limits.
+        old_hash: Hashes of linked image files for the earlier text (see ``canonical``).
+        new_hash: Hashes of linked image files for the current text.
 
     Returns:
         ``True`` if they differ but are canonically equal, and no image was unsafe.
     """
-    a, b = canonical(old, limits), canonical(new, limits)
+    a, b = canonical(old, limits, old_hash), canonical(new, limits, new_hash)
     return old != new and a == b and not any(d.startswith("unsafe:") for d in a[1])
+
+def store_image(writer: Writer, folder: str, stem: str, ext: str, data: bytes) -> tuple[str, bool]:
+    """Store an image file at the storage location; an identical file there is reused (4.9).
+
+    Duplicates are detected by their bytes: if the folder already holds a file with the same content
+    and extension, its path is returned and nothing is written.
+
+    Args:
+        writer: Writer (vault, free file names, clock).
+        folder: Folder relative to the vault.
+        stem: File name without date and extension (from the image name or alt text).
+        ext: Extension without dot (``png``, ``jpg``, ``svg`` …).
+        data: Bytes, written unchanged.
+
+    Returns:
+        Tuple of (path in the vault, ``True`` if the file was newly written).
+    """
+    base = writer.vault.path(folder)
+    same = None
+    if base.is_dir():
+        same = next((p for p in sorted(base.iterdir()) if p.is_file() and p.suffix.lower() == f".{ext}"
+                     and p.stat().st_size == len(data) and p.read_bytes() == data), None)
+    if same is not None:
+        result = (f"{folder}/{same.name}", False)
+    else:
+        rel = writer.free_name(folder, stem, f"_{writer.svc.now().date().isoformat()}", f".{ext}")
+        write_bytes_atomic(writer.vault.path(rel), data)
+        result = (rel, True)
+    return result
+
+
+# Extracting ******************************************************************
+RASTER_FORMATS = ("png", "jpg", "gif", "webp")
+EXTRACT_MIN_KB = 32
+
+
+def extract_candidates(
+    text: str, min_kb: int = EXTRACT_MIN_KB, names: list[str] | None = None
+) -> list[images.ImageRef]:
+    """Embedded raster images that ``fix_images`` with ``extract`` stores as files (4.9).
+
+    Args:
+        text: Markdown.
+        min_kb: Only images with at least this many KB of decoded data.
+        names: Only these images.
+
+    Returns:
+        Images in the notation ``![alt](data:… "…")`` (others need ``fix_images`` without ``extract`` first).
+    """
+    return [r for r in images.find_images(text)
+            if r.inline and r.occ is not None and r.occ.notation == "inline" and r.fmt in RASTER_FORMATS
+            and len(r.data()) >= min_kb * 1024 and (names is None or r.name in names)]
+
+
+def extract_text(  # pylint: disable=too-many-arguments,too-many-locals
+    text: str, limits: ImageConfig, *, writer: Writer | None = None, doc_rel: str = "",
+    min_kb: int = EXTRACT_MIN_KB, names: list[str] | None = None,
+) -> tuple[str, list[str], list[dict[str, Any]]]:
+    """Store large embedded raster images as files and link them instead (``fix_images`` with ``extract``).
+
+    The bytes are written unchanged (no re-encoding); alt text, size and title stay, only the data URI is
+    replaced by the relative link. The image keeps its name, so citations ``[img:<name>]`` stay valid.
+
+    Args:
+        text: Markdown.
+        limits: Image settings (storage location).
+        writer: Writer for writing the files (``None``: proposal only, no files).
+        doc_rel: Path of the document.
+        min_kb: Only images with at least this many KB.
+        names: Only these images.
+
+    Returns:
+        Tuple of (new text, newly written files, info per image: name, format, size, path).
+    """
+    folder = limits.folder_for(doc_rel)
+    files: list[str] = []
+    infos: list[dict[str, Any]] = []
+    out, pos = [], 0
+    for ref in extract_candidates(text, min_kb, names):
+        assert ref.occ is not None
+        data = ref.data()
+        stem = slugify(ref.name, MAX_NAME)
+        ext = "jpg" if ref.fmt == "jpg" else ref.fmt
+        if writer is None:
+            rel = f"{folder}/{stem}_YYYY-MM-DD.{ext}"
+        else:
+            rel, new = store_image(writer, folder, stem, ext, data)
+            files += [rel] if new else []
+        out += [text[pos:ref.occ.uri_start], images.relative_link(doc_rel, rel)]
+        pos = ref.occ.uri_end
+        infos.append({"name": ref.name, "format": ref.fmt, "size": len(data), "path": rel,
+                      "hash": hashlib.sha256(data).hexdigest()})
+    return "".join(out) + text[pos:], files, infos
 
 # Main ************************************************************************
