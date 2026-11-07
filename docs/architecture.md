@@ -834,13 +834,27 @@ flowchart TD
     S --> CH["sanitize SVG / check PNG, JPEG<br/>(remove metadata)"]
     CH --> M{"mode auto: size up to 24 KB<br/>or area scratch/?"}
     M -- "yes" --> IN["embed as data URI<br/>title pkm:name"]
-    M -- "no" --> FI["write file to documents/_attachments/<br/>(same commit as the document)"]
+    M -- "no" --> FI["write file to the storage location<br/>(PKM_IMAGE_FOLDER; identical file reused;<br/>same commit as the document)"]
     IN --> W
     FI --> W
 ```
 
 `read` shows embedded images as placeholders `![alt](pkm-image:name "…")`; when the text comes back,
 `docimages` puts the original bytes in again, so Base64 never passes through the model.
+
+**Attachments** (`assets.AssetMap`): every Markdown document's linked images are resolved to files
+(relative to the document, from the vault root, ignoring case, by Obsidian's shortest path, by bare
+name). A resolved file is an attachment of the document wherever it lies; `pending` reports it with
+the document (`images`, `images_changed`), never as an entry of its own, and `finish_maintenance`
+skips it in `processed`. Standalone files are classified by path and hash (`maint._pending_files`):
+`changed` for the same path with new content, `moved` only if the old path is gone, duplicates
+neither. New image files go to `ImageConfig.folder_for(doc)` (`PKM_IMAGE_FOLDER`), and
+`imagefix.store_image` reuses an identical file there.
+
+**Size limit and extract:** `Writer.check_size` measures the text without data URIs; frontmatter
+changes and `fix_images` skip it. `imagefix.extract_text` (``fix_images`` with ``extract``) writes
+embedded raster images unchanged to files; `imagefix.canonical` compares linked files by hash, so the
+follow-up run sees `image_notation_only` and `citeraise` raises the citations.
 
 ## 16. Configuration, setup and environment checks
 

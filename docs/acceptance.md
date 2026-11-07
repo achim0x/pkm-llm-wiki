@@ -341,6 +341,17 @@ pkm lint --report
 | Bild ändern | Die Bilddatei in `_attachments/` ersetzen, Pflegelauf | Dokument bekommt eine neue Version mit `PKM-Source: user`, `pending` meldet den Abschnitt mit dem Bild | ☐ |
 
 
+**Bilder und Größengrenze (0.3.0):**
+
+| Prüfung | Vorgehen | Erwartet | Ergebnis |
+|---|---|---|---|
+| Anhänge im Unterordner | Ein umgewandeltes Dokument mit vielen Bildern in einem Unterordner (z. B. die Workshop-Enzyklopädie) ingestieren | Genau ein `new`-Eintrag mit `images`; keine Warnung „no wiki page cites“ für die Bilder | ☐ |
+| Dubletten | Zwei byte-gleiche Bilddateien ohne Verweis, zwei Pflegeläufe | Einmal verarbeitet, danach `pending` leer; Lint `duplicate_image` | ☐ |
+| Größengrenze | Frontmatter eines Dokuments mit 2 MB eingebetteten PNG und wenig Text mit `set_document_metadata` setzen | Gelingt; `too_large` nur bei zu viel Text, mit getrennten Größen | ☐ |
+| Auslagern | `fix_images` mit `extract` am selben Dokument, erst Vorschlag, dann `apply` | Dokument < 30 KB, Dateien am Ablageort, Folgelauf `image_notation_only`, Wiki-Belege `ok` | ☐ |
+| Lint-Hinweise | Lint am Vault | `large_embedded_image`, `generic_alt_text`, `orphaned_attachment` als Hinweise, keine Änderung an `documents/` | ☐ |
+| Wiki-Sprache | `begin_maintenance` | `wiki_language` entspricht `PKM_LANGUAGE` | ☐ |
+
 **Dokumentsprache:**
 
 | Prüfung | Vorgehen | Erwartet | Ergebnis |

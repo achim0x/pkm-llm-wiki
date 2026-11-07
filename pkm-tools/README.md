@@ -143,8 +143,9 @@ skill ZIPs and the wheel to every release tag `v*`.
   checked per section and for the whole body (reference definitions in other sections);
   raised citations get new `v:` and `sha:`.
 - **Images:** `edit_document` additionally has `confirm_shortening`, because removing an image
-  must be confirmed like a shortening. Image files in `documents/_attachments/` without a reference
-  also count as orphaned (not only formerly associated ones). If a changed image file is used by
+  must be confirmed like a shortening. Image files in an attachment folder (`documents/_attachments/`
+  or `<document>_img/`) without a reference also count as orphaned (not only formerly associated ones,
+  which count in any folder). If a changed image file is used by
   several documents, the commit of the first document contains the image, the others
   get one commit each (one file per version commit, 5.4). SVG rasterizing via
   `cairosvg` instead of `resvg`. Already processed documents without `assets` in `state.json` are

@@ -115,8 +115,15 @@ missing. To add it later: install Git and run `pkm setup` again.
 - Claude draws diagrams, sketches and circuit diagrams as **SVG**; photos and screenshots stay
   **PNG**. Claude stores images when filing or changing documents, again only after a draft.
 - **Small ones are embedded, large ones become files:** up to 24 KB the image is in the document
-  itself (data URI), larger images go to `documents/_attachments/`. In `scratch/` images are always
-  embedded.
+  itself (data URI), larger images go to `documents/_attachments/` (or, with `PKM_IMAGE_FOLDER =
+  "document"`, to a folder `<document name>_img/` next to the document). The same image is stored
+  only once. In `scratch/` images are always embedded.
+- **Attachments in any folder:** an image file that a document links to belongs to that document,
+  wherever it lies (also a folder of exported images next to a converted document). Maintenance
+  processes it with the document, not as a source of its own.
+- **Large embedded images** (e.g. from a web article) can be stored as files after your confirmation
+  (`fix_images` with `extract`); the bytes stay the same. The size limit `PKM_MAX_KB` only counts the
+  text, not embedded images.
 - **Photos from the chat:** Claude cannot pass on uploaded images byte for byte. You put the file
   (PNG or JPEG) into the folder `pkm_img_import/` in the vault, also from your phone via the app of
   your cloud storage; Claude takes it from there. For JPEG the server removes GPS and camera data.
@@ -726,8 +733,15 @@ Wiederherstellen fehlen. Nachrüsten: Git installieren und `pkm setup` erneut au
 - Diagramme, Skizzen und Schaltpläne zeichnet Claude als **SVG**, Fotos und Screenshots bleiben
   **PNG**. Bilder legt Claude beim Ablegen oder Ändern mit ab, wieder erst nach einem Entwurf.
 - **Klein wird eingebettet, groß wird Datei:** bis 24 KB steht das Bild direkt im Dokument
-  (Data-URI), größere Bilder landen in `documents/_attachments/`. In `scratch/` wird immer
-  eingebettet.
+  (Data-URI), größere Bilder landen in `documents/_attachments/` (oder, mit `PKM_IMAGE_FOLDER =
+  "document"`, in einem Ordner `<Dokumentname>_img/` neben dem Dokument). Gleiche Bilder werden nur
+  einmal abgelegt. In `scratch/` wird immer eingebettet.
+- **Anhänge in jedem Ordner:** Eine Bilddatei, die ein Dokument verlinkt, gehört zu diesem Dokument,
+  egal wo sie liegt (auch ein Ordner exportierter Bilder neben einem umgewandelten Dokument). Die
+  Pflege verarbeitet sie mit dem Dokument, nicht als eigene Quelle.
+- **Große eingebettete Bilder** (z. B. aus einem Web-Artikel) lassen sich nach deiner Bestätigung als
+  Datei ablegen (`fix_images` mit `extract`); die Bytes bleiben gleich. Die Größengrenze
+  `PKM_MAX_KB` zählt nur den Text, nicht die eingebetteten Bilder.
 - **Fotos aus dem Chat:** Claude kann hochgeladene Bilder nicht byte-genau weitergeben. Du legst die
   Datei (PNG oder JPEG) in den Ordner `pkm_img_import/` im Vault, auch vom Smartphone über die App deines Cloud-Speichers;
   Claude übernimmt sie von dort. Bei JPEG entfernt der Server GPS- und Kameradaten.

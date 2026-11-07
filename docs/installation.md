@@ -449,7 +449,9 @@ PKM_LANGUAGE = "en"
 - `PKM_LANGUAGE`: main language of documents created in chat and of the wiki, `"en"` (English,
   default) or `"de"` (German).
 - Further optional keys: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (both never in a cloud folder), `PKM_TZ`,
-  `PKM_MAX_KB`, `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`, `PKM_INLINE_MAX_KB` (24), `PKM_SVG_MAX_KB` (200),
+  `PKM_MAX_KB` (200, text without embedded images), `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`,
+  `PKM_IMAGE_FOLDER` (`attachments` = `documents/_attachments/`, or `document` = `<document name>_img/`
+  next to the document), `PKM_INLINE_MAX_KB` (24), `PKM_SVG_MAX_KB` (200),
   `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER` (`false`; to rasterize SVG
   also install the package `cairosvg`).
 - A file at another location is selected with the environment variable `PKM_CONFIG`; it must then

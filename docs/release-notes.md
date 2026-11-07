@@ -1,5 +1,73 @@
 # Release notes
 
+## V0.3.0
+
+Changes compared to `V0.2.2`. Specification now **0.29**. Prompted by the maintenance runs of
+5/6 November 2026 (a workshop encyclopedia with 106 image files, an article with 2.2 MB of embedded
+PNGs).
+
+### Linked images are attachments, in any folder
+
+- An image file that a document links to (Markdown image or `![[…]]`) is an attachment of that
+  document wherever it lies: `documents/_attachments/`, a folder next to the document or elsewhere
+  under `documents/`. Links are resolved relative to the document, from the vault root, ignoring
+  case, by Obsidian's shortest path (`![[images/IMG_068.png]]`) and by bare file name, also in angle
+  brackets with spaces.
+- Attachments no longer appear as `pending` entries of their own: a new document lists them under
+  `images`, a changed one under `images_changed` (`assets_changed` is still returned). They need no
+  entry in `processed`; listed anyway, `finish_maintenance` skips them without the warning "no wiki
+  page cites this document".
+- Orphaned attachments are reported regardless of the folder.
+- New option **`PKM_IMAGE_FOLDER`**: `attachments` (`documents/_attachments/`, default) or
+  `document` (`<document name>_img/` next to the document). Applies to `mode: auto`/`file`,
+  `add_image`, `import_path` and `fix_images`. Identical images are stored only once.
+
+### Standalone images by path and hash
+
+- `moved` only if the recorded path no longer exists; the same path with new content is `changed`;
+  the same image at two existing paths is a duplicate (no endless `moved`, lint `duplicate_image`).
+
+### Size limit `PKM_MAX_KB`
+
+- The limit applies to the text without data URIs (as `read` counts it), not to the file size.
+  `set_document_metadata`, `update_frontmatter` and `fix_images` are exempt. `too_large` names the
+  text size and the size of the embedded images separately and suggests `extract`.
+
+### `fix_images` with `extract`
+
+- `extract: true` (optional `min_kb`, default 32) stores embedded raster images as files at the
+  storage location and links them; the bytes, alt texts and image names stay. Without `apply` a
+  proposal with the list of files and a diff, with `apply: true` a new version (`PKM-Fix:
+  images-extract`). Only after confirmation. In the next run the document is `image_notation_only`
+  and the citations stay valid. CLI: `pkm fix-images --extract [--min-kb N]`.
+
+### Lint
+
+- New info hints: `large_embedded_image` (> 32 KB, suggests `extract`), `generic_alt_text`
+  ("Image", "Bild", file names like `IMG_068`), `duplicate_image`; `orphaned_attachment` now in any
+  folder.
+
+### Maintenance and skills
+
+- `begin_maintenance` returns `wiki_language`, because server instructions do not reach the model in
+  every client (e.g. Cowork).
+- Skills `pkm-wiki` and `pkm-access` and the vault template `CLAUDE.md` describe attachments, the
+  storage location and `extract`.
+
+### Showing the installed version
+
+- `pkm --version` prints the installed version (`pkm-tools 0.3.0`). `pkm setup` prints it as its
+  first line, and `pkm doctor` reports it as `version` (so it is also visible in
+  `begin_maintenance`). (Finished after the tag `v0.2.2`, so it is part of this release.)
+
+### Upgrading from V0.2.2
+
+1. Run the installer again.
+2. In `pkm setup`, confirm taking over the existing configuration and let it update `CLAUDE.md`
+   (or merge `CLAUDE.md.new`). Optionally set `PKM_IMAGE_FOLDER = "document"` in `config.toml`.
+3. Upload the new skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart it.
+4. Check `PKM_LANGUAGE` in `config.toml`: with `"de"` new wiki pages are German.
+
 ## V0.2.2
 
 Changes compared to `V0.2.1`. Specification now **0.28**.
@@ -34,12 +102,6 @@ Changes compared to `V0.2.1`. Specification now **0.28**.
   it differs (older version or own edits), it asks whether to replace it: yes backs up the old file
   to `<app folder>/backups/` (outside the vault), writes the template and commits it with Git; no
   keeps the file and writes the template next to it as `CLAUDE.md.new` to merge by hand.
-
-### Showing the installed version
-
-- `pkm --version` prints the installed version (`pkm-tools 0.2.2`). `pkm setup` prints it as its
-  first line, and `pkm doctor` reports it as `version` (so it is also visible in
-  `begin_maintenance`).
 
 ### Upgrading from V0.2.1
 
