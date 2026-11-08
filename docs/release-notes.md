@@ -18,9 +18,11 @@ PNGs).
   entry in `processed`; listed anyway, `finish_maintenance` skips them without the warning "no wiki
   page cites this document".
 - Orphaned attachments are reported regardless of the folder.
-- New option **`PKM_IMAGE_FOLDER`**: `attachments` (`documents/_attachments/`, default) or
-  `document` (`<document name>_img/` next to the document). Applies to `mode: auto`/`file`,
-  `add_image`, `import_path` and `fix_images`. Identical images are stored only once.
+- **Image files live next to their document**, in `<document name>_img/`, linked relative to the
+  document (`./<document name>_img/…`), so document and images stay together when passed on. Applies
+  to `mode: auto`/`file`, `add_image`, `import_path` and `fix_images`. `documents/_attachments/` is no
+  longer a target (old files there stay valid); `pkm init` sets Obsidian's attachment folder to "Same
+  folder as current file". Identical images in one document are stored only once.
 
 ### Standalone images by path and hash
 
@@ -80,10 +82,38 @@ PNGs).
 - **Names in the inbox:** a new Markdown document in `documents/_inbox/` whose name does not follow
   `<slug>_YYYY-MM-DD.md` (copied in by hand, from Obsidian or a conversion) gets a name proposal in
   `begin_maintenance` (`rename`) and in `wiki/_status.md`. After confirmation the new maintenance tool
-  `rename_document` renames it; a folder next to it holding only its images becomes `<new name>_img/`
-  and the image links are adjusted, in one commit. Never in unattended runs.
+  `rename_document` renames it; its image files move into `<new name>_img/` and the image links are
+  adjusted, in one commit. Never in unattended runs.
 - **Tool lists:** if a client still shows a tool without its new parameters (e.g. `extract`), it
   shows a cached list: quit and restart Claude Desktop (in Cowork reconnect the computer).
+
+### After the second test run (review of 8 November 2026)
+
+- **Images always beside the document** (`<document name>_img/`, see above); the option
+  `PKM_IMAGE_FOLDER` is gone and ignored if still set.
+- **Relative image links start with `./`** for files below the folder of the document
+  (`./sandbox_img/schema.png`).
+- **Moving image files by hand:** if only image files moved (same bytes) and the links were adjusted,
+  `pending` reports the document with `image_notation_only: true`; `images_changed` lists only image
+  files with new content (current paths), moves are listed under `images_moved` (`from`, `to`),
+  removed files under `images_removed`.
+- **New maintenance tool `move_images`** (only after confirmation): moves the image files of a
+  document into `<document name>_img/` (old files in `documents/_attachments/`, folders like
+  `images/`, an image folder left behind in `_inbox/` after filing), names files with generic names
+  (`IMG_013.png`) after their alt text, adjusts the links and removes emptied folders, in one commit.
+  Files other documents link to stay. `rename_document` does the same for the renamed document.
+- **New lint hints** (`info`): `naming` for `_inbox/` (document name, image folder name, generic image
+  file names, each with a proposal) and `image_location` for image files outside
+  `<document name>_img/`. The skill `pkm-wiki` lists name proposals in the report like frontmatter
+  proposals and never asks where to file a document.
+- **`topic_without_page`:** a tag is covered only by the file name, title or an alias of a wiki page or
+  as the **first** tag of a topic, entity or synthesis page; further tags of a page about another
+  topic no longer count.
+- **`begin_maintenance` returns `tools_version`.** If a client keeps showing an old tool list (e.g.
+  `fix_images` without `extract`) even after a restart, it probably starts another installation;
+  the troubleshooting table in the installation guide shows how to check.
+- **`CLAUDE.md` template:** naming rules for files, folders and image files; the first line of a wiki
+  page follows the wiki language (`> **Kurzfassung:** …` in German).
 
 ### Showing the installed version
 
@@ -95,7 +125,8 @@ PNGs).
 
 1. Run the installer again.
 2. In `pkm setup`, confirm taking over the existing configuration and let it update `CLAUDE.md`
-   (or merge `CLAUDE.md.new`). Optionally set `PKM_IMAGE_FOLDER = "document"` in `config.toml`.
+   (or merge `CLAUDE.md.new`). Remove `PKM_IMAGE_FOLDER` from `config.toml` if present (it is ignored).
+   Image files of existing documents stay where they are; lint `image_location` proposes `move_images`.
 3. Upload the new skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart it.
 4. Check `PKM_LANGUAGE` in `config.toml`: with `"de"` new wiki pages are German.
 

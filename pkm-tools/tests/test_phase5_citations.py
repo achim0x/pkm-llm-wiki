@@ -410,7 +410,7 @@ def test_doctor_obsidian(svc, cfg):
     """doctor checks the Obsidian settings."""
     write(cfg, ".obsidian/app.json", json.dumps({
         "alwaysUpdateLinks": True, "newLinkFormat": "shortest", "useMarkdownLinks": False,
-        "attachmentFolderPath": "documents/_attachments", "userIgnoreFilters": [".pkm/"]}))
+        "attachmentFolderPath": "./", "userIgnoreFilters": [".pkm/"]}))
     res = doctor(svc)
     bad = [c["check"] for c in res["checks"] if not c["ok"]]
     assert bad == ["obsidian_newLinkFormat"] and res["status"] == "ok"

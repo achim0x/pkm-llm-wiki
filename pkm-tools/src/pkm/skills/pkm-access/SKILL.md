@@ -128,9 +128,9 @@ original with `edit_document`:
   `add_image`. The text contains `{{image:<name>}}` at the position. Per image: `name` (lower case,
   hyphens, unique), `alt` (alt text, one line, **always**) and exactly one source:
   `svg` (text), `png_base64` or `import_path`. Usually omit `mode` (`auto`: up to 24 KB
-  embedded, otherwise a file at the configured storage location – `documents/_attachments/` or,
-  with `PKM_IMAGE_FOLDER = "document"`, a folder `<document name>_img/` next to the document; the
-  result names the path; in `scratch/` always embedded). An identical image is stored only once.
+  embedded, otherwise a file in the folder `<document name>_img/` next to the document, linked
+  relative to the document (`./<document name>_img/…`); the result names the path; in `scratch/`
+  always embedded). An identical image in the same document is stored only once.
 - **Draft first, then write:** show the image in the draft (render SVG directly).
 - **Photos or screenshots uploaded in the chat** cannot be passed on byte for byte. Ask the
   user to put the file (PNG or JPEG) into the folder `pkm_img_import/` in the vault (Finder,

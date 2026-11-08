@@ -15,9 +15,14 @@ you need neither a shell nor the CLI `pkm` (there is none in Cowork).
 | `read_image` | View images (PNG as an image, SVG as text) |
 | `write_wiki_page` | Create or completely replace a wiki page (without commit) |
 | `set_document_metadata` | Only after confirmation: enter `title`, `context`, `tags`, `kind`, `short_citation` of a document |
-| `rename_document` | Only after confirmation: rename a new document in `documents/_inbox/` after the naming convention, with its image folder |
+| `rename_document` | Only after confirmation: rename a new document in `documents/_inbox/` after the naming convention, with its image files |
+| `move_images` | Only after confirmation: move the image files of a document into `<document name>_img/` next to it |
 | `fix_images` | Only after confirmation: fix the notation of nonconforming image data URIs of a document, or with `extract: true` store large embedded images as files |
 | `finish_maintenance` | Finish: citations (moved, renamed, `v:` raised for unchanged sections), `sources`, processing state, log, index, status, lint, agent commit |
+
+**Version:** `begin_maintenance` returns `tools_version` (installed pkm-tools). If a tool lacks a
+parameter this skill names (e.g. `extract` of `fix_images`), the client shows an older tool list: tell
+the user the version and to restart Claude Desktop (in Cowork reconnect the computer).
 
 **Language:** `begin_maintenance` returns the **wiki language** under `wiki_language` (`code`, `name`,
 `summary_label`, `sections`; set during installation, `PKM_LANGUAGE`); the server instructions name it
@@ -45,8 +50,8 @@ values and tool parameters stay English.
   user in the chat and only with `set_document_metadata` (see "Frontmatter proposals"). You do not
   use the document tools of the server `pkm` (`create_document`, `edit_document`, `update_frontmatter` …)
   in maintenance. Likewise only after confirmation: the image notation with `fix_images`
-  (see "Fixing data URIs") and the name of a new document in the inbox with `rename_document`
-  (see "Names in the inbox").
+  (see "Fixing data URIs") the name of a new document in the inbox with `rename_document`
+  and the place of image files with `move_images` (see "Names and image locations").
 - `scratch/` (short-lived notes, todo lists) is **neither read nor processed**. No
   citation points to a file there. If a note is moved to `documents/`, it is a new document in the
   next run; moved from `documents/` to `scratch/` it acts like a deletion.
@@ -84,23 +89,35 @@ confirmed fields, `add` only for further `tags`). Do not overwrite existing valu
 user; on `field_exists` name the existing value and ask. Every entry
 is a new version of the document; in the next run it appears as `meta_changed`.
 
-## Names in the inbox
+## Names and image locations
 
-New documents from chats are named `<slug>_YYYY-MM-DD.md` (slug from the title: lower case, hyphens,
-umlauts spelled out; date = `date_markdown`). For a **new** Markdown document in `documents/_inbox/`
-whose name does not follow this (copied in by hand, from Obsidian, a conversion …), `begin_maintenance`
-returns a proposal under `pending.new[].rename`: `to` (new path), `image_folders` (a folder next to the
-document that holds only its images becomes `<new name>_img/`, the image links are adjusted, see `links`),
-`kept_folders` (folders also used by other documents stay as they are) and `linked_from` (documents
-whose wikilinks point to it; they are not changed and get a broken link – name them).
+**Conventions:** new documents are named `<slug>_YYYY-MM-DD.md` (slug from the title: lower case,
+hyphens, umlauts spelled out; date = `date_markdown`). Image files of a document live in
+`<document name>_img/` next to it, named after their alt text (`<alt-text-slug>_YYYY-MM-DD.png`),
+linked relative to the document (`./<document name>_img/…`). `documents/_attachments/` only holds old
+files.
 
-**Ask before processing** (interactive run): list per document old name → new name and the image folder
-and ask whether to rename. Process the documents afterwards, so the summary and the citations use the
-new name. Wish for another name: `name` (becomes the slug, the date is added).
-After **explicit confirmation**: `read` → `hash` → `rename_document` without `apply` (check the
-proposal) → with `apply: true`. Then `read` again (new path, new `hash`). Never rename unattended;
-put the proposal into `questions`. If a document was renamed after it was processed, call
-`finish_maintenance` with `operation: fix` and its ID in `processed`; the citations follow the new path.
+**Names in the inbox:** for a **new** Markdown document in `documents/_inbox/` whose name does not
+follow the convention (copied in by hand, from Obsidian, a conversion …), `begin_maintenance` returns a
+proposal under `pending.new[].rename`: `to` (new path), `images_moved` (its image files move into
+`<new name>_img/`, generic names like `IMG_013.png` get names from the alt text), `kept` (files other
+documents link to as well stay), `links` (adjusted image links) and `linked_from` (documents whose
+wikilinks point to it; they are not changed – name them). Lint reports the same as `naming` (kinds
+`document`, `folder`, `images`).
+
+**Image locations:** lint `image_location` names documents whose image files lie outside
+`<document name>_img/` (old files in `documents/_attachments/`, folders like `images/`, or an image
+folder left behind in `_inbox/` after the user filed the document – Obsidian does not move it).
+
+**Propose, do not ask where to file:** list the proposals in the report like the frontmatter proposals
+(old name → new name, image folder, number of renamed image files, affected links). The user files
+documents from `_inbox/` themselves; you only propose names and image moves. After **explicit
+confirmation**: `read` → `hash` → `rename_document` (inbox; another name with `name`) or `move_images`
+(any document) without `apply` (check the proposal) → with `apply: true`. Never unattended; put the
+proposals into `questions`. In the next run the document has `image_notation_only: true` (only the
+image links changed): process nothing, only list it in `processed`. If a renamed document was already
+processed, call `finish_maintenance` with `operation: fix` and its ID in `processed`; the citations
+follow the new path.
 
 ## Fixing data URIs
 
@@ -129,9 +146,11 @@ keep their names, citations `[img:<name>]` stay valid. In the next run the docum
 `image_notation_only: true`: process nothing, only list it in `processed`.
 
 **Attachments:** an image file that a document links to (Markdown link or `![[…]]`) is an attachment of
-that document, in whatever folder it lies (`documents/_attachments/`, a folder `<document>_img/` next to
-the document or elsewhere). Attachments never appear as `pending` entries of their own: a new
-document lists them under `images`, a changed one names changed image files under `images_changed`.
+that document, in whatever folder it lies (`<document>_img/` next to the document, old files in
+`documents/_attachments/` or elsewhere). Attachments never appear as `pending` entries of their own: a new
+document lists them under `images`, a changed one names image files with new content under
+`images_changed`, moved files (same bytes) under `images_moved` and removed ones under `images_removed`.
+If the user only moved image files and adjusted the links, the document has `image_notation_only: true`.
 They get **no entry in `processed`** and no summary of their own. Only images that no document links
 to are standalone sources. A document reported once with `assets_migrated: true` (images that were
 standalone before are now its attachments, the text is unchanged) needs no processing: only list it
@@ -228,8 +247,8 @@ deliver the list as `log_entry`:
      More than 10 documents → process in stages (at most 10 each); simply do not list
      unprocessed documents in `processed`.
    - Moves are already fixed (`fixed_citations`).
-2. **Names in the inbox:** if new documents have a `rename` proposal, ask first and rename after
-   confirmation (see "Names in the inbox"); then continue with the new paths.
+2. **Names in the inbox:** take `rename` proposals of new documents into the report (see "Names and
+   image locations"); rename only after confirmation.
 3. **`new`**: read the document completely with `read`.
    1. Create `wiki/summaries/<name>.md` with `write_wiki_page`, with citations.
    2. Determine affected pages via `read_index` (and if needed `search`). Update or create at most
@@ -286,7 +305,8 @@ deliver the list as `log_entry`:
 10. Short report in the chat: new/changed pages, outdated statements, citation problems,
    filing proposals (from `wiki/_status.md`), questions – and **for each new document with
    missing fields the YAML block** with the question whether it should be entered, as well as for each document
-   with `image_issues` the findings with a fix proposal and the question whether it should be fixed.
+   with `image_issues` the findings with a fix proposal and the question whether it should be fixed,
+   and the name proposals (`rename`) with the question whether to rename.
 
 Conflict copies of the cloud storage are never processed; the user merges them in Obsidian.
 
@@ -303,7 +323,9 @@ Conflict copies of the cloud storage are never processed; the user merges them i
    `large_embedded_image` → propose `fix_images` with `extract`; `generic_alt_text` (alt text like
    "Image", "Bild" or a file name) → propose a description after viewing the image; `duplicate_image`
    (same image at several paths) → propose to link one file and delete the others;
-   `orphaned_attachment` (no document links to it any more) → ask whether to delete or link it.
+   `orphaned_attachment` (no document links to it any more) → ask whether to delete or link it;
+   `naming` (names in `_inbox/`) → propose `rename_document`; `image_location` (image files outside
+   `<document name>_img/`) → propose `move_images`.
 4. `finish_maintenance` with `operation: lint`, `lint_report: true` (report to
    `wiki/_lint/YYYY-MM-DD.md`) and a log entry.
 
@@ -322,7 +344,7 @@ vault folder is connected; otherwise the user makes the change themselves.
 
 ## Unattended run (scheduled task)
 
-Do not wait for answers. **Never enter** frontmatter proposals, image fixes and renamings, but put them as a question via
+Do not wait for answers. **Never enter** frontmatter proposals, image fixes, renamings and image moves, but put them as a question via
 `questions` into `wiki/_status.md`. Decide conservatively: for unclear filing, duplicates,
 contradictions with newer sources or deleted originals **do nothing risky**, but
 put the question via `questions` of `finish_maintenance` into `wiki/_status.md` and note it in the

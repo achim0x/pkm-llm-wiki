@@ -31,7 +31,7 @@ from collections import Counter
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from . import docimages, imagefix, images
+from . import __version__, docimages, imagefix, images
 from .assets import AssetMap
 from .citations import fix_citations, parse_page, sync_citations
 from .citeraise import raise_versions
@@ -40,6 +40,7 @@ from .doctor import doctor
 from .errors import PkmError
 from .frontmatter import set_fields_linewise
 from .ids import is_valid_id
+from .imageplace import move_images as move_document_images
 from .inboxnames import add_rename_proposals, rename_inbox_document
 from .lint import lint, write_report
 from .maint import Maintenance, page_ref
@@ -74,12 +75,13 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
 
     Returns:
         ``status`` (``ok``, ``blocked`` for environment errors, ``needs_decision`` for duplicate
-        IDs), ``wiki_language`` (also given here because server instructions do not reach the model
+        IDs), ``tools_version`` (installed pkm-tools, to compare with the tool list of the client),
+        ``wiki_language`` (also given here because server instructions do not reach the model
         in every client, e.g. Cowork), the results of the individual steps and the documents to process.
     """
     check = doctor(svc, short=True)
-    result: dict[str, Any] = {"status": "blocked", "wiki_language": wiki_language(svc.cfg.language),
-                              "doctor": check["checks"]}
+    result: dict[str, Any] = {"status": "blocked", "tools_version": __version__,
+                              "wiki_language": wiki_language(svc.cfg.language), "doctor": check["checks"]}
     if check["status"] == "ok":
         maint = Maintenance(svc)
         versions = maint.versions()
@@ -90,6 +92,7 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
         fixed = fix_citations(svc) if pend["moved"] else None
         result = {
             "status": "needs_decision" if ids["duplicates"] else "ok",
+            "tools_version": __version__,
             "wiki_language": result["wiki_language"],
             "versions": {"committed": versions["committed"], "skipped": versions["skipped"]},
             "ids": {k: ids[k] for k in ("assigned", "duplicates", "skipped", "problems")},
@@ -391,6 +394,21 @@ def rename_document(
         Result of ``rename_inbox_document``.
     """
     return rename_inbox_document(svc, target, expected_hash, apply=apply, stem=name)
+
+
+def move_images(svc: Service, target: str, expected_hash: str, apply: bool = False) -> dict[str, Any]:
+    """Move the image files of a document into ``<document name>_img/`` (after confirmation).
+
+    Args:
+        svc: Service.
+        target: Document in ``documents/``.
+        expected_hash: ``hash`` from ``read``.
+        apply: Carry out; without it only the proposal.
+
+    Returns:
+        Result of ``imageplace.move_images``.
+    """
+    return move_document_images(svc, target, expected_hash, apply=apply)
 
 
 def _load_target(svc: Service, target: str) -> Doc:

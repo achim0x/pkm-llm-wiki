@@ -93,11 +93,21 @@ def _register_maintenance_tools(server: Server) -> None:
     def rename_document(target: str, expected_hash: str, apply: bool = False, name: str | None = None) -> dict:
         """Only after explicit confirmation by the user, never unattended: rename a new Markdown document in
         documents/_inbox/ after the convention <slug>_YYYY-MM-DD.md (rename proposal from begin_maintenance,
-        pending.new[].rename). A folder next to it that holds only its images becomes <new name>_img/ and the
-        image links are adjusted. Without apply only the proposal; apply=true moves and commits.
+        pending.new[].rename, or lint naming). Its own
+        image files move into <new name>_img/, generic image names (IMG_013) get names from the alt text, links
+        are adjusted. Without apply only the proposal; apply=true moves and commits.
         name: other name instead of the title (becomes a slug, the date is added)."""
         return call("rename_document", maintrun.rename_document, target=target, expected_hash=expected_hash,
                     apply=apply, name=name)
+
+    @server.tool()
+    def move_images(target: str, expected_hash: str, apply: bool = False) -> dict:
+        """Only after explicit confirmation by the user, never unattended: move the image files of a document in
+        documents/ into <document name>_img/ next to it (lint image_location, e.g. old files in
+        documents/_attachments/, or an image folder left behind after filing). Files other documents also link to
+        stay (kept). Generic names (IMG_013) get names from the alt text; links are adjusted. Without apply only
+        the proposal; apply=true moves and commits (next run: image_notation_only)."""
+        return call("move_images", maintrun.move_images, target=target, expected_hash=expected_hash, apply=apply)
 
     @server.tool()
     def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positional-arguments

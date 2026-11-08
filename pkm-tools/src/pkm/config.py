@@ -56,15 +56,13 @@ DOC_LANGUAGES = {
 CONFIG_KEYS = (
     "PKM_ROOT", "PKM_VAULT_NAME", "PKM_LANGUAGE", "PKM_VERSIONING", "PKM_GIT", "PKM_GIT_DIR", "PKM_CACHE_DIR",
     "PKM_TZ", "PKM_MAX_KB", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
-    "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_SVG_RASTER", "PKM_IMAGE_FOLDER", "PKM_LINK_STYLE",
+    "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_SVG_RASTER", "PKM_LINK_STYLE",
 )
 WIKI_SECTIONS = {
     "en": ("Summary", ("Content", "Contradictions / open questions", "See also", "Citations")),
     "de": ("Kurzfassung", ("Inhalt", "Widersprüche / offene Fragen", "Siehe auch", "Belege")),
 }
 LANGUAGE_ALIASES = {"en": "en", "english": "en", "englisch": "en", "de": "de", "german": "de", "deutsch": "de"}
-ATTACHMENTS_FOLDER = "documents/_attachments"
-IMAGE_FOLDERS = ("attachments", "document")  # PKM_IMAGE_FOLDER: storage location of image files
 IMAGE_DIR_SUFFIX = "_img"
 LINK_STYLES = ("absolute", "relative")  # PKM_LINK_STYLE: links to image files
 IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX_MB": 5,
@@ -84,8 +82,6 @@ class ImageConfig:  # pylint: disable=too-many-instance-attributes
         param_max_kb: Upper limit for ``png_base64`` in one call (``PKM_IMAGE_PARAM_MAX_KB``).
         import_dir: The only folder image files are imported from (``PKM_IMPORT_DIR``).
         svg_raster: Rasterize SVG for ``read_image`` (``PKM_SVG_RASTER``).
-        folder: Storage location of new image files (``PKM_IMAGE_FOLDER``): ``attachments``
-            (``documents/_attachments/``) or ``document`` (``<folder of the document>/<name>_img/``).
         link_style: Links to new image files (``PKM_LINK_STYLE``): ``relative`` to the document (default)
             or ``absolute`` (path from the vault root).
     """
@@ -96,21 +92,20 @@ class ImageConfig:  # pylint: disable=too-many-instance-attributes
     param_max_kb: int = 512
     import_dir: Path | None = None
     svg_raster: bool = False
-    folder: str = "attachments"
     link_style: str = "relative"
 
     def folder_for(self, doc_rel: str) -> str:
-        """Folder for new image files of a document (``mode: file``, ``add_image``, ``extract``).
+        """Folder for the image files of a document: always ``<folder of the document>/<document name>_img`` (4.9).
+
+        ``documents/_attachments/`` is no longer a target (existing files there stay readable).
 
         Args:
             doc_rel: Path of the document in the vault.
 
         Returns:
-            ``documents/_attachments`` or, with ``folder = document``, ``<folder>/<document name>_img``.
+            E.g. ``documents/haus/zisterne_img`` for ``documents/haus/zisterne.md``.
         """
-        rel = PurePosixPath(doc_rel)
-        stem = rel.name[:-3] if rel.name.lower().endswith(".md") else rel.stem
-        return str(rel.parent / f"{stem}{IMAGE_DIR_SUFFIX}") if self.folder == "document" else ATTACHMENTS_FOLDER
+        return image_folder(doc_rel)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str], root: Path) -> ImageConfig:
@@ -133,10 +128,6 @@ class ImageConfig:  # pylint: disable=too-many-instance-attributes
             except ValueError as exc:
                 raise PkmError("config_error", f"{key} must be an integer.") from exc
         import_dir = Path(env.get("PKM_IMPORT_DIR") or root / IMPORT_FOLDER)
-        folder = (env.get("PKM_IMAGE_FOLDER") or "attachments").strip().lower()
-        if folder not in IMAGE_FOLDERS:
-            raise PkmError("config_error",
-                           f"PKM_IMAGE_FOLDER must be one of {', '.join(IMAGE_FOLDERS)}, not {folder!r}.")
         link_style = (env.get("PKM_LINK_STYLE") or "relative").strip().lower()
         if link_style not in LINK_STYLES:
             raise PkmError("config_error",
@@ -148,7 +139,6 @@ class ImageConfig:  # pylint: disable=too-many-instance-attributes
             param_max_kb=values["PKM_IMAGE_PARAM_MAX_KB"],
             import_dir=import_dir.expanduser().resolve(),
             svg_raster=(env.get("PKM_SVG_RASTER") or "").strip().lower() in ("1", "true", "yes", "ja"),
-            folder=folder,
             link_style=link_style,
         )
 
@@ -330,6 +320,20 @@ class Config:  # pylint: disable=too-many-instance-attributes
         return problem
 
 # Functions *******************************************************************
+
+
+def image_folder(doc_rel: str) -> str:
+    """Folder for the image files of a document (4.9): ``<folder of the document>/<document name>_img``.
+
+    Args:
+        doc_rel: Path of the document in the vault.
+
+    Returns:
+        The folder, e.g. ``documents/haus/zisterne_img``.
+    """
+    rel = PurePosixPath(doc_rel)
+    stem = rel.name[:-3] if rel.name.lower().endswith(".md") else rel.stem
+    return str(rel.parent / f"{stem}{IMAGE_DIR_SUFFIX}")
 
 
 def default_app_dir(home: Path | None = None) -> Path:

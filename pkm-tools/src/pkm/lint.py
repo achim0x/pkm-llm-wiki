@@ -35,6 +35,7 @@ from .cloudsync import conflict_copies
 from .errors import PkmError
 from .frontmatter import fix_frontmatter_text
 from .imagelint import check_images, has_image, image_quote
+from .namelint import check_names
 from .parse import Section, body_lines, find_setext
 from .parse import parse as parse_text
 from .paths import case_collisions, is_platform_safe_name
@@ -138,6 +139,7 @@ class Linter:  # pylint: disable=too-many-instance-attributes
         self.platform()
         self.documents()
         check_images(self.r.add, self.svc, self.docs, self.pages)
+        check_names(self.r.add, self.svc, self.docs)
         self.structure()
         self.citations()
         return self.r.result()
@@ -347,16 +349,18 @@ class Linter:  # pylint: disable=too-many-instance-attributes
     def _topics_without_page(self) -> None:
         """Topics that occur in several documents but have no wiki page.
 
-        A tag counts as covered if a topic, entity or synthesis page carries it in ``tags``, or if the file
-        name, title or an alias of any wiki page equals it (ignoring case; hyphens and spaces count alike).
+        A tag counts as covered if the file name, title or an alias of any wiki page equals it, or if a topic,
+        entity or synthesis page carries it as its **first** tag (ignoring case; hyphens and spaces count
+        alike). Further tags of a page about another topic do not count.
         """
         names = set()
         for page in self.pages:
             names.update({_topic_key(page.stem), _topic_key(page.title)})
-            for field in ("aliases", "tags") if page_type(page) in COVERING_TYPES else ("aliases",):
-                values = page.meta.get(field)
-                if isinstance(values, list):
-                    names.update(_topic_key(str(v)) for v in values)
+            aliases, tags = page.meta.get("aliases"), page.meta.get("tags")
+            if isinstance(aliases, list):
+                names.update(_topic_key(str(v)) for v in aliases)
+            if page_type(page) in COVERING_TYPES and isinstance(tags, list) and tags:
+                names.add(_topic_key(str(tags[0])))
         topics: Counter[str] = Counter()
         for doc in self.docs:
             t = doc.meta.get("tags")

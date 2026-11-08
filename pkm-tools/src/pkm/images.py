@@ -296,10 +296,11 @@ def relative_link(doc_rel: str, file_rel: str) -> str:
         file_rel: Path of the file.
 
     Returns:
-        Relative path, e.g. ``../_attachments/photo_2026-11-03.png`` (spaces encoded).
+        Relative path, e.g. ``./note_img/photo_2026-11-03.png`` or ``../_attachments/photo.png``
+        (spaces encoded; ``./`` in front of paths below the folder of the document, 4.9).
     """
     rel = posixpath.relpath(file_rel, posixpath.dirname(doc_rel) or ".")
-    return quote(rel, safe="/._-~")
+    return ("" if rel.startswith("../") else "./") + quote(rel, safe="/._-~")
 
 
 def strip_images(text: str) -> str:

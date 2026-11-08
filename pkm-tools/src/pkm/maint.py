@@ -722,8 +722,9 @@ def _asset_pending(
             and entry.get("body_hash") == doc.hashes.body_hash and all(f"sha:{current.get(p)}" in entries
                                                                         for p in changed)
         if changed:
+            details = _image_changes((entry.get("assets") or {}) if entry else {}, current, changed)
             sections = [] if migrated else [{"key": k, "change": "changed"}
-                                            for k in amap.sections_for(doc.rel, changed)]
+                                            for k in amap.sections_for(doc.rel, set(details["images_changed"]))]
             item = listed.get(doc.rel)
             if item is None:
                 item = {"id": doc.id, "path": doc.rel, "title": doc.title,
@@ -732,10 +733,48 @@ def _asset_pending(
                 result["changed"].append(item)
             known = {s["key"] for s in item.get("sections", [])}
             item["sections"] = item.get("sections", []) + [s for s in sections if s["key"] not in known]
-            item["images_changed"] = sorted(changed)
+            item.update({k: v for k, v in details.items() if v or k == "images_changed"})
             item["assets_changed"] = item["images_changed"]  # old name, kept for compatibility
             if migrated and not item["sections"]:
                 item.update(assets_migrated=True, image_notation_only=True)
+
+
+def _image_changes(old: dict[str, str], current: dict[str, str], changed: set[str]) -> dict[str, Any]:
+    """Split changed image files into changed content, moves and removals.
+
+    Args:
+        old: Recorded ``assets``.
+        current: Current ``assets``.
+        changed: Changed paths.
+
+    Returns:
+        ``images_changed`` (current paths with new or changed content), ``images_moved`` (``{from, to}``,
+        same bytes), ``images_removed``.
+    """
+    moved = _asset_moves(old, current, changed)
+    moved_paths = {m["from"] for m in moved} | {m["to"] for m in moved}
+    return {"images_changed": sorted(p for p in changed - moved_paths if p in current), "images_moved": moved,
+            "images_removed": sorted(p for p in changed - moved_paths if p not in current)}
+
+
+def _asset_moves(old: dict[str, str], new: dict[str, str], changed: set[str]) -> list[dict[str, str]]:
+    """Image files that only moved: a removed path and an added path with the same hash.
+
+    Args:
+        old: Recorded ``assets`` (path → hash).
+        new: Current ``assets``.
+        changed: Changed paths.
+
+    Returns:
+        ``[{from, to}]`` sorted by ``from``.
+    """
+    added = {new[p]: p for p in sorted(changed) if p in new and p not in old}
+    moves = []
+    for path in sorted(p for p in changed if p in old and p not in new):
+        target = added.pop(old[path], None)
+        if target is not None:
+            moves.append({"from": path, "to": target})
+    return moves
 
 
 def _drop_standalone(docs_state: dict[str, Any], assets: dict[str, str]) -> None:

@@ -87,10 +87,13 @@ def test_begin_maintenance_proposes_name(svc, cfg):
     entry = next(e for e in begin["pending"]["new"] if e["path"] == DOC)
     proposal = entry["rename"]
     assert proposal["to"] == f"{INBOX}/projekt-uebergabe_2026-11-03.md"
-    assert proposal["image_folders"] == [{"from": f"{INBOX}/Meeting Notes_files",
-                                          "to": f"{INBOX}/projekt-uebergabe_2026-11-03_img"}]
-    assert [c["to"] for c in proposal["links"]] == [
-        "projekt-uebergabe_2026-11-03_img/skizze.png", f"{INBOX}/projekt-uebergabe_2026-11-03_img/foto.png"]
+    img = f"{INBOX}/projekt-uebergabe_2026-11-03_img"
+    assert proposal["images_moved"] == [{"from": "documents/_attachments/logo.png", "to": f"{img}/logo.png"},
+                                        {"from": f"{INBOX}/Meeting Notes_files/foto.png", "to": f"{img}/foto.png"},
+                                        {"from": f"{INBOX}/Meeting Notes_files/skizze.png", "to": f"{img}/skizze.png"}]
+    assert [c["to"] for c in proposal["links"]] == ["./projekt-uebergabe_2026-11-03_img/skizze.png", f"{img}/foto.png",
+                                                    "./projekt-uebergabe_2026-11-03_img/logo.png"]
+    assert proposal["kept"] == []
     assert "text" not in proposal
     maintrun.finish_maintenance(svc, "- nothing processed")
     status = (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
@@ -110,9 +113,9 @@ def test_rename_proposal_and_apply(svc, cfg, isolated_env):
     assert res["status"] == "renamed" and res["path"] == new and res["version"] == doc["version"] + 1
     assert not (cfg.root / DOC).exists() and not (cfg.root / INBOX / "Meeting Notes_files").exists()
     text = (cfg.root / new).read_text(encoding="utf-8")
-    assert "![Skizze](projekt-uebergabe_2026-11-03_img/skizze.png)" in text
+    assert "![Skizze](./projekt-uebergabe_2026-11-03_img/skizze.png)" in text
     assert f"![[{INBOX}/projekt-uebergabe_2026-11-03_img/foto.png]]" in text
-    assert "![Logo](../_attachments/logo.png)" in text  # shared folder untouched
+    assert "![Logo](./projekt-uebergabe_2026-11-03_img/logo.png)" in text  # only this document used it
     assert (cfg.root / INBOX / "projekt-uebergabe_2026-11-03_img/foto.png").exists()
     assert git(isolated_env, "status", "--porcelain", "--", "documents/_inbox").strip() == ""
     assert git(isolated_env, "log", "-1", "--format=%an").strip() != ""
@@ -128,7 +131,7 @@ def test_rename_only_moves_without_images(svc):
     write(svc.cfg, f"{INBOX}/Notiz.md", "---\ntitle: Kurze Notiz\n---\n\nText.\n")
     begin = maintrun.begin_maintenance(svc)
     entry = begin["pending"]["new"][0]
-    assert entry["rename"]["image_folders"] == []
+    assert entry["rename"]["images_moved"] == []
     doc = svc.read(f"{INBOX}/Notiz.md")
     res = maintrun.rename_document(svc, f"id:{doc['id']}", doc["hash"], apply=True)
     date = doc["id"][2:6] + "-" + doc["id"][6:8] + "-" + doc["id"][8:10]
@@ -156,7 +159,9 @@ def test_shared_folder_is_kept_and_links_reported(svc):
     maintrun.begin_maintenance(svc)
     doc = svc.read(DOC)
     prop = maintrun.rename_document(svc, DOC, doc["hash"])
-    assert prop["image_folders"] == [] and prop["kept_folders"][0]["reason"] == "shared"
+    assert {"from": f"{INBOX}/Meeting Notes_files/skizze.png",
+            "to": f"{INBOX}/{prop['path'].rsplit('/', 1)[1][:-3]}_img/skizze.png"} in prop["images_moved"]
+    assert {"path": f"{INBOX}/Meeting Notes_files/foto.png", "reason": "shared"} in prop["kept"]
     assert prop["linked_from"] == [f"{INBOX}/other_2026-11-01.md"]
 
 
@@ -202,5 +207,78 @@ def test_server_offers_rename_document():
     """The maintenance server offers rename_document."""
     tools = {t.name for t in asyncio.run(maintenance_server.build_server().list_tools())}
     assert "rename_document" in tools
+
+def _training(svc):
+    """Inbox like in review B10: a document with spaces and capitals, images/IMG_0nn.png with alt texts.
+
+    Args:
+        svc: Service.
+    """
+    lines = [f"![Konzeptlandkarte Teil {n}](images/IMG_{n:03d}.png)" for n in range(1, 4)]
+    write(svc.cfg, f"{INBOX}/Training from the Back of the Room.md",
+          "---\ntitle: Training from the Back of the Room\ndate_markdown: 2026-11-04T09:00:00\n---\n\n## A\n"
+          + "\n\n".join(lines) + "\n")
+    for n in range(1, 4):
+        _png(svc, f"{INBOX}/images/IMG_{n:03d}.png", 2 + n)
+
+
+def test_lint_naming_groups(svc):
+    """Lint reports three naming groups for the inbox: document, folder, generic image names."""
+    _training(svc)
+    from pkm.lint import lint  # pylint: disable=import-outside-toplevel
+    naming = [f for f in lint(svc)["findings"] if f["check"] == "naming"]
+    kinds = sorted(f["detail"]["kind"] for f in naming)
+    assert kinds == ["document", "folder", "images"], naming
+    doc = next(f for f in naming if f["detail"]["kind"] == "document")
+    assert doc["detail"]["suggested_name"] == "training-from-the-back-of-the-room_2026-11-04.md"
+    folder = next(f for f in naming if f["detail"]["kind"] == "folder")
+    assert folder["path"] == f"{INBOX}/images" and folder["detail"]["suggested_name"] == \
+        "training-from-the-back-of-the-room_2026-11-04_img"
+    imgs = next(f for f in naming if f["detail"]["kind"] == "images")
+    assert [f["suggested_name"] for f in imgs["detail"]["files"]] == [
+        f"konzeptlandkarte-teil-{n}_2026-11-04.png" for n in range(1, 4)]
+    assert all(f["severity"] == "info" for f in naming)
+
+
+def test_rename_with_generic_images_then_notation_only(svc, cfg):
+    """rename_document moves and names the images; the folder images/ disappears; next run notation only."""
+    _training(svc)
+    maintrun.begin_maintenance(svc)
+    rel = f"{INBOX}/Training from the Back of the Room.md"
+    doc = svc.read(rel)
+    maintrun.finish_maintenance(svc, "- processed", processed=[doc["id"]])
+    res = maintrun.rename_document(svc, rel, doc["hash"], apply=True)
+    stem = "training-from-the-back-of-the-room_2026-11-04"
+    assert res["path"] == f"{INBOX}/{stem}.md"
+    assert not (cfg.root / INBOX / "images").exists()
+    text = (cfg.root / res["path"]).read_text(encoding="utf-8")
+    assert f"![Konzeptlandkarte Teil 1](./{stem}_img/konzeptlandkarte-teil-1_2026-11-04.png)" in text
+    item = next(i for i in Maintenance(svc).pending()["changed"] if i["path"] == res["path"])
+    assert item["image_notation_only"] is True and len(item["images_moved"]) == 3
+
+
+def test_move_images_from_attachments(svc, cfg):
+    """Lint image_location for old files in _attachments; move_images moves them next to the document."""
+    _png(svc, "documents/_attachments/schema.png", 3)
+    _png(svc, "documents/_attachments/shared.png", 4)
+    write(cfg, "documents/KI/sandbox.md", "---\ntitle: Sandbox\n---\n\n## A\n![Schema](../_attachments/schema.png)\n"
+          "![Gemeinsam](../_attachments/shared.png)\n")
+    write(cfg, "documents/KI/other.md", "---\ntitle: Other\n---\n\n![x](../_attachments/shared.png)\n")
+    maintrun.begin_maintenance(svc)
+    from pkm.lint import lint  # pylint: disable=import-outside-toplevel
+    loc = [f for f in lint(svc)["findings"] if f["check"] == "image_location"]
+    assert [f["path"] for f in loc] == ["documents/KI/sandbox.md"]
+    doc = svc.read("documents/KI/sandbox.md")
+    prop = maintrun.move_images(svc, "documents/KI/sandbox.md", doc["hash"])
+    assert prop["status"] == "proposal" and (cfg.root / "documents/_attachments/schema.png").exists()
+    res = maintrun.move_images(svc, "documents/KI/sandbox.md", doc["hash"], apply=True)
+    assert res["status"] == "moved"
+    assert res["images_moved"] == [{"from": "documents/_attachments/schema.png",
+                                    "to": "documents/KI/sandbox_img/schema.png"}]
+    assert res["kept"] == [{"path": "documents/_attachments/shared.png", "reason": "shared"}]
+    text = (cfg.root / "documents/KI/sandbox.md").read_text(encoding="utf-8")
+    assert "![Schema](./sandbox_img/schema.png)" in text and "../_attachments/shared.png" in text
+    assert (cfg.root / "documents/_attachments").is_dir()  # the old folder itself stays
+
 
 # Main ************************************************************************

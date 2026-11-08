@@ -169,6 +169,8 @@ class AssetMap:
             value = None
             if path is not None:
                 value = (recorded or {}).get(path) or hashes.sha256_bytes(self.svc.vault.path(path).read_bytes())
+            elif recorded and not ref.inline:
+                value = _recorded_hash(doc_rel, ref, recorded)
             return value
 
         return digest
@@ -238,6 +240,29 @@ def in_attachment_folder(rel: str) -> bool:
     """
     return rel.startswith(ATTACHMENTS_PREFIX) or any(part.endswith(IMAGE_DIR_SUFFIX)
                                                     for part in PurePosixPath(rel).parts[1:-1])
+
+
+def _recorded_hash(doc_rel: str, ref: images.ImageRef, recorded: dict[str, str]) -> str | None:
+    """Recorded hash of an image file that no longer exists at the linked path (earlier state, moved files).
+
+    Args:
+        doc_rel: Path of the document.
+        ref: Image of the earlier text.
+        recorded: ``assets`` from ``state.json``.
+
+    Returns:
+        SHA-256 or ``None``.
+    """
+    link = unquote(ref.link.strip("<>")).lstrip("/")
+    target = images.link_target(ref, doc_rel) or ""
+    folded = {p.casefold(): h for p, h in recorded.items()}
+    value = None
+    for candidate in (target, posixpath.normpath(posixpath.join(posixpath.dirname(doc_rel), link)), link):
+        value = value or folded.get(candidate.casefold())
+    if value is None:
+        ends = [h for p, h in folded.items() if p.endswith("/" + link.casefold()) or p == link.casefold()]
+        value = ends[0] if len(ends) == 1 else None
+    return value
 
 
 def known_assets(entries: dict[str, Any]) -> set[str]:

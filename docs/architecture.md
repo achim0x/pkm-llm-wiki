@@ -84,7 +84,7 @@ flowchart LR
 | Component | Role |
 |---|---|
 | `pkm-mcp` | MCP server for all chats: search, read, create and continue documents, citations, images |
-| `pkm-maintenance-mcp` | MCP server for the maintenance project: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `fix_images`, `finish_maintenance` plus the reading tools |
+| `pkm-maintenance-mcp` | MCP server for the maintenance project: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `finish_maintenance` plus the reading tools |
 | `pkm` | CLI for setup, checks (`doctor`, `lint`) and troubleshooting; contains the same maintenance building blocks |
 | Skills `pkm-access`, `pkm-wiki` | Instructions for Claude in normal chats and in the maintenance project |
 | Vault | Markdown files in the cloud folder (or a local folder without cloud storage); never contains `.git` or the search index |
@@ -356,7 +356,7 @@ Only if the configuration file is not in the default app folder does `pkm setup`
 | File | Created/changed by | Notes |
 |---|---|---|
 | `<app folder>/config.toml` | `pkm setup` | Merged with existing keys |
-| `<vault>/documents/_inbox/`, `_attachments/`, `wiki/…`, `scratch/`, `pkm_img_import/`, `.pkm/` | `pkm init` | Only missing folders |
+| `<vault>/documents/_inbox/`, `wiki/…`, `scratch/`, `pkm_img_import/`, `.pkm/` | `pkm init` | Only missing folders |
 | `<vault>/CLAUDE.md`, `wiki/index.md`, `wiki/log.md`, `wiki/_status.md`, `.pkm/state.json` | `pkm init` | Only if missing |
 | `<vault>/.gitignore` | `pkm init` | Created, or missing `scratch/` and `pkm_img_import/` added |
 | `<vault>/.obsidian/app.json` | `pkm init` | Missing settings of specification 13 added; different values kept and reported |
@@ -737,8 +737,9 @@ finds "Überlauf". Images are indexed only by their alt text.
 
 ```mermaid
 flowchart TB
-    maintrun["maintrun<br/>begin_maintenance, write_wiki_page,<br/>set_document_metadata, rename_document,<br/>finish_maintenance"]
-    inboxnames["inboxnames<br/>name proposals in the inbox,<br/>renaming with the image folder"]
+    maintrun["maintrun<br/>begin_maintenance, write_wiki_page,<br/>set_document_metadata, rename_document,<br/>move_images, finish_maintenance"]
+    inboxnames["inboxnames<br/>name proposals in the inbox,<br/>rename_document"]
+    imageplace["imageplace<br/>image files into &lt;document&gt;_img/,<br/>move_images"]
     maint["maint.Maintenance<br/>ids, versions, pending, mark,<br/>sha, fix-frontmatter, commit-wiki"]
     subgraph cit["Citations"]
         citations["citations<br/>parse, resolve, show,<br/>fix-/sync-citations"]
@@ -755,6 +756,8 @@ flowchart TB
     cloudsync["cloudsync<br/>conflict copies"]
     maintrun --> maint
     maintrun --> inboxnames
+    maintrun --> imageplace
+    inboxnames --> imageplace
     maintrun --> citations
     maintrun --> citeraise
     maintrun --> lint
@@ -838,7 +841,7 @@ flowchart TD
     S --> CH["sanitize SVG / check PNG, JPEG<br/>(remove metadata)"]
     CH --> M{"mode auto: size up to 24 KB<br/>or area scratch/?"}
     M -- "yes" --> IN["embed as data URI<br/>title pkm:name"]
-    M -- "no" --> FI["write file to the storage location<br/>(PKM_IMAGE_FOLDER; identical file reused;<br/>same commit as the document)"]
+    M -- "no" --> FI["write file to &lt;document&gt;_img/<br/>(identical file reused;<br/>same commit as the document)"]
     IN --> W
     FI --> W
 ```
@@ -852,8 +855,13 @@ name). A resolved file is an attachment of the document wherever it lies; `pendi
 the document (`images`, `images_changed`), never as an entry of its own, and `finish_maintenance`
 skips it in `processed`. Standalone files are classified by path and hash (`maint._pending_files`):
 `changed` for the same path with new content, `moved` only if the old path is gone, duplicates
-neither. New image files go to `ImageConfig.folder_for(doc)` (`PKM_IMAGE_FOLDER`), and
-`imagefix.store_image` reuses an identical file there.
+neither; image files that only moved (same hash) appear as `images_moved`, and the earlier text is
+compared with the recorded hashes (`assets._recorded_hash`), so a pure move is `image_notation_only`.
+New image files go to `config.image_folder(doc)` (`<document name>_img/` next to the document), and
+`imagefix.store_image` reuses an identical file there. `imageplace` plans and carries out moving the
+image files of a document into that folder (generic names from the alt text, links adjusted, one agent
+commit) for `move_images` and `rename_document`; `namelint` reports `naming` (inbox) and
+`image_location` (other documents) with the same plan.
 
 **Size limit and extract:** `writeguard.check_size` measures the text without data URIs; frontmatter
 changes and `fix_images` skip it, and `confirm_large` (after the user's confirmation) skips it for a

@@ -61,7 +61,7 @@ def test_init_creates_structure_without_dotgit(cfg, isolated_env):
     """pkm init creates structure, files, repo and initial commit, without .git in the vault."""
     res = init_vault(cfg)
     root = isolated_env["root"]
-    for d in ("documents/_inbox", "documents/_attachments", "wiki/topics", "wiki/_lint", ".pkm"):
+    for d in ("documents/_inbox", "wiki/topics", "wiki/_lint", ".pkm"):
         assert (root / d).is_dir()
     for f in ("CLAUDE.md", "wiki/index.md", "wiki/log.md", "wiki/_status.md", ".pkm/state.json", ".gitignore"):
         assert (root / f).is_file()

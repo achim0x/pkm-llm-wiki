@@ -140,7 +140,7 @@ def test_orphan_in_any_folder_and_image_folder(svc):
 
 @pytest.fixture(name="dsvc")
 def fixture_dsvc(isolated_env, monkeypatch):
-    """Service that stores image files next to the document (PKM_IMAGE_FOLDER=document) and every image as a file.
+    """Service that stores every image as a file (always next to the document, 4.9).
 
     Args:
         isolated_env: Isolated environment.
@@ -151,14 +151,13 @@ def fixture_dsvc(isolated_env, monkeypatch):
     """
     del isolated_env
     monkeypatch.setenv("PKM_INLINE_MAX_KB", "0")
-    monkeypatch.setenv("PKM_IMAGE_FOLDER", "document")
     cfg = Config.from_env()
     init_vault(cfg)
     return Service(cfg)
 
 
 def test_image_folder_next_to_document(dsvc):
-    """With PKM_IMAGE_FOLDER=document new image files go to <folder>/<document name>_img/."""
+    """New image files go to <folder>/<document name>_img/."""
     png = base64.b64encode(make_png(4, 4, text=False)).decode()
     res = dsvc.create_document(title="Photo", content="## A\n{{image:photo}}\n",
                                images=[{"name": "photo", "alt": "Photo", "png_base64": png}])
@@ -168,13 +167,11 @@ def test_image_folder_next_to_document(dsvc):
     assert [d["path"] for d in pend["new"]] == [res["path"]] and pend["new"][0]["images"] == [res["images"][0]["path"]]
 
 
-def test_invalid_image_folder(isolated_env, monkeypatch):
-    """Unknown values of PKM_IMAGE_FOLDER are a configuration error."""
+def test_old_image_folder_setting_is_ignored(isolated_env, monkeypatch):
+    """PKM_IMAGE_FOLDER is no longer used: images always go to <document name>_img/."""
     del isolated_env
-    monkeypatch.setenv("PKM_IMAGE_FOLDER", "elsewhere")
-    with pytest.raises(Exception) as err:
-        Config.from_env()
-    assert "PKM_IMAGE_FOLDER" in str(err.value)
+    monkeypatch.setenv("PKM_IMAGE_FOLDER", "attachments")
+    assert Config.from_env().images.folder_for("documents/haus/zisterne.md") == "documents/haus/zisterne_img"
 
 def test_identical_standalone_images_are_duplicates_not_moved(svc):
     """Two byte-identical standalone images: processed once, then pending is empty on every run."""
@@ -357,7 +354,7 @@ def test_lint_image_hints(svc):
 
 
 def test_identical_image_stored_once(isolated_env, monkeypatch):
-    """The same image in two documents is stored once; the second link points to the same file."""
+    """The same image twice in one document is stored once; another document gets its own copy (own folder)."""
     del isolated_env
     monkeypatch.setenv("PKM_INLINE_MAX_KB", "0")
     cfg = Config.from_env()
@@ -368,8 +365,14 @@ def test_identical_image_stored_once(isolated_env, monkeypatch):
                                  images=[{"name": "logo", "alt": "Logo", "png_base64": png}])
     second = fsvc.create_document(title="Two", content="## A\n{{image:company-logo}}\n",
                                   images=[{"name": "company-logo", "alt": "Company logo", "png_base64": png}])
-    assert first["images"][0]["path"] == second["images"][0]["path"]
-    assert len(list((cfg.root / "documents/_attachments").iterdir())) == 1
+    assert first["images"][0]["path"].startswith(first["path"][:-3] + "_img/")
+    assert second["images"][0]["path"].startswith(second["path"][:-3] + "_img/")
+    raw = (cfg.root / first["path"]).read_text(encoding="utf-8")
+    edit = fsvc.append_to_document(target=first["path"], text="{{image:logo-2}}",
+                                   expected_hash=hashlib.sha256(raw.encode()).hexdigest(),
+                                   images=[{"name": "logo-2", "alt": "Logo again", "png_base64": png}])
+    assert edit["images"][0]["path"] == first["images"][0]["path"]
+    assert len(list((cfg.root / (first["path"][:-3] + "_img")).iterdir())) == 1
 
 
 def test_begin_maintenance_returns_wiki_language(svc, monkeypatch):
@@ -414,19 +417,21 @@ def test_tool_schemas_contain_new_parameters():
 
 
 def test_topic_with_page_by_tags_is_not_reported(svc):
-    """A tag is covered by a topic page that carries it in tags, even with another file name."""
+    """A tag is covered by a topic page that carries it as its first tag; further tags do not count."""
     for n in range(3):
         _doc(svc, f"documents/ki/d{n}.md", "## A\nText\n", doc_id=f"d-20261106-1200-abc{'defg'[n]}")
         text = (svc.cfg.root / f"documents/ki/d{n}.md").read_text(encoding="utf-8")
         (svc.cfg.root / f"documents/ki/d{n}.md").write_text(
-            text.replace("version: 1\n", "version: 1\ntags: [ki-agenten, sandboxing, harness]\n"), encoding="utf-8")
+            text.replace("version: 1\n", "version: 1\ntags: [ki-agenten, sandboxing, harness, docker]\n"),
+            encoding="utf-8")
     write(svc.cfg, "wiki/topics/ki-agenten-und-harnesse.md",
-          "---\ntype: topic\ntitle: KI-Agenten und Harnesse\ntags: [ki-agenten]\n---\n\n> **Summary:** S\n")
+          "---\ntype: topic\ntitle: KI-Agenten und Harnesse\ntags: [ki-agenten, docker]\n---\n\n> **Summary:** S\n")
     write(svc.cfg, "wiki/topics/sandboxing-von-ki-agenten.md",
           "---\ntype: topic\ntitle: Sandboxing von KI-Agenten\naliases: [Sandboxing]\n---\n\n> **Summary:** S\n")
     topics = [f["message"] for f in lint(svc)["findings"] if f["check"] == "topic_without_page"]
     assert not any("ki-agenten" in t or "sandboxing" in t for t in topics), topics
     assert any("harness" in t for t in topics)
+    assert any("'docker'" in t for t in topics)  # only a further tag of a page about another topic
 
 
 def test_switch_to_attachments_is_reported_as_migration(svc):
@@ -483,7 +488,7 @@ def test_link_style(isolated_env, monkeypatch):
     svc = Service(cfg)
     res = svc.create_document(title="A", content="{{image:pic}}",
                               images=[{"name": "pic", "alt": "Pic", "png_base64": png}])
-    assert "](../_attachments/pic_" in (cfg.root / res["path"]).read_text(encoding="utf-8")
+    assert "](./a_" in (cfg.root / res["path"]).read_text(encoding="utf-8")
     monkeypatch.setenv("PKM_LINK_STYLE", "absolute")
     svc = Service(Config.from_env())
     png2 = base64.b64encode(make_png(5, 5, text=False)).decode()
@@ -494,6 +499,29 @@ def test_link_style(isolated_env, monkeypatch):
     monkeypatch.setenv("PKM_LINK_STYLE", "elsewhere")
     with pytest.raises(PkmError):
         Config.from_env()
+
+
+def test_moved_image_files_are_notation_only(svc):
+    """Image files moved by hand into <doc>_img/ with only the links changed: image_notation_only, images_moved."""
+    for n in range(3):
+        _png(svc, f"documents/_attachments/bild-{n}.png", 3 + n)
+    body = "## A\n" + "".join(f"![Bild {n}](../_attachments/bild-{n}.png)\n\n" for n in range(3))
+    _doc(svc, "documents/KI/sandbox.md", body)
+    m = Maintenance(svc)
+    m.versions()
+    m.mark([DOC_ID])
+    for n in range(3):
+        (svc.cfg.root / "documents/KI/sandbox_img").mkdir(exist_ok=True)
+        (svc.cfg.root / f"documents/_attachments/bild-{n}.png").rename(
+            svc.cfg.root / f"documents/KI/sandbox_img/bild-{n}.png")
+    path = svc.cfg.root / "documents/KI/sandbox.md"
+    path.write_text(path.read_text(encoding="utf-8").replace("../_attachments/", "./sandbox_img/"), encoding="utf-8")
+    m.versions()
+    item = next(i for i in m.pending()["changed"] if i["path"] == "documents/KI/sandbox.md")
+    assert item["image_notation_only"] is True
+    assert item["images_changed"] == []
+    assert item["images_moved"] == [{"from": f"documents/_attachments/bild-{n}.png",
+                                     "to": f"documents/KI/sandbox_img/bild-{n}.png"} for n in range(3)]
 
 
 # Main ************************************************************************

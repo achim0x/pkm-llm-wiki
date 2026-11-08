@@ -336,9 +336,9 @@ pkm lint --report
 | Kurzbezeichnung | Im Chat „Was steht in EN 61000-4-6:2014 zum Anwendungsbereich?“ | Das Dokument wird über `short_citation` gefunden | ☐ |
 | Obsidian-Typen | Eigenschaften eines neuen Chat-Dokuments in Obsidian ansehen | `date_markdown`/`date_updated` als Datum & Uhrzeit, `tags` als Tags | ☐ |
 | SVG-Diagramm | Im Chat „Zeichne den Aufbau als Diagramm in das Dokument“ | Entwurf mit Bild, nach Bestätigung eingebettetes SVG (`pkm:<name>`), in Obsidian im Lese- und Live-Vorschau-Modus sichtbar (auch mit `|400`) | ☐ |
-| Foto aus dem Importordner | Foto (JPEG vom Smartphone) über den Cloud-Speicher nach `pkm_img_import/` legen, im Chat „nimm foto.png mit ins Dokument“ | über 24 KB: Datei in `documents/_attachments/`, im selben Commit wie das Dokument; in Obsidian sichtbar und richtig gedreht; keine GPS-Daten in der Datei | ☐ |
+| Foto aus dem Importordner | Foto (JPEG vom Smartphone) über den Cloud-Speicher nach `pkm_img_import/` legen, im Chat „nimm foto.png mit ins Dokument“ | über 24 KB: Datei in `<Dokumentname>_img/` neben dem Dokument, im selben Commit wie das Dokument; in Obsidian sichtbar und richtig gedreht; keine GPS-Daten in der Datei | ☐ |
 | Bild im Pflegelauf | Nächster Pflegelauf nach den beiden Bildern | `read_image` wird genutzt, Inhalt in Worten mit Beleg `[img:<name>]`, Bilddatei nicht als eigenes Dokument | ☐ |
-| Bild ändern | Die Bilddatei in `_attachments/` ersetzen, Pflegelauf | Dokument bekommt eine neue Version mit `PKM-Source: user`, `pending` meldet den Abschnitt mit dem Bild | ☐ |
+| Bild ändern | Die Bilddatei in `<Dokumentname>_img/` ersetzen, Pflegelauf | Dokument bekommt eine neue Version mit `PKM-Source: user`, `pending` meldet den Abschnitt mit dem Bild | ☐ |
 
 
 **Bilder und Größengrenze (0.3.0):**
@@ -353,7 +353,10 @@ pkm lint --report
 | Wiki-Sprache | `begin_maintenance` | `wiki_language` entspricht `PKM_LANGUAGE` | ☐ |
 | Antwortgröße | `fix_images` mit `extract` und `apply` an einem Dokument mit großen eingebetteten Bildern | Antwort < 10 KB, Diff mit Platzhaltern `pkm-image:…`, kein Base64 | ☐ |
 | Erzeugte Wiki-Dateien | Pflegelauf mit `PKM_LANGUAGE = "de"` | `wiki/_status.md` mit „Noch nicht verarbeitet“, „Probleme“; `wiki/index.md` mit „Themen“ | ☐ |
-| Namen im Eingang | Umgewandeltes Dokument `Meeting Notes.md` mit Bildordner `Meeting Notes_files/` in `_inbox/` legen, Pflegelauf | Rückfrage vor der Verarbeitung mit neuem Namen `<slug>_YYYY-MM-DD.md` und Bildordner `<slug>_YYYY-MM-DD_img/`; nach Bestätigung beides umbenannt, Bilder sichtbar in Obsidian, ein Commit | ☐ |
+| Namen im Eingang | `Training from the Back of the Room.md` mit `images/IMG_013.png` … in `_inbox/`, `begin_maintenance` mit `with_lint: true` | Drei `naming`-Gruppen (Dokument, Ordner, Bilder) mit Vorschlägen; im Bericht Namensvorschläge, keine Frage nach dem Ablageort; nach Bestätigung `rename_document`: Datei, `<name>_img/` mit Namen aus dem Alternativtext, Links `./…`, ein Commit; Folgelauf `image_notation_only` | ☐ |
+| Bildorte | Dokument mit Bildern in `documents/_attachments/`; Lint, dann `move_images` | `image_location`; nach Bestätigung Bilder in `<Dokumentname>_img/`, gemeinsam genutzte Dateien bleiben; Folgelauf `image_notation_only` mit `images_moved` | ☐ |
+| Bilder von Hand verschieben | Bilder eines Dokuments in Obsidian nach `<Dokumentname>_img/` verschieben, Links anpassen, Pflegelauf | `changed` mit `image_notation_only: true`, `images_moved`, `images_changed` leer | ☐ |
+| Tag-Abdeckung | Tag `docker` nur als weiteres Tag einer Seite zu einem anderen Thema | `topic_without_page` für `docker` | ☐ |
 | Dateinamen und Links | `extract` an einem Dokument mit `date_markdown` | Vorschlag nennt die echten Namen, Datum aus `date_markdown`, an Wortgrenzen gekürzt; Links relativ zum Dokument | ☐ |
 
 **Dokumentsprache:**

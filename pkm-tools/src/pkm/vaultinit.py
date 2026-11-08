@@ -39,7 +39,6 @@ from .state import FORMAT as STATE_FORMAT
 
 DIRS = [
     "documents/_inbox",
-    "documents/_attachments",
     "wiki/topics",
     "wiki/entities",
     "wiki/summaries",
@@ -58,7 +57,7 @@ OBSIDIAN_EXPECTED = {
     "alwaysUpdateLinks": (True, "Automatically update internal links: on"),
     "newLinkFormat": ("absolute", "New link format: absolute path in vault"),
     "useMarkdownLinks": (False, "Use [[Wikilinks]]: on"),
-    "attachmentFolderPath": ("documents/_attachments", "Attachment folder: documents/_attachments"),
+    "attachmentFolderPath": ("./", "Default location for new attachments: same folder as current file"),
 }
 PKM_IGNORE_FILTER = ".pkm/"
 # Obsidian property types (vault-wide per field name); values as in Obsidian's types.json.
