@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
 from . import hashes, images
+from .errors import PkmError
 from .vault import Doc
 
 if TYPE_CHECKING:
@@ -145,13 +146,14 @@ class AssetMap:
         """
         return None if ref.inline else self._resolve(doc_rel, ref)
 
-    def link_hash(self, doc_rel: str, recorded: dict[str, str] | None = None) -> Any:
+    def link_hash(self, doc_rel: str, recorded: dict[str, str] | None = None, commit: str | None = None) -> Any:
         """Function for ``imagefix.notation_only``: hash of the file of a linked image.
 
         Args:
             doc_rel: Path of the document the links are relative to.
             recorded: Hashes per path recorded earlier (``assets`` in ``state.json``); they take
                 precedence over the current file (for the earlier state of a document).
+            commit: Commit of the earlier state; files missing now are read from Git there (moved files).
 
         Returns:
             Function ``ImageRef`` → SHA-256 or ``None``.
@@ -171,6 +173,12 @@ class AssetMap:
                 value = (recorded or {}).get(path) or hashes.sha256_bytes(self.svc.vault.path(path).read_bytes())
             elif recorded and not ref.inline:
                 value = _recorded_hash(doc_rel, ref, recorded)
+            target = images.link_target(ref, doc_rel)
+            if value is None and commit and target:
+                try:
+                    value = hashes.sha256_bytes(self.svc.git.show_file(commit, target))
+                except PkmError:
+                    value = None
             return value
 
         return digest

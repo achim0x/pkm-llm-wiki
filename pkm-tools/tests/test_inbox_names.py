@@ -434,4 +434,56 @@ def test_move_images_names_wiki_links_to_image_files(svc, cfg):
     assert prop["linked_by_wiki"] == [{"page": "wiki/topics/sandbox", "links": 1}] and "warning" in prop
 
 
+def _cite(svc, doc_id, rel, key, quote):
+    """Citation line for a section of a document in its current version.
+
+    Args:
+        svc: Service.
+        doc_id: ID.
+        rel: Path of the document.
+        key: Section key.
+        quote: Quote.
+
+    Returns:
+        The line after ``[^bn]:``.
+    """
+    doc = svc.read(f"id:{doc_id}")
+    sha = next(s["sha"] for s in doc["sections"] if s["key"] == key)
+    return f'[[{rel[:-3]}#{key}]] · "{quote}" · id:{doc_id} · v:{doc["version"]} · sha:{sha}'
+
+
+@pytest.mark.parametrize("state_assets", [True, False])
+def test_rename_with_moved_images_raises_all_citations(svc, cfg, state_assets):
+    """R12: rename_document (document and images moved, links changed) → begin → finish raises every citation."""
+    rel = f"{INBOX}/Training Back.md"
+    _png(svc, f"{INBOX}/images/IMG_013.png", 3)
+    write(cfg, rel, "---\ntitle: Training Back\ndate_markdown: 2026-11-07T10:00:00\n---\n\n## Karte\n"
+          "Verbindungen sind wichtig.\n\n![Konzeptlandkarte](images/IMG_013.png)\n\n## Rest\nOhne Bild.\n")
+    begin = maintrun.begin_maintenance(svc)
+    doc_id = begin["ids"]["assigned"][0]["id"]
+    page = ("---\ntype: summary\ntitle: Training\nsources: []\ndate_updated: 2026-11-07T10:00:00\nconfidence: high\n"
+            "---\n\n> **Summary:** S.\n\n## Content\nVerbindungen.[^b1] Bild.[^b2] Rest.[^b3]\n\n## Citations\n"
+            f"[^b1]: {_cite(svc, doc_id, rel, 'Karte', 'Verbindungen sind wichtig.')}\n"
+            f"[^b2]: {_cite(svc, doc_id, rel, 'Karte', '[img:konzeptlandkarte]')}\n"
+            f"[^b3]: {_cite(svc, doc_id, rel, 'Rest', 'Ohne Bild.')}\n")
+    assert maintrun.write_wiki_page(svc, "wiki/summaries/training", page)["status"] == "created"
+    maintrun.finish_maintenance(svc, "- new", processed=[doc_id])
+    if not state_assets:  # earlier state without recorded image hashes: the hashes come from Git
+        from pkm.state import load_state  # pylint: disable=import-outside-toplevel
+        state = load_state(cfg)
+        state["documents"][doc_id]["assets"] = {}
+        Maintenance(svc).save_state(state)
+    old = svc.read(f"id:{doc_id}")
+    res = maintrun.rename_document(svc, f"id:{doc_id}", old["hash"], apply=True)
+    assert res["version"] == old["version"] + 1
+    assert next(i for i in maintrun.begin_maintenance(svc)["pending"]["changed"]
+                if i["id"] == doc_id)["image_notation_only"] is True
+    fin = maintrun.finish_maintenance(svc, "- renamed", operation="fix", processed=[doc_id])
+    raised = [c for p in fin["raised_citations"]["changes"] for c in p["changes"]]
+    assert {c["id"]: c["sha_changed"] for c in raised} == {"b1": True, "b2": True, "b3": False}
+    text = (cfg.root / "wiki/summaries/training.md").read_text(encoding="utf-8")
+    assert text.count(f"v:{res['version']}") == 3
+    assert not [f for f in fin["lint"]["findings"] if f["check"] == "citation_newer_version"]
+
+
 # Main ************************************************************************

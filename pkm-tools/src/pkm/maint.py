@@ -242,15 +242,36 @@ class Maintenance:
                 item["image_issues"] = issues
             old = item.get("processed_version")
             if item in result.get("changed", []) and doc.id and old:
-                try:
-                    _, text = self.svc.text_at_version(doc.id, int(old))
-                except PkmError:
-                    text = None
-                old_body = load_text_doc(doc.rel, text.encode("utf-8")).body if text is not None else None
-                recorded = (entries.get(doc.id) or {}).get("assets") or {}
+                old_hash, old_body = self._earlier_state(doc.id, int(old), amap, entries)
                 if old_body is not None and imagefix.body_notation_only(
-                        old_body, doc.body or "", limits, amap.link_hash(doc.rel, recorded), amap.link_hash(doc.rel)):
+                        old_body, doc.body or "", limits, old_hash, amap.link_hash(doc.rel)):
                     item["image_notation_only"] = True
+
+    def _earlier_state(
+        self, doc_id: str, version: int, amap: AssetMap, entries: dict[str, dict[str, Any]]
+    ) -> tuple[Any, str | None]:
+        """Body of an earlier version and the hashes of the image files it linked to at that time.
+
+        The links are resolved against the path of the document at that time; files that no longer exist
+        there come from the recorded ``assets`` or from Git at the commit of that version.
+
+        Args:
+            doc_id: Document ID.
+            version: Earlier version.
+            amap: References to image files.
+            entries: Entries from ``state.json``.
+
+        Returns:
+            Tuple of (function ``ImageRef`` → hash, body or ``None`` if the version is not available).
+        """
+        try:
+            commit = self.svc.commit_for_version(doc_id, version)
+            path, text = self.svc.text_at_version(doc_id, version)
+        except PkmError:
+            commit, path, text = None, "", None
+        recorded = (entries.get(doc_id) or {}).get("assets") or {}
+        body = load_text_doc(path, text.encode("utf-8")).body if text is not None else None
+        return amap.link_hash(path, recorded, commit.sha if commit else None), body
 
     def _commit_changed_images(self, modified: set[str]) -> tuple[list[dict[str, Any]], set[str]]:
         """Commit changed associated image files as a new version of the documents that use them (4.9).

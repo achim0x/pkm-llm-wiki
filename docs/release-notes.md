@@ -41,6 +41,9 @@ PNGs) and refined in four test rounds on 7 and 8 November 2026.
   and citations (`[img:<name>]`) do not change.
 - **Moving images by hand:** if only image files moved (same bytes) and the links were adjusted,
   `pending` reports the document with `image_notation_only: true` – nothing to process.
+  `finish_maintenance` then raises all its citations to the new version (`sha:` too for the sections
+  with changed image links), also after `rename_document` or `move_images` moved the document or its
+  images; `raised_citations` names `version` and `sha_changed` per citation.
 - **Switching an existing vault:** a document whose images were standalone entries before is reported
   once with `assets_migrated: true` and `image_notation_only: true`; processing it removes the old
   standalone entries.
