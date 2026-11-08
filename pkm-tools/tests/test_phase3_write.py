@@ -504,7 +504,7 @@ def test_mcp_call_create_and_conflict(cfg):
     mcp_server.reset_service()
 
 def test_long_title_shortens_only_slug(svc):
-    """Long titles: only the slug is shortened, suffix and date stay, at most 120 characters."""
+    """Long titles: the slug is cut at a word boundary to PKM_SLUG_MAX (40), suffix and date stay."""
     title = "Sehr langer Titel " * 20
     a = svc.create_document(title=title, content="A")
     b = svc.create_document(title=title, content="B")
@@ -512,6 +512,11 @@ def test_long_title_shortens_only_slug(svc):
                          (b, r"sehr-langer-titel[a-z-]*-2_\d{4}-\d{2}-\d{2}\.md")):
         name = res["path"].rsplit("/", 1)[1]
         assert len(name) <= 120 and re.fullmatch(pattern, name), name
-    assert len(a["path"].rsplit("/", 1)[1]) == 120
+    assert a["path"].rsplit("/", 1)[1][:-14] == "sehr-langer-titel-sehr-langer-titel-sehr"
+    assert len(b["path"].rsplit("/", 1)[1]) == 40 + 2 + 14
+    assert svc.create_document(title="Kurz: mit Untertitel", content="C")["path"].rsplit("/", 1)[1].startswith(
+        "kurz-mit-untertitel_")  # chat documents keep the subtitle
+    note = svc.create_document(title=title, content="D", area="scratch")
+    assert len(note["path"].rsplit("/", 1)[1]) > 60  # scratch/ is not limited by PKM_SLUG_MAX
 
 # Main ************************************************************************

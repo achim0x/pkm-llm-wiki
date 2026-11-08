@@ -35,9 +35,10 @@ from .cloudsync import conflict_copies
 from .errors import PkmError
 from .frontmatter import fix_frontmatter_text
 from .imagelint import check_images, has_image, image_quote
+from .namelint import check_names
 from .parse import Section, body_lines, find_setext
 from .parse import parse as parse_text
-from .paths import case_collisions, is_platform_safe_name
+from .paths import case_collisions, is_platform_safe_name, slugify
 from .schema import (
     DATE_FIELDS,
     KINDS,
@@ -46,7 +47,7 @@ from .schema import (
     looks_converted,
 )
 from .vault import Doc, extract_links, is_markdown, link_key, summary_of
-from .wikigen import FOLDER_TYPES, wiki_pages, write_if_changed
+from .wikigen import FOLDER_TYPES, page_type, wiki_pages, write_if_changed
 
 if TYPE_CHECKING:
     from .service import Service
@@ -61,6 +62,7 @@ SEVERITIES = ("error", "warning", "info")
 SEVERITY_LABELS = {"error": "Errors", "warning": "Warnings", "info": "Notes"}
 MIN_MISSING_PAGE_LINKS = 2
 MIN_TOPIC_DOCUMENTS = 3
+COVERING_TYPES = ("topic", "entity", "synthesis")  # pages whose tags cover a topic
 STATEMENT_PREVIEW = 80
 
 # Classes *********************************************************************
@@ -137,6 +139,7 @@ class Linter:  # pylint: disable=too-many-instance-attributes
         self.platform()
         self.documents()
         check_images(self.r.add, self.svc, self.docs, self.pages)
+        check_names(self.r.add, self.svc, self.docs)
         self.structure()
         self.citations()
         return self.r.result()
@@ -344,20 +347,32 @@ class Linter:  # pylint: disable=too-many-instance-attributes
                     incoming[dest] += 1
 
     def _topics_without_page(self) -> None:
-        """Topics that occur in several documents but have no wiki page."""
-        names = set()
+        """Topics that occur in several documents but have no wiki page.
+
+        A tag counts as covered if the file name, title or an alias of any wiki page equals it, if a topic,
+        entity or synthesis page carries it as its **first** tag, or if it occurs as whole words in the file
+        name or title of such a page (``sandboxing`` in ``sandboxing-von-ki-agenten``); ignoring case, umlauts
+        spelled out, hyphens and spaces alike. Further tags of a page about another topic do not count.
+        """
+        names: set[str] = set()
+        word_names: list[str] = []
         for page in self.pages:
-            names.update({page.stem.casefold(), page.title.casefold()})
-            aliases = page.meta.get("aliases")
+            names.update({_topic_key(page.stem), _topic_key(page.title)})
+            aliases, tags = page.meta.get("aliases"), page.meta.get("tags")
             if isinstance(aliases, list):
-                names.update(str(a).casefold() for a in aliases)
+                names.update(_topic_key(str(v)) for v in aliases)
+            if page_type(page) in COVERING_TYPES:
+                word_names += [f"-{slugify(page.stem)}-", f"-{slugify(page.title)}-"]
+                if isinstance(tags, list) and tags:
+                    names.add(_topic_key(str(tags[0])))
         topics: Counter[str] = Counter()
         for doc in self.docs:
             t = doc.meta.get("tags")
             if isinstance(t, list):
                 topics.update({str(x).casefold() for x in t})
         for topic, n in sorted(topics.items()):
-            if n >= MIN_TOPIC_DOCUMENTS and topic not in names:
+            covered = _topic_key(topic) in names or any(f"-{slugify(topic)}-" in w for w in word_names)
+            if n >= MIN_TOPIC_DOCUMENTS and not covered:
                 self.r.add("topic_without_page", "info", None,
                            f"Topic '{topic}' in {n} documents, but without a wiki page.")
 
@@ -461,6 +476,18 @@ class Linter:  # pylint: disable=too-many-instance-attributes
                        f"[^{cit.label}] quote is not in v{cit.version}, section '{key}'.", footnote=cit.label)
 
 # Functions *******************************************************************
+
+
+def _topic_key(name: str) -> str:
+    """Comparable form of a tag, title or file name.
+
+    Args:
+        name: Name.
+
+    Returns:
+        Lower case with hyphens and underscores as spaces, whitespace collapsed.
+    """
+    return " ".join(name.replace("-", " ").replace("_", " ").casefold().split())
 
 
 def _error_message(doc: Doc) -> str:

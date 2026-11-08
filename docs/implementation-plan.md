@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Umsetzungsplan
 
-**Bezug:** [Spezifikation v0.28](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 05.11.2026 · **Plan-Version:** 4
+**Bezug:** [Spezifikation v0.29](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 07.11.2026 · **Plan-Version:** 4
 
 Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnissen, Tests und Abnahmekriterien. Abschnittsnummern in Klammern (z. B. „5.4“) verweisen auf die Spezifikation.
 
@@ -275,7 +275,11 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - **Erledigt:** Release `v0.2.1` (Dokumentsprache, vorhandene Konfiguration übernehmen, Entwicklungsinstallation).
 - **Wiki-Sprache** (0.28): `PKM_LANGUAGE` gilt auch für das Wiki; der Pflege-Server nennt Sprache, Abschnittsnamen und Kurzfassungs-Label.
 - **Englische Namen** (0.28): Pflege-Server `pkm-maintenance` (`pkm-maintenance-mcp`, `maintenance_server.py`), Projekt „PKM Maintenance“; `pkm-pflege-mcp` als Alias, `pkm setup` ersetzt den alten Eintrag (`test_setup.py`).
+- **Version anzeigen** (0.28): `pkm --version`, Version in `pkm setup` und `pkm doctor`.
 - **`CLAUDE.md` aktualisieren** (0.28): `pkm setup` vergleicht die `CLAUDE.md` des Vaults mit der Vorlage und bietet Ersetzen mit Sicherung und Commit oder `CLAUDE.md.new` an (`test_setup.py`).
+- **Bilder und Größengrenze, pkm-tools 0.3.0** (0.29): verlinkte Bilder als Anhänge unabhängig vom Ordner (robuste Link-Auflösung, `images`/`images_changed` in `pending`, kein `processed`-Eintrag), Ablageort `PKM_IMAGE_FOLDER`, Dubletten einmal abgelegt, eigenständige Dateien über Pfad und Hash (kein `moved` für Dubletten), `PKM_MAX_KB` für den Text ohne Data-URIs (nach Bestätigung mit `confirm_large` für einen Aufruf überschreibbar), `fix_images` mit `extract`, Lint `large_embedded_image`/`generic_alt_text`/`duplicate_image`, `wiki_language` in `begin_maintenance` (`test_image_attachments.py`). Nach dem Test (Review 07.11.2026): kein Base64 in Antworten, erzeugte Wiki-Dateien in der Wiki-Sprache, `topic_without_page` über Tags, `assets_migrated`, Dateinamen an Wortgrenzen mit `date_markdown`, Linkstil `PKM_LINK_STYLE`.
+- **Namen im Eingang** (0.29): Namensvorschlag `rename` für neue Markdown-Dokumente in `documents/_inbox/` mit abweichendem Namen, Pflege-Tool `rename_document` (nach Bestätigung; Bilddateien wandern nach `<Name>_img/`, nichtssagende Namen aus dem Alternativtext, Bildlinks angepasst, ein Commit), Hinweis in `wiki/_status.md`, Lint `naming`; Skill `pkm-wiki` führt die Vorschläge im Bericht auf.
+- **Zweiter Test, 08.11.2026** (0.29): Bilddateien immer in `<Dokumentname>_img/` (`PKM_IMAGE_FOLDER` entfällt, Obsidian-Anhänge neben der Notiz), relative Links mit `./`, Pflege-Tool `move_images` und Lint `image_location`, `images_moved`/`images_removed` und `image_notation_only` bei von Hand verschobenen Bildern, `topic_without_page` nur über Name, Titel, Alias oder erstes Tag, `tools_version` in `begin_maintenance`, Vorlage `CLAUDE.md` mit Namensregeln und Kurzfassungszeile je Sprache.
 - **Vorhandene Konfiguration übernehmen** (0.27): `pkm setup` zeigt Einstellungen aus Umgebung, `env`-Blöcken in Claude Desktop und `config.toml` und übernimmt sie nach Bestätigung (`test_setup_adopt.py`).
 
 ### Phase 7e – Abnahme mit der neuen Installation
@@ -344,6 +348,6 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 
 ## 8. Nächste Schritte
 
-1. Erledigt: Releases `v0.2.0` und `v0.2.1`; `v0.2.2` (Wiki-Sprache, englische Namen, `CLAUDE.md` aktualisieren) nach Merge von PR #3 taggen.
+1. Erledigt: Releases `v0.2.0`, `v0.2.1` und `v0.2.2`. Nächste Release `v0.3.0` (Bilder und Größengrenze, `pkm --version`).
 2. Abnahme nach Phase 7e auf dem PKM-Rechner (`docs/acceptance.md`, ab Schritt 0).
 3. Befunde beheben; erst danach Phase 8 (Automatik) und nur auf Anweisung.

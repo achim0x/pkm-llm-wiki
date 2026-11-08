@@ -410,7 +410,7 @@ def test_doctor_obsidian(svc, cfg):
     """doctor checks the Obsidian settings."""
     write(cfg, ".obsidian/app.json", json.dumps({
         "alwaysUpdateLinks": True, "newLinkFormat": "shortest", "useMarkdownLinks": False,
-        "attachmentFolderPath": "documents/_attachments", "userIgnoreFilters": [".pkm/"]}))
+        "attachmentFolderPath": "./", "userIgnoreFilters": [".pkm/"]}))
     res = doctor(svc)
     bad = [c["check"] for c in res["checks"] if not c["ok"]]
     assert bad == ["obsidian_newLinkFormat"] and res["status"] == "ok"
@@ -431,7 +431,7 @@ def test_mcp_show_citations(setup):
     """show_citations via the MCP server."""
     mcp_server.reset_service()
     names = {t.name for t in asyncio.run(mcp_server.build_server().list_tools())}
-    assert len(names) == 15 and {"show_citations", "add_image", "read_image", "fix_images"} <= names
+    assert len(names) == 16 and {"show_citations", "add_image", "read_image", "fix_images"} <= names
     res = mcp_server.call("show_citations", lambda s, **k: s.show_citations(**k), target=setup["page"],
                           statement="Tank fasst")
     assert [c["id"] for c in res["citations"]] == ["b3"]

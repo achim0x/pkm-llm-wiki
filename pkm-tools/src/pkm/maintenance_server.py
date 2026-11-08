@@ -76,14 +76,54 @@ def _register_maintenance_tools(server: Server) -> None:
     @server.tool(name="fix_images")
     def fix_images_tool(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str, expected_hash: str, images: list[str] | None = None, image_alt: dict | None = None,
-        apply: bool = False, confirm_shortening: bool = False, note: str | None = None,
+        apply: bool = False, confirm_shortening: bool = False, note: str | None = None, extract: bool = False,
+        min_kb: int = 32,
     ) -> dict:
         """Only after explicit confirmation by the user, never unattended: fix the notation of nonconforming
         image data URIs of a document in documents/ per 4.9 (image_issues from begin_maintenance).
-        Without apply only a proposal with diff; apply=true writes a new version (PKM-Fix: images)."""
+        Without apply only a proposal with diff; apply=true writes a new version (PKM-Fix: images).
+        To store large embedded images as files use extract_images (extract/min_kb here only for compatibility)."""
         return call("fix_images", maintrun.fix_document_images, target=target, expected_hash=expected_hash,
                     images_only=images, image_alt=image_alt, apply=apply, confirm_shortening=confirm_shortening,
-                    note=note)
+                    note=note, extract=extract, min_kb=min_kb)
+
+    @server.tool()
+    def rename_document(target: str, expected_hash: str, apply: bool = False, name: str | None = None,
+                        alt_texts: dict | None = None) -> dict:
+        """Only after explicit confirmation by the user, never unattended: rename a Markdown document in documents/
+        after the naming rules: <slug>_YYYY-MM-DD.md, slug from the title without subtitle, at most 40 characters
+        (proposal from begin_maintenance pending.new[].rename, lint naming, or lint image_location for names
+        with capitals or spaces). Its image files move into <new name>_img/, generic image names (IMG_013) get
+        names from the alt text, links ./<new name>_img/…. Wiki pages are not changed: cited_by/citations name
+        pages with citations (they follow via the ID with finish_maintenance), linked_by_wiki pages with plain
+        wikilinks (fix them with write_wiki_page), regenerated the generated files. Without apply only the proposal;
+        apply=true moves and commits. name: other name instead of the title. alt_texts: {file path, file name or
+        image name (as in lint generic_alt_text): alt text}."""
+        return call("rename_document", maintrun.rename_document, target=target, expected_hash=expected_hash,
+                    apply=apply, name=name, alt_texts=alt_texts)
+
+    @server.tool()
+    def move_images(target: str, expected_hash: str, apply: bool = False, alt_texts: dict | None = None) -> dict:
+        """Only after explicit confirmation by the user, never unattended: move the image files of a document in
+        documents/ into <document name>_img/ next to it (lint image_location, e.g. old files in
+        documents/_attachments/, or an image folder left behind after filing). Files other documents also link to
+        stay (kept). Generic names (IMG_013) get names from the alt text; generic_names_kept lists files whose
+        alt text says nothing: alt_texts {file path, file name or image name: alt text} sets the alt text and
+        the file name in the same step (lint generic_alt_text names file and image). Links become
+        ./<document name>_img/…. Without apply only the proposal; apply=true moves and commits."""
+        return call("move_images", maintrun.move_images, target=target, expected_hash=expected_hash, apply=apply,
+                    alt_texts=alt_texts)
+
+    @server.tool()
+    def extract_images(target: str, expected_hash: str, min_kb: int = 32, apply: bool = False) -> dict:
+        """Only after explicit confirmation by the user, never unattended: store large embedded raster images of a
+        document in documents/ as files in <document name>_img/ next to it (bytes unchanged, links
+        ./<document name>_img/…, PKM-Fix: images-extract); same as fix_images with extract=true, e.g. for lint
+        large_embedded_image. min_kb: only images of at least this size. Without apply only a proposal (files,
+        diff); apply=true writes a new version (next run: image_notation_only)."""
+        return call("extract_images", maintrun.fix_document_images, target=target, expected_hash=expected_hash,
+                    images_only=None, image_alt=None, apply=apply, confirm_shortening=False, note=None,
+                    extract=True, min_kb=min_kb)
 
     @server.tool()
     def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positional-arguments

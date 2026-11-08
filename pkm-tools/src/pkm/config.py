@@ -31,7 +31,7 @@ import sys
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .errors import PkmError
@@ -40,6 +40,7 @@ from .errors import PkmError
 
 DEFAULT_AUTHOR = "pkm-mcp <pkm@localhost>"
 DEFAULT_MAX_KB = 200
+DEFAULT_SLUG_MAX = 40  # PKM_SLUG_MAX: name part of new document names (chat and inbox proposals)
 DEFAULT_TZ = "Europe/Berlin"
 IMPORT_FOLDER = "pkm_img_import"
 CONFIG_FILE = "config.toml"
@@ -55,14 +56,16 @@ DOC_LANGUAGES = {
 }
 CONFIG_KEYS = (
     "PKM_ROOT", "PKM_VAULT_NAME", "PKM_LANGUAGE", "PKM_VERSIONING", "PKM_GIT", "PKM_GIT_DIR", "PKM_CACHE_DIR",
-    "PKM_TZ", "PKM_MAX_KB", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
-    "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_SVG_RASTER",
+    "PKM_TZ", "PKM_MAX_KB", "PKM_SLUG_MAX", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
+    "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_SVG_RASTER", "PKM_LINK_STYLE",
 )
 WIKI_SECTIONS = {
     "en": ("Summary", ("Content", "Contradictions / open questions", "See also", "Citations")),
     "de": ("Kurzfassung", ("Inhalt", "Widersprüche / offene Fragen", "Siehe auch", "Belege")),
 }
 LANGUAGE_ALIASES = {"en": "en", "english": "en", "englisch": "en", "de": "de", "german": "de", "deutsch": "de"}
+IMAGE_DIR_SUFFIX = "_img"
+LINK_STYLES = ("absolute", "relative")  # PKM_LINK_STYLE: links to image files
 IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX_MB": 5,
                   "PKM_IMAGE_PARAM_MAX_KB": 512}
 
@@ -70,7 +73,7 @@ IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX
 
 
 @dataclass(frozen=True)
-class ImageConfig:
+class ImageConfig:  # pylint: disable=too-many-instance-attributes
     """Limits and folders for images (specification 4.9, 7.1).
 
     Attributes:
@@ -80,6 +83,8 @@ class ImageConfig:
         param_max_kb: Upper limit for ``png_base64`` in one call (``PKM_IMAGE_PARAM_MAX_KB``).
         import_dir: The only folder image files are imported from (``PKM_IMPORT_DIR``).
         svg_raster: Rasterize SVG for ``read_image`` (``PKM_SVG_RASTER``).
+        link_style: Links to new image files (``PKM_LINK_STYLE``): ``relative`` to the document (default)
+            or ``absolute`` (path from the vault root).
     """
 
     inline_max_kb: int = 24
@@ -88,6 +93,20 @@ class ImageConfig:
     param_max_kb: int = 512
     import_dir: Path | None = None
     svg_raster: bool = False
+    link_style: str = "relative"
+
+    def folder_for(self, doc_rel: str) -> str:
+        """Folder for the image files of a document: always ``<folder of the document>/<document name>_img`` (4.9).
+
+        ``documents/_attachments/`` is no longer a target (existing files there stay readable).
+
+        Args:
+            doc_rel: Path of the document in the vault.
+
+        Returns:
+            E.g. ``documents/haus/zisterne_img`` for ``documents/haus/zisterne.md``.
+        """
+        return image_folder(doc_rel)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str], root: Path) -> ImageConfig:
@@ -110,6 +129,10 @@ class ImageConfig:
             except ValueError as exc:
                 raise PkmError("config_error", f"{key} must be an integer.") from exc
         import_dir = Path(env.get("PKM_IMPORT_DIR") or root / IMPORT_FOLDER)
+        link_style = (env.get("PKM_LINK_STYLE") or "relative").strip().lower()
+        if link_style not in LINK_STYLES:
+            raise PkmError("config_error",
+                           f"PKM_LINK_STYLE must be one of {', '.join(LINK_STYLES)}, not {link_style!r}.")
         return cls(
             inline_max_kb=values["PKM_INLINE_MAX_KB"],
             svg_max_kb=values["PKM_SVG_MAX_KB"],
@@ -117,6 +140,7 @@ class ImageConfig:
             param_max_kb=values["PKM_IMAGE_PARAM_MAX_KB"],
             import_dir=import_dir.expanduser().resolve(),
             svg_raster=(env.get("PKM_SVG_RASTER") or "").strip().lower() in ("1", "true", "yes", "ja"),
+            link_style=link_style,
         )
 
 
@@ -138,6 +162,8 @@ class Config:  # pylint: disable=too-many-instance-attributes
         language: Main language of documents created in chat and of the wiki, ``en`` or ``de``
             (``PKM_LANGUAGE``).
         config_file: Configuration file that was read, or ``None``.
+        slug_max: Maximum length of the name part of new documents (not in ``scratch/``) and of name
+            proposals in the inbox (``PKM_SLUG_MAX``, 4.1).
     """
 
     root: Path
@@ -152,6 +178,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
     git_exe: str = "git"
     language: str = DEFAULT_LANGUAGE
     config_file: Path | None = None
+    slug_max: int = DEFAULT_SLUG_MAX
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None, search_from: Path | None = None) -> Config:
@@ -187,8 +214,9 @@ class Config:  # pylint: disable=too-many-instance-attributes
             raise PkmError("config_error", f"Invalid time zone PKM_TZ: {exc}") from exc
         try:
             max_kb = int(env.get("PKM_MAX_KB") or DEFAULT_MAX_KB)
+            slug_max = max(10, int(env.get("PKM_SLUG_MAX") or DEFAULT_SLUG_MAX))
         except ValueError as exc:
-            raise PkmError("config_error", "PKM_MAX_KB must be an integer.") from exc
+            raise PkmError("config_error", "PKM_MAX_KB and PKM_SLUG_MAX must be integers.") from exc
         return cls(
             root=root.resolve(),
             git_dir=git_dir.resolve(),
@@ -202,6 +230,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
             git_exe=env.get("PKM_GIT") or find_git() or "git",
             language=parse_language(env.get("PKM_LANGUAGE")),
             config_file=config_path if file_values else None,
+            slug_max=slug_max,
         )
 
     # Derived paths ************************************************************
@@ -297,6 +326,20 @@ class Config:  # pylint: disable=too-many-instance-attributes
         return problem
 
 # Functions *******************************************************************
+
+
+def image_folder(doc_rel: str) -> str:
+    """Folder for the image files of a document (4.9): ``<folder of the document>/<document name>_img``.
+
+    Args:
+        doc_rel: Path of the document in the vault.
+
+    Returns:
+        The folder, e.g. ``documents/haus/zisterne_img``.
+    """
+    rel = PurePosixPath(doc_rel)
+    stem = rel.name[:-3] if rel.name.lower().endswith(".md") else rel.stem
+    return str(rel.parent / f"{stem}{IMAGE_DIR_SUFFIX}")
 
 
 def default_app_dir(home: Path | None = None) -> Path:

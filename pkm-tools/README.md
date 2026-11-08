@@ -34,6 +34,11 @@ tools with `fix_images`/`image_alt`, tool `fix_images` in both servers, CLI `pkm
 **MCP tools of `pkm-maintenance-mcp`:** the reading tools as well as `begin_maintenance` (doctor, versions, ids,
 pending with `missing_fields`, `known_tags`, fix-citations), `set_document_metadata` (only `title`,
 `context`, `tags`, `kind`, `short_citation` after confirmation; new version with `PKM-Source: agent`),
+`rename_document` (after confirmation: a document in `documents/_inbox/`, or one whose name breaks the rules,
+named `<slug>_YYYY-MM-DD.md`; wiki pages citing it are listed with `cited_by`,
+its image files move into `<name>_img/`, generic names from the alt text, links adjusted),
+`move_images` (after confirmation: image files of a document into `<document name>_img/`, links always
+`./<document name>_img/…`), `extract_images` (same as `fix_images` with `extract: true`),
 `write_wiki_page` (only `wiki/topics|entities|summaries|syntheses/`, with
 `expected_hash`, without commit) and `finish_maintenance` (fix-/sync-citations, mark with the pages
 determined from the citations, raise citations of unchanged sections to the new version, log, index,
@@ -42,7 +47,7 @@ status, lint, commit-wiki).
 `read` (both servers) supports `section`, `offset`/`max_chars` and `content: false`; above 40,000 characters
 without these parameters `content` is left out (`content_omitted`).
 
-**CLI:** `pkm setup`, `init`, `ids`, `versions`, `pending`, `mark <id>… [--pages <page>…] [--remove]`,
+**CLI:** `pkm --version`, `pkm setup`, `init`, `ids`, `versions`, `pending`, `mark <id>… [--pages <page>…] [--remove]`,
 `sha <target> [--section <key>] [--full]`, `index`, `status [--question <text>]…`,
 `commit-wiki -m <text>`, `fix-frontmatter [<target>…] [--all]`, `fix-images [<target>…] [--all] [--apply]`,
 `history <target> [--diff <from> [<to>]]`, `show <target> --version <n> [--section <key>]`,
@@ -143,8 +148,9 @@ skill ZIPs and the wheel to every release tag `v*`.
   checked per section and for the whole body (reference definitions in other sections);
   raised citations get new `v:` and `sha:`.
 - **Images:** `edit_document` additionally has `confirm_shortening`, because removing an image
-  must be confirmed like a shortening. Image files in `documents/_attachments/` without a reference
-  also count as orphaned (not only formerly associated ones). If a changed image file is used by
+  must be confirmed like a shortening. Image files in an attachment folder (`<document>_img/` or the
+  old `documents/_attachments/`) without a reference also count as orphaned (not only formerly associated ones,
+  which count in any folder). If a changed image file is used by
   several documents, the commit of the first document contains the image, the others
   get one commit each (one file per version commit, 5.4). SVG rasterizing via
   `cairosvg` instead of `resvg`. Already processed documents without `assets` in `state.json` are

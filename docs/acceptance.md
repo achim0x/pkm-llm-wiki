@@ -336,10 +336,37 @@ pkm lint --report
 | Kurzbezeichnung | Im Chat „Was steht in EN 61000-4-6:2014 zum Anwendungsbereich?“ | Das Dokument wird über `short_citation` gefunden | ☐ |
 | Obsidian-Typen | Eigenschaften eines neuen Chat-Dokuments in Obsidian ansehen | `date_markdown`/`date_updated` als Datum & Uhrzeit, `tags` als Tags | ☐ |
 | SVG-Diagramm | Im Chat „Zeichne den Aufbau als Diagramm in das Dokument“ | Entwurf mit Bild, nach Bestätigung eingebettetes SVG (`pkm:<name>`), in Obsidian im Lese- und Live-Vorschau-Modus sichtbar (auch mit `|400`) | ☐ |
-| Foto aus dem Importordner | Foto (JPEG vom Smartphone) über den Cloud-Speicher nach `pkm_img_import/` legen, im Chat „nimm foto.png mit ins Dokument“ | über 24 KB: Datei in `documents/_attachments/`, im selben Commit wie das Dokument; in Obsidian sichtbar und richtig gedreht; keine GPS-Daten in der Datei | ☐ |
+| Foto aus dem Importordner | Foto (JPEG vom Smartphone) über den Cloud-Speicher nach `pkm_img_import/` legen, im Chat „nimm foto.png mit ins Dokument“ | über 24 KB: Datei in `<Dokumentname>_img/` neben dem Dokument, im selben Commit wie das Dokument; in Obsidian sichtbar und richtig gedreht; keine GPS-Daten in der Datei | ☐ |
 | Bild im Pflegelauf | Nächster Pflegelauf nach den beiden Bildern | `read_image` wird genutzt, Inhalt in Worten mit Beleg `[img:<name>]`, Bilddatei nicht als eigenes Dokument | ☐ |
-| Bild ändern | Die Bilddatei in `_attachments/` ersetzen, Pflegelauf | Dokument bekommt eine neue Version mit `PKM-Source: user`, `pending` meldet den Abschnitt mit dem Bild | ☐ |
+| Bild ändern | Die Bilddatei in `<Dokumentname>_img/` ersetzen, Pflegelauf | Dokument bekommt eine neue Version mit `PKM-Source: user`, `pending` meldet den Abschnitt mit dem Bild | ☐ |
 
+
+**Bilder und Größengrenze (0.3.0):**
+
+| Prüfung | Vorgehen | Erwartet | Ergebnis |
+|---|---|---|---|
+| Anhänge im Unterordner | Ein umgewandeltes Dokument mit vielen Bildern in einem Unterordner (z. B. die Workshop-Enzyklopädie) ingestieren | Genau ein `new`-Eintrag mit `images`; keine Warnung „no wiki page cites“ für die Bilder | ☐ |
+| Dubletten | Zwei byte-gleiche Bilddateien ohne Verweis, zwei Pflegeläufe | Einmal verarbeitet, danach `pending` leer; Lint `duplicate_image` | ☐ |
+| Größengrenze | Frontmatter eines Dokuments mit 2 MB eingebetteten PNG und wenig Text mit `set_document_metadata` setzen | Gelingt; `too_large` nur bei zu viel Text, mit getrennten Größen | ☐ |
+| Auslagern | `fix_images` mit `extract` am selben Dokument, erst Vorschlag, dann `apply` | Dokument < 30 KB, Dateien am Ablageort, Folgelauf `image_notation_only`, Wiki-Belege `ok` | ☐ |
+| Lint-Hinweise | Lint am Vault | `large_embedded_image`, `generic_alt_text`, `orphaned_attachment` als Hinweise, keine Änderung an `documents/` | ☐ |
+| Wiki-Sprache | `begin_maintenance` | `wiki_language` entspricht `PKM_LANGUAGE` | ☐ |
+| Antwortgröße | `fix_images` mit `extract` und `apply` an einem Dokument mit großen eingebetteten Bildern | Antwort < 10 KB, Diff mit Platzhaltern `pkm-image:…`, kein Base64 | ☐ |
+| Erzeugte Wiki-Dateien | Pflegelauf mit `PKM_LANGUAGE = "de"` | `wiki/_status.md` mit „Noch nicht verarbeitet“, „Probleme“; `wiki/index.md` mit „Themen“ | ☐ |
+| Namen im Eingang | `Training from the Back of the Room.md` mit `images/IMG_013.png` … in `_inbox/`, `begin_maintenance` mit `with_lint: true` | Drei `naming`-Gruppen (Dokument, Ordner, Bilder) mit Vorschlägen; im Bericht Namensvorschläge, keine Frage nach dem Ablageort; nach Bestätigung `rename_document`: Datei, `<name>_img/` mit Namen aus dem Alternativtext, Links `./…`, ein Commit; Folgelauf `image_notation_only` | ☐ |
+| Bildorte | Dokument mit Bildern in `documents/_attachments/`; Lint, dann `move_images` | `image_location`; nach Bestätigung Bilder in `<Dokumentname>_img/`, gemeinsam genutzte Dateien bleiben; Folgelauf `image_notation_only` mit `images_moved` | ☐ |
+| Bilder von Hand verschieben | Bilder eines Dokuments in Obsidian nach `<Dokumentname>_img/` verschieben, Links anpassen, Pflegelauf | `changed` mit `image_notation_only: true`, `images_moved`, `images_changed` leer | ☐ |
+| Tag-Abdeckung | Tag `docker` nur als weiteres Tag einer Seite zu einem anderen Thema | `topic_without_page` für `docker` | ☐ |
+| Kurzer Namensvorschlag | Dokument mit Titel „Training from the Back of the Room – 65 Wege …“ im Eingang | Vorschlag `training-from-the-back-of-the-room_<datum>.md` | ☐ |
+| Relative Links beim Umzug | `move_images` ohne `apply` an der Enzyklopädie | `links[].to` nur `./<Dokumentname>_img/…` | ☐ |
+| `extract_images` | Tool-Liste in Cowork neu laden | `extract_images` mit `min_kb` und `apply` sichtbar | ☐ |
+| Tag im Seitennamen | `sandboxing` mit Seite `sandboxing-von-ki-agenten` | kein `topic_without_page` für `sandboxing`, weiter für `docker`, `lxc`, `proxmox` | ☐ |
+| Belege im Umbenennungsvorschlag | `rename_document` ohne `apply` am Bowman-Dokument, Lint | `cited_by` mit genau den drei zitierenden Seiten (29, 16, 2), `citations: 47`, ohne `wiki/_status` (steht unter `regenerated`); eine Seite mit reinem Wikilink steht unter `linked_by_wiki`; Lint `naming` zeigt dieselben Listen | ☐ |
+| Kleinbuchstaben außerhalb des Eingangs | Lint an der Enzyklopädie | `image_location` mit `tool: rename_document`, `suggested_name` und Bildordner in Kleinbuchstaben | ☐ |
+| Nichtssagende Bildnamen | `move_images` an einem Dokument mit Alternativtext „Image“, dann mit `alt_texts` | erst `generic_names_kept` mit Hinweis, dann Dateiname aus dem neuen Alternativtext | ☐ |
+| Belege nach Umbenennen | `rename_document` mit `apply` (Bilder verschoben, Links geändert), Pflegelauf mit dem Dokument in `processed` | Alle Belege auf der neuen Version, geänderte Abschnitte mit neuem `sha` (`sha_changed: true`), Lint ohne `citation_newer_version` | ☐ |
+| Datei zu nichtssagendem Alternativtext | Lint an der Enzyklopädie, dann `move_images` ohne `apply` | Jeder `generic_alt_text`-Befund mit `file` und `section`; die Dateien mit `file_keeps_generic_name: true` sind genau `generic_names_kept`; `IMG_020` mit `name_from_other_link: true`; `alt_texts` mit `image-2` als Schlüssel funktioniert | ☐ |
+| Dateinamen und Links | `extract` an einem Dokument mit `date_markdown` | Vorschlag nennt die echten Namen, Datum aus `date_markdown`, an Wortgrenzen gekürzt; Links relativ zum Dokument | ☐ |
 
 **Dokumentsprache:**
 

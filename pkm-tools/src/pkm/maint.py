@@ -216,12 +216,20 @@ class Maintenance:
             committed += self._commit_schema()
         return {"status": "ok", "committed": committed, "skipped": skipped}
 
-    def _image_findings(self, docs: list[Doc], result: dict[str, list[dict[str, Any]]]) -> None:
+    def _image_findings(
+        self, docs: list[Doc], result: dict[str, list[dict[str, Any]]], amap: AssetMap,
+        entries: dict[str, dict[str, Any]],
+    ) -> None:
         """Report findings on data URIs (``image_issues``) and pure changes of the image notation (4.9).
+
+        A change counts as image notation only also if embedded images were stored as files with the same
+        bytes (``fix_images`` with ``extract``); the earlier state uses the recorded ``assets`` hashes.
 
         Args:
             docs: Documents.
             result: Result lists of ``pending`` (added to).
+            amap: References to image files.
+            entries: Entries from ``state.json``.
         """
         by_rel = {d.rel: d for d in docs if d.kind == "md" and d.parsed is not None and not d.error}
         limits = self.cfg.images
@@ -233,14 +241,37 @@ class Maintenance:
             if issues:
                 item["image_issues"] = issues
             old = item.get("processed_version")
-            if item in result.get("changed", []) and doc.id and old and "assets_changed" not in item:
-                try:
-                    _, text = self.svc.text_at_version(doc.id, int(old))
-                except PkmError:
-                    text = None
-                old_body = load_text_doc(doc.rel, text.encode("utf-8")).body if text is not None else None
-                if old_body is not None and imagefix.body_notation_only(old_body, doc.body or "", limits):
+            if item in result.get("changed", []) and doc.id and old:
+                old_hash, old_body = self._earlier_state(doc.id, int(old), amap, entries)
+                if old_body is not None and imagefix.body_notation_only(
+                        old_body, doc.body or "", limits, old_hash, amap.link_hash(doc.rel)):
                     item["image_notation_only"] = True
+
+    def _earlier_state(
+        self, doc_id: str, version: int, amap: AssetMap, entries: dict[str, dict[str, Any]]
+    ) -> tuple[Any, str | None]:
+        """Body of an earlier version and the hashes of the image files it linked to at that time.
+
+        The links are resolved against the path of the document at that time; files that no longer exist
+        there come from the recorded ``assets`` or from Git at the commit of that version.
+
+        Args:
+            doc_id: Document ID.
+            version: Earlier version.
+            amap: References to image files.
+            entries: Entries from ``state.json``.
+
+        Returns:
+            Tuple of (function ``ImageRef`` → hash, body or ``None`` if the version is not available).
+        """
+        try:
+            commit = self.svc.commit_for_version(doc_id, version)
+            path, text = self.svc.text_at_version(doc_id, version)
+        except PkmError:
+            commit, path, text = None, "", None
+        recorded = (entries.get(doc_id) or {}).get("assets") or {}
+        body = load_text_doc(path, text.encode("utf-8")).body if text is not None else None
+        return amap.link_hash(path, recorded, commit.sha if commit else None), body
 
     def _commit_changed_images(self, modified: set[str]) -> tuple[list[dict[str, Any]], set[str]]:
         """Commit changed associated image files as a new version of the documents that use them (4.9).
@@ -424,13 +455,21 @@ class Maintenance:
         problems.extend({"problem": "duplicate_id", "id": i, "paths": paths} for i, paths in dups.items())
         result: dict[str, list[dict[str, Any]]] = {c: [] for c in PENDING_CATEGORIES}
         present: set[str] = set()
+        standalone: list[Doc] = []
         for doc in docs:
             if doc.kind == "bin" and (doc.rel in referenced or doc.rel in orphans):
                 present.add(state_key(doc) or "")  # associated or orphaned images are not documents
-            elif not (doc.kind == "md" and doc.error):
+            elif doc.kind == "bin":
+                standalone.append(doc)
+            elif not doc.error:
                 self._pending_doc(doc, entries, dups, result, present)
+        _pending_files(standalone, {d.rel for d in docs if d.kind == "bin"}, entries, result, present)
         _asset_pending(docs, entries, amap, result)
-        self._image_findings(docs, result)
+        for item in result["new"]:
+            linked = sorted(amap.links.get(item.get("path") or "", {}))
+            if linked:
+                item["images"] = linked
+        self._image_findings(docs, result, amap, entries)
         result["deleted"] = _deleted_entries(entries, present)
         result.pop("invalid", None)
         counts = {k: len(v) for k, v in result.items()}
@@ -520,7 +559,10 @@ class Maintenance:
         key = state_key(doc)
         if key is None or (doc.kind == "md" and (doc.error or doc.hashes is None)):
             raise PkmError("invalid_argument", f"{doc.rel} has no valid ID/frontmatter.", path=doc.rel)
-        wiki_pages = list(dict.fromkeys([*docs_state.get(key, {}).get("wiki_pages", []), *page_refs]))
+        previous = [k for k, e in docs_state.items() if doc.kind == "bin" and k != key and k.startswith("sha:")
+                    and e.get("path") == doc.rel]  # same path, other content: the entry is replaced
+        old_pages = [p for k in previous for p in docs_state.pop(k).get("wiki_pages", [])]
+        wiki_pages = list(dict.fromkeys([*old_pages, *docs_state.get(key, {}).get("wiki_pages", []), *page_refs]))
         now = self.svc.now().isoformat(timespec="seconds")
         entry: dict[str, Any] = {"path": doc.rel, "processed_at": now, "wiki_pages": wiki_pages}
         if doc.hashes is not None:
@@ -535,6 +577,7 @@ class Maintenance:
                 "wiki_pages": wiki_pages,
                 "assets": amap.assets(doc.rel),
             }
+        _drop_standalone(docs_state, entry.get("assets") or {})
         docs_state[key] = entry
         return {"key": key, "path": doc.rel, "version": entry.get("processed_version")}
 
@@ -679,6 +722,12 @@ def _asset_pending(
 ) -> None:
     """Report documents with changed associated image files as ``changed`` (4.9).
 
+    Migration: a document whose text is unchanged, whose recorded ``assets`` were empty and whose image
+    files are all known from ``state.json`` as standalone entries (``sha:<hash>``, processed before as
+    documents of their own) is only being switched over to attachments. It is reported once with
+    ``assets_migrated: true`` and ``image_notation_only: true`` and without changed sections: nothing to
+    process, only list it in ``processed`` (then the old standalone entries are removed).
+
     Args:
         docs: Documents.
         entries: Entries from ``state.json``.
@@ -688,9 +737,15 @@ def _asset_pending(
     listed = {item.get("path"): item for cat in ("changed", "meta_changed") for item in result.get(cat, [])}
     for doc in docs:
         entry = entries.get(doc.id or "") if doc.kind == "md" else None
-        changed = asset_changes(entry.get("assets"), amap.assets(doc.rel)) if entry else set()
+        current = amap.assets(doc.rel)
+        changed = asset_changes(entry.get("assets"), current) if entry else set()
+        migrated = bool(changed) and entry is not None and not entry.get("assets") and doc.hashes is not None \
+            and entry.get("body_hash") == doc.hashes.body_hash and all(f"sha:{current.get(p)}" in entries
+                                                                        for p in changed)
         if changed:
-            sections = [{"key": k, "change": "changed"} for k in amap.sections_for(doc.rel, changed)]
+            details = _image_changes((entry.get("assets") or {}) if entry else {}, current, changed)
+            sections = [] if migrated else [{"key": k, "change": "changed"}
+                                            for k in amap.sections_for(doc.rel, set(details["images_changed"]))]
             item = listed.get(doc.rel)
             if item is None:
                 item = {"id": doc.id, "path": doc.rel, "title": doc.title,
@@ -699,7 +754,100 @@ def _asset_pending(
                 result["changed"].append(item)
             known = {s["key"] for s in item.get("sections", [])}
             item["sections"] = item.get("sections", []) + [s for s in sections if s["key"] not in known]
-            item["assets_changed"] = sorted(changed)
+            item.update({k: v for k, v in details.items() if v or k == "images_changed"})
+            item["assets_changed"] = item["images_changed"]  # old name, kept for compatibility
+            if migrated and not item["sections"]:
+                item.update(assets_migrated=True, image_notation_only=True)
+
+
+def _image_changes(old: dict[str, str], current: dict[str, str], changed: set[str]) -> dict[str, Any]:
+    """Split changed image files into changed content, moves and removals.
+
+    Args:
+        old: Recorded ``assets``.
+        current: Current ``assets``.
+        changed: Changed paths.
+
+    Returns:
+        ``images_changed`` (current paths with new or changed content), ``images_moved`` (``{from, to}``,
+        same bytes), ``images_removed``.
+    """
+    moved = _asset_moves(old, current, changed)
+    moved_paths = {m["from"] for m in moved} | {m["to"] for m in moved}
+    return {"images_changed": sorted(p for p in changed - moved_paths if p in current), "images_moved": moved,
+            "images_removed": sorted(p for p in changed - moved_paths if p not in current)}
+
+
+def _asset_moves(old: dict[str, str], new: dict[str, str], changed: set[str]) -> list[dict[str, str]]:
+    """Image files that only moved: a removed path and an added path with the same hash.
+
+    Args:
+        old: Recorded ``assets`` (path → hash).
+        new: Current ``assets``.
+        changed: Changed paths.
+
+    Returns:
+        ``[{from, to}]`` sorted by ``from``.
+    """
+    added = {new[p]: p for p in sorted(changed) if p in new and p not in old}
+    moves = []
+    for path in sorted(p for p in changed if p in old and p not in new):
+        target = added.pop(old[path], None)
+        if target is not None:
+            moves.append({"from": path, "to": target})
+    return moves
+
+
+def _drop_standalone(docs_state: dict[str, Any], assets: dict[str, str]) -> None:
+    """Remove standalone entries of images that are now attachments of a document (migration, 4.9).
+
+    Args:
+        docs_state: ``documents`` from ``state.json`` (changed).
+        assets: Attachments of the document (path → hash).
+    """
+    for path, digest in assets.items():
+        old = docs_state.get(f"sha:{digest}")
+        if old is not None and old.get("path") == path:
+            del docs_state[f"sha:{digest}"]
+
+
+def _pending_files(
+    files: list[Doc], existing: set[str], entries: dict[str, dict[str, Any]],
+    result: dict[str, list[dict[str, Any]]], present: set[str],
+) -> None:
+    """Classify standalone files (images without a linking document, PDFs …) by path and hash (4.9).
+
+    The path identifies a file, the hash its content: same path with another hash is ``changed``;
+    ``moved`` only if the recorded path no longer exists and the hash appears at a new path. The same
+    hash at two existing paths is a duplicate: it is neither ``new`` nor ``moved`` (lint reports
+    ``duplicate_image``), and of several new identical files only the first is ``new``.
+
+    Args:
+        files: Standalone files.
+        existing: Paths of all files in ``documents/``.
+        entries: Entries from ``state.json``.
+        result: Result lists of ``pending`` (added to).
+        present: Keys found (added to).
+    """
+    by_path = {e.get("path"): k for k, e in entries.items() if k.startswith("sha:")}
+    seen_new: dict[str, str] = {}
+    for doc in sorted(files, key=lambda d: d.rel):
+        key = state_key(doc) or ""
+        entry = entries.get(key)
+        base = {"id": None, "key": key, "path": doc.rel, "title": doc.title}
+        if entry is not None:
+            present.add(key)
+            old = entry.get("path")
+            if old and old != doc.rel and old not in existing:
+                result["moved"].append({**base, "from": old, "to": doc.rel})
+        elif doc.rel in by_path:
+            present.add(by_path[doc.rel])
+            result["changed"].append({**base, "previous_key": by_path[doc.rel]})
+        elif key in seen_new:
+            present.add(key)
+        else:
+            seen_new[key] = doc.rel
+            result["new"].append(base)
 
 
 def page_ref(rel: str) -> str:

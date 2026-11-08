@@ -115,8 +115,21 @@ missing. To add it later: install Git and run `pkm setup` again.
 - Claude draws diagrams, sketches and circuit diagrams as **SVG**; photos and screenshots stay
   **PNG**. Claude stores images when filing or changing documents, again only after a draft.
 - **Small ones are embedded, large ones become files:** up to 24 KB the image is in the document
-  itself (data URI), larger images go to `documents/_attachments/`. In `scratch/` images are always
+  itself (data URI), larger images go to a folder `<document name>_img/` next to the document,
+  linked relative to it (`./<document name>_img/…`), so document and images stay together when you
+  pass them on. The same image in one document is stored only once. In `scratch/` images are always
   embedded.
+- **Names and image folders:** in a maintenance run the agent checks names in `_inbox/` (lower case,
+  hyphens, `<name>_YYYY-MM-DD.md`) and where image files lie, and proposes renames and moves
+  (`rename_document`, `move_images`); it changes nothing without your confirmation. When you file a
+  document from `_inbox/`, its `_img/` folder has to move along – the agent proposes that, too.
+- **Attachments in any folder:** an image file that a document links to belongs to that document,
+  wherever it lies (also a folder of exported images next to a converted document). Maintenance
+  processes it with the document, not as a source of its own.
+- **Large embedded images** (e.g. from a web article) can be stored as files after your confirmation
+  (`fix_images` with `extract`); the bytes stay the same. The size limit `PKM_MAX_KB` only counts the
+  text, not embedded images; if a document should still be larger, Claude asks you and writes it after
+  your confirmation.
 - **Photos from the chat:** Claude cannot pass on uploaded images byte for byte. You put the file
   (PNG or JPEG) into the folder `pkm_img_import/` in the vault, also from your phone via the app of
   your cloud storage; Claude takes it from there. For JPEG the server removes GPS and camera data.
@@ -209,8 +222,8 @@ flowchart LR
 
 | Component | Role |
 |---|---|
-| **pkm-mcp** | MCP server for Claude Desktop. 15 tools for searching, reading, filing, continuing, for images, the history and the citations. |
-| **pkm-maintenance-mcp** | MCP server for wiki maintenance from Claude Desktop or Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` plus the reading tools. Writes to `wiki/` and `.pkm/state.json`; on documents only IDs and – after your confirmation – `title`, `context`, `tags`, `kind`, `short_citation`. Enable it only in maintenance conversations. |
+| **pkm-mcp** | MCP server for Claude Desktop. 16 tools for searching, reading, filing, continuing, for images, the history and the citations. |
+| **pkm-maintenance-mcp** | MCP server for wiki maintenance from Claude Desktop or Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `extract_images`, `finish_maintenance` plus the reading tools. Writes to `wiki/` and `.pkm/state.json`; on documents only IDs and – after your confirmation – `title`, `context`, `tags`, `kind`, `short_citation`. Enable it only in maintenance conversations. |
 | **pkm** | Command line for setup (`pkm setup`), checks and troubleshooting (the same maintenance commands, one by one). |
 | **Skill `pkm-access`** | Tells Claude in normal chats when and how to use the tools, e.g. "always a draft first". |
 | **Skill `pkm-wiki`** | Rules and flows for the maintenance agent in the project "PKM Maintenance". |
@@ -225,8 +238,10 @@ Claude Desktop is running there. Other devices use the vault only through an edi
 <Vault>/
 ├── documents/              ← your filing, freely sortable
 │   ├── _inbox/             ← new documents from chats and from the web clipper
-│   ├── _attachments/       ← images (large images, web clips)
-│   └── …                   ← any folders of your own, e.g. house/, garden/
+│   ├── house/
+│   │   ├── cistern.md
+│   │   └── cistern_img/    ← images of cistern.md (larger than 24 KB)
+│   └── …                   ← any folders of your own, e.g. garden/
 ├── scratch/                ← notes and todo lists: not in Git, never in the wiki
 ├── pkm_img_import/         ← hand over images from the chat: not in Git, never in the wiki
 ├── wiki/                   ← belongs to the maintenance agent
@@ -378,7 +393,8 @@ enough to name the topic.
 - **Editing** is allowed at any time. With Git your changes are recorded as a version of their own
   with `PKM-Source: user` in the next maintenance run (or before the next chat change of the same
   file); several changes in between result in one version.
-- The **web clipper** saves to `documents/_inbox/`, images to `documents/_attachments/`.
+- The **web clipper** saves to `documents/_inbox/`; images pasted in Obsidian land next to the note
+  (the agent proposes moving them into `<note name>_img/`).
 - **PDFs and images** can be filed as well. They are recognized by their content. A new version of
   a PDF counts as a new document.
 - **Notes and todo lists** go into `scratch/` if they should not go into the wiki. You tidy up
@@ -516,6 +532,7 @@ configuration file written by `pkm setup`; otherwise it finds it from inside the
 
 | Command | Purpose |
 |---|---|
+| `pkm --version` | show the installed version of pkm-tools (also reported by `pkm setup` and `pkm doctor`) |
 | `pkm setup` | guided setup: existing configuration, vault, Git check, language, `CLAUDE.md` update, Claude Desktop, skills (repeatable) |
 | `pkm init` | create structure, Obsidian settings and (with Git) the Git directory (idempotent) |
 | `pkm doctor [--short]` | check the environment |
@@ -725,8 +742,21 @@ Wiederherstellen fehlen. Nachrüsten: Git installieren und `pkm setup` erneut au
 - Diagramme, Skizzen und Schaltpläne zeichnet Claude als **SVG**, Fotos und Screenshots bleiben
   **PNG**. Bilder legt Claude beim Ablegen oder Ändern mit ab, wieder erst nach einem Entwurf.
 - **Klein wird eingebettet, groß wird Datei:** bis 24 KB steht das Bild direkt im Dokument
-  (Data-URI), größere Bilder landen in `documents/_attachments/`. In `scratch/` wird immer
-  eingebettet.
+  (Data-URI), größere Bilder landen in einem Ordner `<Dokumentname>_img/` neben dem Dokument,
+  relativ verlinkt (`./<Dokumentname>_img/…`), damit Dokument und Bilder beim Weitergeben
+  zusammenbleiben. Gleiche Bilder in einem Dokument werden nur einmal abgelegt. In `scratch/` wird
+  immer eingebettet.
+- **Namen und Bildordner:** Beim Pflegelauf prüft der Agent Namen in `_inbox/` (klein,
+  Bindestriche, `<name>_YYYY-MM-DD.md`) und wo Bilddateien liegen, und schlägt Umbenennen und Umzüge
+  vor (`rename_document`, `move_images`); ohne deine Bestätigung ändert er nichts. Sortierst du ein
+  Dokument aus `_inbox/` ein, muss sein `_img/`-Ordner mit – auch das schlägt der Agent vor.
+- **Anhänge in jedem Ordner:** Eine Bilddatei, die ein Dokument verlinkt, gehört zu diesem Dokument,
+  egal wo sie liegt (auch ein Ordner exportierter Bilder neben einem umgewandelten Dokument). Die
+  Pflege verarbeitet sie mit dem Dokument, nicht als eigene Quelle.
+- **Große eingebettete Bilder** (z. B. aus einem Web-Artikel) lassen sich nach deiner Bestätigung als
+  Datei ablegen (`fix_images` mit `extract`); die Bytes bleiben gleich. Die Größengrenze
+  `PKM_MAX_KB` zählt nur den Text, nicht die eingebetteten Bilder; soll ein Dokument trotzdem größer
+  werden, fragt Claude nach und schreibt es nach deiner Bestätigung.
 - **Fotos aus dem Chat:** Claude kann hochgeladene Bilder nicht byte-genau weitergeben. Du legst die
   Datei (PNG oder JPEG) in den Ordner `pkm_img_import/` im Vault, auch vom Smartphone über die App deines Cloud-Speichers;
   Claude übernimmt sie von dort. Bei JPEG entfernt der Server GPS- und Kameradaten.
@@ -819,8 +849,8 @@ flowchart LR
 
 | Komponente | Rolle |
 |---|---|
-| **pkm-mcp** | MCP-Server für Claude Desktop. 15 Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für Bilder, den Verlauf und die Belege. |
-| **pkm-maintenance-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` plus die lesenden Tools. Schreibt in `wiki/` und `.pkm/state.json`, an Dokumenten nur IDs und – nach deiner Bestätigung – `title`, `context`, `tags`, `kind`, `short_citation`; nur in Pflege-Unterhaltungen einschalten. |
+| **pkm-mcp** | MCP-Server für Claude Desktop. 16 Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für Bilder, den Verlauf und die Belege. |
+| **pkm-maintenance-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `extract_images`, `finish_maintenance` plus die lesenden Tools. Schreibt in `wiki/` und `.pkm/state.json`, an Dokumenten nur IDs und – nach deiner Bestätigung – `title`, `context`, `tags`, `kind`, `short_citation`; nur in Pflege-Unterhaltungen einschalten. |
 | **pkm** | Kommandozeile für Einrichtung (`pkm setup`), Prüfung und Fehlersuche (dieselben Pflege-Befehle, einzeln). |
 | **Skill `pkm-access`** | Sagt Claude in normalen Chats, wann und wie die Tools zu nutzen sind, z. B. „immer erst ein Entwurf“. |
 | **Skill `pkm-wiki`** | Regeln und Abläufe für den Pflege-Agenten im Projekt „PKM Maintenance“. |
@@ -836,8 +866,10 @@ solange dort Claude Desktop läuft. Weitere Geräte nutzen den Vault nur über e
 <Vault>/
 ├── documents/              ← deine Ablage, frei sortierbar
 │   ├── _inbox/             ← neue Dokumente aus Chats und vom Web Clipper
-│   ├── _attachments/       ← Bilder (große Bilder, Web-Clips)
-│   └── …                   ← beliebige eigene Ordner, z. B. haus/, garten/
+│   ├── haus/
+│   │   ├── zisterne.md
+│   │   └── zisterne_img/   ← Bilder von zisterne.md (größer als 24 KB)
+│   └── …                   ← beliebige eigene Ordner, z. B. garten/
 ├── scratch/                ← Notizen und Todo-Listen: nicht in Git, nie im Wiki
 ├── pkm_img_import/         ← Bilder aus dem Chat übergeben: nicht in Git, nie im Wiki
 ├── wiki/                   ← gehört dem Pflege-Agenten
@@ -992,7 +1024,8 @@ Chat reicht es, das Thema zu nennen.
 - **Bearbeiten** ist jederzeit erlaubt. Mit Git werden deine Änderungen beim nächsten Pflegelauf
   (oder vor der nächsten Chat-Änderung derselben Datei) als eigene Version mit `PKM-Source: user`
   festgehalten. Mehrere Änderungen dazwischen ergeben eine Version.
-- **Web Clipper** speichert nach `documents/_inbox/`, Bilder nach `documents/_attachments/`.
+- **Web Clipper** speichert nach `documents/_inbox/`; in Obsidian eingefügte Bilder landen neben
+  der Notiz (der Agent schlägt den Umzug nach `<Notizname>_img/` vor).
 - **PDFs und Bilder** kannst du ebenfalls ablegen. Sie werden über ihren Inhalt erkannt. Eine neue
   Fassung eines PDFs gilt als neues Dokument.
 - **Notizen und Todo-Listen** legst du in `scratch/` ab, wenn sie nicht ins Wiki sollen. Aufräumen
@@ -1138,6 +1171,7 @@ Ausgabe ist JSON (außer bei `pkm setup`). Den Vault kennt die CLI aus der Konfi
 
 | Befehl | Zweck |
 |---|---|
+| `pkm --version` | installierte Version von pkm-tools anzeigen (melden auch `pkm setup` und `pkm doctor`) |
 | `pkm setup` | geführte Einrichtung: vorhandene Konfiguration, Vault, Git-Prüfung, Sprache, `CLAUDE.md` aktualisieren, Claude Desktop, Skills (wiederholbar) |
 | `pkm init` | Struktur, Obsidian-Einstellungen und (mit Git) Git-Verzeichnis anlegen (idempotent) |
 | `pkm doctor [--short]` | Umgebung prüfen |

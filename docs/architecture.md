@@ -84,7 +84,7 @@ flowchart LR
 | Component | Role |
 |---|---|
 | `pkm-mcp` | MCP server for all chats: search, read, create and continue documents, citations, images |
-| `pkm-maintenance-mcp` | MCP server for the maintenance project: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` plus the reading tools |
+| `pkm-maintenance-mcp` | MCP server for the maintenance project: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `extract_images`, `finish_maintenance` plus the reading tools |
 | `pkm` | CLI for setup, checks (`doctor`, `lint`) and troubleshooting; contains the same maintenance building blocks |
 | Skills `pkm-access`, `pkm-wiki` | Instructions for Claude in normal chats and in the maintenance project |
 | Vault | Markdown files in the cloud folder (or a local folder without cloud storage); never contains `.git` or the search index |
@@ -286,7 +286,9 @@ language and its section names (`Result`, `Decisions`, `Open points`, `Context /
 (`wiki_language_instructions()`) names the wiki sections and the summary label (`Summary`, `Content`,
 `Contradictions / open questions`, `See also`, `Citations` or `Kurzfassung`, `Inhalt`,
 `Widersprüche / offene Fragen`, `Siehe auch`, `Belege`). The skills `pkm-access` and `pkm-wiki`
-follow these instructions; the tools accept both variants, and generated files stay English.
+follow these instructions; the tools accept both variants. The generated wiki files (`index.md`,
+`_status.md`, the heading of a new `log.md`) take their fixed texts from `wikitexts.py` in the wiki
+language.
 
 Every program (server or CLI) resolves its configuration the same way:
 
@@ -354,7 +356,7 @@ Only if the configuration file is not in the default app folder does `pkm setup`
 | File | Created/changed by | Notes |
 |---|---|---|
 | `<app folder>/config.toml` | `pkm setup` | Merged with existing keys |
-| `<vault>/documents/_inbox/`, `_attachments/`, `wiki/…`, `scratch/`, `pkm_img_import/`, `.pkm/` | `pkm init` | Only missing folders |
+| `<vault>/documents/_inbox/`, `wiki/…`, `scratch/`, `pkm_img_import/`, `.pkm/` | `pkm init` | Only missing folders |
 | `<vault>/CLAUDE.md`, `wiki/index.md`, `wiki/log.md`, `wiki/_status.md`, `.pkm/state.json` | `pkm init` | Only if missing |
 | `<vault>/.gitignore` | `pkm init` | Created, or missing `scratch/` and `pkm_img_import/` added |
 | `<vault>/.obsidian/app.json` | `pkm init` | Missing settings of specification 13 added; different values kept and reported |
@@ -735,7 +737,9 @@ finds "Überlauf". Images are indexed only by their alt text.
 
 ```mermaid
 flowchart TB
-    maintrun["maintrun<br/>begin_maintenance, write_wiki_page,<br/>set_document_metadata, finish_maintenance"]
+    maintrun["maintrun<br/>begin_maintenance, write_wiki_page,<br/>set_document_metadata, rename_document,<br/>move_images, finish_maintenance"]
+    inboxnames["inboxnames<br/>name proposals in the inbox,<br/>rename_document"]
+    imageplace["imageplace<br/>image files into &lt;document&gt;_img/,<br/>move_images"]
     maint["maint.Maintenance<br/>ids, versions, pending, mark,<br/>sha, fix-frontmatter, commit-wiki"]
     subgraph cit["Citations"]
         citations["citations<br/>parse, resolve, show,<br/>fix-/sync-citations"]
@@ -751,6 +755,9 @@ flowchart TB
     assets["assets<br/>image files per document"]
     cloudsync["cloudsync<br/>conflict copies"]
     maintrun --> maint
+    maintrun --> inboxnames
+    maintrun --> imageplace
+    inboxnames --> imageplace
     maintrun --> citations
     maintrun --> citeraise
     maintrun --> lint
@@ -834,13 +841,33 @@ flowchart TD
     S --> CH["sanitize SVG / check PNG, JPEG<br/>(remove metadata)"]
     CH --> M{"mode auto: size up to 24 KB<br/>or area scratch/?"}
     M -- "yes" --> IN["embed as data URI<br/>title pkm:name"]
-    M -- "no" --> FI["write file to documents/_attachments/<br/>(same commit as the document)"]
+    M -- "no" --> FI["write file to &lt;document&gt;_img/<br/>(identical file reused;<br/>same commit as the document)"]
     IN --> W
     FI --> W
 ```
 
 `read` shows embedded images as placeholders `![alt](pkm-image:name "…")`; when the text comes back,
 `docimages` puts the original bytes in again, so Base64 never passes through the model.
+
+**Attachments** (`assets.AssetMap`): every Markdown document's linked images are resolved to files
+(relative to the document, from the vault root, ignoring case, by Obsidian's shortest path, by bare
+name). A resolved file is an attachment of the document wherever it lies; `pending` reports it with
+the document (`images`, `images_changed`), never as an entry of its own, and `finish_maintenance`
+skips it in `processed`. Standalone files are classified by path and hash (`maint._pending_files`):
+`changed` for the same path with new content, `moved` only if the old path is gone, duplicates
+neither; image files that only moved (same hash) appear as `images_moved`, and the earlier text is
+compared with the recorded hashes (`assets._recorded_hash`), so a pure move is `image_notation_only`.
+New image files go to `config.image_folder(doc)` (`<document name>_img/` next to the document), and
+`imagefix.store_image` reuses an identical file there. `imageplace` plans and carries out moving the
+image files of a document into that folder (generic names from the alt text, links adjusted, one agent
+commit) for `move_images` and `rename_document`; `namelint` reports `naming` (inbox) and
+`image_location` (other documents) with the same plan.
+
+**Size limit and extract:** `writeguard.check_size` measures the text without data URIs; frontmatter
+changes and `fix_images` skip it, and `confirm_large` (after the user's confirmation) skips it for a
+single call of the four writing tools. `writeguard.check_shortening` is the shortening protection. `imagefix.extract_text` (``fix_images`` with ``extract``) writes
+embedded raster images unchanged to files; `imagefix.canonical` compares linked files by hash, so the
+follow-up run sees `image_notation_only` and `citeraise` raises the citations.
 
 ## 16. Configuration, setup and environment checks
 

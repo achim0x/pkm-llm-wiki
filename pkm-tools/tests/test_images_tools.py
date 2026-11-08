@@ -71,7 +71,7 @@ def test_create_inline_svg_and_read_placeholders(svc, isolated_env):
 
 
 def test_large_png_becomes_file_in_same_commit(isolated_env, monkeypatch):
-    """Above the limit the PNG becomes a file in _attachments, in the same commit as the document."""
+    """Above the limit the PNG becomes a file in <document>_img/, in the same commit as the document."""
     monkeypatch.setenv("PKM_INLINE_MAX_KB", "0")
     from pkm.vaultinit import init_vault  # pylint: disable=import-outside-toplevel
     cfg = Config.from_env()
@@ -80,10 +80,10 @@ def test_large_png_becomes_file_in_same_commit(isolated_env, monkeypatch):
     res = svc.create_document(title="Foto", content="{{image:foto}}",
                               images=[{"name": "foto", "alt": "Foto Einstieg", "png_base64": PNG_B64}])
     path = res["images"][0]["path"]
-    assert path.startswith("documents/_attachments/foto_") and path.endswith(".png")
+    assert path.startswith(res["path"][:-3] + "_img/foto_") and path.endswith(".png")
     assert (cfg.root / path).read_bytes() == base64.b64decode(PNG_B64)
     raw = (cfg.root / res["path"]).read_text(encoding="utf-8")
-    assert "](../_attachments/foto_" in raw
+    assert "](./foto_" in raw and "_img/foto_" in raw  # links relative to the document (PKM_LINK_STYLE)
     assert sorted(git(isolated_env, "show", "--name-only", "--format=", "HEAD").split()) == sorted([res["path"], path])
     data = svc.read_image(res["path"], "foto")
     assert data["mode"] == "file" and data["data"] == base64.b64decode(PNG_B64)

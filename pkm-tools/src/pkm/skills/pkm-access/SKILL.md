@@ -128,7 +128,9 @@ original with `edit_document`:
   `add_image`. The text contains `{{image:<name>}}` at the position. Per image: `name` (lower case,
   hyphens, unique), `alt` (alt text, one line, **always**) and exactly one source:
   `svg` (text), `png_base64` or `import_path`. Usually omit `mode` (`auto`: up to 24 KB
-  embedded, otherwise a file in `_attachments/`; in `scratch/` always embedded).
+  embedded, otherwise a file in the folder `<document name>_img/` next to the document, linked
+  relative to the document (`./<document name>_img/…`); the result names the path; in `scratch/`
+  always embedded). An identical image in the same document is stored only once.
 - **Draft first, then write:** show the image in the draft (render SVG directly).
 - **Photos or screenshots uploaded in the chat** cannot be passed on byte for byte. Ask the
   user to put the file (PNG or JPEG) into the folder `pkm_img_import/` in the vault (Finder,
@@ -151,7 +153,16 @@ original with `edit_document`:
   tell the user and offer the fix. After confirmation `fix_images` without `apply`
   (show proposal and diff), then with `apply: true`. Never fix on your own.
 - Existing embedded PNGs stay unchanged; for them at most the notation is fixed after
-  confirmation. Errors: `svg_too_complex` (then PNG),
+  confirmation – or, also only after confirmation, they are stored as files (see next point).
+- **`too_large`** names the text size (without embedded images, the limit applies to it) and the size of the
+  embedded images separately. Tell the user the size (`text_kb`, limit `max_kb`) and ask whether the document
+  should still become that large; **only after explicit confirmation** repeat the same call with
+  `confirm_large: true`. Otherwise propose splitting the content into several documents. **Large embedded images** (lint `large_embedded_image`, or `too_large` for a
+  document with little text): offer to store them as files with `extract_images` (optionally `min_kb`, default
+  32; the same as `fix_images` with `extract: true`). After confirmation first without `apply` (show the list `files` and the diff),
+  then with `apply: true`. The bytes and the image names stay, citations stay valid. Frontmatter changes
+  (`update_frontmatter`) are not limited by `PKM_MAX_KB`.
+- Errors: `svg_too_complex` (then PNG),
   `too_large_for_inline` (then `mode: auto`), `invalid_image`, `forbidden` (`import_path`
   outside the import folder).
 

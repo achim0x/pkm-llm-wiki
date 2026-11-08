@@ -33,7 +33,6 @@ from . import imagefix, images
 from .appendtext import count_overlapping
 from .diffs import unified_diff
 from .errors import PkmError
-from .fsutil import write_bytes_atomic
 from .paths import MAX_NAME, slugify
 
 if TYPE_CHECKING:
@@ -42,7 +41,6 @@ if TYPE_CHECKING:
 
 # Variables *******************************************************************
 
-ATTACHMENTS = "documents/_attachments"
 AS_VALUES = ("auto", "image", "svg_text")
 MIME = {"png": "png", "jpg": "jpeg", "gif": "gif", "webp": "webp"}
 
@@ -110,8 +108,8 @@ def place_images(
 ) -> tuple[str, list[str], list[dict[str, Any]]]:
     """Check new images and insert them at the placeholders ``{{image:<name>}}``.
 
-    Embedded images become data URIs, large ones or ``mode: file`` become files in
-    ``documents/_attachments/`` (always embedded in ``scratch/``).
+    Embedded images become data URIs, large ones or ``mode: file`` become files in the configured
+    storage location (``ImageConfig.folder_for``; always embedded in ``scratch/``).
 
     Args:
         writer: Writer (for configuration, vault and free file names).
@@ -135,13 +133,13 @@ def place_images(
             for img in prepared:
                 link = img.data_uri()
                 if img.mode == "file":
-                    rel = writer.free_name(ATTACHMENTS, slugify(img.name, MAX_NAME),
-                                           f"_{writer.svc.now().date().isoformat()}", f".{img.fmt}")
-                    write_bytes_atomic(writer.vault.path(rel), img.data)
-                    files.append(rel)
-                    link = images.relative_link(doc.rel, rel)
+                    rel, new = imagefix.store_image(writer, writer.cfg.images.folder_for(doc.rel),
+                                                    slugify(img.name, MAX_NAME), img.fmt, img.data,
+                                                    date=imagefix.document_date(doc.meta))
+                    files += [rel] if new else []
+                    link = images.file_link(doc.rel, rel, writer.cfg.images.link_style)
                 lines[img.name] = img.markdown(link)
-                infos.append({**img.info(), **({"path": files[-1]} if img.mode == "file" else {})})
+                infos.append({**img.info(), **({"path": rel} if img.mode == "file" else {})})
         except PkmError:
             remove_files(writer, files)
             raise
@@ -215,11 +213,14 @@ def fix_document(  # pylint: disable=too-many-arguments,too-many-locals
     writer: Writer, target: str, expected_hash: str | None, *, images_only: list[str] | None = None,
     image_alt: dict[str, str] | None = None, apply: bool = False, confirm_shortening: bool = False,
     note: str | None = None, source: str = "chat", areas: tuple[str, ...] = ("documents/", "scratch/"),
+    extract: bool = False, min_kb: int = imagefix.EXTRACT_MIN_KB,
 ) -> dict[str, Any]:
     """Tool ``fix_images``: fix the notation of nonconforming image data URIs of a document (4.9, 7.2).
 
     Without ``apply`` only a proposal (``proposal``) with findings and a diff in placeholder notation. With
     ``apply`` a new version in which only the image notation changes (commit with ``PKM-Fix: images``).
+    With ``extract`` embedded raster images of at least ``min_kb`` KB are stored as files at the configured
+    storage location instead and linked (bytes unchanged, commit with ``PKM-Fix: images-extract``).
 
     Args:
         writer: Writer.
@@ -232,9 +233,12 @@ def fix_document(  # pylint: disable=too-many-arguments,too-many-locals
         note: Change note.
         source: ``chat``, ``agent`` or ``user``.
         areas: Allowed areas.
+        extract: Store large embedded raster images as files (not in ``scratch/``).
+        min_kb: Threshold for ``extract``.
 
     Returns:
-        ``proposal``/``unchanged``/return value of ``finish`` with ``image_issues`` (remaining findings).
+        ``proposal``/``unchanged``/return value of ``finish`` with ``image_issues`` (remaining findings),
+        with ``extract`` also ``extracted`` (name, format, size, path per image).
 
     Raises:
         PkmError: ``forbidden`` outside the areas, ``conflict``, ``ambiguous``, ``large_shortening``.
@@ -252,10 +256,15 @@ def fix_document(  # pylint: disable=too-many-arguments,too-many-locals
         body, scratch = doc.parsed.body, not doc.versioned
         limits = writer.cfg.images
         issues = imagefix.image_issues(body, limits, scratch=scratch, section_of=section_of(doc, body))
+        if extract:
+            if scratch:
+                raise PkmError("forbidden", "extract is not possible in scratch/ (images stay embedded there).",
+                               path=doc.rel)
+            return _extract_document(writer, doc, apply, min_kb, images_only, note, source)
         opts = {"names": images_only, "image_alt": image_alt, "confirm_shortening": confirm_shortening,
-                "scratch": scratch, "doc_rel": doc.rel}
+                "scratch": scratch, "doc_rel": doc.rel, "file_date": imagefix.document_date(doc.meta)}
         if not apply:
-            new_body, _ = imagefix.fix_text(body, limits, **opts)
+            new_body, _ = imagefix.fix_text(body, limits, writer=writer, dry_run=True, **opts)
             result: dict[str, Any] = {
                 "status": "proposal" if new_body != body else "unchanged", "path": doc.rel, "image_issues": issues,
                 "diff": unified_diff(images.to_placeholders(body), images.to_placeholders(new_body), "before",
@@ -266,11 +275,56 @@ def fix_document(  # pylint: disable=too-many-arguments,too-many-locals
             try:
                 text = doc.parsed.frontmatter_text + new_body
                 result = (writer.finish(doc, text, note or "images fixed per 4.9", source, files,
-                                        "PKM-Fix: images") if doc.versioned else writer.finish_scratch(doc, text))
+                                        "PKM-Fix: images", check_limit=False) if doc.versioned
+                          else writer.finish_scratch(doc, text, check_limit=False))
             except PkmError:
                 remove_files(writer, files)
                 raise
             result["image_issues"] = imagefix.image_issues(new_body, limits, scratch=scratch)
+    return result
+
+
+def _extract_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    writer: Writer, doc: Doc, apply: bool, min_kb: int, names: list[str] | None, note: str | None, source: str,
+) -> dict[str, Any]:
+    """``fix_images`` with ``extract``: proposal or new version (called under the lock).
+
+    Args:
+        writer: Writer.
+        doc: Document (current state).
+        apply: Write instead of only proposing.
+        min_kb: Threshold in KB.
+        names: Only these images.
+        note: Change note.
+        source: ``chat``, ``agent`` or ``user``.
+
+    Returns:
+        Proposal (``files`` and diff) or return value of ``finish`` with ``extracted``.
+    """
+    assert doc.parsed is not None
+    body = doc.parsed.body
+    limits = writer.cfg.images
+    if not apply:
+        new_body, _, infos = imagefix.extract_text(body, limits, writer=writer, doc_rel=doc.rel, min_kb=min_kb,
+                                                   names=names, file_date=imagefix.document_date(doc.meta),
+                                                   dry_run=True)
+        result: dict[str, Any] = {
+            "status": "proposal" if infos else "unchanged", "path": doc.rel, "extracted": infos,
+            "files": [i["path"] for i in infos],
+            "diff": unified_diff(images.to_placeholders(body), images.to_placeholders(new_body), "before", "after",
+                                 200),
+        }
+    else:
+        new_body, files, infos = imagefix.extract_text(body, limits, writer=writer, doc_rel=doc.rel, min_kb=min_kb,
+                                                       names=names, file_date=imagefix.document_date(doc.meta))
+        try:
+            result = writer.finish(doc, doc.parsed.frontmatter_text + new_body,
+                                   note or f"{len(infos)} embedded images stored as files", source, files,
+                                   "PKM-Fix: images-extract", check_limit=False)
+        except PkmError:
+            remove_files(writer, files)
+            raise
+        result["extracted"] = infos
     return result
 
 
@@ -344,9 +398,10 @@ def _resolve_file(svc: Any, doc_rel: str, ref: images.ImageRef) -> str:
         PkmError: ``not_found``.
     """
     target = images.link_target(ref, doc_rel) or ""
-    if not svc.vault.exists(target) and "/" not in target:
-        matches = [r for r in svc.vault.iter_files(("documents",)) if PurePosixPath(r).name == target]
-        target = matches[0] if len(matches) == 1 else target
+    if not svc.vault.exists(target):  # vault path, other case, Obsidian's shortest path or bare name
+        from .assets import AssetMap  # pylint: disable=import-outside-toplevel  # avoids an import cycle
+        docs = [svc.vault.load(r) for r in svc.vault.iter_files(("documents",))]
+        target = AssetMap(svc, docs).resolve(doc_rel, ref) or target
     if not svc.vault.exists(target):
         raise PkmError("not_found", f"Image file not found: {ref.link}", image=ref.name)
     return target

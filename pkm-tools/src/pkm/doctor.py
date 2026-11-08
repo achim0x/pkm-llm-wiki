@@ -29,6 +29,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from . import __version__
 from .cloudsync import cloud_service, conflict_copies, online_only_files
 from .config import IMPORT_FOLDER
 from .errors import PkmError
@@ -256,13 +257,15 @@ def doctor(svc: Service, short: bool = False) -> dict[str, Any]:
         short: Output errors only.
 
     Returns:
-        ``status`` (``error`` if there are errors), number of errors and warnings, and the checks.
+        ``status`` (``error`` if there are errors), the installed ``version`` of pkm-tools, number of
+        errors and warnings, and the checks.
     """
     checks = _path_checks(svc) + _git_checks(svc) + _obsidian_checks(svc.cfg.root)
     checks.append(_property_type_check(svc.cfg.root))
     errors = sum(1 for c in checks if c["severity"] == "error")
     warnings = sum(1 for c in checks if c["severity"] == "warning")
     shown = [c for c in checks if c["severity"] == "error"] if short else checks
-    return {"status": "error" if errors else "ok", "errors": errors, "warnings": warnings, "checks": shown}
+    return {"status": "error" if errors else "ok", "version": __version__, "errors": errors, "warnings": warnings,
+            "checks": shown}
 
 # Main ************************************************************************

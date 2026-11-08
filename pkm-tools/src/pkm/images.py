@@ -61,6 +61,8 @@ EXIF_ORIENTATION = 0x0112
 MODES = ("auto", "inline", "file")
 PLACEHOLDER_SCHEME = "pkm-image:"
 MD_IMAGE_RE = re.compile(r'!\[(?P<alt>[^\]\n]*)\]\((?P<url>[^\s)]+)(?:[ \t]+"(?P<title>[^"\n]*)")?\)')
+# Linked image files, also with the path in angle brackets (allows spaces): ![alt](<my folder/a b.png>)
+MD_FILE_RE = re.compile(r'!\[(?P<alt>[^\]\n]*)\]\((?P<url><[^<>\n]+>|[^\s)<]+)(?:[ \t]+"(?P<title>[^"\n]*)")?\)')
 WIKI_IMAGE_RE = re.compile(
     r"!\[\[(?P<path>[^\]|#\n]+?\.(?:png|svg|jpe?g|gif|webp))(?:\|(?P<opt>[^\]\n]*))?\]\]", re.IGNORECASE)
 PLACEHOLDER_RE = re.compile(r'!\[(?P<alt>[^\]\n]*)\]\(pkm-image:(?P<name>[a-z0-9-]+)(?:[ \t]+"[^"\n]*")?\)')
@@ -193,10 +195,11 @@ def find_images(text: str) -> list[ImageRef]:
         Images in text order.
     """
     found: list[tuple[int, int, str, str, str | None, DataOccurrence | None]] = []
-    for m in MD_IMAGE_RE.finditer(text):
+    for m in MD_FILE_RE.finditer(text):
         url = m.group("url")
-        if not url.lower().startswith("data:") and PurePosixPath(unquote(url).lower()).suffix in IMAGE_EXTENSIONS:
-            if not re.match(r"^[a-z][a-z0-9+.-]*://", url, re.IGNORECASE) and not url.startswith(PLACEHOLDER_SCHEME):
+        bare = url.strip("<>")
+        if not bare.lower().startswith("data:") and PurePosixPath(unquote(bare).lower()).suffix in IMAGE_EXTENSIONS:
+            if not re.match(r"^[a-z][a-z0-9+.-]*://", bare, re.IGNORECASE) and not bare.startswith(PLACEHOLDER_SCHEME):
                 found.append((m.start(), m.end(), m.group("alt"), url, m.group("title"), None))
     for m in WIKI_IMAGE_RE.finditer(text):
         found.append((m.start(), m.end(), m.group("opt") or "", m.group("path"), None, None))
@@ -271,6 +274,20 @@ def link_target(ref: ImageRef, doc_rel: str) -> str | None:
     return target
 
 
+def file_link(doc_rel: str, file_rel: str, style: str = "relative") -> str:
+    """Markdown link from a document to a file, in the configured link style (``PKM_LINK_STYLE``).
+
+    Args:
+        doc_rel: Path of the document.
+        file_rel: Path of the file in the vault.
+        style: ``relative`` (relative to the document, default) or ``absolute`` (path from the vault root).
+
+    Returns:
+        The link, spaces and special characters encoded.
+    """
+    return relative_link(doc_rel, file_rel) if style == "relative" else quote(file_rel, safe="/._-~")
+
+
 def relative_link(doc_rel: str, file_rel: str) -> str:
     """Markdown link from the document to a file in the vault.
 
@@ -279,10 +296,11 @@ def relative_link(doc_rel: str, file_rel: str) -> str:
         file_rel: Path of the file.
 
     Returns:
-        Relative path, e.g. ``../_attachments/photo_2026-11-03.png`` (spaces encoded).
+        Relative path, e.g. ``./note_img/photo_2026-11-03.png`` or ``../_attachments/photo.png``
+        (spaces encoded; ``./`` in front of paths below the folder of the document, 4.9).
     """
     rel = posixpath.relpath(file_rel, posixpath.dirname(doc_rel) or ".")
-    return quote(rel, safe="/._-~")
+    return ("" if rel.startswith("../") else "./") + quote(rel, safe="/._-~")
 
 
 def strip_images(text: str) -> str:

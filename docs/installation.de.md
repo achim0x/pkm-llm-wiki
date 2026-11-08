@@ -134,7 +134,7 @@ idempotent.
    (Chat-Dokumente: Result, Decisions, Open points, Context / rationale bzw. Ergebnis,
    Entscheidungen, Offene Punkte, Kontext / Begründung; Wiki-Seiten: Summary, Content, … bzw.
    Kurzfassung, Inhalt, …). Bestehende Dokumente und Wiki-Seiten behalten ihre Sprache; erzeugte
-   Dateien wie `index.md` bleiben englisch. Später ändern: `pkm setup` erneut
+   Wiki-Dateien (`index.md`, `_status.md`) folgen der Sprache ebenfalls. Später ändern: `pkm setup` erneut
    ausführen und Claude Desktop neu starten.
 5. **Konfigurationsdatei** `<APPDIR>/config.toml` schreiben (Vault-Pfad, Vault-Name,
    Versionsverwaltung an oder aus, Pfad zu Git, Sprache). Server und CLI lesen sie; gesetzte
@@ -225,7 +225,7 @@ Ohne Obsidian entfällt dieser Abschnitt. Mit Obsidian den Vault-Ordner als Vaul
 | Dateien & Links → Interne Links automatisch aktualisieren | an |
 | Dateien & Links → Neues Link-Format | Absoluter Pfad im Vault |
 | Dateien & Links → Wikilinks verwenden | an |
-| Dateien & Links → Standardordner für Anhänge | `documents/_attachments` |
+| Dateien & Links → Standardordner für Anhänge | Gleicher Ordner wie aktuelle Datei (`./`) |
 | Dateien & Links → Ausgeschlossene Dateien | `.pkm/` |
 
 Fehlende Werte werden ergänzt, von dir gesetzte abweichende Werte bleiben und werden als Warnung
@@ -317,6 +317,8 @@ Die vollständige Abnahme steht in [acceptance.md](acceptance.md) bzw. Abschnitt
 
 | Problem | Prüfen |
 |---|---|
+| Welche Version ist installiert? | `pkm --version`; `pkm setup` gibt sie als erste Zeile aus und `pkm doctor` meldet sie als `version` (auch in `begin_maintenance` zu sehen). `uv tool list` zeigt die von uv installierte Version (bei editierbarer Installation ggf. veraltet) |
+| Neue Tool-Parameter fehlen nach einem Update (z. B. `extract` bei `fix_images`) | Stattdessen das Tool `extract_images` verwenden (gleiche Funktion, neuer Name). Sonst zeigt der Client noch die alte Tool-Liste: Claude Desktop ganz beenden und neu starten, in Cowork den Rechner neu verbinden. Hilft das nicht, startet der Client eine andere Installation: `tools_version` aus `begin_maintenance` mit `pkm --version` vergleichen und den Befehl der Einträge `pkm` und `pkm-maintenance` in `claude_desktop_config.json` prüfen (z. B. ein altes `pkm-pflege-mcp` oder eine zweite virtuelle Umgebung); `pkm setup` schreibt die Einträge neu |
 | Tools erscheinen nicht in Claude Desktop | `pkm setup` erneut ausführen (trägt die Server ein), Claude Desktop vollständig beenden und neu starten, Log von Claude Desktop |
 | `git_unavailable` | `pkm doctor`: Git gefunden, Repo vorhanden, Identität gesetzt. Git deinstalliert? `pkm setup` erneut ausführen (schaltet die Versionsverwaltung ab) |
 | `not_versioned` bei `history`/`restore_document` | Versionsverwaltung ist aus (kein Git) oder die Datei liegt in `scratch/` |
@@ -456,7 +458,10 @@ PKM_LANGUAGE = "en"
 - `PKM_LANGUAGE`: Hauptsprache von im Chat erzeugten Dokumenten und vom Wiki, `"en"` (Englisch,
   Standard) oder `"de"` (Deutsch).
 - Weitere optionale Schlüssel: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (beide nie in einen Cloud-Ordner),
-  `PKM_TZ`, `PKM_MAX_KB`, `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`, `PKM_INLINE_MAX_KB` (24),
+  `PKM_TZ`, `PKM_MAX_KB` (200, Text ohne eingebettete Bilder), `PKM_SLUG_MAX` (40,
+  Namensteil neuer Dokumente aus dem Chat und der Namensvorschläge in `_inbox/`), `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`,
+  `PKM_LINK_STYLE` (`relative` (Standard, relativ zum Dokument) oder `absolute`
+  Links auf Bilddateien), `PKM_INLINE_MAX_KB` (24),
   `PKM_SVG_MAX_KB` (200), `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER`
   (`false`; zum Rastern von SVG zusätzlich das Paket `cairosvg` installieren).
 - Eine Datei an einem anderen Ort wählt die Umgebungsvariable `PKM_CONFIG`; sie muss dann auch im
