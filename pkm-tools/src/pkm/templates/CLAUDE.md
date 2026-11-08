@@ -73,5 +73,5 @@ Content, headings, change notes and reports follow the language setting `PKM_LAN
 (`en` English, `de` German; the servers name it in their instructions): chat documents and new
 wiki pages are written in it, existing documents and pages keep their language. German wiki pages
 use `> **Kurzfassung:** …`, `## Inhalt`, `## Widersprüche / offene Fragen`, `## Siehe auch`,
-`## Belege`. Generated files (`index.md`, `_status.md`, lint reports) and interfaces (fields,
-values, tools, CLI) are English.
+`## Belege`. The generated files `index.md` and `_status.md` follow the language too. Lint reports
+and interfaces (fields, values, tools, CLI) are English.

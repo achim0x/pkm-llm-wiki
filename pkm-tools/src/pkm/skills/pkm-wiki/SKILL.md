@@ -113,7 +113,9 @@ that document, in whatever folder it lies (`documents/_attachments/`, a folder `
 the document or elsewhere). Attachments never appear as `pending` entries of their own: a new
 document lists them under `images`, a changed one names changed image files under `images_changed`.
 They get **no entry in `processed`** and no summary of their own. Only images that no document links
-to are standalone sources.
+to are standalone sources. A document reported once with `assets_migrated: true` (images that were
+standalone before are now its attachments, the text is unchanged) needs no processing: only list it
+in `processed`.
 
 ## Formats
 

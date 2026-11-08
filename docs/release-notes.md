@@ -57,6 +57,29 @@ PNGs).
 - Skills `pkm-wiki` and `pkm-access` and the vault template `CLAUDE.md` describe attachments, the
   storage location and `extract`.
 
+### After the test run (review of 7 November 2026)
+
+- **No Base64 in tool answers:** diffs (also of `fix_images`, `rewrite_document`, `edit_document`,
+  `restore_document`, `history`) and citation excerpts show embedded images as placeholders like
+  `read`; overlong lines are cut. The answer of `fix_images` with `extract` at a 2 MB article stays
+  below 10 KB.
+- **Generated wiki files in the wiki language:** `wiki/index.md`, `wiki/_status.md` and the heading of
+  a new `wiki/log.md` follow `PKM_LANGUAGE` (German: "Noch nicht verarbeitet", "Probleme" …). Lint
+  reports stay English.
+- **Lint `topic_without_page`** recognizes existing pages by their `tags` (topic, entity and synthesis
+  pages) and by file name, title or alias.
+- **Switching to attachments** after the update: a document whose images were standalone entries
+  before is reported once with `assets_migrated: true` and `image_notation_only: true` instead of
+  with all sections changed; processing it removes the old standalone entries.
+- **File names of image files:** from the alt text, cut at a word boundary (at most 60 characters),
+  dated with `date_markdown` of the document; the proposal already shows the real name. Image names
+  and citations do not change.
+- **Link style:** new option `PKM_LINK_STYLE` (`absolute` or `relative`); by default like Obsidian's
+  "New link format" (`absolute`, as set by `pkm init`), so tools and imports write the same style.
+  `read_image` also finds images linked with a vault path or Obsidian's shortest path.
+- **Tool lists:** if a client still shows a tool without its new parameters (e.g. `extract`), it
+  shows a cached list: quit and restart Claude Desktop (in Cowork reconnect the computer).
+
 ### Showing the installed version
 
 - `pkm --version` prints the installed version (`pkm-tools 0.3.0`). `pkm setup` prints it as its

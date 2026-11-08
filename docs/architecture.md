@@ -286,7 +286,9 @@ language and its section names (`Result`, `Decisions`, `Open points`, `Context /
 (`wiki_language_instructions()`) names the wiki sections and the summary label (`Summary`, `Content`,
 `Contradictions / open questions`, `See also`, `Citations` or `Kurzfassung`, `Inhalt`,
 `Widersprüche / offene Fragen`, `Siehe auch`, `Belege`). The skills `pkm-access` and `pkm-wiki`
-follow these instructions; the tools accept both variants, and generated files stay English.
+follow these instructions; the tools accept both variants. The generated wiki files (`index.md`,
+`_status.md`, the heading of a new `log.md`) take their fixed texts from `wikitexts.py` in the wiki
+language.
 
 Every program (server or CLI) resolves its configuration the same way:
 

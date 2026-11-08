@@ -351,6 +351,9 @@ pkm lint --report
 | Auslagern | `fix_images` mit `extract` am selben Dokument, erst Vorschlag, dann `apply` | Dokument < 30 KB, Dateien am Ablageort, Folgelauf `image_notation_only`, Wiki-Belege `ok` | ☐ |
 | Lint-Hinweise | Lint am Vault | `large_embedded_image`, `generic_alt_text`, `orphaned_attachment` als Hinweise, keine Änderung an `documents/` | ☐ |
 | Wiki-Sprache | `begin_maintenance` | `wiki_language` entspricht `PKM_LANGUAGE` | ☐ |
+| Antwortgröße | `fix_images` mit `extract` und `apply` an einem Dokument mit großen eingebetteten Bildern | Antwort < 10 KB, Diff mit Platzhaltern `pkm-image:…`, kein Base64 | ☐ |
+| Erzeugte Wiki-Dateien | Pflegelauf mit `PKM_LANGUAGE = "de"` | `wiki/_status.md` mit „Noch nicht verarbeitet“, „Probleme“; `wiki/index.md` mit „Themen“ | ☐ |
+| Dateinamen und Links | `extract` an einem Dokument mit `date_markdown` | Vorschlag nennt die echten Namen, Datum aus `date_markdown`, an Wortgrenzen gekürzt; Links als Pfad ab der Vault-Wurzel | ☐ |
 
 **Dokumentsprache:**
 

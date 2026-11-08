@@ -130,7 +130,8 @@ Installation without the installer: [Appendix A](#appendix-a-manual-installation
    `pkm` and `pkm-maintenance` tell Claude this language and the matching section names (chat documents:
    Result, Decisions, Open points, Context / rationale or Ergebnis, Entscheidungen, Offene Punkte,
    Kontext / Begründung; wiki pages: Summary, Content, … or Kurzfassung, Inhalt, …). Existing
-   documents and wiki pages keep their language; generated files such as `index.md` stay English. To change it later, run `pkm setup` again and restart Claude
+   documents and wiki pages keep their language; the generated wiki files (`index.md`,
+   `_status.md`) follow the language too. To change it later, run `pkm setup` again and restart Claude
    Desktop.
 5. Write the **configuration file** `<APPDIR>/config.toml` (vault path, vault name, version control
    on or off, path of Git, language). Servers and CLI read it; environment variables take precedence.
@@ -310,6 +311,7 @@ specification.
 | Problem | Check |
 |---|---|
 | Which version is installed? | `pkm --version`; `pkm setup` prints it as its first line and `pkm doctor` reports it as `version` (also seen in `begin_maintenance`). `uv tool list` shows the version uv installed (with an editable install it can be outdated) |
+| New tool parameters are missing after an update (e.g. `extract` in `fix_images`) | The client still shows the old tool list: quit Claude Desktop completely and start it again; in Cowork also reconnect the computer. `pkm --version` shows the installed version |
 | Tools do not appear in Claude Desktop | Run `pkm setup` again (it enters the servers), quit Claude Desktop completely and restart it, log of Claude Desktop |
 | `git_unavailable` | `pkm doctor`: Git found, repo present, identity set. Git uninstalled? Run `pkm setup` again (turns version control off) |
 | `not_versioned` for `history`/`restore_document` | Version control is off (no Git) or the file is in `scratch/` |
@@ -451,7 +453,8 @@ PKM_LANGUAGE = "en"
 - Further optional keys: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (both never in a cloud folder), `PKM_TZ`,
   `PKM_MAX_KB` (200, text without embedded images), `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`,
   `PKM_IMAGE_FOLDER` (`attachments` = `documents/_attachments/`, or `document` = `<document name>_img/`
-  next to the document), `PKM_INLINE_MAX_KB` (24), `PKM_SVG_MAX_KB` (200),
+  next to the document), `PKM_LINK_STYLE` (`absolute` or `relative` links to image files; default like
+  Obsidian's "New link format"), `PKM_INLINE_MAX_KB` (24), `PKM_SVG_MAX_KB` (200),
   `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER` (`false`; to rasterize SVG
   also install the package `cairosvg`).
 - A file at another location is selected with the environment variable `PKM_CONFIG`; it must then

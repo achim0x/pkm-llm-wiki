@@ -134,7 +134,7 @@ idempotent.
    (Chat-Dokumente: Result, Decisions, Open points, Context / rationale bzw. Ergebnis,
    Entscheidungen, Offene Punkte, Kontext / Begründung; Wiki-Seiten: Summary, Content, … bzw.
    Kurzfassung, Inhalt, …). Bestehende Dokumente und Wiki-Seiten behalten ihre Sprache; erzeugte
-   Dateien wie `index.md` bleiben englisch. Später ändern: `pkm setup` erneut
+   Wiki-Dateien (`index.md`, `_status.md`) folgen der Sprache ebenfalls. Später ändern: `pkm setup` erneut
    ausführen und Claude Desktop neu starten.
 5. **Konfigurationsdatei** `<APPDIR>/config.toml` schreiben (Vault-Pfad, Vault-Name,
    Versionsverwaltung an oder aus, Pfad zu Git, Sprache). Server und CLI lesen sie; gesetzte
@@ -318,6 +318,7 @@ Die vollständige Abnahme steht in [acceptance.md](acceptance.md) bzw. Abschnitt
 | Problem | Prüfen |
 |---|---|
 | Welche Version ist installiert? | `pkm --version`; `pkm setup` gibt sie als erste Zeile aus und `pkm doctor` meldet sie als `version` (auch in `begin_maintenance` zu sehen). `uv tool list` zeigt die von uv installierte Version (bei editierbarer Installation ggf. veraltet) |
+| Neue Tool-Parameter fehlen nach einem Update (z. B. `extract` bei `fix_images`) | Der Client zeigt noch die alte Tool-Liste: Claude Desktop ganz beenden und neu starten, in Cowork den Rechner neu verbinden. `pkm --version` zeigt die installierte Version |
 | Tools erscheinen nicht in Claude Desktop | `pkm setup` erneut ausführen (trägt die Server ein), Claude Desktop vollständig beenden und neu starten, Log von Claude Desktop |
 | `git_unavailable` | `pkm doctor`: Git gefunden, Repo vorhanden, Identität gesetzt. Git deinstalliert? `pkm setup` erneut ausführen (schaltet die Versionsverwaltung ab) |
 | `not_versioned` bei `history`/`restore_document` | Versionsverwaltung ist aus (kein Git) oder die Datei liegt in `scratch/` |
@@ -459,7 +460,8 @@ PKM_LANGUAGE = "en"
 - Weitere optionale Schlüssel: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (beide nie in einen Cloud-Ordner),
   `PKM_TZ`, `PKM_MAX_KB` (200, Text ohne eingebettete Bilder), `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`,
   `PKM_IMAGE_FOLDER` (`attachments` = `documents/_attachments/` oder `document` = `<Dokumentname>_img/`
-  neben dem Dokument), `PKM_INLINE_MAX_KB` (24),
+  neben dem Dokument), `PKM_LINK_STYLE` (`absolute` oder `relative` Links auf Bilddateien; Standard wie
+  Obsidians „Format für neue Links“), `PKM_INLINE_MAX_KB` (24),
   `PKM_SVG_MAX_KB` (200), `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER`
   (`false`; zum Rastern von SVG zusätzlich das Paket `cairosvg` installieren).
 - Eine Datei an einem anderen Ort wählt die Umgebungsvariable `PKM_CONFIG`; sie muss dann auch im
