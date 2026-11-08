@@ -162,8 +162,8 @@ class Config:  # pylint: disable=too-many-instance-attributes
         language: Main language of documents created in chat and of the wiki, ``en`` or ``de``
             (``PKM_LANGUAGE``).
         config_file: Configuration file that was read, or ``None``.
-        slug_max: Maximum length of the name part of new document names and of name proposals in the inbox
-            (``PKM_SLUG_MAX``, 4.1).
+        slug_max: Maximum length of the name part of new documents (not in ``scratch/``) and of name
+            proposals in the inbox (``PKM_SLUG_MAX``, 4.1).
     """
 
     root: Path

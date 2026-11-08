@@ -516,5 +516,7 @@ def test_long_title_shortens_only_slug(svc):
     assert len(b["path"].rsplit("/", 1)[1]) == 40 + 2 + 14
     assert svc.create_document(title="Kurz: mit Untertitel", content="C")["path"].rsplit("/", 1)[1].startswith(
         "kurz-mit-untertitel_")  # chat documents keep the subtitle
+    note = svc.create_document(title=title, content="D", area="scratch")
+    assert len(note["path"].rsplit("/", 1)[1]) > 60  # scratch/ is not limited by PKM_SLUG_MAX
 
 # Main ************************************************************************

@@ -45,7 +45,7 @@ from .gitlayer import Commit, build_message
 from .ids import new_id
 from .normalize import encode, normalize_fragment, normalize_text
 from .parse import strip_frontmatter
-from .paths import fit_stem, is_platform_safe_name, slug_words
+from .paths import MAX_NAME, fit_stem, is_platform_safe_name, slug_words, slugify
 from .schema import DEFAULT_KIND, DEFAULT_TOOLCHAIN, FIELD_ORDER, KINDS, normalize_tags, order_meta, stamp
 from .vault import SCRATCH, Doc, load_text_doc
 from .writeguard import check_shortening, check_size
@@ -590,7 +590,7 @@ class Writer:
             meta = _ordered_meta({**values, "date_markdown": self.now_stamp()})
             text = normalize_text(dump_meta(meta) + "\n" + body.lstrip("\n"))
             base = "/".join(p for p in (SCRATCH, folder) if p)
-            rel = self.free_name(base, slug_words(values["title"], self.cfg.slug_max))
+            rel = self.free_name(base, slugify(values["title"], MAX_NAME))  # scratch/: no PKM_SLUG_MAX
             empty = load_text_doc(rel, b"")
             text, _, _ = docimages.check_text_images(self, empty, text, images[1])
             text, _, infos = docimages.place_images(self, empty, text, images[0])
