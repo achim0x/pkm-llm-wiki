@@ -4,168 +4,146 @@
 
 Changes compared to `V0.2.2`. Specification now **0.29**. Prompted by the maintenance runs of
 5/6 November 2026 (a workshop encyclopedia with 106 image files, an article with 2.2 MB of embedded
-PNGs).
+PNGs) and refined in four test rounds on 7 and 8 November 2026.
 
-### Linked images are attachments, in any folder
+### Highlights
 
-- An image file that a document links to (Markdown image or `![[…]]`) is an attachment of that
-  document wherever it lies: `documents/_attachments/`, a folder next to the document or elsewhere
-  under `documents/`. Links are resolved relative to the document, from the vault root, ignoring
-  case, by Obsidian's shortest path (`![[images/IMG_068.png]]`) and by bare file name, also in angle
-  brackets with spaces.
-- Attachments no longer appear as `pending` entries of their own: a new document lists them under
-  `images`, a changed one under `images_changed` (`assets_changed` is still returned). They need no
-  entry in `processed`; listed anyway, `finish_maintenance` skips them without the warning "no wiki
-  page cites this document".
+- Image files belong to their document, wherever they lie, and new ones are stored next to it in
+  `<document name>_img/`, linked relative to the document (`./<document name>_img/…`).
+- The size limit `PKM_MAX_KB` counts only the text; large embedded images can be stored as files
+  (`extract_images`).
+- New maintenance tools `rename_document` and `move_images` bring names and image folders in line
+  with the naming rules – only after the user's confirmation.
+- No Base64 in tool answers, generated wiki files in the wiki language, `pkm --version`.
+
+### Images: attachments and storage location
+
+- **Attachments in any folder:** an image file that a document links to (Markdown image or `![[…]]`)
+  is an attachment of that document, wherever it lies. Links are resolved relative to the document,
+  from the vault root, ignoring case, by Obsidian's shortest path (`![[images/IMG_068.png]]`) and by
+  bare file name, also in angle brackets with spaces.
+- Attachments are no `pending` entries of their own: a new document lists them under `images`; a
+  changed one names files with new content under `images_changed` (`assets_changed` is still
+  returned), moved files (same bytes) under `images_moved` and removed ones under `images_removed`.
+  They need no entry in `processed`; listed anyway, `finish_maintenance` skips them without the
+  warning "no wiki page cites this document".
+- **Storage location beside the document:** new image files (`mode: auto`/`file`, `add_image`,
+  `import_path`, `extract_images`) go to `<document name>_img/` next to the document, so document and
+  images stay together when passed on. Identical images in one document are stored once.
+  `documents/_attachments/` is no longer a target; old files there stay valid. `pkm init` sets
+  Obsidian's attachment folder to "Same folder as current file".
+- **Link style** `PKM_LINK_STYLE` (new option): `relative` (default) writes `./<document name>_img/…`
+  (or `../…` outside the document's folder), `absolute` writes paths from the vault root. Both are
+  read.
+- **File names of image files** come from the image name or, when fixing, extracting or moving, from
+  the alt text: cut at a word boundary (at most 60 characters) and dated with `date_markdown` of the
+  document, e.g. `foto-einstieg_2026-11-03.png`. Proposals already show the real names. Image names
+  and citations (`[img:<name>]`) do not change.
+- **Moving images by hand:** if only image files moved (same bytes) and the links were adjusted,
+  `pending` reports the document with `image_notation_only: true` – nothing to process.
+- **Switching an existing vault:** a document whose images were standalone entries before is reported
+  once with `assets_migrated: true` and `image_notation_only: true`; processing it removes the old
+  standalone entries.
+- **Standalone images by path and hash:** `moved` only if the recorded path no longer exists; the same
+  path with new content is `changed`; the same image at two paths is a duplicate (lint
+  `duplicate_image`) instead of an endless `moved`.
 - Orphaned attachments are reported regardless of the folder.
-- **Image files live next to their document**, in `<document name>_img/`, linked relative to the
-  document (`./<document name>_img/…`), so document and images stay together when passed on. Applies
-  to `mode: auto`/`file`, `add_image`, `import_path` and `fix_images`. `documents/_attachments/` is no
-  longer a target (old files there stay valid); `pkm init` sets Obsidian's attachment folder to "Same
-  folder as current file". Identical images in one document are stored only once.
 
-### Standalone images by path and hash
+### Size limit and storing images as files
 
-- `moved` only if the recorded path no longer exists; the same path with new content is `changed`;
-  the same image at two existing paths is a duplicate (no endless `moved`, lint `duplicate_image`).
-
-### Size limit `PKM_MAX_KB`
-
-- The limit applies to the text without data URIs (as `read` counts it), not to the file size.
+- `PKM_MAX_KB` applies to the text without data URIs (as `read` counts it), not to the file size.
   `set_document_metadata`, `update_frontmatter` and `fix_images` are exempt. `too_large` names the
-  text size and the size of the embedded images separately and suggests `extract`.
+  text size and the size of the embedded images separately.
 - The user can override the limit for a single call: after explicit confirmation the chat repeats
   `create_document`, `rewrite_document`, `append_to_document` or `edit_document` with
   `confirm_large: true`. Wiki pages of the maintenance agent stay under the limit.
+- **New tool `extract_images`** (both servers, only after confirmation): stores embedded raster images
+  of at least `min_kb` (default 32 KB) as files in `<document name>_img/` and links them; bytes, alt
+  texts and image names stay. Without `apply` a proposal with the list of files and a diff, with
+  `apply: true` a new version (`PKM-Fix: images-extract`); in the next run the document is
+  `image_notation_only`. `fix_images` with `extract: true` does the same and stays for compatibility
+  (clients may keep showing an older schema of `fix_images`). CLI: `pkm fix-images --extract
+  [--min-kb N]`.
+- **No Base64 in tool answers:** diffs (of `fix_images`, `extract_images`, `rewrite_document`,
+  `edit_document`, `restore_document`, `history`) and citation excerpts show embedded images as
+  placeholders like `read`; overlong lines are cut.
 
-### `fix_images` with `extract`
+### Names and image folders
 
-- `extract: true` (optional `min_kb`, default 32) stores embedded raster images as files at the
-  storage location and links them; the bytes, alt texts and image names stay. Without `apply` a
-  proposal with the list of files and a diff, with `apply: true` a new version (`PKM-Fix:
-  images-extract`). Only after confirmation. In the next run the document is `image_notation_only`
-  and the citations stay valid. CLI: `pkm fix-images --extract [--min-kb N]`.
+- **Naming rules** (also in the `CLAUDE.md` template): file and folder names in `documents/` in lower
+  case with hyphens, umlauts spelled out; new documents `<slug>_YYYY-MM-DD.md`; image files in
+  `<document name>_img/`, named after their alt text.
+- **Shorter names:** the name part of new documents from the chat (`create_document`) and of name
+  proposals is cut at a word boundary to `PKM_SLUG_MAX` characters (new option, default 40). Name
+  proposals also drop the subtitle (text after ` – `, ` - ` or `: `), e.g.
+  `training-from-the-back-of-the-room_2026-11-07.md`. Notes in `scratch/` are not shortened.
+- **Name proposals:** `begin_maintenance` returns `rename` for new Markdown documents in
+  `documents/_inbox/` whose name does not follow the convention; `wiki/_status.md` shows it. Proposals
+  list the image files that move along, the adjusted links, documents linking to it (`linked_from`)
+  and the wiki pages citing it with the number of citations (`cited_by`, `citations`).
+- **New maintenance tool `rename_document`** (only after confirmation, never unattended): renames a
+  document in the inbox, or elsewhere if its name breaks the rules (capitals, spaces, underscores);
+  `name` sets another name. Its image files move into `<new name>_img/`, links are adjusted, emptied
+  folders removed – one commit. Wiki pages are not changed; their citations follow via the document ID
+  in `finish_maintenance`.
+- **New maintenance tool `move_images`** (only after confirmation): moves the image files of a document
+  into `<document name>_img/` – old files in `documents/_attachments/`, folders like `images/`, or an
+  image folder left behind in `_inbox/` after filing (Obsidian does not move it). Links always become
+  `./<document name>_img/…`; Obsidian embeds become Markdown images (`![[x.png|300]]` →
+  `![|300](./…)`). Files other documents link to stay (`kept`).
+- **Generic image names** (`IMG_013.png`, `image.png`, hashes) get names from the alt text. Files whose
+  alt text says nothing keep their name and are listed under `generic_names_kept`; the parameter
+  `alt_texts` of both tools (`{file path, file name or image name: alt text}`) sets alt text and file
+  name in one step.
 
 ### Lint
 
-- New info hints: `large_embedded_image` (> 32 KB, suggests `extract`), `generic_alt_text`
-  ("Image", "Bild", file names like `IMG_068`), `duplicate_image`; `orphaned_attachment` now in any
-  folder.
+- New info hints:
+  - `large_embedded_image` (embedded raster image over 32 KB, proposes `extract_images`),
+  - `generic_alt_text` ("Image", "Bild", file names like `IMG_068`) with `file`, `section`,
+    `file_keeps_generic_name` (the same set as `generic_names_kept`) and `name_from_other_link`,
+  - `duplicate_image` (same image at several paths),
+  - `naming` for `_inbox/` (document name, image folder name, generic image file names, each with a
+    proposal and the citing wiki pages),
+  - `image_location` (image files outside `<document name>_img/`; proposes `move_images`, or
+    `rename_document` first if the document's name breaks the rules).
+- `orphaned_attachment` in any folder.
+- `topic_without_page`: a tag counts as covered by the file name, title or an alias of a wiki page, by
+  the **first** tag of a topic, entity or synthesis page, or as whole words in the file name or title
+  of such a page (`sandboxing` in `sandboxing-von-ki-agenten`). Further tags of a page about another
+  topic do not count.
 
-### Maintenance and skills
+### Maintenance, wiki and skills
 
-- `begin_maintenance` returns `wiki_language`, because server instructions do not reach the model in
-  every client (e.g. Cowork).
-- Skills `pkm-wiki` and `pkm-access` and the vault template `CLAUDE.md` describe attachments, the
-  storage location and `extract`.
-
-### After the test run (review of 7 November 2026)
-
-- **No Base64 in tool answers:** diffs (also of `fix_images`, `rewrite_document`, `edit_document`,
-  `restore_document`, `history`) and citation excerpts show embedded images as placeholders like
-  `read`; overlong lines are cut. The answer of `fix_images` with `extract` at a 2 MB article stays
-  below 10 KB.
-- **Generated wiki files in the wiki language:** `wiki/index.md`, `wiki/_status.md` and the heading of
-  a new `wiki/log.md` follow `PKM_LANGUAGE` (German: "Noch nicht verarbeitet", "Probleme" …). Lint
-  reports stay English.
-- **Lint `topic_without_page`** recognizes existing pages by their `tags` (topic, entity and synthesis
-  pages) and by file name, title or alias.
-- **Switching to attachments** after the update: a document whose images were standalone entries
-  before is reported once with `assets_migrated: true` and `image_notation_only: true` instead of
-  with all sections changed; processing it removes the old standalone entries.
-- **File names of image files:** from the alt text, cut at a word boundary (at most 60 characters),
-  dated with `date_markdown` of the document; the proposal already shows the real name. Image names
-  and citations do not change.
-- **Link style:** new option `PKM_LINK_STYLE` (`relative` or `absolute`); image links stay relative
-  to the Markdown document by default, `absolute` writes paths from the vault root.
-  `read_image` also finds images linked with a vault path or Obsidian's shortest path.
-- **Names in the inbox:** a new Markdown document in `documents/_inbox/` whose name does not follow
-  `<slug>_YYYY-MM-DD.md` (copied in by hand, from Obsidian or a conversion) gets a name proposal in
-  `begin_maintenance` (`rename`) and in `wiki/_status.md`. After confirmation the new maintenance tool
-  `rename_document` renames it; its image files move into `<new name>_img/` and the image links are
-  adjusted, in one commit. Never in unattended runs.
-- **Tool lists:** if a client still shows a tool without its new parameters (e.g. `extract`), it
-  shows a cached list: quit and restart Claude Desktop (in Cowork reconnect the computer).
-
-### After the second test run (review of 8 November 2026)
-
-- **Images always beside the document** (`<document name>_img/`, see above); the option
-  `PKM_IMAGE_FOLDER` is gone and ignored if still set.
-- **Relative image links start with `./`** for files below the folder of the document
-  (`./sandbox_img/schema.png`).
-- **Moving image files by hand:** if only image files moved (same bytes) and the links were adjusted,
-  `pending` reports the document with `image_notation_only: true`; `images_changed` lists only image
-  files with new content (current paths), moves are listed under `images_moved` (`from`, `to`),
-  removed files under `images_removed`.
-- **New maintenance tool `move_images`** (only after confirmation): moves the image files of a
-  document into `<document name>_img/` (old files in `documents/_attachments/`, folders like
-  `images/`, an image folder left behind in `_inbox/` after filing), names files with generic names
-  (`IMG_013.png`) after their alt text, adjusts the links and removes emptied folders, in one commit.
-  Files other documents link to stay. `rename_document` does the same for the renamed document.
-- **New lint hints** (`info`): `naming` for `_inbox/` (document name, image folder name, generic image
-  file names, each with a proposal) and `image_location` for image files outside
-  `<document name>_img/`. The skill `pkm-wiki` lists name proposals in the report like frontmatter
-  proposals and never asks where to file a document.
-- **`topic_without_page`:** a tag is covered only by the file name, title or an alias of a wiki page or
-  as the **first** tag of a topic, entity or synthesis page; further tags of a page about another
-  topic no longer count.
-- **`begin_maintenance` returns `tools_version`.** If a client keeps showing an old tool list (e.g.
-  `fix_images` without `extract`) even after a restart, it probably starts another installation;
-  the troubleshooting table in the installation guide shows how to check.
-- **`CLAUDE.md` template:** naming rules for files, folders and image files; the first line of a wiki
-  page follows the wiki language (`> **Kurzfassung:** …` in German).
-
-### After the third test run (review of 8 November 2026, afternoon)
-
-- **Shorter name proposals:** without `name`, `rename_document` and lint `naming` drop the subtitle
-  (text after ` – `, ` - ` or `: `) and cut the name at a word boundary to `PKM_SLUG_MAX` characters
-  (new option, default 40): `training-from-the-back-of-the-room_2026-11-07.md`. The same limit applies to
-  new documents created from the chat (`create_document`, not notes in `scratch/`), which keep their subtitle.
-- **Always relative image links when moving:** `move_images` and `rename_document` write
-  `./<document name>_img/…` (the configured `PKM_LINK_STYLE`) whatever the old link looked like;
-  Obsidian embeds `![[…]]` become Markdown images (`![[x.png|300]]` → `![|300](./…)`).
-- **New tool `extract_images`** in both servers: the same as `fix_images` with `extract: true`.
-  Clients keep a cached schema of a known tool, so `extract`/`min_kb` of `fix_images` may stay
-  invisible; a new tool name always shows its full schema.
-- **`topic_without_page`:** a tag also counts as covered if it occurs as whole words in the file name or
-  title of a topic, entity or synthesis page (`sandboxing` in `sandboxing-von-ki-agenten`).
-
-### After the fourth test run (review of 8 November 2026, evening)
-
-- **Citing wiki pages in rename proposals:** `rename_document` and lint `naming` list the wiki pages that
-  cite or link the document (`cited_by`, with the number of citations) and the total (`citations`).
-  Wiki pages are not changed by the renaming; the citations follow via the document ID in
-  `finish_maintenance`.
-- **Renaming outside the inbox:** `rename_document` also renames documents in other folders whose
-  name breaks the naming rules (capitals, spaces, underscores). Lint `image_location` then proposes
-  renaming first (`tool: rename_document`, `suggested_name`), so document and image folder end up in
-  lower case, e.g. `ultimate-workshop-exercise-encyclopedia_2026-11-04.md` with
-  `…_2026-11-04_img/`.
-- **`fix_images` points to `extract_images`** for storing images as files; `extract`/`min_kb` stay
-  for compatibility only. The skills use `extract_images`.
-- **Generic image names:** files that keep a generic name because their alt text says nothing are
-  listed under `generic_names_kept` with a hint. The new parameter `alt_texts` of `move_images` and
-  `rename_document` (`{file name or path: alt text}`, only after confirmation) sets the alt text and
-  the file name in one step.
-- **Lint `generic_alt_text` names the file** (`file`, `null` for embedded images) and the `section`, and
-  flags whether the file keeps its generic name (`file_keeps_generic_name`, the same set as
-  `generic_names_kept`) or is already named by another link (`name_from_other_link`). `alt_texts` also
-  accepts the image name (`image-2`) as key.
+- `begin_maintenance` returns `wiki_language` (server instructions do not reach the model in every
+  client, e.g. Cowork) and `tools_version` (the installed pkm-tools, to check the tool list a client
+  shows).
+- `wiki/index.md`, `wiki/_status.md` and the heading of a new `wiki/log.md` follow `PKM_LANGUAGE`
+  (German: "Noch nicht verarbeitet", "Probleme" …). Lint reports stay English.
+- Skill `pkm-wiki` lists name proposals in the report like frontmatter proposals and never asks where
+  to file a document; skills `pkm-wiki` and `pkm-access` describe attachments, the storage location,
+  `extract_images`, `rename_document` and `move_images`.
+- `CLAUDE.md` template: naming rules; the first line of a wiki page follows the wiki language
+  (`> **Kurzfassung:** …` in German).
 
 ### Showing the installed version
 
 - `pkm --version` prints the installed version (`pkm-tools 0.3.0`). `pkm setup` prints it as its
-  first line, and `pkm doctor` reports it as `version` (so it is also visible in
-  `begin_maintenance`). (Finished after the tag `v0.2.2`, so it is part of this release.)
+  first line, and `pkm doctor` reports it as `version`. (Finished after the tag `v0.2.2`, so it is
+  part of this release.)
 
 ### Upgrading from V0.2.2
 
 1. Run the installer again.
 2. In `pkm setup`, confirm taking over the existing configuration and let it update `CLAUDE.md`
-   (or merge `CLAUDE.md.new`). Remove `PKM_IMAGE_FOLDER` from `config.toml` if present (it is ignored).
-   Image files of existing documents stay where they are; lint `image_location` proposes `move_images`.
-3. Upload the new skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart it.
-4. Check `PKM_LANGUAGE` in `config.toml`: with `"de"` new wiki pages are German.
+   (or merge `CLAUDE.md.new`). Remove `PKM_IMAGE_FOLDER` from `config.toml` if present (it is
+   ignored).
+3. Upload the new skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart it; in Cowork
+   reconnect the computer so the new tools appear.
+4. Check `PKM_LANGUAGE` in `config.toml`: with `"de"` new wiki pages and generated wiki files are German.
+5. Existing image files stay where they are. Run a lint: `image_location` and `naming` propose
+   `move_images` and `rename_document`; carry them out only document by document after checking the
+   proposals.
 
 ## V0.2.2
 
