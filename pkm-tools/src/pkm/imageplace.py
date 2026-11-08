@@ -57,7 +57,7 @@ KEEP_FOLDERS = ("documents", "documents/_inbox", "documents/_attachments")
 
 
 @dataclass
-class Placement:
+class Placement:  # pylint: disable=too-many-instance-attributes
     """Planned changes for a document: new path, moved image files, adjusted links.
 
     Attributes:
@@ -67,6 +67,8 @@ class Placement:
         kept: Image files that stay ``{path, reason}`` (``shared``: other documents link to them too).
         links: Changed links ``{from, to}``.
         text: New text of the document.
+        generic_kept: Image files that keep a generic name because their alt text says nothing.
+        alts: New alt texts per file (``alt_texts`` of the tool).
     """
 
     doc: Doc
@@ -75,6 +77,8 @@ class Placement:
     kept: list[dict[str, str]] = field(default_factory=list)
     links: list[dict[str, str]] = field(default_factory=list)
     text: str = ""
+    generic_kept: list[str] = field(default_factory=list)
+    alts: dict[str, str] = field(default_factory=dict)
 
     @property
     def empty(self) -> bool:
@@ -83,7 +87,7 @@ class Placement:
         Returns:
             ``True`` without a new path and without moves.
         """
-        return self.new_rel == self.doc.rel and not self.moves
+        return self.new_rel == self.doc.rel and not self.moves and not self.alts
 
 
 # Functions *******************************************************************
@@ -153,33 +157,80 @@ def _unique(rel: str, taken: set[str], own: str) -> str:
     return candidate
 
 
-def plan_images(svc: Service, doc: Doc, amap: AssetMap, new_rel: str) -> Placement:
+def _given_alts(paths: list[str], alt_texts: dict[str, str] | None) -> dict[str, str]:
+    """Assign the alt texts given by the user to image files (key: path or file name).
+
+    Args:
+        paths: Image files of the document.
+        alt_texts: File path or file name → alt text.
+
+    Returns:
+        Path → alt text.
+
+    Raises:
+        PkmError: ``invalid_argument`` for keys that match no image file of the document or empty texts.
+    """
+    out: dict[str, str] = {}
+    unknown = []
+    for key, value in (alt_texts or {}).items():
+        match = [p for p in paths if p == key or PurePosixPath(p).name.casefold() == key.casefold()]
+        text = " ".join(str(value).split())
+        if len(match) != 1 or not text:
+            unknown.append(key)
+        else:
+            out[match[0]] = text
+    if unknown:
+        raise PkmError("invalid_argument", "alt_texts: unknown image files or empty texts: " + ", ".join(unknown),
+                       unknown=unknown)
+    return out
+
+
+def _file_name(path: str, alt: str, date: str) -> str:
+    """File name of an image in its new place: generic names are replaced by the alt text, if it says something.
+
+    Args:
+        path: Current path.
+        alt: Alt text.
+        date: ``YYYY-MM-DD`` of the document.
+
+    Returns:
+        ``<alt-text-slug>_<date>.<ext>`` or the current file name.
+    """
+    name = PurePosixPath(path).name
+    if generic_file_name(name) and alt and not is_generic_alt(alt):
+        name = f"{slug_words(alt, IMAGE_STEM_MAX)}_{date}{PurePosixPath(name).suffix.lower()}"
+    return name
+
+
+def plan_images(svc: Service, doc: Doc, amap: AssetMap, new_rel: str,
+                alt_texts: dict[str, str] | None = None) -> Placement:
     """Plan moving the image files of a document into ``<new name>_img/``.
 
     Files that other documents link to as well stay where they are (``kept``). Files with a generic
-    name get ``<alt text>_<date>.<ext>`` (4.9), if the alt text says something.
+    name get ``<alt text>_<date>.<ext>`` (4.9), if the alt text says something; otherwise they are listed in
+    ``generic_kept``. ``alt_texts`` sets alt texts (and with them the file names) in the same step.
 
     Args:
         svc: Service.
         doc: Document.
         amap: Links of all documents.
         new_rel: New path of the document.
+        alt_texts: File path or file name → new alt text (only after confirmation by the user).
 
     Returns:
         The plan with the adjusted text.
     """
     target = image_folder(new_rel)
     referenced = amap.referenced()
-    alts = _alts(doc, amap)
+    paths = sorted(amap.links.get(doc.rel, {}))
+    plan = Placement(doc, new_rel, alts=_given_alts(paths, alt_texts))
+    alts = {**_alts(doc, amap), **plan.alts}
     date = name_date(svc, doc)
     taken = {r.casefold() for r in svc.vault.iter_files(("documents",))}
-    plan = Placement(doc, new_rel)
-    for path in sorted(amap.links.get(doc.rel, {})):
-        name = PurePosixPath(path).name
-        alt = alts.get(path, "")
-        if generic_file_name(name) and alt and not is_generic_alt(alt):
-            name = f"{slug_words(alt, IMAGE_STEM_MAX)}_{date}{PurePosixPath(name).suffix.lower()}"
-        wanted = f"{target}/{name}"
+    for path in paths:
+        wanted = f"{target}/{_file_name(path, alts.get(path, ''), date)}"
+        if generic_file_name(wanted) and referenced.get(path) == [doc.rel]:
+            plan.generic_kept.append(path)
         if referenced.get(path) != [doc.rel]:
             if str(PurePosixPath(path).parent) != target:
                 plan.kept.append({"path": path, "reason": "shared"})
@@ -188,11 +239,12 @@ def plan_images(svc: Service, doc: Doc, amap: AssetMap, new_rel: str) -> Placeme
             taken.discard(path.casefold())
             taken.add(to.casefold())
             plan.moves.append({"from": path, "to": to})
-    plan.text, plan.links = relink(doc, amap, plan.moves, new_rel, svc.cfg.images.link_style)
+    plan.text, plan.links = relink(doc, amap, plan, svc.cfg.images.link_style)
     return plan
 
 
-def _new_image(ref: images.ImageRef, new_file: str, new_rel: str, style: str) -> tuple[str, str]:
+def _new_image(ref: images.ImageRef, new_file: str, new_rel: str, style: str,
+               new_alt: str | None = None) -> tuple[str, str]:
     """Markdown image for a moved file, always in the configured link style (``PKM_LINK_STYLE``, 4.9).
 
     An Obsidian embed ``![[path|option]]`` becomes a Markdown image ``![option](./…)`` (a width like ``300``
@@ -203,6 +255,7 @@ def _new_image(ref: images.ImageRef, new_file: str, new_rel: str, style: str) ->
         new_file: New path of the file.
         new_rel: New path of the document.
         style: ``relative`` (default, ``./<document name>_img/…``) or ``absolute``.
+        new_alt: New alt text (a width like ``|300`` stays).
 
     Returns:
         Tuple of (new Markdown text of the image, new link).
@@ -210,36 +263,39 @@ def _new_image(ref: images.ImageRef, new_file: str, new_rel: str, style: str) ->
     link = images.file_link(new_rel, new_file, style)
     if ref.raw.startswith("![["):
         option = ref.raw[3:-2].split("|", 1)[1] if "|" in ref.raw else ""
-        alt = f"|{option}" if re.fullmatch(r"\d+(?:x\d+)?", option.strip()) else option
+        width = re.fullmatch(r"\d+(?:x\d+)?", option.strip())
+        alt = (new_alt or "") + f"|{option}" if width else (new_alt if new_alt is not None else option)
         raw = f"![{alt}]({link})"
     else:
-        raw = ref.raw.replace(f"]({ref.link}", f"]({link}", 1)
+        old_alt = ref.raw[2:ref.raw.index("](")]
+        width = old_alt.split("|", 1)[1] if "|" in old_alt else None
+        alt = old_alt if new_alt is None else new_alt + (f"|{width}" if width else "")
+        raw = f"![{alt}]({link}" + ref.raw[ref.raw.index("](") + 2 + len(ref.link):]
     return raw, link
 
 
-def relink(doc: Doc, amap: AssetMap, moves: list[dict[str, str]], new_rel: str,
-           style: str = "relative") -> tuple[str, list[dict[str, str]]]:
-    """Adjust the links to moved image files.
+def relink(doc: Doc, amap: AssetMap, plan: Placement, style: str = "relative") -> tuple[str, list[dict[str, str]]]:
+    """Adjust the links to moved image files (and the alt texts given in ``plan.alts``).
 
     Args:
         doc: Document.
         amap: Links of all documents.
-        moves: Moved image files.
-        new_rel: New path of the document.
+        plan: Plan with moves and new alt texts.
         style: Link style (``PKM_LINK_STYLE``).
 
     Returns:
         Tuple of (new text, changed links ``{from, to}``).
     """
     text = doc.text or ""
-    target_of = {m["from"]: m["to"] for m in moves}
+    target_of = {m["from"]: m["to"] for m in plan.moves}
     changes: list[dict[str, str]] = []
     for ref in reversed(images.find_images(text)):
         path = None if ref.inline else amap.resolve(doc.rel, ref)
-        if path and path in target_of:
-            raw, new = _new_image(ref, target_of[path], new_rel, style)
+        if path and (path in target_of or path in plan.alts):
+            raw, new = _new_image(ref, target_of.get(path, path), plan.new_rel, style, plan.alts.get(path))
             text = text[:ref.start] + raw + text[ref.end:]
-            changes.insert(0, {"from": ref.link, "to": new})
+            if new != ref.link:
+                changes.insert(0, {"from": ref.link, "to": new})
     return text, changes
 
 
@@ -250,9 +306,16 @@ def summary(plan: Placement) -> dict[str, Any]:
         plan: Plan.
 
     Returns:
-        ``images_moved``, ``kept``, ``links``.
+        ``images_moved``, ``kept``, ``links``, ``alt_texts`` (set), ``generic_names_kept`` with a hint.
     """
-    return {"images_moved": plan.moves, "kept": plan.kept, "links": plan.links}
+    out: dict[str, Any] = {"images_moved": plan.moves, "kept": plan.kept, "links": plan.links}
+    if plan.alts:
+        out["alt_texts"] = plan.alts
+    if plan.generic_kept:
+        out["generic_names_kept"] = plan.generic_kept
+        out["hint"] = (f"{len(plan.generic_kept)} image files keep their generic names because their alt text says "
+                       "nothing: view them with read_image and propose alt texts (alt_texts) first.")
+    return out
 
 
 def _tracked(svc: Service, paths: list[str]) -> list[str]:
@@ -350,7 +413,8 @@ def apply_plan(svc: Service, plan: Placement, note: str) -> dict[str, Any]:
             "new_hash": new_doc.hashes.file_hash if new_doc.hashes else None}
 
 
-def move_images(svc: Service, target: str, expected_hash: str, apply: bool = False) -> dict[str, Any]:
+def move_images(svc: Service, target: str, expected_hash: str, apply: bool = False,
+                alt_texts: dict[str, str] | None = None) -> dict[str, Any]:
     """Tool ``move_images``: move the image files of a document into ``<document name>_img/`` (after confirmation).
 
     Args:
@@ -358,9 +422,11 @@ def move_images(svc: Service, target: str, expected_hash: str, apply: bool = Fal
         target: Document in ``documents/`` (path, wikilink or ``id:``).
         expected_hash: ``hash`` from ``read``.
         apply: Carry out; without it only the proposal.
+        alt_texts: File path or file name → alt text; sets the alt text and names the file after it.
 
     Returns:
-        ``status`` ``proposal``, ``moved`` or ``unchanged``, with ``path``, ``images_moved``, ``kept``, ``links``.
+        ``status`` ``proposal``, ``moved`` or ``unchanged``, with ``path``, ``images_moved``, ``kept``, ``links``,
+        ``generic_names_kept``.
 
     Raises:
         PkmError: ``forbidden`` outside ``documents/``, ``conflict`` for a wrong hash.
@@ -378,12 +444,13 @@ def move_images(svc: Service, target: str, expected_hash: str, apply: bool = Fal
         if apply:
             doc = writer.commit_user_state(doc)
         docs = Maintenance(svc).documents()[0]
-        plan = plan_images(svc, doc, AssetMap(svc, docs), doc.rel)
-        result: dict[str, Any] = {"status": "unchanged", "path": rel, "kept": plan.kept}
+        plan = plan_images(svc, doc, AssetMap(svc, docs), doc.rel, alt_texts)
+        result: dict[str, Any] = {"status": "unchanged", "path": rel, **summary(plan)}
         if not plan.empty:
             result = {"status": "moved" if apply else "proposal", "path": rel, **summary(plan)}
             if apply:
-                result |= apply_plan(svc, plan, f"image files moved to {image_folder(rel)}/")
+                note = f"image files moved to {image_folder(rel)}/" + (", alt texts set" if plan.alts else "")
+                result |= apply_plan(svc, plan, note)
     return result
 
 # Main ************************************************************************

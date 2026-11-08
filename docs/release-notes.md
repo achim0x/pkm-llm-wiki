@@ -130,6 +130,24 @@ PNGs).
 - **`topic_without_page`:** a tag also counts as covered if it occurs as whole words in the file name or
   title of a topic, entity or synthesis page (`sandboxing` in `sandboxing-von-ki-agenten`).
 
+### After the fourth test run (review of 8 November 2026, evening)
+
+- **Citing wiki pages in rename proposals:** `rename_document` and lint `naming` list the wiki pages that
+  cite or link the document (`cited_by`, with the number of citations) and the total (`citations`).
+  Wiki pages are not changed by the renaming; the citations follow via the document ID in
+  `finish_maintenance`.
+- **Renaming outside the inbox:** `rename_document` also renames documents in other folders whose
+  name breaks the naming rules (capitals, spaces, underscores). Lint `image_location` then proposes
+  renaming first (`tool: rename_document`, `suggested_name`), so document and image folder end up in
+  lower case, e.g. `ultimate-workshop-exercise-encyclopedia_2026-11-04.md` with
+  `…_2026-11-04_img/`.
+- **`fix_images` points to `extract_images`** for storing images as files; `extract`/`min_kb` stay
+  for compatibility only. The skills use `extract_images`.
+- **Generic image names:** files that keep a generic name because their alt text says nothing are
+  listed under `generic_names_kept` with a hint. The new parameter `alt_texts` of `move_images` and
+  `rename_document` (`{file name or path: alt text}`, only after confirmation) sets the alt text and
+  the file name in one step.
+
 ### Showing the installed version
 
 - `pkm --version` prints the installed version (`pkm-tools 0.3.0`). `pkm setup` prints it as its

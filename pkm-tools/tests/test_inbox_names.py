@@ -165,16 +165,19 @@ def test_shared_folder_is_kept_and_links_reported(svc):
     assert prop["linked_from"] == [f"{INBOX}/other_2026-11-01.md"]
 
 
-def test_rename_refused_outside_inbox_and_on_conflict(svc):
-    """Only Markdown in the inbox; a wrong hash is a conflict; a conforming name stays."""
-    write(svc.cfg, "documents/haus/Zisterne.md", "---\ntitle: Zisterne\n---\n\nA.\n")
+def test_rename_rules_inside_and_outside_inbox(svc):
+    """Outside the inbox only names against the rules get a proposal; wrong hash conflict; conforming stays."""
+    write(svc.cfg, "documents/haus/Zisterne.md",
+          "---\ntitle: Zisterne\ndate_markdown: 2026-11-01T08:00:00\n---\n\nA.\n")
+    write(svc.cfg, "documents/haus/pumpe.md", "---\ntitle: Pumpe\n---\n\nP.\n")
     write(svc.cfg, f"{INBOX}/ok_2026-11-03.md", "---\ntitle: Ok\n---\n\nB.\n")
     write(svc.cfg, f"{INBOX}/Bad Name.md", "---\ntitle: Bad\n---\n\nC.\n")
     maintrun.begin_maintenance(svc)
     doc = svc.read("documents/haus/Zisterne.md")
-    with pytest.raises(PkmError) as exc:
-        maintrun.rename_document(svc, "documents/haus/Zisterne.md", doc["hash"])
-    assert exc.value.status == "forbidden"
+    prop = maintrun.rename_document(svc, "documents/haus/Zisterne.md", doc["hash"])
+    assert prop["status"] == "proposal" and prop["path"] == "documents/haus/zisterne_2026-11-01.md"
+    pumpe = svc.read("documents/haus/pumpe.md")
+    assert maintrun.rename_document(svc, "documents/haus/pumpe.md", pumpe["hash"])["status"] == "unchanged"
     with pytest.raises(PkmError) as exc:
         maintrun.rename_document(svc, f"{INBOX}/Bad Name.md", "0" * 64)
     assert exc.value.status == "conflict"
@@ -325,6 +328,71 @@ def test_extract_images_tool_in_both_servers():
         tool = next(t for t in asyncio.run(mod.build_server("en").list_tools()) if t.name == "extract_images")
         schema = getattr(tool, "inputSchema", None) or getattr(tool, "input_schema", {})
         assert {"target", "expected_hash", "min_kb", "apply"} <= set(schema["properties"])
+
+
+def test_rename_names_citing_wiki_pages(svc, cfg):
+    """R5: the proposal names the wiki pages that cite the document and the number of citations."""
+    rel = f"{INBOX}/Verhandlung Regeln.md"
+    write(cfg, rel, "---\ntitle: Verhandlung\n---\n\n## Regeln\nNie den ersten Preis.\n")
+    begin = maintrun.begin_maintenance(svc)
+    doc_id = begin["ids"]["assigned"][0]["id"]
+    doc = svc.read(f"id:{doc_id}")
+    sha = next(s["sha"] for s in doc["sections"] if s["key"] == "Regeln")
+    cit = f'[[{rel[:-3]}#Regeln]] · "Nie den ersten Preis." · id:{doc_id} · v:{doc["version"]} · sha:{sha}'
+    write(cfg, "wiki/summaries/verhandlung.md", "---\ntype: summary\ntitle: V\n---\n\n> **Summary:** S\n\n"
+          f"## Content\nA.[^b1] B.[^b2]\n\n## Citations\n[^b1]: {cit}\n[^b2]: {cit}\n")
+    write(cfg, "wiki/topics/verhandeln.md", "---\ntype: topic\ntitle: Verhandeln\n---\n\n> **Summary:** S\n\n"
+          f"## See also\n- [[{rel[:-3]}]]\n")
+    prop = maintrun.rename_document(svc, rel, doc["hash"])
+    assert prop["cited_by"] == [{"page": "wiki/summaries/verhandlung", "citations": 2},
+                                {"page": "wiki/topics/verhandeln", "citations": 0}]
+    assert prop["citations"] == 2
+    from pkm.lint import lint  # pylint: disable=import-outside-toplevel
+    naming = next(f for f in lint(svc)["findings"] if f["check"] == "naming" and f["detail"]["kind"] == "document")
+    assert naming["detail"]["citations"] == 2
+
+
+def test_image_location_proposes_lowercase_rename(svc, cfg):
+    """R6/R8: a name with capitals: lint proposes rename_document; generic names with generic alt text are named."""
+    _png(svc, "documents/Softskills/images_x/IMG_001.png", 3)
+    _png(svc, "documents/Softskills/images_x/IMG_066.png", 4)
+    write(cfg, "documents/Softskills/Ultimate_Workshop_Encyclopedia.md",
+          "---\ntitle: Ultimate Workshop Encyclopedia\ndate_markdown: 2026-11-04T09:00:00\n---\n\n## A\n"
+          "![The four phases](images_x/IMG_001.png)\n\n![Image](images_x/IMG_066.png)\n")
+    maintrun.begin_maintenance(svc)
+    from pkm.lint import lint  # pylint: disable=import-outside-toplevel
+    loc = next(f for f in lint(svc)["findings"] if f["check"] == "image_location")
+    assert loc["detail"]["tool"] == "rename_document"
+    assert loc["detail"]["suggested_name"] == "ultimate-workshop-encyclopedia_2026-11-04.md"
+    assert loc["detail"]["target"] == "documents/Softskills/ultimate-workshop-encyclopedia_2026-11-04_img"
+    assert loc["detail"]["generic_names_kept"] == ["documents/Softskills/images_x/IMG_066.png"]
+    rel = "documents/Softskills/Ultimate_Workshop_Encyclopedia.md"
+    doc = svc.read(rel)
+    prop = maintrun.rename_document(svc, rel, doc["hash"])
+    assert prop["generic_names_kept"] == ["documents/Softskills/images_x/IMG_066.png"] and "hint" in prop
+    res = maintrun.rename_document(svc, rel, doc["hash"], apply=True, alt_texts={"IMG_066.png": "Ablauf Kreis"})
+    img = "ultimate-workshop-encyclopedia_2026-11-04_img"
+    assert res["path"] == "documents/Softskills/ultimate-workshop-encyclopedia_2026-11-04.md"
+    text = (cfg.root / res["path"]).read_text(encoding="utf-8")
+    assert f"![Ablauf Kreis](./{img}/ablauf-kreis_2026-11-04.png)" in text
+    assert f"![The four phases](./{img}/the-four-phases_2026-11-04.png)" in text
+    assert not (cfg.root / "documents/Softskills/images_x").exists()
+
+
+def test_alt_texts_unknown_file_is_rejected(svc, cfg):
+    """alt_texts with an unknown file is invalid_argument."""
+    _png(svc, "documents/KI/doc_img/IMG_001.png", 3)
+    write(cfg, "documents/KI/doc.md", "---\ntitle: Doc\n---\n\n![Image](./doc_img/IMG_001.png)\n")
+    maintrun.begin_maintenance(svc)
+    doc = svc.read("documents/KI/doc.md")
+    with pytest.raises(PkmError) as exc:
+        maintrun.move_images(svc, "documents/KI/doc.md", doc["hash"], alt_texts={"nope.png": "x"})
+    assert exc.value.status == "invalid_argument"
+    prop = maintrun.move_images(svc, "documents/KI/doc.md", doc["hash"], alt_texts={"IMG_001.png": "Schaltplan"})
+    (move,) = prop["images_moved"]
+    assert move["from"] == "documents/KI/doc_img/IMG_001.png"
+    assert move["to"].startswith("documents/KI/doc_img/schaltplan_")
+    assert prop["alt_texts"] == {"documents/KI/doc_img/IMG_001.png": "Schaltplan"}
 
 
 # Main ************************************************************************

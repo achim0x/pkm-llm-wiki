@@ -15,8 +15,8 @@ you need neither a shell nor the CLI `pkm` (there is none in Cowork).
 | `read_image` | View images (PNG as an image, SVG as text) |
 | `write_wiki_page` | Create or completely replace a wiki page (without commit) |
 | `set_document_metadata` | Only after confirmation: enter `title`, `context`, `tags`, `kind`, `short_citation` of a document |
-| `rename_document` | Only after confirmation: rename a new document in `documents/_inbox/` after the naming convention, with its image files |
-| `move_images` | Only after confirmation: move the image files of a document into `<document name>_img/` next to it |
+| `rename_document` | Only after confirmation: rename a document after the naming rules (inbox, or a name with capitals/spaces elsewhere), with its image files |
+| `move_images` | Only after confirmation: move the image files of a document into `<document name>_img/` next to it, optionally with new alt texts (`alt_texts`) |
 | `fix_images` | Only after confirmation: fix the notation of nonconforming image data URIs of a document |
 | `extract_images` | Only after confirmation: store large embedded images of a document as files in `<document name>_img/` (same as `fix_images` with `extract: true`) |
 | `finish_maintenance` | Finish: citations (moved, renamed, `v:` raised for unchanged sections), `sources`, processing state, log, index, status, lint, agent commit |
@@ -51,7 +51,7 @@ values and tool parameters stay English.
   user in the chat and only with `set_document_metadata` (see "Frontmatter proposals"). You do not
   use the document tools of the server `pkm` (`create_document`, `edit_document`, `update_frontmatter` …)
   in maintenance. Likewise only after confirmation: the image notation with `fix_images`
-  (see "Fixing data URIs") the name of a new document in the inbox with `rename_document`
+  (see "Fixing data URIs") the name of a document with `rename_document`
   and the place of image files with `move_images` (see "Names and image locations").
 - `scratch/` (short-lived notes, todo lists) is **neither read nor processed**. No
   citation points to a file there. If a note is moved to `documents/`, it is a new document in the
@@ -102,19 +102,32 @@ files.
 follow the convention (copied in by hand, from Obsidian, a conversion …), `begin_maintenance` returns a
 proposal under `pending.new[].rename`: `to` (new path), `images_moved` (its image files move into
 `<new name>_img/`, generic names like `IMG_013.png` get names from the alt text), `kept` (files other
-documents link to as well stay), `links` (adjusted image links) and `linked_from` (documents whose
-wikilinks point to it; they are not changed – name them). Lint reports the same as `naming` (kinds
-`document`, `folder`, `images`).
+documents link to as well stay), `links` (adjusted image links), `linked_from` (documents whose
+wikilinks point to it; they are not changed – name them), `cited_by` and `citations` (wiki pages that
+cite or link it, with the number of citations). The renaming does not change wiki pages: their
+citations follow via the document ID in `finish_maintenance` (and in the next `begin_maintenance`);
+plain wikilinks on wiki pages you fix yourself with `write_wiki_page`. Lint reports the same as `naming`
+(kinds `document`, `folder`, `images`).
 
 **Image locations:** lint `image_location` names documents whose image files lie outside
 `<document name>_img/` (old files in `documents/_attachments/`, folders like `images/`, or an image
-folder left behind in `_inbox/` after the user filed the document – Obsidian does not move it).
+folder left behind in `_inbox/` after the user filed the document – Obsidian does not move it). If the
+name of the document itself breaks the rules (capitals, spaces, underscores, e.g.
+`Ultimate_Workshop_Exercise_Encyclopedia.md`), the hint has `tool: rename_document` and a
+`suggested_name`: propose renaming the document; its images move along into the new image folder.
+Otherwise `tool: move_images`.
+
+**Generic image names:** image files like `IMG_066.png` whose alt text says nothing ("Image") keep
+their names (`generic_names_kept` with a `hint`). View them with `read_image`, propose alt texts and,
+after confirmation, pass them as `alt_texts` (`{file name or path: alt text}`) to `move_images` or
+`rename_document`: alt text and file name are set in the same step (a new version with content
+changes, so process the document in the next run).
 
 **Propose, do not ask where to file:** list the proposals in the report like the frontmatter proposals
 (old name → new name, image folder, number of renamed image files, affected links). The user files
 documents from `_inbox/` themselves; you only propose names and image moves. After **explicit
-confirmation**: `read` → `hash` → `rename_document` (inbox; another name with `name`) or `move_images`
-(any document) without `apply` (check the proposal) → with `apply: true`. Never unattended; put the
+confirmation**: `read` → `hash` → `rename_document` (another name with `name`) or `move_images`
+without `apply` (check the proposal) → with `apply: true`. Never unattended; put the
 proposals into `questions`. In the next run the document has `image_notation_only: true` (only the
 image links changed): process nothing, only list it in `processed`. If a renamed document was already
 processed, call `finish_maintenance` with `operation: fix` and its ID in `processed`; the citations
@@ -326,7 +339,7 @@ Conflict copies of the cloud storage are never processed; the user merges them i
    (same image at several paths) → propose to link one file and delete the others;
    `orphaned_attachment` (no document links to it any more) → ask whether to delete or link it;
    `naming` (names in `_inbox/`) → propose `rename_document`; `image_location` (image files outside
-   `<document name>_img/`) → propose `move_images`.
+   `<document name>_img/`) → propose the tool named in `tool` (`rename_document` or `move_images`).
 4. `finish_maintenance` with `operation: lint`, `lint_report: true` (report to
    `wiki/_lint/YYYY-MM-DD.md`) and a log entry.
 

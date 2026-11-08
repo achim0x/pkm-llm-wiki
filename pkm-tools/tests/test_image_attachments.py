@@ -413,7 +413,7 @@ def test_tool_schemas_contain_new_parameters():
                 schema = getattr(tool, "input_schema", None) or getattr(tool, "inputSchema", {})
                 assert expected[tool.name] <= set(schema.get("properties", {})), (mod.__name__, tool.name)
                 if tool.name == "fix_images":
-                    assert "extract=true" in (tool.description or "")
+                    assert "extract_images" in (tool.description or "")
 
 
 def test_topic_with_page_by_tags_is_not_reported(svc):

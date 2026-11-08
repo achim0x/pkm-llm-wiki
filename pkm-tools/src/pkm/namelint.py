@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Any
 from .assets import AssetMap
 from .config import image_folder
 from .imageplace import plan_images
-from .inboxnames import INBOX, conforming, linked_from, proposed_path
+from .inboxnames import INBOX, cited_by, conforming, linked_from, needs_rename, proposed_path
 from .vault import Doc
 
 if TYPE_CHECKING:
@@ -64,7 +64,7 @@ def _inbox_hints(add: Any, svc: Service, doc: Doc, docs: list[Doc], amap: AssetM
         add("naming", "info", doc.rel,
             f"Name does not follow <slug>_YYYY-MM-DD.md; proposal: {PurePosixPath(new_rel).name}. Rename only "
             "after confirmation (rename_document).", kind="document",
-            suggested_name=PurePosixPath(new_rel).name, links=linked_from(docs, doc))
+            suggested_name=PurePosixPath(new_rel).name, **_references(svc, docs, doc))
     target = image_folder(new_rel)
     folders: dict[str, int] = {}
     for m in plan.moves:
@@ -83,6 +83,54 @@ def _inbox_hints(add: Any, svc: Service, doc: Doc, docs: list[Doc], amap: AssetM
             files=renamed)
 
 
+def _references(svc: Service, docs: list[Doc], doc: Doc) -> dict[str, Any]:
+    """Documents and wiki pages that point to a document (for the hints on renaming).
+
+    Args:
+        svc: Service.
+        docs: All documents.
+        doc: Document.
+
+    Returns:
+        ``links`` (documents with wikilinks), ``cited_by`` (wiki pages with the number of citations),
+        ``citations`` (total).
+    """
+    pages = cited_by(svc, doc)
+    return {"links": linked_from(docs, doc), "cited_by": pages, "citations": sum(p["citations"] for p in pages)}
+
+
+def _location_hint(add: Any, svc: Service, doc: Doc, docs: list[Doc], amap: AssetMap) -> None:
+    """``image_location`` for a document outside the inbox; with a name against the rules, rename first.
+
+    Args:
+        add: ``Report.add``.
+        svc: Service.
+        doc: Document.
+        docs: All documents.
+        amap: Links of all documents.
+    """
+    rename = needs_rename(doc.rel)
+    new_rel = proposed_path(svc, doc) if rename else doc.rel
+    plan = plan_images(svc, doc, amap, new_rel)
+    if plan.moves:
+        folder = image_folder(new_rel)
+        if rename:
+            message = (f"{len(plan.moves)} image files outside an image folder of the document; its name breaks the "
+                       f"naming rules: propose rename_document first ({PurePosixPath(new_rel).name}), the images "
+                       f"move along into {PurePosixPath(folder).name}/.")
+            extra: dict[str, Any] = {"suggested_name": PurePosixPath(new_rel).name, **_references(svc, docs, doc)}
+        else:
+            message = (f"{len(plan.moves)} image files outside {PurePosixPath(folder).name}/ (e.g. "
+                       f"{plan.moves[0]['from']}); propose move_images.")
+            extra = {}
+        if plan.generic_kept:
+            message += (f" {len(plan.generic_kept)} files keep generic names (alt text says nothing): propose alt "
+                        "texts first (alt_texts).")
+            extra["generic_names_kept"] = plan.generic_kept
+        add("image_location", "info", doc.rel, message, target=folder, files=plan.moves,
+            tool="rename_document" if rename else "move_images", **extra)
+
+
 def check_names(add: Any, svc: Service, docs: list[Doc]) -> None:
     """Lint ``naming`` (inbox) and ``image_location`` (other documents).
 
@@ -98,11 +146,6 @@ def check_names(add: Any, svc: Service, docs: list[Doc]) -> None:
         if doc.rel.startswith(INBOX):
             _inbox_hints(add, svc, doc, docs, amap)
         else:
-            plan = plan_images(svc, doc, amap, doc.rel)
-            if plan.moves:
-                folder = image_folder(doc.rel)
-                add("image_location", "info", doc.rel,
-                    f"{len(plan.moves)} image files outside {PurePosixPath(folder).name}/ (e.g. "
-                    f"{plan.moves[0]['from']}); propose move_images.", target=folder, files=plan.moves)
+            _location_hint(add, svc, doc, docs, amap)
 
 # Main ************************************************************************

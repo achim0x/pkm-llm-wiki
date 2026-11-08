@@ -378,25 +378,28 @@ def fix_document_images(  # pylint: disable=too-many-arguments,too-many-position
                                   areas=("documents/",), extract=extract, min_kb=min_kb)
 
 
-def rename_document(
-    svc: Service, target: str, expected_hash: str, apply: bool = False, name: str | None = None
+def rename_document(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    svc: Service, target: str, expected_hash: str, apply: bool = False, name: str | None = None,
+    alt_texts: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Name a new document in the inbox after the convention, with its image folder (after confirmation).
+    """Name a document after the naming rules, with its image files (after confirmation).
 
     Args:
         svc: Service.
-        target: Document in ``documents/_inbox/``.
+        target: Markdown document in ``documents/``.
         expected_hash: ``hash`` from ``read``.
         apply: Carry out; without it only the proposal.
         name: Desired name instead of the title.
+        alt_texts: File path or file name → alt text for image files.
 
     Returns:
         Result of ``rename_inbox_document``.
     """
-    return rename_inbox_document(svc, target, expected_hash, apply=apply, stem=name)
+    return rename_inbox_document(svc, target, expected_hash, apply=apply, stem=name, alt_texts=alt_texts)
 
 
-def move_images(svc: Service, target: str, expected_hash: str, apply: bool = False) -> dict[str, Any]:
+def move_images(svc: Service, target: str, expected_hash: str, apply: bool = False,
+                alt_texts: dict[str, str] | None = None) -> dict[str, Any]:
     """Move the image files of a document into ``<document name>_img/`` (after confirmation).
 
     Args:
@@ -404,11 +407,12 @@ def move_images(svc: Service, target: str, expected_hash: str, apply: bool = Fal
         target: Document in ``documents/``.
         expected_hash: ``hash`` from ``read``.
         apply: Carry out; without it only the proposal.
+        alt_texts: File path or file name → alt text for image files.
 
     Returns:
         Result of ``imageplace.move_images``.
     """
-    return move_document_images(svc, target, expected_hash, apply=apply)
+    return move_document_images(svc, target, expected_hash, apply=apply, alt_texts=alt_texts)
 
 
 def _load_target(svc: Service, target: str) -> Doc:
