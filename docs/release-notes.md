@@ -119,7 +119,8 @@ PNGs).
 
 - **Shorter name proposals:** without `name`, `rename_document` and lint `naming` drop the subtitle
   (text after ` – `, ` - ` or `: `) and cut the name at a word boundary to `PKM_SLUG_MAX` characters
-  (new option, default 60): `training-from-the-back-of-the-room_2026-11-07.md`.
+  (new option, default 40): `training-from-the-back-of-the-room_2026-11-07.md`. The same limit applies to
+  new documents created from the chat (`create_document`, also in `scratch/`), which keep their subtitle.
 - **Always relative image links when moving:** `move_images` and `rename_document` write
   `./<document name>_img/…` (the configured `PKM_LINK_STYLE`) whatever the old link looked like;
   Obsidian embeds `![[…]]` become Markdown images (`![[x.png|300]]` → `![|300](./…)`).

@@ -36,7 +36,7 @@ from .assets import AssetMap
 from .errors import PkmError
 from .imageplace import Placement, apply_plan, name_date, plan_images, summary
 from .maint import Maintenance
-from .paths import MAX_NAME, fit_stem, slugify, title_slug
+from .paths import MAX_NAME, fit_stem, slug_words, title_slug
 from .vault import Doc, extract_links, link_key
 
 if TYPE_CHECKING:
@@ -110,11 +110,12 @@ def proposed_path(svc: Service, doc: Doc, stem: str | None = None) -> str:
 
     Returns:
         ``<folder>/<slug>_YYYY-MM-DD.md`` (or the current path if it conforms and no name is given). Without
-        ``stem`` the slug comes from the title without subtitle, at most ``PKM_SLUG_MAX`` characters.
+        ``stem`` the slug comes from the title without subtitle; at most ``PKM_SLUG_MAX`` characters, cut at a
+        word boundary.
     """
     result = doc.rel
     if stem or not conforming(doc.rel):
-        slug = slugify(stem, MAX_NAME) if stem else title_slug(doc.title, svc.cfg.slug_max)
+        slug = slug_words(stem, svc.cfg.slug_max) if stem else title_slug(doc.title, svc.cfg.slug_max)
         result = _free_path(svc, str(PurePosixPath(doc.rel).parent), slug, f"_{name_date(svc, doc)}", doc.rel)
     return result
 

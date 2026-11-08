@@ -40,7 +40,7 @@ from .errors import PkmError
 
 DEFAULT_AUTHOR = "pkm-mcp <pkm@localhost>"
 DEFAULT_MAX_KB = 200
-DEFAULT_SLUG_MAX = 60  # PKM_SLUG_MAX: name part of proposed document names
+DEFAULT_SLUG_MAX = 40  # PKM_SLUG_MAX: name part of new document names (chat and inbox proposals)
 DEFAULT_TZ = "Europe/Berlin"
 IMPORT_FOLDER = "pkm_img_import"
 CONFIG_FILE = "config.toml"
@@ -162,7 +162,8 @@ class Config:  # pylint: disable=too-many-instance-attributes
         language: Main language of documents created in chat and of the wiki, ``en`` or ``de``
             (``PKM_LANGUAGE``).
         config_file: Configuration file that was read, or ``None``.
-        slug_max: Maximum length of the name part of proposed document names (``PKM_SLUG_MAX``, 4.1).
+        slug_max: Maximum length of the name part of new document names and of name proposals in the inbox
+            (``PKM_SLUG_MAX``, 4.1).
     """
 
     root: Path

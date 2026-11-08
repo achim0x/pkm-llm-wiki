@@ -458,8 +458,8 @@ PKM_LANGUAGE = "en"
 - `PKM_LANGUAGE`: Hauptsprache von im Chat erzeugten Dokumenten und vom Wiki, `"en"` (Englisch,
   Standard) oder `"de"` (Deutsch).
 - Weitere optionale Schlüssel: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (beide nie in einen Cloud-Ordner),
-  `PKM_TZ`, `PKM_MAX_KB` (200, Text ohne eingebettete Bilder), `PKM_SLUG_MAX` (60,
-  Namensteil vorgeschlagener Dokumentnamen), `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`,
+  `PKM_TZ`, `PKM_MAX_KB` (200, Text ohne eingebettete Bilder), `PKM_SLUG_MAX` (40,
+  Namensteil neuer Dokumente aus dem Chat und der Namensvorschläge in `_inbox/`), `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`,
   `PKM_LINK_STYLE` (`relative` (Standard, relativ zum Dokument) oder `absolute`
   Links auf Bilddateien), `PKM_INLINE_MAX_KB` (24),
   `PKM_SVG_MAX_KB` (200), `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER`

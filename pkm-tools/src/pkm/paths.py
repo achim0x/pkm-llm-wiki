@@ -141,7 +141,7 @@ def slug_words(text: str, max_len: int = 60) -> str:
     return s
 
 
-def title_slug(title: str, max_len: int = 60) -> str:
+def title_slug(title: str, max_len: int = 40) -> str:
     """Short slug for a proposed document name: without subtitle, cut at a word boundary (4.1).
 
     Args:
