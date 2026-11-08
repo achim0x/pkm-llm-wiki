@@ -46,6 +46,7 @@ AREAS = ("documents", "wiki")
 SCRATCH = "scratch"
 READ_AREAS = ("documents", "wiki", SCRATCH)
 ALL_AREAS = READ_AREAS
+GENERATED = {"wiki/index.md", "wiki/_status.md", "wiki/log.md"}  # written by finish_maintenance
 WIKILINK_RE = re.compile(r"!?\[\[([^\]\|#]*)(?:#([^\]\|]*))?(?:\|[^\]]*)?\]\]")
 FULL_WIKILINK_RE = re.compile(r"!?\[\[([^\]\|#]*)(?:#[^\]\|]*)?(?:\|[^\]]*)?\]\]")
 SUMMARY_LABEL_RE = re.compile(r"^\*\*[^*]+:\*\*\s*")
@@ -54,7 +55,8 @@ MAX_SUMMARY_DOC = 200
 ID_SCAN_BYTES = 4096
 
 __all__ = [
-    "ALL_AREAS", "AREAS", "PREAMBLE", "READ_AREAS", "SCRATCH", "Doc", "Vault", "extract_links", "link_key",
+    "ALL_AREAS", "AREAS", "GENERATED", "PREAMBLE", "READ_AREAS", "SCRATCH", "Doc", "Vault", "extract_links",
+    "link_key",
     "load_text_doc", "summary_of",
 ]
 

@@ -103,10 +103,13 @@ follow the convention (copied in by hand, from Obsidian, a conversion …), `beg
 proposal under `pending.new[].rename`: `to` (new path), `images_moved` (its image files move into
 `<new name>_img/`, generic names like `IMG_013.png` get names from the alt text), `kept` (files other
 documents link to as well stay), `links` (adjusted image links), `linked_from` (documents whose
-wikilinks point to it; they are not changed – name them), `cited_by` and `citations` (wiki pages that
-cite or link it, with the number of citations). The renaming does not change wiki pages: their
-citations follow via the document ID in `finish_maintenance` (and in the next `begin_maintenance`);
-plain wikilinks on wiki pages you fix yourself with `write_wiki_page`. Lint reports the same as `naming`
+wikilinks point to it; they are not changed – name them), `cited_by` and `citations` (wiki pages with
+citations of it and their number), `linked_by_wiki` (wiki pages with plain wikilinks to it or to its
+image files, e.g. "See also"; with a `warning`) and `regenerated` (generated files like `wiki/_status`
+that are written anew anyway – no action). The renaming does not change wiki pages: citations follow
+via the document ID in `finish_maintenance` (and in the next `begin_maintenance`); the plain wikilinks
+from `linked_by_wiki` you fix yourself with `write_wiki_page` after the renaming. `move_images` names
+wiki pages linking a moved image file the same way. Lint reports the same as `naming`
 (kinds `document`, `folder`, `images`).
 
 **Image locations:** lint `image_location` names documents whose image files lie outside

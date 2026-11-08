@@ -35,7 +35,7 @@ from .inboxnames import add_rename_proposals
 from .maint import Maintenance
 from .normalize import encode
 from .state import load_state
-from .vault import Doc, summary_of
+from .vault import GENERATED, Doc, summary_of
 from .wikitexts import text as wtext
 
 if TYPE_CHECKING:
@@ -43,7 +43,6 @@ if TYPE_CHECKING:
 
 # Variables *******************************************************************
 
-GENERATED = {"wiki/index.md", "wiki/_status.md", "wiki/log.md"}
 PAGE_TYPES = ("topic", "entity", "summary", "synthesis")  # order in wiki/index.md
 FOLDER_TYPES = {"topics": "topic", "entities": "entity", "summaries": "summary", "syntheses": "synthesis"}
 INBOX = "documents/_inbox/"

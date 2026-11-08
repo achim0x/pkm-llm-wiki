@@ -343,13 +343,17 @@ def test_rename_names_citing_wiki_pages(svc, cfg):
           f"## Content\nA.[^b1] B.[^b2]\n\n## Citations\n[^b1]: {cit}\n[^b2]: {cit}\n")
     write(cfg, "wiki/topics/verhandeln.md", "---\ntype: topic\ntitle: Verhandeln\n---\n\n> **Summary:** S\n\n"
           f"## See also\n- [[{rel[:-3]}]]\n")
+    maintrun.finish_maintenance(svc, "- nothing processed")  # wiki/_status.md links the document
+    assert rel[:-3] in (cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
     prop = maintrun.rename_document(svc, rel, doc["hash"])
-    assert prop["cited_by"] == [{"page": "wiki/summaries/verhandlung", "citations": 2},
-                                {"page": "wiki/topics/verhandeln", "citations": 0}]
+    assert prop["cited_by"] == [{"page": "wiki/summaries/verhandlung", "citations": 2}]
     assert prop["citations"] == 2
+    assert prop["linked_by_wiki"] == [{"page": "wiki/topics/verhandeln", "links": 1}]
+    assert prop["regenerated"] == ["wiki/_status"] and "warning" in prop
     from pkm.lint import lint  # pylint: disable=import-outside-toplevel
     naming = next(f for f in lint(svc)["findings"] if f["check"] == "naming" and f["detail"]["kind"] == "document")
-    assert naming["detail"]["citations"] == 2
+    assert naming["detail"]["cited_by"] == prop["cited_by"] and naming["detail"]["citations"] == 2
+    assert naming["detail"]["linked_by_wiki"] == prop["linked_by_wiki"]
 
 
 def test_image_location_proposes_lowercase_rename(svc, cfg):
@@ -416,6 +420,18 @@ def test_generic_alt_text_names_file_and_matches_move_images(svc, cfg):
     prop = maintrun.move_images(svc, "documents/Softskills/enc.md", doc["hash"], alt_texts={name: "Kreis"})
     assert prop["alt_texts"] == {"documents/Softskills/images_x/IMG_066.png": "Kreis"}
     assert prop["generic_names_kept"] == ["documents/Softskills/images_x/IMG_067.png"]
+
+
+def test_move_images_names_wiki_links_to_image_files(svc, cfg):
+    """R10: wiki pages linking a moved image file appear under linked_by_wiki (not adjusted, with warning)."""
+    _png(svc, "documents/_attachments/schema.png", 3)
+    write(cfg, "documents/KI/sandbox.md", "---\ntitle: Sandbox\n---\n\n![Schema](../_attachments/schema.png)\n")
+    write(cfg, "wiki/topics/sandbox.md", "---\ntype: topic\ntitle: Sandbox\n---\n\n> **Summary:** S\n\n"
+          "## Content\nSee [[documents/_attachments/schema.png]].\n")
+    maintrun.begin_maintenance(svc)
+    doc = svc.read("documents/KI/sandbox.md")
+    prop = maintrun.move_images(svc, "documents/KI/sandbox.md", doc["hash"])
+    assert prop["linked_by_wiki"] == [{"page": "wiki/topics/sandbox", "links": 1}] and "warning" in prop
 
 
 # Main ************************************************************************

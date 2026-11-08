@@ -95,7 +95,8 @@ def _register_maintenance_tools(server: Server) -> None:
         (proposal from begin_maintenance pending.new[].rename, lint naming, or lint image_location for names
         with capitals or spaces). Its image files move into <new name>_img/, generic image names (IMG_013) get
         names from the alt text, links ./<new name>_img/…. Wiki pages are not changed: cited_by/citations name
-        them; their citations follow via the ID with finish_maintenance. Without apply only the proposal;
+        pages with citations (they follow via the ID with finish_maintenance), linked_by_wiki pages with plain
+        wikilinks (fix them with write_wiki_page), regenerated the generated files. Without apply only the proposal;
         apply=true moves and commits. name: other name instead of the title. alt_texts: {file path, file name or
         image name (as in lint generic_alt_text): alt text}."""
         return call("rename_document", maintrun.rename_document, target=target, expected_hash=expected_hash,

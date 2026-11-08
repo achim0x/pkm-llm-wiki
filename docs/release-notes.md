@@ -80,7 +80,9 @@ PNGs) and refined in four test rounds on 7 and 8 November 2026.
 - **Name proposals:** `begin_maintenance` returns `rename` for new Markdown documents in
   `documents/_inbox/` whose name does not follow the convention; `wiki/_status.md` shows it. Proposals
   list the image files that move along, the adjusted links, documents linking to it (`linked_from`)
-  and the wiki pages citing it with the number of citations (`cited_by`, `citations`).
+  the wiki pages citing it with the number of citations (`cited_by`, `citations`), wiki pages with plain
+  wikilinks to it or its image files (`linked_by_wiki`, with a warning: they are not adjusted) and generated
+  files that are written anew anyway (`regenerated`, e.g. `wiki/_status`).
 - **New maintenance tool `rename_document`** (only after confirmation, never unattended): renames a
   document in the inbox, or elsewhere if its name breaks the rules (capitals, spaces, underscores);
   `name` sets another name. Its image files move into `<new name>_img/`, links are adjusted, emptied

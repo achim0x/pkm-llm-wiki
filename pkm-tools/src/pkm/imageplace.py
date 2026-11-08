@@ -43,6 +43,7 @@ from .imagefix import IMAGE_STEM_MAX, document_date
 from .imagelint import generic_file_name, image_files, is_generic_alt
 from .paths import slug_words
 from .vault import Doc
+from .wikirefs import wiki_references
 
 if TYPE_CHECKING:
     from .service import Service
@@ -436,7 +437,9 @@ def move_images(svc: Service, target: str, expected_hash: str, apply: bool = Fal
         plan = plan_images(svc, doc, AssetMap(svc, docs), doc.rel, alt_texts)
         result: dict[str, Any] = {"status": "unchanged", "path": rel, **summary(plan)}
         if not plan.empty:
-            result = {"status": "moved" if apply else "proposal", "path": rel, **summary(plan)}
+            refs = wiki_references(svc, None, [m["from"] for m in plan.moves])
+            result = {"status": "moved" if apply else "proposal", "path": rel, **summary(plan),
+                      **{k: v for k, v in refs.items() if k in ("linked_by_wiki", "regenerated", "warning")}}
             if apply:
                 note = f"image files moved to {image_folder(rel)}/" + (", alt texts set" if plan.alts else "")
                 result |= apply_plan(svc, plan, note)

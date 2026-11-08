@@ -35,8 +35,9 @@ from typing import TYPE_CHECKING, Any
 from .assets import AssetMap
 from .config import image_folder
 from .imageplace import plan_images
-from .inboxnames import INBOX, cited_by, conforming, linked_from, needs_rename, proposed_path
+from .inboxnames import INBOX, conforming, linked_from, needs_rename, proposed_path
 from .vault import Doc
+from .wikirefs import wiki_references
 
 if TYPE_CHECKING:
     from .service import Service
@@ -92,11 +93,10 @@ def _references(svc: Service, docs: list[Doc], doc: Doc) -> dict[str, Any]:
         doc: Document.
 
     Returns:
-        ``links`` (documents with wikilinks), ``cited_by`` (wiki pages with the number of citations),
-        ``citations`` (total).
+        ``links`` (documents with wikilinks) and the references from the wiki (``cited_by``, ``citations``,
+        ``linked_by_wiki``, ``regenerated``, possibly ``warning``).
     """
-    pages = cited_by(svc, doc)
-    return {"links": linked_from(docs, doc), "cited_by": pages, "citations": sum(p["citations"] for p in pages)}
+    return {"links": linked_from(docs, doc), **wiki_references(svc, doc)}
 
 
 def _location_hint(add: Any, svc: Service, doc: Doc, docs: list[Doc], amap: AssetMap) -> None:

@@ -361,7 +361,7 @@ pkm lint --report
 | Relative Links beim Umzug | `move_images` ohne `apply` an der Enzyklopädie | `links[].to` nur `./<Dokumentname>_img/…` | ☐ |
 | `extract_images` | Tool-Liste in Cowork neu laden | `extract_images` mit `min_kb` und `apply` sichtbar | ☐ |
 | Tag im Seitennamen | `sandboxing` mit Seite `sandboxing-von-ki-agenten` | kein `topic_without_page` für `sandboxing`, weiter für `docker`, `lxc`, `proxmox` | ☐ |
-| Belege im Umbenennungsvorschlag | `rename_document` ohne `apply` am Bowman-Dokument | `cited_by` nennt die zitierenden Wiki-Seiten mit der Zahl der Belege, `citations` die Summe | ☐ |
+| Belege im Umbenennungsvorschlag | `rename_document` ohne `apply` am Bowman-Dokument, Lint | `cited_by` mit genau den drei zitierenden Seiten (29, 16, 2), `citations: 47`, ohne `wiki/_status` (steht unter `regenerated`); eine Seite mit reinem Wikilink steht unter `linked_by_wiki`; Lint `naming` zeigt dieselben Listen | ☐ |
 | Kleinbuchstaben außerhalb des Eingangs | Lint an der Enzyklopädie | `image_location` mit `tool: rename_document`, `suggested_name` und Bildordner in Kleinbuchstaben | ☐ |
 | Nichtssagende Bildnamen | `move_images` an einem Dokument mit Alternativtext „Image“, dann mit `alt_texts` | erst `generic_names_kept` mit Hinweis, dann Dateiname aus dem neuen Alternativtext | ☐ |
 | Datei zu nichtssagendem Alternativtext | Lint an der Enzyklopädie, dann `move_images` ohne `apply` | Jeder `generic_alt_text`-Befund mit `file` und `section`; die Dateien mit `file_keeps_generic_name: true` sind genau `generic_names_kept`; `IMG_020` mit `name_from_other_link: true`; `alt_texts` mit `image-2` als Schlüssel funktioniert | ☐ |

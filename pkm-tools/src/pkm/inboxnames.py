@@ -36,9 +36,9 @@ from .assets import AssetMap
 from .errors import PkmError
 from .imageplace import Placement, apply_plan, name_date, plan_images, summary
 from .maint import Maintenance
-from .pagetext import DEF_RE
 from .paths import MAX_NAME, fit_stem, slug_words, title_slug
 from .vault import Doc, extract_links, link_key
+from .wikirefs import wiki_references
 
 if TYPE_CHECKING:
     from .service import Service
@@ -140,39 +140,6 @@ def proposed_path(svc: Service, doc: Doc, stem: str | None = None) -> str:
     return result
 
 
-def cited_by(svc: Service, doc: Doc) -> list[dict[str, Any]]:
-    """Wiki pages that cite or link a document, with the number of citations.
-
-    The renaming does not change wiki pages; ``finish_maintenance`` (and ``begin_maintenance`` in the next run)
-    move the citations to the new path via the document ID.
-
-    Args:
-        svc: Service.
-        doc: Document.
-
-    Returns:
-        ``[{page, citations}]`` sorted by page (``citations`` 0 for pure links).
-    """
-    keys = doc.link_keys()
-    id_mark = f"id:{doc.id}" if doc.id else None
-    out = []
-    for rel in svc.vault.iter_files(("wiki",)):
-        if not rel.lower().endswith(".md"):
-            continue
-        page = svc.vault.load(rel)
-        if page.error or page.parsed is None:
-            continue
-        n = 0
-        for line in page.body.splitlines():
-            m = DEF_RE.match(line)
-            if m and ((id_mark and re.search(rf"{re.escape(id_mark)}(?![\w-])", m.group(2)))
-                      or any(link_key(t) in keys for t in extract_links(m.group(2)))):
-                n += 1
-        if n or any(link_key(t) in keys for t in extract_links(page.body)):
-            out.append({"page": rel[:-3], "citations": n})
-    return sorted(out, key=lambda e: e["page"])
-
-
 def linked_from(docs: list[Doc], doc: Doc) -> list[str]:
     """Documents whose wikilinks point to a document (they are not changed by the renaming).
 
@@ -218,12 +185,11 @@ def _answer(svc: Service, placement: Placement, docs: list[Doc]) -> dict[str, An
         docs: All documents.
 
     Returns:
-        ``to``, ``images_moved``, ``kept``, ``links``, ``linked_from`` (documents), ``cited_by`` (wiki pages with
-        the number of citations), ``citations`` (total) and ``generic_names_kept``.
+        ``to``, ``images_moved``, ``kept``, ``links``, ``linked_from`` (documents) and the references from the
+        wiki (``wikirefs.wiki_references``: ``cited_by``, ``citations``, ``linked_by_wiki``, ``regenerated``).
     """
-    pages = cited_by(svc, placement.doc)
     return {"to": placement.new_rel, **summary(placement), "linked_from": linked_from(docs, placement.doc),
-            "cited_by": pages, "citations": sum(p["citations"] for p in pages)}
+            **wiki_references(svc, placement.doc, [m["from"] for m in placement.moves])}
 
 
 def add_rename_proposals(svc: Service, new_docs: list[dict[str, Any]]) -> None:
@@ -265,7 +231,8 @@ def rename_inbox_document(  # pylint: disable=too-many-arguments,too-many-positi
 
     Returns:
         ``status`` ``proposal``, ``renamed`` or ``unchanged`` (name already conforms), with ``from``, ``path``,
-        ``images_moved``, ``kept``, ``links``, ``linked_from``, ``cited_by``, ``citations``.
+        ``images_moved``, ``kept``, ``links``, ``linked_from``, ``cited_by``, ``citations``, ``linked_by_wiki``,
+        ``regenerated``.
 
     Raises:
         PkmError: ``forbidden`` outside ``documents/`` or for non-Markdown files, ``conflict`` for a wrong hash.
