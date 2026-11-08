@@ -546,9 +546,29 @@ def finish_maintenance(  # pylint: disable=too-many-arguments,too-many-positiona
     if lint_report:
         report["report"] = write_report(svc, report)
     result["lint"] = report
+    result["cross_source"] = cross_source_findings(svc, report)
     result["commit"] = Maintenance(svc).commit_wiki(_commit_message(operation, len(marked)))
     result["warnings"] = warnings
     return result
+
+
+def cross_source_findings(svc: Service, report: dict[str, Any]) -> list[dict[str, Any]]:
+    """Source fidelity findings on the wiki pages changed in this run, for the report to the user.
+
+    Args:
+        svc: Service.
+        report: Lint report.
+
+    Returns:
+        Findings ``cross_source_statement`` and ``synthesis_unmarked`` of pages with uncommitted changes
+        (without version control: of all pages).
+    """
+    checks = {"cross_source_statement", "synthesis_unmarked"}
+    found = [f for f in report.get("findings", []) if f.get("check") in checks]
+    if svc.versioning and found:
+        changed = {path for _, path in svc.git.status_entries("wiki")}
+        found = [f for f in found if f.get("path") in changed]
+    return found
 
 
 def _commit_message(operation: str, count: int) -> str:

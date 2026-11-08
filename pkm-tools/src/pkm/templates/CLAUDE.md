@@ -72,6 +72,11 @@ move it); the agent proposes that.
   `[^b1]: [[<path>#<anchor>]] · "<quote>" · id:<id> · v:<version> · sha:<6 characters>`
   (PDF/image: `[[<path>.pdf#page=<n>]] · "<quote>" · sha:<6 characters>`).
 - Wiki pages do not count as citations. Invent nothing, mark gaps as open questions.
+- Source fidelity: wiki pages state only what the sources say. Do not combine statements from
+  different sources into a new claim. "Contradictions / open questions" lists only contradictions
+  between sources on the same subject and open points named in the documents. Own interpretations
+  only on request, in `wiki/syntheses/`, marked as such ("Own interpretation, not stated in the
+  sources." / „Eigene Einordnung, nicht aus den Quellen.“, `confidence: low`).
 - Nothing is deleted in the wiki; outdated statements keep their citation of the old version.
 - Generated, do not change by hand: `wiki/index.md`, `wiki/_status.md`, `sources`.
 - `wiki/log.md` is append-only.

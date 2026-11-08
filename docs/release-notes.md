@@ -1,5 +1,38 @@
 # Release notes
 
+## V0.3.1
+
+Changes compared to `V0.3.0`. Specification now **0.30**. Prompted by an ingest that combined two
+correctly cited statements from different documents into a new claim that no source makes.
+
+### Source fidelity
+
+- **Rules** in the skill `pkm-wiki` (new section "Source fidelity") and in the `CLAUDE.md` template:
+  wiki pages state only what the sources say; statements from different documents are related only
+  if a source makes that connection itself; each statement is visibly attributed to its source;
+  "Contradictions / open questions" only lists contradictions between sources on the same subject,
+  open points named in documents and values the documents themselves mark as outdated. Own
+  interpretations only on request, in `wiki/syntheses/` with `confidence: low` and the line "Own
+  interpretation, not stated in the sources." – never in unattended runs.
+- **Ingest:** before `finish_maintenance` the agent checks every sentence citing two or more documents
+  and lists the checked sentences in the report.
+- **New lint check `cross_source_statement`** for pages below `wiki/topics|entities|summaries|syntheses/`:
+  a sentence or list item with citations from two or more documents is a `warning` in
+  "Contradictions / open questions" and an `info` elsewhere (`detail`: `section`, `footnotes`,
+  `documents`, start of the sentence). Several citations of the same document count once. Exceptions:
+  `<!-- lint: cross-source ok -->` at the line or `lint_ignore: [cross_source_statement]` in the
+  frontmatter of the page.
+- **New lint check `synthesis_unmarked`** (info): synthesis page without `confidence` or without the
+  marker for an own interpretation.
+- **`finish_maintenance`** returns these findings for the pages changed in the run as `cross_source`.
+
+### Upgrading from V0.3.0
+
+1. Run the installer again.
+2. In `pkm setup`, let it update `CLAUDE.md` (or merge `CLAUDE.md.new`).
+3. Upload the new skill ZIP `pkm-wiki` in Claude Desktop and restart it.
+4. Run a lint and check the `cross_source_statement` and `synthesis_unmarked` hints on existing pages.
+
 ## V0.3.0
 
 Changes compared to `V0.2.2`. Specification now **0.29**. Prompted by the maintenance runs of

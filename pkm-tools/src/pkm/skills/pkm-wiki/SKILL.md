@@ -61,7 +61,8 @@ values and tool parameters stay English.
 - **No statement without a citation** of a document in `documents/`. Wiki pages are not citations.
   Copy quotes **literally** from the given version. Invent nothing; mark gaps as open
   questions.
-- Mark your own conclusions: "(derived from [^b1] and [^b4])".
+- **Source fidelity** (see the section of that name): state only what the sources say; never
+  combine statements from different documents into a new claim.
 - Change `CLAUDE.md` only with the user's consent.
 - Leave `status_markdown` unchanged. The value plays no role in processing.
 - If lint reports `invalid_frontmatter`, propose the command `pkm fix-frontmatter` to the user
@@ -174,6 +175,32 @@ They get **no entry in `processed`** and no summary of their own. Only images th
 to are standalone sources. A document reported once with `assets_migrated: true` (images that were
 standalone before are now its attachments, the text is unchanged) needs no processing: only list it
 in `processed`.
+
+## Source fidelity
+
+- Wiki pages state what the sources say – nothing more. Every statement must be supported by its
+  citation on its own.
+- **No new claims from combining sources.** A sentence may relate statements from two different
+  documents ("contradicts", "fits", "reinforces", "conflicts with", "in tension with") only if one
+  of the sources makes that connection itself. Otherwise keep the statements separate, each with
+  its own citation.
+- **Attribute visibly.** If a section draws on several sources, start each statement with its
+  source ("According to <author> …", "The document on <topic> says …"). Never place a statement
+  from source B directly after one from source A so that it reads as A's.
+- **"Contradictions / open questions"** (German: „Widersprüche / offene Fragen“) contains only:
+  (a) contradictions between sources about the *same* subject, (b) open points or uncertainties
+  named in a document, (c) outdated or time-dependent values the document itself marks. No own
+  conclusions, no constructed tensions.
+- **Own interpretation only on request.** Proposals for own interpretations (e.g. risks that follow
+  from combining two sources) go into the run report as a question to the user. Only after
+  confirmation write them to `wiki/syntheses/` with `confidence: low` and the line
+  "Own interpretation, not stated in the sources." (German: „Eigene Einordnung, nicht aus den
+  Quellen.“).
+- If a source itself makes the connection between two documents, the sentence may cite both; mark it
+  with `<!-- lint: cross-source ok -->` at the end of the line so that lint does not report it again.
+  Lint reports sentences citing two or more documents as `cross_source_statement` (`warning` in
+  "Contradictions / open questions", otherwise `info`) and synthesis pages without the marker as
+  `synthesis_unmarked`.
 
 ## Formats
 
@@ -312,7 +339,10 @@ deliver the list as `log_entry`:
    entry of their own; standalone images (without a document that links to them) as before. **PDF**: `read` only returns size and `hash`.
    You read the content if the vault folder is connected in the conversation; otherwise do not list the PDF
    in `processed` and name it in the report.
-9. Finish with `finish_maintenance`:
+9. **Check cross-source statements:** For every sentence with citations from two or more different
+   documents, check whether one source makes the connection itself. If not, split the sentence or
+   remove the connection (see "Source fidelity"). List such sentences in the run report.
+10. Finish with `finish_maintenance`:
    - `processed`: IDs (or paths for PDF/standalone image) of all documents processed in this run –
      also the moved ones and those changed only in their metadata. Not the attachments of a document
      (if listed anyway, they are skipped without a warning). The tool determines the citing pages
@@ -321,11 +351,15 @@ deliver the list as `log_entry`:
    - `log_entry`, `log_title`, if needed `questions` (questions for `wiki/_status.md`).
    - If `lint` reports errors in your pages: fix them with `write_wiki_page` and
      call `finish_maintenance` again with `operation: fix` (without `processed`).
-10. Short report in the chat: new/changed pages, outdated statements, citation problems,
+   - `cross_source` lists the source fidelity findings on the pages changed in this run: check each
+     sentence again (split it or mark a connection a source makes itself) and name them in the report.
+11. Short report in the chat: new/changed pages, outdated statements, citation problems,
    filing proposals (from `wiki/_status.md`), questions – and **for each new document with
    missing fields the YAML block** with the question whether it should be entered, as well as for each document
    with `image_issues` the findings with a fix proposal and the question whether it should be fixed,
-   and the name proposals (`rename`) with the question whether to rename.
+   and the name proposals (`rename`) with the question whether to rename; the checked cross-source
+   sentences (what was split or why a connection is in a source) and proposals for own
+   interpretations as a question (only after confirmation into `wiki/syntheses/`, marked).
 
 Conflict copies of the cloud storage are never processed; the user merges them in Obsidian.
 
@@ -345,6 +379,10 @@ Conflict copies of the cloud storage are never processed; the user merges them i
    `orphaned_attachment` (no document links to it any more) → ask whether to delete or link it;
    `naming` (names in `_inbox/`) → propose `rename_document`; `image_location` (image files outside
    `<document name>_img/`) → propose the tool named in `tool` (`rename_document` or `move_images`).
+   Source fidelity: `cross_source_statement` → check the sentence; if no source makes the connection,
+   split it or remove the connection yourself (it is your page), otherwise mark it with
+   `<!-- lint: cross-source ok -->`; `synthesis_unmarked` → add `confidence` and the marker if the page
+   is an own interpretation, otherwise rewrite it so that every statement is a source's.
 4. `finish_maintenance` with `operation: lint`, `lint_report: true` (report to
    `wiki/_lint/YYYY-MM-DD.md`) and a log entry.
 
@@ -354,7 +392,8 @@ First `read_index`, then the relevant pages with `read`, then the answer with re
 wiki pages. When asked, name the citations (`show_citations`; wording of old versions with
 `read` and `version`). Offer good answers as a page below `wiki/syntheses/` (with citations of
 documents, not of wiki pages) and after consent create it with `write_wiki_page` and finish with
-`finish_maintenance` (`operation: fix`).
+`finish_maintenance` (`operation: fix`). Keep to "Source fidelity": what is your own conclusion
+gets `confidence: low` and the line "Own interpretation, not stated in the sources."
 
 ## Flow "adjust the schema"
 
@@ -367,4 +406,5 @@ Do not wait for answers. **Never enter** frontmatter proposals, image fixes, ren
 `questions` into `wiki/_status.md`. Decide conservatively: for unclear filing, duplicates,
 contradictions with newer sources or deleted originals **do nothing risky**, but
 put the question via `questions` of `finish_maintenance` into `wiki/_status.md` and note it in the
-log. Still finish the run with `finish_maintenance`.
+log. Own interpretations are never written in unattended runs; they go into `questions` as well.
+Still finish the run with `finish_maintenance`.
