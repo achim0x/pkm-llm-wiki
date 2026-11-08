@@ -41,6 +41,7 @@ WINDOWS_RESERVED = {
     *(f"lpt{i}" for i in range(1, 10)),
 }
 INVALID_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+SUBTITLE_RE = re.compile(r"\s+[–—-]\s+|:\s+")
 UMLAUTS = {"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue", "ß": "ss", "ẞ": "SS"}
 
 # Classes *********************************************************************
@@ -138,6 +139,20 @@ def slug_words(text: str, max_len: int = 60) -> str:
         cut = s[:max_len + 1].rfind("-")
         s = (s[:cut] if cut >= max_len // 2 else s[:max_len]).rstrip("-")
     return s
+
+
+def title_slug(title: str, max_len: int = 60) -> str:
+    """Short slug for a proposed document name: without subtitle, cut at a word boundary (4.1).
+
+    Args:
+        title: Title, e.g. ``Training from the Back of the Room – 65 Wege …``.
+        max_len: Maximum length (``PKM_SLUG_MAX``).
+
+    Returns:
+        Slug of the text before the first `` – ``, `` - `` or ``: ``, at most ``max_len`` characters.
+    """
+    head = SUBTITLE_RE.split(title, maxsplit=1)[0].strip()
+    return slug_words(head or title, max_len)
 
 
 def fit_stem(stem: str, rest: str) -> str:

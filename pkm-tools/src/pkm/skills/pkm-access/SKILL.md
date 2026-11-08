@@ -158,8 +158,8 @@ original with `edit_document`:
   embedded images separately. Tell the user the size (`text_kb`, limit `max_kb`) and ask whether the document
   should still become that large; **only after explicit confirmation** repeat the same call with
   `confirm_large: true`. Otherwise propose splitting the content into several documents. **Large embedded images** (lint `large_embedded_image`, or `too_large` for a
-  document with little text): offer to store them as files with `fix_images` and `extract: true` (optionally
-  `min_kb`, default 32). After confirmation first without `apply` (show the list `files` and the diff),
+  document with little text): offer to store them as files with `extract_images` (optionally `min_kb`, default
+  32; the same as `fix_images` with `extract: true`). After confirmation first without `apply` (show the list `files` and the diff),
   then with `apply: true`. The bytes and the image names stay, citations stay valid. Frontmatter changes
   (`update_frontmatter`) are not limited by `PKM_MAX_KB`.
 - Errors: `svg_too_complex` (then PNG),

@@ -38,7 +38,7 @@ from .imagelint import check_images, has_image, image_quote
 from .namelint import check_names
 from .parse import Section, body_lines, find_setext
 from .parse import parse as parse_text
-from .paths import case_collisions, is_platform_safe_name
+from .paths import case_collisions, is_platform_safe_name, slugify
 from .schema import (
     DATE_FIELDS,
     KINDS,
@@ -349,25 +349,30 @@ class Linter:  # pylint: disable=too-many-instance-attributes
     def _topics_without_page(self) -> None:
         """Topics that occur in several documents but have no wiki page.
 
-        A tag counts as covered if the file name, title or an alias of any wiki page equals it, or if a topic,
-        entity or synthesis page carries it as its **first** tag (ignoring case; hyphens and spaces count
-        alike). Further tags of a page about another topic do not count.
+        A tag counts as covered if the file name, title or an alias of any wiki page equals it, if a topic,
+        entity or synthesis page carries it as its **first** tag, or if it occurs as whole words in the file
+        name or title of such a page (``sandboxing`` in ``sandboxing-von-ki-agenten``); ignoring case, umlauts
+        spelled out, hyphens and spaces alike. Further tags of a page about another topic do not count.
         """
-        names = set()
+        names: set[str] = set()
+        word_names: list[str] = []
         for page in self.pages:
             names.update({_topic_key(page.stem), _topic_key(page.title)})
             aliases, tags = page.meta.get("aliases"), page.meta.get("tags")
             if isinstance(aliases, list):
                 names.update(_topic_key(str(v)) for v in aliases)
-            if page_type(page) in COVERING_TYPES and isinstance(tags, list) and tags:
-                names.add(_topic_key(str(tags[0])))
+            if page_type(page) in COVERING_TYPES:
+                word_names += [f"-{slugify(page.stem)}-", f"-{slugify(page.title)}-"]
+                if isinstance(tags, list) and tags:
+                    names.add(_topic_key(str(tags[0])))
         topics: Counter[str] = Counter()
         for doc in self.docs:
             t = doc.meta.get("tags")
             if isinstance(t, list):
                 topics.update({str(x).casefold() for x in t})
         for topic, n in sorted(topics.items()):
-            if n >= MIN_TOPIC_DOCUMENTS and _topic_key(topic) not in names:
+            covered = _topic_key(topic) in names or any(f"-{slugify(topic)}-" in w for w in word_names)
+            if n >= MIN_TOPIC_DOCUMENTS and not covered:
                 self.r.add("topic_without_page", "info", None,
                            f"Topic '{topic}' in {n} documents, but without a wiki page.")
 

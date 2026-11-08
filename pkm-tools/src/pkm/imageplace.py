@@ -32,7 +32,6 @@ import re
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
-from urllib.parse import quote, unquote
 
 from . import images
 from .assets import AssetMap
@@ -130,7 +129,7 @@ def _alts(doc: Doc, amap: AssetMap) -> dict[str, str]:
     out: dict[str, str] = {}
     for ref in images.find_images(doc.text or ""):
         path = amap.resolve(doc.rel, ref)
-        if path and ref.alt and path not in out:
+        if path and ref.alt and path not in out and not re.fullmatch(r"\d+(?:x\d+)?", ref.alt.strip()):
             out[path] = ref.alt
     return out
 
@@ -189,60 +188,58 @@ def plan_images(svc: Service, doc: Doc, amap: AssetMap, new_rel: str) -> Placeme
             taken.discard(path.casefold())
             taken.add(to.casefold())
             plan.moves.append({"from": path, "to": to})
-    plan.text, plan.links = relink(doc, amap, plan.moves, new_rel)
+    plan.text, plan.links = relink(doc, amap, plan.moves, new_rel, svc.cfg.images.link_style)
     return plan
 
 
-def _new_link(ref: images.ImageRef, path: str, new_file: str, new_rel: str) -> str | None:
-    """Link to a moved image file, in the form of the old link.
+def _new_image(ref: images.ImageRef, new_file: str, new_rel: str, style: str) -> tuple[str, str]:
+    """Markdown image for a moved file, always in the configured link style (``PKM_LINK_STYLE``, 4.9).
+
+    An Obsidian embed ``![[path|option]]`` becomes a Markdown image ``![option](./…)`` (a width like ``300``
+    as ``![|300](./…)``), because embeds cannot hold a link relative to the document.
 
     Args:
         ref: Image.
-        path: Old path of the file.
         new_file: New path of the file.
         new_rel: New path of the document.
+        style: ``relative`` (default, ``./<document name>_img/…``) or ``absolute``.
 
     Returns:
-        New link as written in the text, or ``None`` if the old link stays valid (Obsidian embed with the
-        bare, unchanged file name).
+        Tuple of (new Markdown text of the image, new link).
     """
-    old = unquote(ref.link.strip("<>"))
-    link: str | None
+    link = images.file_link(new_rel, new_file, style)
     if ref.raw.startswith("![["):
-        same_name = PurePosixPath(path).name == PurePosixPath(new_file).name
-        link = None if "/" not in old and same_name else new_file
-    elif old.lstrip("/") == path:
-        link = ("/" if old.startswith("/") else "") + quote(new_file, safe="/._-~")
+        option = ref.raw[3:-2].split("|", 1)[1] if "|" in ref.raw else ""
+        alt = f"|{option}" if re.fullmatch(r"\d+(?:x\d+)?", option.strip()) else option
+        raw = f"![{alt}]({link})"
     else:
-        link = images.relative_link(new_rel, new_file)
-    return link
+        raw = ref.raw.replace(f"]({ref.link}", f"]({link}", 1)
+    return raw, link
 
 
-def relink(doc: Doc, amap: AssetMap, moves: list[dict[str, str]], new_rel: str) -> tuple[str, list[dict[str, str]]]:
-    """Adjust the links to moved image files (and relative links if the document itself moves).
+def relink(doc: Doc, amap: AssetMap, moves: list[dict[str, str]], new_rel: str,
+           style: str = "relative") -> tuple[str, list[dict[str, str]]]:
+    """Adjust the links to moved image files.
 
     Args:
         doc: Document.
         amap: Links of all documents.
         moves: Moved image files.
         new_rel: New path of the document.
+        style: Link style (``PKM_LINK_STYLE``).
 
     Returns:
         Tuple of (new text, changed links ``{from, to}``).
     """
     text = doc.text or ""
     target_of = {m["from"]: m["to"] for m in moves}
-    moved_doc = PurePosixPath(new_rel).parent != PurePosixPath(doc.rel).parent
     changes: list[dict[str, str]] = []
     for ref in reversed(images.find_images(text)):
         path = None if ref.inline else amap.resolve(doc.rel, ref)
-        if path and (path in target_of or moved_doc):
-            new = _new_link(ref, path, target_of.get(path, path), new_rel)
-            if new is not None and new != ref.link:
-                opener = "[[" if ref.raw.startswith("![[") else "]("
-                raw = ref.raw.replace(f"{opener}{ref.link}", f"{opener}{new}", 1)
-                text = text[:ref.start] + raw + text[ref.end:]
-                changes.insert(0, {"from": ref.link, "to": new})
+        if path and path in target_of:
+            raw, new = _new_image(ref, target_of[path], new_rel, style)
+            text = text[:ref.start] + raw + text[ref.end:]
+            changes.insert(0, {"from": ref.link, "to": new})
     return text, changes
 
 

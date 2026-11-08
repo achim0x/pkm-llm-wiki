@@ -84,7 +84,7 @@ flowchart LR
 | Component | Role |
 |---|---|
 | `pkm-mcp` | MCP server for all chats: search, read, create and continue documents, citations, images |
-| `pkm-maintenance-mcp` | MCP server for the maintenance project: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `finish_maintenance` plus the reading tools |
+| `pkm-maintenance-mcp` | MCP server for the maintenance project: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `extract_images`, `finish_maintenance` plus the reading tools |
 | `pkm` | CLI for setup, checks (`doctor`, `lint`) and troubleshooting; contains the same maintenance building blocks |
 | Skills `pkm-access`, `pkm-wiki` | Instructions for Claude in normal chats and in the maintenance project |
 | Vault | Markdown files in the cloud folder (or a local folder without cloud storage); never contains `.git` or the search index |

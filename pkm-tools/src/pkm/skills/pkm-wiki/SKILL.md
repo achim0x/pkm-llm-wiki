@@ -17,12 +17,13 @@ you need neither a shell nor the CLI `pkm` (there is none in Cowork).
 | `set_document_metadata` | Only after confirmation: enter `title`, `context`, `tags`, `kind`, `short_citation` of a document |
 | `rename_document` | Only after confirmation: rename a new document in `documents/_inbox/` after the naming convention, with its image files |
 | `move_images` | Only after confirmation: move the image files of a document into `<document name>_img/` next to it |
-| `fix_images` | Only after confirmation: fix the notation of nonconforming image data URIs of a document, or with `extract: true` store large embedded images as files |
+| `fix_images` | Only after confirmation: fix the notation of nonconforming image data URIs of a document |
+| `extract_images` | Only after confirmation: store large embedded images of a document as files in `<document name>_img/` (same as `fix_images` with `extract: true`) |
 | `finish_maintenance` | Finish: citations (moved, renamed, `v:` raised for unchanged sections), `sources`, processing state, log, index, status, lint, agent commit |
 
 **Version:** `begin_maintenance` returns `tools_version` (installed pkm-tools). If a tool lacks a
-parameter this skill names (e.g. `extract` of `fix_images`), the client shows an older tool list: tell
-the user the version and to restart Claude Desktop (in Cowork reconnect the computer).
+parameter this skill names, the client shows an older tool list: tell the user the version and to restart
+Claude Desktop (in Cowork reconnect the computer). For storing images as files use `extract_images`.
 
 **Language:** `begin_maintenance` returns the **wiki language** under `wiki_language` (`code`, `name`,
 `summary_label`, `sections`; set during installation, `PKM_LANGUAGE`); the server instructions name it
@@ -140,8 +141,8 @@ Your own wiki pages: if `write_wiki_page` reports `nonconforming_image`, fix it 
 **Storing large embedded images as files (`extract`):** if lint reports `large_embedded_image`, or a
 tool reports `too_large` for a document whose text is small but whose embedded images are large,
 propose to store them as files. Only after **explicit confirmation**, never unattended: `read` →
-`hash` → `fix_images` with `extract: true` (optionally `min_kb`, default 32) without `apply` (check
-the list `files` and the diff) → the same with `apply: true`. The bytes stay unchanged, the images
+`hash` → `extract_images` (optionally `min_kb`, default 32) without `apply` (check the list `files` and
+the diff) → the same with `apply: true`. (`fix_images` with `extract: true` does the same.) The bytes stay unchanged, the images
 keep their names, citations `[img:<name>]` stay valid. In the next run the document has
 `image_notation_only: true`: process nothing, only list it in `processed`.
 
@@ -320,7 +321,7 @@ Conflict copies of the cloud storage are never processed; the user merges them i
    data URIs"), contradictions in content, merging pages, new
    pages, duplicate IDs, citations with `newer_version` that could not be raised
    automatically, hints on documents (you do not touch `documents/`). Image hints (all `info`):
-   `large_embedded_image` → propose `fix_images` with `extract`; `generic_alt_text` (alt text like
+   `large_embedded_image` → propose `extract_images`; `generic_alt_text` (alt text like
    "Image", "Bild" or a file name) → propose a description after viewing the image; `duplicate_image`
    (same image at several paths) → propose to link one file and delete the others;
    `orphaned_attachment` (no document links to it any more) → ask whether to delete or link it;

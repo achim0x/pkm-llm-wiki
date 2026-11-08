@@ -91,8 +91,8 @@ def test_begin_maintenance_proposes_name(svc, cfg):
     assert proposal["images_moved"] == [{"from": "documents/_attachments/logo.png", "to": f"{img}/logo.png"},
                                         {"from": f"{INBOX}/Meeting Notes_files/foto.png", "to": f"{img}/foto.png"},
                                         {"from": f"{INBOX}/Meeting Notes_files/skizze.png", "to": f"{img}/skizze.png"}]
-    assert [c["to"] for c in proposal["links"]] == ["./projekt-uebergabe_2026-11-03_img/skizze.png", f"{img}/foto.png",
-                                                    "./projekt-uebergabe_2026-11-03_img/logo.png"]
+    assert [c["to"] for c in proposal["links"]] == [f"./projekt-uebergabe_2026-11-03_img/{n}.png"
+                                                    for n in ("skizze", "foto", "logo")]
     assert proposal["kept"] == []
     assert "text" not in proposal
     maintrun.finish_maintenance(svc, "- nothing processed")
@@ -114,7 +114,7 @@ def test_rename_proposal_and_apply(svc, cfg, isolated_env):
     assert not (cfg.root / DOC).exists() and not (cfg.root / INBOX / "Meeting Notes_files").exists()
     text = (cfg.root / new).read_text(encoding="utf-8")
     assert "![Skizze](./projekt-uebergabe_2026-11-03_img/skizze.png)" in text
-    assert f"![[{INBOX}/projekt-uebergabe_2026-11-03_img/foto.png]]" in text
+    assert "![](./projekt-uebergabe_2026-11-03_img/foto.png)" in text  # embed becomes a relative Markdown image
     assert "![Logo](./projekt-uebergabe_2026-11-03_img/logo.png)" in text  # only this document used it
     assert (cfg.root / INBOX / "projekt-uebergabe_2026-11-03_img/foto.png").exists()
     assert git(isolated_env, "status", "--porcelain", "--", "documents/_inbox").strip() == ""
@@ -279,6 +279,52 @@ def test_move_images_from_attachments(svc, cfg):
     text = (cfg.root / "documents/KI/sandbox.md").read_text(encoding="utf-8")
     assert "![Schema](./sandbox_img/schema.png)" in text and "../_attachments/shared.png" in text
     assert (cfg.root / "documents/_attachments").is_dir()  # the old folder itself stays
+
+
+def test_default_name_without_subtitle(svc):
+    """R1: the proposal without name drops the subtitle and stays short."""
+    write(svc.cfg, f"{INBOX}/Training.md", "---\ntitle: Training from the Back of the Room – 65 Wege, in Trainings "
+          "Raum fürs Lernen zu schaffen\ndate_markdown: 2026-11-07T10:00:00\n---\n\nText.\n")
+    begin = maintrun.begin_maintenance(svc)
+    entry = next(e for e in begin["pending"]["new"] if e["path"] == f"{INBOX}/Training.md")
+    assert entry["rename"]["to"] == f"{INBOX}/training-from-the-back-of-the-room_2026-11-07.md"
+
+
+def test_title_slug_limits():
+    """Subtitles after ' – ', ' - ' or ': ' are dropped; long titles are cut at a word boundary."""
+    from pkm.paths import title_slug  # pylint: disable=import-outside-toplevel
+    assert title_slug("Zisterne: Überlaufsensor") == "zisterne"
+    assert title_slug("Teil A - Teil B") == "teil-a"
+    assert title_slug("KI-Agenten im Alltag") == "ki-agenten-im-alltag"
+    slug = title_slug("eins zwei drei vier fuenf sechs sieben acht neun zehn elf zwoelf dreizehn", 30)
+    assert len(slug) <= 30 and not slug.endswith("-") and slug == "eins-zwei-drei-vier-fuenf"
+
+
+def test_move_images_always_relative_links(svc, cfg):
+    """R2: move_images writes ./<document name>_img/… for Obsidian embeds and vault paths alike."""
+    for n in (1, 2, 3):
+        _png(svc, f"documents/Softskills/images_x/IMG_00{n}.png", 2 + n)
+    write(cfg, "documents/Softskills/Encyclopedia.md", "---\ntitle: Encyclopedia\ndate_markdown: 2026-11-04T09:00:00\n"
+          "---\n\n## A\n![[images_x/IMG_001.png]]\n\n![The four workshop phases](documents/Softskills/images_x/"
+          "IMG_002.png)\n\n![[images_x/IMG_003.png|300]]\n")
+    maintrun.begin_maintenance(svc)
+    doc = svc.read("documents/Softskills/Encyclopedia.md")
+    prop = maintrun.move_images(svc, "documents/Softskills/Encyclopedia.md", doc["hash"])
+    assert all(c["to"].startswith("./Encyclopedia_img/") for c in prop["links"]), prop["links"]
+    assert "./Encyclopedia_img/the-four-workshop-phases_2026-11-04.png" in [c["to"] for c in prop["links"]]
+    res = maintrun.move_images(svc, "documents/Softskills/Encyclopedia.md", doc["hash"], apply=True)
+    text = (cfg.root / "documents/Softskills/Encyclopedia.md").read_text(encoding="utf-8")
+    assert "![|300](./Encyclopedia_img/IMG_003.png)" in text and "![[" not in text
+    assert res["status"] == "moved"
+
+
+def test_extract_images_tool_in_both_servers():
+    """R3: extract_images is offered by both servers with min_kb and apply."""
+    from pkm import mcp_server  # pylint: disable=import-outside-toplevel
+    for mod in (mcp_server, maintenance_server):
+        tool = next(t for t in asyncio.run(mod.build_server("en").list_tools()) if t.name == "extract_images")
+        schema = getattr(tool, "inputSchema", None) or getattr(tool, "input_schema", {})
+        assert {"target", "expected_hash", "min_kb", "apply"} <= set(schema["properties"])
 
 
 # Main ************************************************************************

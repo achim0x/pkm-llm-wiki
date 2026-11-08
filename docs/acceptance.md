@@ -357,6 +357,10 @@ pkm lint --report
 | Bildorte | Dokument mit Bildern in `documents/_attachments/`; Lint, dann `move_images` | `image_location`; nach Bestätigung Bilder in `<Dokumentname>_img/`, gemeinsam genutzte Dateien bleiben; Folgelauf `image_notation_only` mit `images_moved` | ☐ |
 | Bilder von Hand verschieben | Bilder eines Dokuments in Obsidian nach `<Dokumentname>_img/` verschieben, Links anpassen, Pflegelauf | `changed` mit `image_notation_only: true`, `images_moved`, `images_changed` leer | ☐ |
 | Tag-Abdeckung | Tag `docker` nur als weiteres Tag einer Seite zu einem anderen Thema | `topic_without_page` für `docker` | ☐ |
+| Kurzer Namensvorschlag | Dokument mit Titel „Training from the Back of the Room – 65 Wege …“ im Eingang | Vorschlag `training-from-the-back-of-the-room_<datum>.md` | ☐ |
+| Relative Links beim Umzug | `move_images` ohne `apply` an der Enzyklopädie | `links[].to` nur `./<Dokumentname>_img/…` | ☐ |
+| `extract_images` | Tool-Liste in Cowork neu laden | `extract_images` mit `min_kb` und `apply` sichtbar | ☐ |
+| Tag im Seitennamen | `sandboxing` mit Seite `sandboxing-von-ki-agenten` | kein `topic_without_page` für `sandboxing`, weiter für `docker`, `lxc`, `proxmox` | ☐ |
 | Dateinamen und Links | `extract` an einem Dokument mit `date_markdown` | Vorschlag nennt die echten Namen, Datum aus `date_markdown`, an Wortgrenzen gekürzt; Links relativ zum Dokument | ☐ |
 
 **Dokumentsprache:**

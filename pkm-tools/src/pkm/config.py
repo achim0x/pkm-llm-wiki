@@ -40,6 +40,7 @@ from .errors import PkmError
 
 DEFAULT_AUTHOR = "pkm-mcp <pkm@localhost>"
 DEFAULT_MAX_KB = 200
+DEFAULT_SLUG_MAX = 60  # PKM_SLUG_MAX: name part of proposed document names
 DEFAULT_TZ = "Europe/Berlin"
 IMPORT_FOLDER = "pkm_img_import"
 CONFIG_FILE = "config.toml"
@@ -55,7 +56,7 @@ DOC_LANGUAGES = {
 }
 CONFIG_KEYS = (
     "PKM_ROOT", "PKM_VAULT_NAME", "PKM_LANGUAGE", "PKM_VERSIONING", "PKM_GIT", "PKM_GIT_DIR", "PKM_CACHE_DIR",
-    "PKM_TZ", "PKM_MAX_KB", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
+    "PKM_TZ", "PKM_MAX_KB", "PKM_SLUG_MAX", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
     "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_SVG_RASTER", "PKM_LINK_STYLE",
 )
 WIKI_SECTIONS = {
@@ -161,6 +162,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
         language: Main language of documents created in chat and of the wiki, ``en`` or ``de``
             (``PKM_LANGUAGE``).
         config_file: Configuration file that was read, or ``None``.
+        slug_max: Maximum length of the name part of proposed document names (``PKM_SLUG_MAX``, 4.1).
     """
 
     root: Path
@@ -175,6 +177,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
     git_exe: str = "git"
     language: str = DEFAULT_LANGUAGE
     config_file: Path | None = None
+    slug_max: int = DEFAULT_SLUG_MAX
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None, search_from: Path | None = None) -> Config:
@@ -210,8 +213,9 @@ class Config:  # pylint: disable=too-many-instance-attributes
             raise PkmError("config_error", f"Invalid time zone PKM_TZ: {exc}") from exc
         try:
             max_kb = int(env.get("PKM_MAX_KB") or DEFAULT_MAX_KB)
+            slug_max = max(10, int(env.get("PKM_SLUG_MAX") or DEFAULT_SLUG_MAX))
         except ValueError as exc:
-            raise PkmError("config_error", "PKM_MAX_KB must be an integer.") from exc
+            raise PkmError("config_error", "PKM_MAX_KB and PKM_SLUG_MAX must be integers.") from exc
         return cls(
             root=root.resolve(),
             git_dir=git_dir.resolve(),
@@ -225,6 +229,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
             git_exe=env.get("PKM_GIT") or find_git() or "git",
             language=parse_language(env.get("PKM_LANGUAGE")),
             config_file=config_path if file_values else None,
+            slug_max=slug_max,
         )
 
     # Derived paths ************************************************************

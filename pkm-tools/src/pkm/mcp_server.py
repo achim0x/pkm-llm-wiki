@@ -328,6 +328,17 @@ def _register_write_tools(server: Server) -> None:
                     note=note, source="chat", extract=extract, min_kb=min_kb)
 
     @server.tool()
+    def extract_images(target: str, expected_hash: str, min_kb: int = 32, apply: bool = False,
+                       note: str | None = None) -> dict:
+        """Store large embedded raster images of a document in documents/ as files in <document name>_img/ next
+        to it (bytes unchanged, links ./<document name>_img/…, PKM-Fix: images-extract); same as fix_images with
+        extract=true. Offer it for too_large or lint large_embedded_image. min_kb: only images of at least this
+        size. Without apply only a proposal (files, diff); apply=true only after explicit confirmation."""
+        return call("extract_images", Service.fix_images, target=target, expected_hash=expected_hash,
+                    images_only=None, image_alt=None, apply=apply, confirm_shortening=False, note=note,
+                    source="chat", extract=True, min_kb=min_kb)
+
+    @server.tool()
     def update_frontmatter(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str,
         expected_hash: str,

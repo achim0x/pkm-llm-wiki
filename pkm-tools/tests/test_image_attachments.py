@@ -524,4 +524,18 @@ def test_moved_image_files_are_notation_only(svc):
                                      "to": f"documents/KI/sandbox_img/bild-{n}.png"} for n in range(3)]
 
 
+def test_topic_covered_by_whole_word_in_name_or_title(svc):
+    """R4: 'sandboxing' is covered by the page sandboxing-von-ki-agenten; docker and lxc still reported."""
+    for n in range(3):
+        _doc(svc, f"documents/ki/e{n}.md", "## A\nText\n", doc_id=f"d-20261106-1300-abc{'defg'[n]}")
+        path = svc.cfg.root / f"documents/ki/e{n}.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "version: 1\n", "version: 1\ntags: [sandboxing, docker, lxc]\n"), encoding="utf-8")
+    write(svc.cfg, "wiki/topics/sandboxing-von-ki-agenten.md", "---\ntype: topic\ntitle: Sandboxing von KI-Agenten\n"
+          "tags: [ki-agenten, sandboxing, docker]\n---\n\n> **Summary:** S\n")
+    topics = [f["message"] for f in lint(svc)["findings"] if f["check"] == "topic_without_page"]
+    assert not any("'sandboxing'" in t for t in topics), topics
+    assert any("'docker'" in t for t in topics) and any("'lxc'" in t for t in topics)
+
+
 # Main ************************************************************************

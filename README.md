@@ -222,8 +222,8 @@ flowchart LR
 
 | Component | Role |
 |---|---|
-| **pkm-mcp** | MCP server for Claude Desktop. 15 tools for searching, reading, filing, continuing, for images, the history and the citations. |
-| **pkm-maintenance-mcp** | MCP server for wiki maintenance from Claude Desktop or Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `finish_maintenance` plus the reading tools. Writes to `wiki/` and `.pkm/state.json`; on documents only IDs and – after your confirmation – `title`, `context`, `tags`, `kind`, `short_citation`. Enable it only in maintenance conversations. |
+| **pkm-mcp** | MCP server for Claude Desktop. 16 tools for searching, reading, filing, continuing, for images, the history and the citations. |
+| **pkm-maintenance-mcp** | MCP server for wiki maintenance from Claude Desktop or Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `extract_images`, `finish_maintenance` plus the reading tools. Writes to `wiki/` and `.pkm/state.json`; on documents only IDs and – after your confirmation – `title`, `context`, `tags`, `kind`, `short_citation`. Enable it only in maintenance conversations. |
 | **pkm** | Command line for setup (`pkm setup`), checks and troubleshooting (the same maintenance commands, one by one). |
 | **Skill `pkm-access`** | Tells Claude in normal chats when and how to use the tools, e.g. "always a draft first". |
 | **Skill `pkm-wiki`** | Rules and flows for the maintenance agent in the project "PKM Maintenance". |
@@ -849,8 +849,8 @@ flowchart LR
 
 | Komponente | Rolle |
 |---|---|
-| **pkm-mcp** | MCP-Server für Claude Desktop. 15 Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für Bilder, den Verlauf und die Belege. |
-| **pkm-maintenance-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `finish_maintenance` plus die lesenden Tools. Schreibt in `wiki/` und `.pkm/state.json`, an Dokumenten nur IDs und – nach deiner Bestätigung – `title`, `context`, `tags`, `kind`, `short_citation`; nur in Pflege-Unterhaltungen einschalten. |
+| **pkm-mcp** | MCP-Server für Claude Desktop. 16 Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für Bilder, den Verlauf und die Belege. |
+| **pkm-maintenance-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `extract_images`, `finish_maintenance` plus die lesenden Tools. Schreibt in `wiki/` und `.pkm/state.json`, an Dokumenten nur IDs und – nach deiner Bestätigung – `title`, `context`, `tags`, `kind`, `short_citation`; nur in Pflege-Unterhaltungen einschalten. |
 | **pkm** | Kommandozeile für Einrichtung (`pkm setup`), Prüfung und Fehlersuche (dieselben Pflege-Befehle, einzeln). |
 | **Skill `pkm-access`** | Sagt Claude in normalen Chats, wann und wie die Tools zu nutzen sind, z. B. „immer erst ein Entwurf“. |
 | **Skill `pkm-wiki`** | Regeln und Abläufe für den Pflege-Agenten im Projekt „PKM Maintenance“. |

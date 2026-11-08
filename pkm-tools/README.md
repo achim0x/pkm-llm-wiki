@@ -36,7 +36,8 @@ pending with `missing_fields`, `known_tags`, fix-citations), `set_document_metad
 `context`, `tags`, `kind`, `short_citation` after confirmation; new version with `PKM-Source: agent`),
 `rename_document` (after confirmation: a new document in `documents/_inbox/` named `<slug>_YYYY-MM-DD.md`,
 its image files move into `<name>_img/`, generic names from the alt text, links adjusted),
-`move_images` (after confirmation: image files of a document into `<document name>_img/`),
+`move_images` (after confirmation: image files of a document into `<document name>_img/`, links always
+`./<document name>_img/…`), `extract_images` (same as `fix_images` with `extract: true`),
 `write_wiki_page` (only `wiki/topics|entities|summaries|syntheses/`, with
 `expected_hash`, without commit) and `finish_maintenance` (fix-/sync-citations, mark with the pages
 determined from the citations, raise citations of unchanged sections to the new version, log, index,

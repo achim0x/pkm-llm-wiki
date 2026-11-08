@@ -115,6 +115,20 @@ PNGs).
 - **`CLAUDE.md` template:** naming rules for files, folders and image files; the first line of a wiki
   page follows the wiki language (`> **Kurzfassung:** …` in German).
 
+### After the third test run (review of 8 November 2026, afternoon)
+
+- **Shorter name proposals:** without `name`, `rename_document` and lint `naming` drop the subtitle
+  (text after ` – `, ` - ` or `: `) and cut the name at a word boundary to `PKM_SLUG_MAX` characters
+  (new option, default 60): `training-from-the-back-of-the-room_2026-11-07.md`.
+- **Always relative image links when moving:** `move_images` and `rename_document` write
+  `./<document name>_img/…` (the configured `PKM_LINK_STYLE`) whatever the old link looked like;
+  Obsidian embeds `![[…]]` become Markdown images (`![[x.png|300]]` → `![|300](./…)`).
+- **New tool `extract_images`** in both servers: the same as `fix_images` with `extract: true`.
+  Clients keep a cached schema of a known tool, so `extract`/`min_kb` of `fix_images` may stay
+  invisible; a new tool name always shows its full schema.
+- **`topic_without_page`:** a tag also counts as covered if it occurs as whole words in the file name or
+  title of a topic, entity or synthesis page (`sandboxing` in `sandboxing-von-ki-agenten`).
+
 ### Showing the installed version
 
 - `pkm --version` prints the installed version (`pkm-tools 0.3.0`). `pkm setup` prints it as its

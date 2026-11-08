@@ -110,6 +110,17 @@ def _register_maintenance_tools(server: Server) -> None:
         return call("move_images", maintrun.move_images, target=target, expected_hash=expected_hash, apply=apply)
 
     @server.tool()
+    def extract_images(target: str, expected_hash: str, min_kb: int = 32, apply: bool = False) -> dict:
+        """Only after explicit confirmation by the user, never unattended: store large embedded raster images of a
+        document in documents/ as files in <document name>_img/ next to it (bytes unchanged, links
+        ./<document name>_img/…, PKM-Fix: images-extract); same as fix_images with extract=true, e.g. for lint
+        large_embedded_image. min_kb: only images of at least this size. Without apply only a proposal (files,
+        diff); apply=true writes a new version (next run: image_notation_only)."""
+        return call("extract_images", maintrun.fix_document_images, target=target, expected_hash=expected_hash,
+                    images_only=None, image_alt=None, apply=apply, confirm_shortening=False, note=None,
+                    extract=True, min_kb=min_kb)
+
+    @server.tool()
     def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str,
         expected_hash: str,

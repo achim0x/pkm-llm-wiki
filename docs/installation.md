@@ -311,7 +311,7 @@ specification.
 | Problem | Check |
 |---|---|
 | Which version is installed? | `pkm --version`; `pkm setup` prints it as its first line and `pkm doctor` reports it as `version` (also seen in `begin_maintenance`). `uv tool list` shows the version uv installed (with an editable install it can be outdated) |
-| New tool parameters are missing after an update (e.g. `extract` in `fix_images`) | The client still shows the old tool list: quit Claude Desktop completely and start it again; in Cowork also reconnect the computer. If that does not help, the client starts another installation: compare `tools_version` from `begin_maintenance` with `pkm --version` and check the command of the entries `pkm` and `pkm-maintenance` in `claude_desktop_config.json` (e.g. an old `pkm-pflege-mcp` or a second virtual environment); `pkm setup` writes the entries anew |
+| New tool parameters are missing after an update (e.g. `extract` in `fix_images`) | Use the tool `extract_images` instead (same function, new name). Otherwise the client still shows the old tool list: quit Claude Desktop completely and start it again; in Cowork also reconnect the computer. If that does not help, the client starts another installation: compare `tools_version` from `begin_maintenance` with `pkm --version` and check the command of the entries `pkm` and `pkm-maintenance` in `claude_desktop_config.json` (e.g. an old `pkm-pflege-mcp` or a second virtual environment); `pkm setup` writes the entries anew |
 | Tools do not appear in Claude Desktop | Run `pkm setup` again (it enters the servers), quit Claude Desktop completely and restart it, log of Claude Desktop |
 | `git_unavailable` | `pkm doctor`: Git found, repo present, identity set. Git uninstalled? Run `pkm setup` again (turns version control off) |
 | `not_versioned` for `history`/`restore_document` | Version control is off (no Git) or the file is in `scratch/` |
@@ -451,7 +451,8 @@ PKM_LANGUAGE = "en"
 - `PKM_LANGUAGE`: main language of documents created in chat and of the wiki, `"en"` (English,
   default) or `"de"` (German).
 - Further optional keys: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (both never in a cloud folder), `PKM_TZ`,
-  `PKM_MAX_KB` (200, text without embedded images), `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`,
+  `PKM_MAX_KB` (200, text without embedded images), `PKM_SLUG_MAX` (60, name part of proposed
+  document names), `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`,
   `PKM_LINK_STYLE` (`relative` (default, relative to the document) or `absolute`
   links to image files), `PKM_INLINE_MAX_KB` (24), `PKM_SVG_MAX_KB` (200),
   `PKM_IMAGE_MAX_MB` (5), `PKM_IMAGE_PARAM_MAX_KB` (512), `PKM_SVG_RASTER` (`false`; to rasterize SVG
