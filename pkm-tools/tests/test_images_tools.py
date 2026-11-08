@@ -83,7 +83,7 @@ def test_large_png_becomes_file_in_same_commit(isolated_env, monkeypatch):
     assert path.startswith("documents/_attachments/foto_") and path.endswith(".png")
     assert (cfg.root / path).read_bytes() == base64.b64decode(PNG_B64)
     raw = (cfg.root / res["path"]).read_text(encoding="utf-8")
-    assert "](documents/_attachments/foto_" in raw  # link style absolute (like Obsidian, PKM_LINK_STYLE)
+    assert "](../_attachments/foto_" in raw  # links relative to the document (PKM_LINK_STYLE)
     assert sorted(git(isolated_env, "show", "--name-only", "--format=", "HEAD").split()) == sorted([res["path"], path])
     data = svc.read_image(res["path"], "foto")
     assert data["mode"] == "file" and data["data"] == base64.b64decode(PNG_B64)

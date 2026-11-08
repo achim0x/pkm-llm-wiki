@@ -274,14 +274,13 @@ def link_target(ref: ImageRef, doc_rel: str) -> str | None:
     return target
 
 
-def file_link(doc_rel: str, file_rel: str, style: str = "absolute") -> str:
+def file_link(doc_rel: str, file_rel: str, style: str = "relative") -> str:
     """Markdown link from a document to a file, in the configured link style (``PKM_LINK_STYLE``).
 
     Args:
         doc_rel: Path of the document.
         file_rel: Path of the file in the vault.
-        style: ``absolute`` (path from the vault root, like Obsidian's "absolute path in vault") or
-            ``relative`` (relative to the document).
+        style: ``relative`` (relative to the document, default) or ``absolute`` (path from the vault root).
 
     Returns:
         The link, spaces and special characters encoded.

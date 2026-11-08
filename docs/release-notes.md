@@ -74,8 +74,8 @@ PNGs).
 - **File names of image files:** from the alt text, cut at a word boundary (at most 60 characters),
   dated with `date_markdown` of the document; the proposal already shows the real name. Image names
   and citations do not change.
-- **Link style:** new option `PKM_LINK_STYLE` (`absolute` or `relative`); by default like Obsidian's
-  "New link format" (`absolute`, as set by `pkm init`), so tools and imports write the same style.
+- **Link style:** new option `PKM_LINK_STYLE` (`relative` or `absolute`); image links stay relative
+  to the Markdown document by default, `absolute` writes paths from the vault root.
   `read_image` also finds images linked with a vault path or Obsidian's shortest path.
 - **Tool lists:** if a client still shows a tool without its new parameters (e.g. `extract`), it
   shows a cached list: quit and restart Claude Desktop (in Cowork reconnect the computer).

@@ -470,29 +470,30 @@ def test_extract_file_names(svc):
 
 
 def test_link_style(isolated_env, monkeypatch):
-    """Image links follow PKM_LINK_STYLE or Obsidian's new link format; read_image finds vault paths."""
+    """Image links are relative to the document by default; PKM_LINK_STYLE=absolute writes vault paths.
+
+    read_image finds images linked either way.
+    """
     del isolated_env
     monkeypatch.setenv("PKM_INLINE_MAX_KB", "0")
     cfg = Config.from_env()
-    init_vault(cfg)  # writes newLinkFormat: absolute
-    assert Config.from_env().images.link_style == "absolute"
+    init_vault(cfg)
+    assert cfg.images.link_style == "relative"
     png = base64.b64encode(make_png(4, 4, text=False)).decode()
     svc = Service(cfg)
     res = svc.create_document(title="A", content="{{image:pic}}",
                               images=[{"name": "pic", "alt": "Pic", "png_base64": png}])
-    assert f"]({res['images'][0]['path']} " in (cfg.root / res["path"]).read_text(encoding="utf-8")
-    assert svc.read_image(res["path"], "pic")["data"] == base64.b64decode(png)
-    app = cfg.root / ".obsidian" / "app.json"
-    app.write_text(app.read_text(encoding="utf-8").replace('"absolute"', '"relative"'), encoding="utf-8")
-    assert Config.from_env().images.link_style == "relative"
+    assert "](../_attachments/pic_" in (cfg.root / res["path"]).read_text(encoding="utf-8")
     monkeypatch.setenv("PKM_LINK_STYLE", "absolute")
-    assert Config.from_env().images.link_style == "absolute"
-    monkeypatch.setenv("PKM_LINK_STYLE", "relative")
     svc = Service(Config.from_env())
     png2 = base64.b64encode(make_png(5, 5, text=False)).decode()
     res = svc.create_document(title="B", content="{{image:pic}}",
                               images=[{"name": "pic", "alt": "Pic", "png_base64": png2}])
-    assert "](../_attachments/pic-2_" in (cfg.root / res["path"]).read_text(encoding="utf-8")
+    assert f"]({res['images'][0]['path']} " in (cfg.root / res["path"]).read_text(encoding="utf-8")
+    assert svc.read_image(res["path"], "pic")["data"] == base64.b64decode(png2)
+    monkeypatch.setenv("PKM_LINK_STYLE", "elsewhere")
+    with pytest.raises(PkmError):
+        Config.from_env()
 
 
 # Main ************************************************************************
