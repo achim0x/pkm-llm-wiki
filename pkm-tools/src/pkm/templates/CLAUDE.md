@@ -8,7 +8,7 @@ the user's consent.
 
 | Area | Owned by | Who writes |
 |---|---|---|
-| `documents/` (incl. `_inbox/`) | user | user (Obsidian), pkm-mcp on the user's instruction; the agent `id`/`version` via `pkm ids`/`pkm versions` as well as `title`, `context`, `tags`, `kind`, `short_citation` and the name of new documents in `_inbox/` (with their image folder) after the user's confirmation; after confirmation also moving image files into `<document name>_img/` |
+| `documents/` (incl. `_inbox/`) | user | user (Obsidian), pkm-mcp on the user's instruction; the agent `id`/`version` via `pkm ids`/`pkm versions` as well as `title`, `context`, `tags`, `kind`, `short_citation`, `ip_addresses` and the name of new documents in `_inbox/` (with their image folder) after the user's confirmation; after confirmation also moving image files into `<document name>_img/` |
 | `wiki/` | maintenance agent | the agent only; read-only from chats |
 | `scratch/` | user | user (Obsidian), pkm-mcp on instruction; without version and commit, never in the wiki, not in Git |
 | `.pkm/state.json` | maintenance agent | `pkm mark` |
@@ -31,7 +31,10 @@ move it); the agent proposes that.
 - Further fields (schema of the digitized standards, first in this order): `title`,
   `short_citation`, `date_document`, `status_markdown`, `date_markdown`, `toolchain_markdown`;
   then `id`, `version`, `date_updated`, `context`, `tags`, `related`,
-  `kind` (`note` | `standard` | `regulation` | `correction`).
+  `kind` (`note` | `standard` | `regulation` | `correction`), `ip_addresses` (`placeholder` |
+  `concrete`: whether the IP addresses in the document are placeholders or concrete addresses; set only
+  after the user's answer; missing with IP addresses in the text = unclassified, nothing is derived
+  from them).
 - `id`, `version`, `date_markdown`, `date_updated` are set only by pkm-mcp or the `pkm` CLI.
   `status_markdown` is taken over unchanged and changed by no tool.
 - `context`: one line "<kind>: <content>" (kind: chat, podcast, book, article, research, note).

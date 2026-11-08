@@ -25,13 +25,33 @@ correctly cited statements from different documents into a new claim that no sou
 - **New lint check `synthesis_unmarked`** (info): synthesis page without `confidence` or without the
   marker for an own interpretation.
 - **`finish_maintenance`** returns these findings for the pages changed in the run as `cross_source`.
+- Lines without a statement of their own (e.g. "Sources: [^b1] [^b2]" below a table) are not reported;
+  the skill asks for the citation in the table row it supports.
+
+### IP addresses: ask, then follow the answer
+
+- **New frontmatter field `ip_addresses`** (`placeholder` | `concrete`): whether the IP addresses in a
+  document are placeholders or concrete. Set only after the user's answer, via
+  `set_document_metadata` (other values are `invalid_argument`).
+- **`begin_maintenance`** marks new documents with IP addresses, and changed ones whose addresses
+  changed, with `ip_addresses: {found, classification}` (IPv4/IPv6, at most 20; `classification`
+  `null` = unclassified).
+- **Skill `pkm-wiki`:** the agent asks in the report (unattended: via `questions`) and proposes the
+  field. Until the answer and for `placeholder` nothing is derived from IP addresses; a contradiction
+  about IP addresses only between two `concrete` documents about the same host or network. IP
+  addresses in `documents/` are never changed.
+- **Lint:** `ip_addresses_unclassified` (document with IP addresses without the field) and
+  `ip_comparison` (contradiction entry with an IP address between documents that are not both
+  `concrete`), both `info`.
 
 ### Upgrading from V0.3.0
 
 1. Run the installer again.
 2. In `pkm setup`, let it update `CLAUDE.md` (or merge `CLAUDE.md.new`).
 3. Upload the new skill ZIP `pkm-wiki` in Claude Desktop and restart it.
-4. Run a lint and check the `cross_source_statement` and `synthesis_unmarked` hints on existing pages.
+4. Upload the skill ZIP `pkm-access` as well (field `ip_addresses`).
+5. Run a lint and check the `cross_source_statement`, `synthesis_unmarked`, `ip_addresses_unclassified`
+   and `ip_comparison` hints on existing pages and documents.
 
 ## V0.3.0
 

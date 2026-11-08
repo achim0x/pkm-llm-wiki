@@ -367,6 +367,10 @@ pkm lint --report
 | Quellentreue im Ingest | Zwei Dokumente verschiedener Autoren zu verwandten Themen ingestieren | Keine Aussage, die beide ohne Quelle verbindet; der Bericht nennt die geprüften quellenübergreifenden Sätze | ☐ |
 | Lint `cross_source_statement` | Seite mit Eintrag unter „Widersprüche / offene Fragen“, der Dokument A und B belegt; derselbe Eintrag unter „Inhalt“; zwei Belege desselben Dokuments; mit `<!-- lint: cross-source ok -->` | Warnung; Hinweis; keine Meldung; keine Meldung | ☐ |
 | `synthesis_unmarked` | Syntheseseite ohne „Eigene Einordnung“ | Hinweis | ☐ |
+| Reine Quellenzeile | Zeile „Quellen: [^b1] [^b2]“ mit Belegen aus zwei Dokumenten; Tabelle mit Fußnoten aus zwei Dokumenten in verschiedenen Zeilen | keine Meldung | ☐ |
+| IP-Adressen fragen | Neues Dokument mit IP-Adressen ohne Feld ingestieren | Bericht mit den gefundenen Adressen, der Frage und dem YAML-Vorschlag; kein IP-Vergleich im Wiki | ☐ |
+| IP-Antwort festhalten | Antwort „Platzhalter“, dann Folgelauf | `ip_addresses: placeholder` per `set_document_metadata`; keine erneute Frage | ☐ |
+| IP-Widerspruch | Zwei `concrete`-Dokumente mit derselben IP für verschiedene Hosts; dann eines `placeholder` | Eintrag unter „Widersprüche / offene Fragen“ zulässig, kein `ip_comparison`; danach `ip_comparison` und kein Eintrag | ☐ |
 | Belege nach Umbenennen | `rename_document` mit `apply` (Bilder verschoben, Links geändert), Pflegelauf mit dem Dokument in `processed` | Alle Belege auf der neuen Version, geänderte Abschnitte mit neuem `sha` (`sha_changed: true`), Lint ohne `citation_newer_version` | ☐ |
 | Datei zu nichtssagendem Alternativtext | Lint an der Enzyklopädie, dann `move_images` ohne `apply` | Jeder `generic_alt_text`-Befund mit `file` und `section`; die Dateien mit `file_keeps_generic_name: true` sind genau `generic_names_kept`; `IMG_020` mit `name_from_other_link: true`; `alt_texts` mit `image-2` als Schlüssel funktioniert | ☐ |
 | Dateinamen und Links | `extract` an einem Dokument mit `date_markdown` | Vorschlag nennt die echten Namen, Datum aus `date_markdown`, an Wortgrenzen gekürzt; Links relativ zum Dokument | ☐ |

@@ -42,6 +42,7 @@ from .frontmatter import set_fields_linewise
 from .ids import is_valid_id
 from .imageplace import move_images as move_document_images
 from .inboxnames import add_rename_proposals, rename_inbox_document
+from .ipaddrs import IP_CLASSES, IP_FIELD, classification, find_ips
 from .lint import lint, write_report
 from .maint import Maintenance, page_ref
 from .paths import is_platform_safe_name, safe_resolve
@@ -58,7 +59,7 @@ if TYPE_CHECKING:
 WRITABLE_DIRS = ("wiki/topics/", "wiki/entities/", "wiki/summaries/", "wiki/syntheses/")
 LOG_PATH = "wiki/log.md"
 OPERATIONS = ("ingest", "lint", "fix")
-METADATA_FIELDS = ("title", "context", "tags", "kind", "short_citation")
+METADATA_FIELDS = ("title", "context", "tags", "kind", "short_citation", "ip_addresses")
 SUGGESTED_FIELDS = ("title", "context", "tags", "kind")
 
 # Classes *********************************************************************
@@ -89,6 +90,7 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
         pend = maint.pending()
         add_missing_fields(svc, pend["new"])
         add_rename_proposals(svc, pend["new"])
+        add_ip_addresses(svc, pend)
         fixed = fix_citations(svc) if pend["moved"] else None
         result = {
             "status": "needs_decision" if ids["duplicates"] else "ok",
@@ -145,6 +147,34 @@ def add_missing_fields(svc: Service, new_docs: list[dict[str, Any]]) -> None:
             entry["missing_fields"] = [f for f in SUGGESTED_FIELDS if _empty(meta.get(f))]
 
 
+def add_ip_addresses(svc: Service, pend: dict[str, Any]) -> None:
+    """Add ``ip_addresses`` (``found``, ``classification``) to new and changed Markdown documents (9.5).
+
+    New documents get it if they contain IP addresses, changed ones only if the addresses changed since the
+    processed version.
+
+    Args:
+        svc: Service.
+        pend: Result of ``pending`` (entries are added to).
+    """
+    for category in ("new", "changed"):
+        for entry in pend.get(category, []):
+            rel = str(entry.get("path") or "")
+            if not rel.lower().endswith(".md") or not svc.vault.exists(rel):
+                continue
+            doc = svc.vault.load(rel)
+            found = find_ips(doc.body or "") if not doc.error else []
+            if found and category == "changed" and doc.id and entry.get("processed_version"):
+                try:
+                    _, old_text = svc.text_at_version(doc.id, int(entry["processed_version"]))
+                    old = find_ips(old_text)
+                except PkmError:
+                    old = None
+                found = [] if old is not None and set(old) == set(found) else found
+            if found:
+                entry["ip_addresses"] = {"found": found, "classification": classification(doc.meta)}
+
+
 def known_tags(svc: Service) -> dict[str, int]:
     """Existing tags from ``documents/`` and ``wiki/`` with their frequency.
 
@@ -194,9 +224,10 @@ def _metadata_fields(
     for key, value in set_fields.items():
         new = normalize_tags(value if isinstance(value, list) else [value]) if key == "tags" else " ".join(
             str(value).split())
-        if _empty(new) or (key == "kind" and new not in KINDS):
+        allowed = {"kind": KINDS, IP_FIELD: IP_CLASSES}.get(key)
+        if _empty(new) or (allowed and new not in allowed):
             raise PkmError("invalid_argument", f"Invalid value for {key}: {value!r}"
-                           + (f" (allowed: {', '.join(KINDS)})" if key == "kind" else ""), field=key)
+                           + (f" (allowed: {', '.join(allowed)})" if allowed else ""), field=key)
         if not _empty(meta.get(key)) and meta.get(key) != new and not overwrite:
             raise PkmError("field_exists", f"{key} is already set ({meta.get(key)!r}); change only with overwrite.",
                            field=key, value=meta.get(key))

@@ -84,6 +84,8 @@ also thin values). Proposals as a YAML block in the report, **do not enter anyth
   `known_tags`.
 - `kind`: `note` (default) | `standard` / `regulation` (then also propose `short_citation`) |
   `correction`.
+- `ip_addresses` (only for documents with `ip_addresses` in `pending`, see "Source fidelity"):
+  `placeholder` | `concrete` – as a question, the user decides.
 
 After explicit confirmation: `read` → `hash` → `set_document_metadata` (`set` with the
 confirmed fields, `add` only for further `tags`). Do not overwrite existing values;
@@ -187,6 +189,8 @@ in `processed`.
 - **Attribute visibly.** If a section draws on several sources, start each statement with its
   source ("According to <author> …", "The document on <topic> says …"). Never place a statement
   from source B directly after one from source A so that it reads as A's.
+  In tables, put the citation into the row it supports instead of a collective "Sources:" line
+  below the table.
 - **"Contradictions / open questions"** (German: „Widersprüche / offene Fragen“) contains only:
   (a) contradictions between sources about the *same* subject, (b) open points or uncertainties
   named in a document, (c) outdated or time-dependent values the document itself marks. No own
@@ -196,11 +200,23 @@ in `processed`.
   confirmation write them to `wiki/syntheses/` with `confidence: low` and the line
   "Own interpretation, not stated in the sources." (German: „Eigene Einordnung, nicht aus den
   Quellen.“).
+- **IP addresses: ask, then follow the answer.** If a new or changed document contains IP addresses
+  and `ip_addresses.classification` is `null`, ask the user in the run report whether they are
+  concrete addresses or placeholders, and propose the frontmatter field
+  (`ip_addresses: placeholder` or `ip_addresses: concrete`); in unattended runs put the question
+  into `questions`. Enter the field only after the answer (`set_document_metadata`).
+  - Until the question is answered, and for `placeholder`: never derive contradictions, open
+    questions or conclusions from IP addresses, and do not compare them with other documents.
+  - `concrete`: IP addresses are facts like any other; a contradiction may only be recorded if
+    *both* documents are `concrete` and refer to the same host or network.
+  - Never change IP addresses in `documents/`.
 - If a source itself makes the connection between two documents, the sentence may cite both; mark it
   with `<!-- lint: cross-source ok -->` at the end of the line so that lint does not report it again.
   Lint reports sentences citing two or more documents as `cross_source_statement` (`warning` in
-  "Contradictions / open questions", otherwise `info`) and synthesis pages without the marker as
-  `synthesis_unmarked`.
+  "Contradictions / open questions", otherwise `info`; lines without a statement such as "Sources:
+  [^b1] [^b2]" are skipped), synthesis pages without the marker as `synthesis_unmarked`, documents
+  with IP addresses but without `ip_addresses` as `ip_addresses_unclassified` and IP contradictions
+  between documents that are not both `concrete` as `ip_comparison`.
 
 ## Formats
 
@@ -357,7 +373,9 @@ deliver the list as `log_entry`:
    filing proposals (from `wiki/_status.md`), questions – and **for each new document with
    missing fields the YAML block** with the question whether it should be entered, as well as for each document
    with `image_issues` the findings with a fix proposal and the question whether it should be fixed,
-   and the name proposals (`rename`) with the question whether to rename; the checked cross-source
+   and the name proposals (`rename`) with the question whether to rename; for each document with
+   unclassified IP addresses the found addresses and the question whether they are concrete or
+   placeholders; the checked cross-source
    sentences (what was split or why a connection is in a source) and proposals for own
    interpretations as a question (only after confirmation into `wiki/syntheses/`, marked).
 
@@ -381,7 +399,8 @@ Conflict copies of the cloud storage are never processed; the user merges them i
    `<document name>_img/`) → propose the tool named in `tool` (`rename_document` or `move_images`).
    Source fidelity: `cross_source_statement` → check the sentence; if no source makes the connection,
    split it or remove the connection yourself (it is your page), otherwise mark it with
-   `<!-- lint: cross-source ok -->`; `synthesis_unmarked` → add `confidence` and the marker if the page
+   `<!-- lint: cross-source ok -->`; `ip_addresses_unclassified` → ask the user and propose the field;
+   `ip_comparison` → remove the entry unless both documents are `concrete`; `synthesis_unmarked` → add `confidence` and the marker if the page
    is an own interpretation, otherwise rewrite it so that every statement is a source's.
 4. `finish_maintenance` with `operation: lint`, `lint_report: true` (report to
    `wiki/_lint/YYYY-MM-DD.md`) and a log entry.

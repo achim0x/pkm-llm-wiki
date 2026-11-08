@@ -130,4 +130,77 @@ def test_finish_maintenance_lists_cross_source_of_changed_pages(svc, cfg):
     second = maintrun.finish_maintenance(svc, "- nothing", operation="lint")
     assert second["cross_source"] == []
 
+def test_label_only_source_line_not_reported(svc, cfg):
+    """N5: a line "Quellen: [^b1] [^b2]" and a table with footnotes of two documents are no statements."""
+    _page(cfg, "wiki/topics/geld.md", "## Content\n| Wert | Betrag |\n|---|---|\n| A | 1[^b1] |\n| B | 2[^b2] |\n\n"
+          "Quellen: [^b1] [^b2]\n\nSources: [^b1][^b2]\n\n- Regel und Nachteil.[^b1][^b2]\n\n")
+    (finding,) = _findings(svc)
+    assert finding["detail"]["text"] == "Regel und Nachteil."
+
+
+def _ip_docs(cfg, class_a, class_b):
+    """Two documents A and B with IP addresses and the given classifications.
+
+    Args:
+        cfg: Configuration.
+        class_a: ``ip_addresses`` of A or ``None``.
+        class_b: ``ip_addresses`` of B or ``None``.
+    """
+    for doc_id, name, value in ((ID_A, "a", class_a), (ID_B, "b", class_b)):
+        field = f"ip_addresses: {value}\n" if value else ""
+        write(cfg, f"documents/{name}.md", f"---\ntitle: {name}\nid: {doc_id}\nversion: 1\n{field}---\n\n"
+              f"## {name.upper()}\nHost {name} hat 192.0.2.10.\n")
+
+
+@pytest.mark.parametrize(("class_a", "class_b", "reported"), [("placeholder", "concrete", True),
+                                                               (None, "concrete", True),
+                                                               ("concrete", "concrete", False)])
+def test_ip_comparison(svc, cfg, class_a, class_b, reported):
+    """N4: an IP contradiction between documents not both concrete is ip_comparison; unclassified ones are named."""
+    _ip_docs(cfg, class_a, class_b)
+    _page(cfg, "wiki/topics/netz.md", "## Contradictions / open questions\n- 192.0.2.10 ist in A Host a, "
+          "in B Host b.[^b1][^b2] <!-- lint: cross-source ok -->\n\n")
+    assert bool(_findings(svc, "ip_comparison")) is reported
+    unclassified = [f["path"] for f in _findings(svc, "ip_addresses_unclassified")]
+    assert unclassified == ([] if class_a else ["documents/a.md"])
+
+
+def test_begin_maintenance_reports_ip_addresses_and_field(svc, cfg):
+    """N1/N2: new documents with IP addresses carry ip_addresses; the field is set via set_document_metadata."""
+    write(cfg, "documents/_inbox/netz.md", "---\ntitle: Netz\n---\n\n## Hosts\nRouter 192.0.2.1, NAS 192.0.2.2, "
+          "IPv6 2001:db8::5, Version 1.2.3.\n")
+    write(cfg, "documents/_inbox/ohne.md", "---\ntitle: Ohne\n---\n\nKeine Adressen.\n")
+    begin = maintrun.begin_maintenance(svc)
+    by_path = {e["path"]: e for e in begin["pending"]["new"]}
+    assert by_path["documents/_inbox/netz.md"]["ip_addresses"] == {
+        "found": ["192.0.2.1", "192.0.2.2", "2001:db8::5"], "classification": None}
+    assert "ip_addresses" not in by_path["documents/_inbox/ohne.md"]
+    doc = svc.read("documents/_inbox/netz.md")
+    with pytest.raises(Exception) as exc:
+        maintrun.set_document_metadata(svc, "documents/_inbox/netz.md", doc["hash"], set={"ip_addresses": "maybe"})
+    assert getattr(exc.value, "status", "") == "invalid_argument"
+    maintrun.set_document_metadata(svc, "documents/_inbox/netz.md", doc["hash"], set={"ip_addresses": "placeholder"})
+    text = (cfg.root / "documents/_inbox/netz.md").read_text(encoding="utf-8")
+    assert "ip_addresses: placeholder" in text
+    begin = maintrun.begin_maintenance(svc)
+    entry = next(e for e in begin["pending"]["new"] if e["path"] == "documents/_inbox/netz.md")
+    assert entry["ip_addresses"]["classification"] == "placeholder"
+
+
+def test_changed_document_reports_ip_addresses_only_if_they_changed(svc, cfg):
+    """N2: a changed document carries ip_addresses only if its addresses changed."""
+    write(cfg, "documents/netz.md", "---\ntitle: Netz\n---\n\n## Hosts\nRouter 192.0.2.1.\n")
+    begin = maintrun.begin_maintenance(svc)
+    doc_id = begin["ids"]["assigned"][0]["id"]
+    maintrun.finish_maintenance(svc, "- processed", processed=[doc_id])
+    path = cfg.root / "documents/netz.md"
+    path.write_text(path.read_text(encoding="utf-8") + "\nNeuer Text ohne Adresse.\n", encoding="utf-8")
+    item = next(i for i in maintrun.begin_maintenance(svc)["pending"]["changed"] if i["id"] == doc_id)
+    assert "ip_addresses" not in item
+    maintrun.finish_maintenance(svc, "- processed", processed=[doc_id])
+    path.write_text(path.read_text(encoding="utf-8") + "\nSwitch 192.0.2.9.\n", encoding="utf-8")
+    item = next(i for i in maintrun.begin_maintenance(svc)["pending"]["changed"] if i["id"] == doc_id)
+    assert item["ip_addresses"]["found"] == ["192.0.2.1", "192.0.2.9"]
+
+
 # Main ************************************************************************
