@@ -147,6 +147,10 @@ PNGs).
   listed under `generic_names_kept` with a hint. The new parameter `alt_texts` of `move_images` and
   `rename_document` (`{file name or path: alt text}`, only after confirmation) sets the alt text and
   the file name in one step.
+- **Lint `generic_alt_text` names the file** (`file`, `null` for embedded images) and the `section`, and
+  flags whether the file keeps its generic name (`file_keeps_generic_name`, the same set as
+  `generic_names_kept`) or is already named by another link (`name_from_other_link`). `alt_texts` also
+  accepts the image name (`image-2`) as key.
 
 ### Showing the installed version
 

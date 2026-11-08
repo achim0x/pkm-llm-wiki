@@ -40,7 +40,7 @@ from .errors import PkmError
 from .frontmatter import set_fields_linewise
 from .gitlayer import build_message
 from .imagefix import IMAGE_STEM_MAX, document_date
-from .imagelint import is_generic_alt
+from .imagelint import generic_file_name, image_files, is_generic_alt
 from .paths import slug_words
 from .vault import Doc
 
@@ -50,7 +50,6 @@ if TYPE_CHECKING:
 # Variables *******************************************************************
 
 ID_DATE_RE = re.compile(r"^d-(\d{4})(\d{2})(\d{2})-")
-HASH_NAME_RE = re.compile(r"^[0-9a-f]{12,}$|^[0-9a-f]{8}-[0-9a-f]{4}-", re.IGNORECASE)
 KEEP_FOLDERS = ("documents", "documents/_inbox", "documents/_attachments")
 
 # Classes *********************************************************************
@@ -107,19 +106,6 @@ def name_date(svc: Service, doc: Doc) -> str:
     return document_date(doc.meta) or (f"{m[1]}-{m[2]}-{m[3]}" if m else svc.now().strftime("%Y-%m-%d"))
 
 
-def generic_file_name(name: str) -> bool:
-    """Check whether an image file name says nothing about the content (``IMG_013.png``, ``image.png``, hashes).
-
-    Args:
-        name: File name.
-
-    Returns:
-        ``True`` for generic names.
-    """
-    stem = PurePosixPath(name).stem
-    return is_generic_alt(stem) or bool(HASH_NAME_RE.match(stem)) or bool(re.fullmatch(r"[\d\s_.-]+", stem))
-
-
 def _alts(doc: Doc, amap: AssetMap) -> dict[str, str]:
     """First alt text per linked image file.
 
@@ -157,12 +143,13 @@ def _unique(rel: str, taken: set[str], own: str) -> str:
     return candidate
 
 
-def _given_alts(paths: list[str], alt_texts: dict[str, str] | None) -> dict[str, str]:
-    """Assign the alt texts given by the user to image files (key: path or file name).
+def _given_alts(paths: list[str], alt_texts: dict[str, str] | None, names: dict[str, str]) -> dict[str, str]:
+    """Assign the alt texts given by the user to image files (key: path, file name or image name).
 
     Args:
         paths: Image files of the document.
-        alt_texts: File path or file name → alt text.
+        alt_texts: File path, file name or image name (``image-2``, as lint reports it) → alt text.
+        names: Image name → path of its file.
 
     Returns:
         Path → alt text.
@@ -174,6 +161,7 @@ def _given_alts(paths: list[str], alt_texts: dict[str, str] | None) -> dict[str,
     unknown = []
     for key, value in (alt_texts or {}).items():
         match = [p for p in paths if p == key or PurePosixPath(p).name.casefold() == key.casefold()]
+        match = match or ([names[key]] if key in names else [])
         text = " ".join(str(value).split())
         if len(match) != 1 or not text:
             unknown.append(key)
@@ -223,7 +211,8 @@ def plan_images(svc: Service, doc: Doc, amap: AssetMap, new_rel: str,
     target = image_folder(new_rel)
     referenced = amap.referenced()
     paths = sorted(amap.links.get(doc.rel, {}))
-    plan = Placement(doc, new_rel, alts=_given_alts(paths, alt_texts))
+    plan = Placement(doc, new_rel, alts=_given_alts(paths, alt_texts, {n: p for n, (p, _) in
+                                                                      image_files(doc, amap).items() if p}))
     alts = {**_alts(doc, amap), **plan.alts}
     date = name_date(svc, doc)
     taken = {r.casefold() for r in svc.vault.iter_files(("documents",))}

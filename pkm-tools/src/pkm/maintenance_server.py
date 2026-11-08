@@ -96,7 +96,8 @@ def _register_maintenance_tools(server: Server) -> None:
         with capitals or spaces). Its image files move into <new name>_img/, generic image names (IMG_013) get
         names from the alt text, links ./<new name>_img/…. Wiki pages are not changed: cited_by/citations name
         them; their citations follow via the ID with finish_maintenance. Without apply only the proposal;
-        apply=true moves and commits. name: other name instead of the title. alt_texts: {file: alt text}."""
+        apply=true moves and commits. name: other name instead of the title. alt_texts: {file path, file name or
+        image name (as in lint generic_alt_text): alt text}."""
         return call("rename_document", maintrun.rename_document, target=target, expected_hash=expected_hash,
                     apply=apply, name=name, alt_texts=alt_texts)
 
@@ -106,9 +107,9 @@ def _register_maintenance_tools(server: Server) -> None:
         documents/ into <document name>_img/ next to it (lint image_location, e.g. old files in
         documents/_attachments/, or an image folder left behind after filing). Files other documents also link to
         stay (kept). Generic names (IMG_013) get names from the alt text; generic_names_kept lists files whose
-        alt text says nothing: alt_texts {file path or name: alt text} sets the alt text and the file name in the
-        same step. Links become ./<document name>_img/…. Without apply only the proposal; apply=true moves and
-        commits."""
+        alt text says nothing: alt_texts {file path, file name or image name: alt text} sets the alt text and
+        the file name in the same step (lint generic_alt_text names file and image). Links become
+        ./<document name>_img/…. Without apply only the proposal; apply=true moves and commits."""
         return call("move_images", maintrun.move_images, target=target, expected_hash=expected_hash, apply=apply,
                     alt_texts=alt_texts)
 

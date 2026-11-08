@@ -119,8 +119,10 @@ Otherwise `tool: move_images`.
 
 **Generic image names:** image files like `IMG_066.png` whose alt text says nothing ("Image") keep
 their names (`generic_names_kept` with a `hint`). View them with `read_image`, propose alt texts and,
-after confirmation, pass them as `alt_texts` (`{file name or path: alt text}`) to `move_images` or
-`rename_document`: alt text and file name are set in the same step (a new version with content
+after confirmation, pass them as `alt_texts` (`{file path, file name or image name: alt text}`) to
+`move_images` or `rename_document`. Lint `generic_alt_text` names per image the `file`, the `section`,
+`file_keeps_generic_name` (the file stays generic, as in `generic_names_kept`) and `name_from_other_link`
+(another link with a meaningful alt text already names the file). With `alt_texts` alt text and file name are set in the same step (a new version with content
 changes, so process the document in the next run).
 
 **Propose, do not ask where to file:** list the proposals in the report like the frontmatter proposals

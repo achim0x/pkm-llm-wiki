@@ -26,9 +26,10 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from . import imagefix, images
+from . import docimages, imagefix, images
 from .assets import AssetMap, known_assets
 from .errors import PkmError
 from .imagescan import non_image_data_links
@@ -49,6 +50,7 @@ GENERIC_ALT = {
 GENERIC_ALT_RE = re.compile(r"^(?:img|image|bild|dsc|dcim|pxl|photo|foto|screenshot|pasted image|figure|fig|abb)"
                             r"[\s_.-]*\d[\w .-]*$|\.(?:png|jpe?g|gif|webp|svg)$", re.IGNORECASE)
 LARGE_EMBEDDED_KB = 32
+HASH_NAME_RE = re.compile(r"^[0-9a-f]{12,}$|^[0-9a-f]{8}-[0-9a-f]{4}-", re.IGNORECASE)
 
 # Classes *********************************************************************
 
@@ -66,6 +68,33 @@ def is_generic_alt(alt: str) -> bool:
     """
     text = " ".join(alt.split()).strip(" .:")
     return text.casefold() in GENERIC_ALT or bool(GENERIC_ALT_RE.search(text))
+
+
+def generic_file_name(name: str) -> bool:
+    """Check whether an image file name says nothing about the content (``IMG_013.png``, ``image.png``, hashes).
+
+    Args:
+        name: File name.
+
+    Returns:
+        ``True`` for generic names.
+    """
+    stem = PurePosixPath(name).stem
+    return is_generic_alt(stem) or bool(HASH_NAME_RE.match(stem)) or bool(re.fullmatch(r"[\d\s_.-]+", stem))
+
+
+def image_files(doc: Doc, amap: AssetMap | None) -> dict[str, tuple[str | None, images.ImageRef]]:
+    """Image name → (path of the linked file or ``None`` for embedded images, image) of a document.
+
+    Args:
+        doc: Document.
+        amap: Links of all documents (``None``: no files are resolved).
+
+    Returns:
+        Mapping in text order.
+    """
+    refs = images.find_images(doc.text or "")
+    return {r.name: (None if r.inline or amap is None else amap.resolve(doc.rel, r), r) for r in refs}
 
 
 def image_quote(quote: str | None) -> str | None:
@@ -94,7 +123,60 @@ def has_image(text: str | None, name: str) -> bool:
     return any(r.name == name for r in images.find_images(text or ""))
 
 
-def _check_refs(add: Any, doc: Doc, limits: Any) -> None:
+def _generic_alt_detail(doc: Doc, ref: images.ImageRef, amap: AssetMap | None, ctx: dict[str, Any]) -> dict[str, Any]:
+    """Details of a ``generic_alt_text`` finding: file, section and whether the file keeps a generic name.
+
+    Args:
+        doc: Document.
+        ref: Image with a generic alt text.
+        amap: Links of all documents (``None`` for wiki pages without file resolution).
+        ctx: ``section_of`` (position → section), ``named`` (files with a meaningful alt text in the document),
+            ``referenced`` (file → documents).
+
+    Returns:
+        ``file`` (vault path, ``None`` when embedded), ``section``, ``file_keeps_generic_name`` (the file would
+        be listed by ``move_images`` under ``generic_names_kept``) and ``name_from_other_link`` (another link of
+        the document with a meaningful alt text names the file).
+    """
+    file = None if ref.inline or amap is None else amap.resolve(doc.rel, ref)
+    detail: dict[str, Any] = {"file": file, "section": ctx["section_of"](ref.start)}
+    if file is not None:
+        only_here = ctx["referenced"].get(file) == [doc.rel]
+        detail["name_from_other_link"] = file in ctx["named"]
+        detail["file_keeps_generic_name"] = (generic_file_name(PurePosixPath(file).name) and only_here
+                                             and file not in ctx["named"])
+    return detail
+
+
+def _content_hints(add: Any, doc: Doc, body: str, amap: AssetMap | None) -> None:
+    """Hints ``generic_alt_text`` (with file and section) and ``large_embedded_image`` for a document.
+
+    Args:
+        add: ``Report.add``.
+        doc: Document or wiki page.
+        body: Body.
+        amap: Links of all documents (``None``: files are not resolved).
+    """
+    all_refs = images.find_images(body)
+    ctx = {"section_of": docimages.section_of(doc, body),
+           "named": {amap.resolve(doc.rel, r) for r in all_refs if not r.inline and r.alt
+                     and not is_generic_alt(r.alt)} if amap is not None else set(),
+           "referenced": amap.referenced() if amap is not None else {}}
+    for ref in all_refs:
+        if ref.alt and is_generic_alt(ref.alt):
+            detail = _generic_alt_detail(doc, ref, amap, ctx)
+            add("generic_alt_text", "info", doc.rel, f"Image \"{ref.name}\" has a generic alt text \"{ref.alt}\"; "
+                "propose a description of the image" + (" (alt_texts of move_images, key: file or image name)."
+                                                        if detail["file"] else "."),
+                image=ref.name, alt=ref.alt, **detail)
+        size = len(ref.data()) if ref.inline and ref.fmt in imagefix.RASTER_FORMATS else 0
+        if size > LARGE_EMBEDDED_KB * 1024:
+            add("large_embedded_image", "info", doc.rel, f"Embedded image \"{ref.name}\" has {size // 1024} KB; "
+                "propose fix_images with extract (stores it as a file, after confirmation).", image=ref.name,
+                size_kb=size // 1024)
+
+
+def _check_refs(add: Any, doc: Doc, limits: Any, amap: AssetMap | None = None) -> None:
     """Check the images of a Markdown document.
 
     Embedded images: nonconforming data URIs (``nonconforming_image`` with problem codes, 4.9) and other
@@ -104,6 +186,7 @@ def _check_refs(add: Any, doc: Doc, limits: Any) -> None:
         add: ``Report.add``.
         doc: Document or wiki page.
         limits: Image limits.
+        amap: Links of all documents (to name the file of an image).
     """
     body = doc.body or ""
     refs = [r for r in images.find_images(body) if not r.inline]
@@ -113,15 +196,7 @@ def _check_refs(add: Any, doc: Doc, limits: Any) -> None:
     for ref in refs:
         if not ref.alt:
             add("image_without_alt", "info", doc.rel, f"Image \"{ref.name}\" without alt text.", image=ref.name)
-    for ref in images.find_images(body):
-        if ref.alt and is_generic_alt(ref.alt):
-            add("generic_alt_text", "info", doc.rel, f"Image \"{ref.name}\" has a generic alt text \"{ref.alt}\"; "
-                "propose a description of the image.", image=ref.name, alt=ref.alt)
-        size = len(ref.data()) if ref.inline and ref.fmt in imagefix.RASTER_FORMATS else 0
-        if size > LARGE_EMBEDDED_KB * 1024:
-            add("large_embedded_image", "info", doc.rel, f"Embedded image \"{ref.name}\" has {size // 1024} KB; "
-                "propose fix_images with extract (stores it as a file, after confirmation).", image=ref.name,
-                size_kb=size // 1024)
+    _content_hints(add, doc, body, amap)
     for issue in imagefix.image_issues(body, limits, wiki=doc.area == "wiki"):
         severe = {"svg_unsafe", "invalid_data"} & set(issue["problems"])
         add("nonconforming_image", "error" if severe else "warning", doc.rel,
@@ -143,9 +218,10 @@ def check_images(add: Any, svc: Service, docs: list[Doc], pages: list[Doc]) -> N
         docs: Files from ``documents/``.
         pages: Wiki pages.
     """
+    amap = AssetMap(svc, docs)
     for doc in [*docs, *pages]:
         if doc.kind == "md" and doc.parsed is not None and not doc.error:
-            _check_refs(add, doc, svc.cfg.images)
+            _check_refs(add, doc, svc.cfg.images, amap if doc.rel.startswith("documents/") else None)
         elif doc.kind == "bin" and doc.rel.lower().endswith(".svg"):
             problems = images.svg_problems(svc.vault.path(doc.rel).read_text(encoding="utf-8", errors="replace"))
             if problems:
@@ -154,7 +230,6 @@ def check_images(add: Any, svc: Service, docs: list[Doc], pages: list[Doc]) -> N
         entries = load_state(svc.cfg)["documents"]
     except PkmError:
         entries = {}
-    amap = AssetMap(svc, docs)
     for rel in amap.orphans(known_assets(entries)):
         add("orphaned_attachment", "info", rel, "Orphaned attachment: no document links to this image file.")
     referenced = amap.referenced()

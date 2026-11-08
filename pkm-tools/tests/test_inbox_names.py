@@ -395,4 +395,27 @@ def test_alt_texts_unknown_file_is_rejected(svc, cfg):
     assert prop["alt_texts"] == {"documents/KI/doc_img/IMG_001.png": "Schaltplan"}
 
 
+def test_generic_alt_text_names_file_and_matches_move_images(svc, cfg):
+    """R11: generic_alt_text names file and section; unflagged files equal generic_names_kept; image names work."""
+    for n in (20, 66, 67):
+        _png(svc, f"documents/Softskills/images_x/IMG_0{n}.png", n % 7 + 2)
+    write(cfg, "documents/Softskills/enc.md", "---\ntitle: Enc\ndate_markdown: 2026-11-04T09:00:00\n---\n\n"
+          "## Phasen\n![Vier Phasen](images_x/IMG_020.png)\n\n## Rest\n![Image](images_x/IMG_020.png)\n\n"
+          "![Image](images_x/IMG_066.png)\n\n![Image](images_x/IMG_067.png)\n")
+    maintrun.begin_maintenance(svc)
+    from pkm.lint import lint  # pylint: disable=import-outside-toplevel
+    generic = [f["detail"] for f in lint(svc)["findings"] if f["check"] == "generic_alt_text"]
+    assert len(generic) == 3 and all(d["section"] == "Rest" for d in generic)
+    by_file = {d["file"]: d for d in generic}
+    assert by_file["documents/Softskills/images_x/IMG_020.png"]["name_from_other_link"] is True
+    keeps = sorted(d["file"] for d in generic if d["file_keeps_generic_name"])
+    doc = svc.read("documents/Softskills/enc.md")
+    prop = maintrun.move_images(svc, "documents/Softskills/enc.md", doc["hash"])
+    assert keeps == sorted(prop["generic_names_kept"])
+    name = by_file["documents/Softskills/images_x/IMG_066.png"]["image"]
+    prop = maintrun.move_images(svc, "documents/Softskills/enc.md", doc["hash"], alt_texts={name: "Kreis"})
+    assert prop["alt_texts"] == {"documents/Softskills/images_x/IMG_066.png": "Kreis"}
+    assert prop["generic_names_kept"] == ["documents/Softskills/images_x/IMG_067.png"]
+
+
 # Main ************************************************************************
