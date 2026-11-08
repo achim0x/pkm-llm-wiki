@@ -23,8 +23,10 @@
 # Imports *********************************************************************
 # Imports *********************************************************************
 
+import asyncio
 import base64
 import hashlib
+import json
 import random
 import struct
 import zlib
@@ -299,8 +301,12 @@ def test_confirm_large_overrides_limit(svc, monkeypatch):
 
 
 def test_extract_embedded_images(svc, isolated_env):
-    """fix_images with extract: proposal first, then files with unchanged bytes; follow-up is notation only."""
-    rel = _article(svc)
+    """fix_images with extract: proposal first, then files with unchanged bytes; follow-up is notation only.
+
+    The answers carry no Base64 (diff with placeholders): each stays below 10 KB although the images
+    have about 270 KB.
+    """
+    rel = _article(svc, side=150)
     m = Maintenance(svc)
     doc_id = svc.read(rel, content=False)["id"]
     m.mark([doc_id])
@@ -311,6 +317,8 @@ def test_extract_embedded_images(svc, isolated_env):
         (svc.cfg.root / "documents/_attachments").iterdir())
     res = svc.fix_images(target=rel, expected_hash=svc.read(rel)["hash"], extract=True, min_kb=4, apply=True)
     assert res["status"] == "changed" and len(res["extracted"]) == 3
+    assert len(json.dumps(proposal)) < 10 * 1024 and len(json.dumps(res)) < 10 * 1024
+    assert "base64" not in res["diff"] and "pkm-image:" in res["diff"]
     assert "PKM-Fix: images-extract" in git(isolated_env, "log", "-1", "--format=%B")
     body = svc.vault.load(rel).body or ""
     assert "data:image" not in body and (svc.cfg.root / rel).stat().st_size < 3 * 1024
@@ -371,6 +379,120 @@ def test_begin_maintenance_returns_wiki_language(svc, monkeypatch):
     info = maintrun.begin_maintenance(Service(Config.from_env()))["wiki_language"]
     assert info == {"code": "de", "name": "German", "summary_label": "Kurzfassung",
                     "sections": ["Inhalt", "Widersprüche / offene Fragen", "Siehe auch", "Belege"]}
+
+
+def test_generated_wiki_files_in_wiki_language(svc, monkeypatch):
+    """With PKM_LANGUAGE=de, _status.md, index.md and a new log.md have German headings."""
+    from pkm.wikigen import build_index, build_status  # pylint: disable=import-outside-toplevel
+    monkeypatch.setenv("PKM_LANGUAGE", "de")
+    svc = Service(Config.from_env())
+    _doc(svc, "documents/_inbox/neu.md", "## A\nText\n")
+    build_status(svc, ["Soll das so bleiben?"])
+    build_index(svc)
+    status = (svc.cfg.root / "wiki/_status.md").read_text(encoding="utf-8")
+    assert "## Noch nicht verarbeitet (1)" in status and "## Probleme (0)" in status and "## Fragen (1)" in status
+    assert "– neu" in status and "Noch im Eingang, bereits verarbeitet" in status
+    assert (svc.cfg.root / "wiki/index.md").read_text(encoding="utf-8").startswith("# Wiki-Index")
+    (svc.cfg.root / "wiki/log.md").unlink()
+    maintrun.append_log(svc, "ingest", "Test", "- nichts")
+    assert (svc.cfg.root / "wiki/log.md").read_text(encoding="utf-8").startswith("# Pflegeprotokoll")
+
+
+def test_tool_schemas_contain_new_parameters():
+    """The schemas delivered to the client contain extract/min_kb and confirm_large (both servers)."""
+    from pkm import maintenance_server, mcp_server  # pylint: disable=import-outside-toplevel
+    expected = {"fix_images": {"extract", "min_kb"}, "create_document": {"confirm_large"},
+                "rewrite_document": {"confirm_large"}, "append_to_document": {"confirm_large"},
+                "edit_document": {"confirm_large"}}
+    for mod in (mcp_server, maintenance_server):
+        for tool in asyncio.run(mod.build_server("en").list_tools()):
+            if tool.name in expected:
+                schema = getattr(tool, "input_schema", None) or getattr(tool, "inputSchema", {})
+                assert expected[tool.name] <= set(schema.get("properties", {})), (mod.__name__, tool.name)
+                if tool.name == "fix_images":
+                    assert "extract=true" in (tool.description or "")
+
+
+def test_topic_with_page_by_tags_is_not_reported(svc):
+    """A tag is covered by a topic page that carries it in tags, even with another file name."""
+    for n in range(3):
+        _doc(svc, f"documents/ki/d{n}.md", "## A\nText\n", doc_id=f"d-20261106-1200-abc{'defg'[n]}")
+        text = (svc.cfg.root / f"documents/ki/d{n}.md").read_text(encoding="utf-8")
+        (svc.cfg.root / f"documents/ki/d{n}.md").write_text(
+            text.replace("version: 1\n", "version: 1\ntags: [ki-agenten, sandboxing, harness]\n"), encoding="utf-8")
+    write(svc.cfg, "wiki/topics/ki-agenten-und-harnesse.md",
+          "---\ntype: topic\ntitle: KI-Agenten und Harnesse\ntags: [ki-agenten]\n---\n\n> **Summary:** S\n")
+    write(svc.cfg, "wiki/topics/sandboxing-von-ki-agenten.md",
+          "---\ntype: topic\ntitle: Sandboxing von KI-Agenten\naliases: [Sandboxing]\n---\n\n> **Summary:** S\n")
+    topics = [f["message"] for f in lint(svc)["findings"] if f["check"] == "topic_without_page"]
+    assert not any("ki-agenten" in t or "sandboxing" in t for t in topics), topics
+    assert any("harness" in t for t in topics)
+
+
+def test_switch_to_attachments_is_reported_as_migration(svc):
+    """State from before 0.3.0 (images as standalone entries, empty assets): one assets_migrated, then clean."""
+    from pkm.state import load_state  # pylint: disable=import-outside-toplevel
+    data = _png(svc, "documents/enc/images_x/IMG_001.png")
+    _doc(svc, "documents/enc/encyclopedia.md", "## A\n![[images_x/IMG_001.png]]\n")
+    m = Maintenance(svc)
+    m.versions()
+    m.mark([DOC_ID])
+    state = load_state(svc.cfg)
+    state["documents"][DOC_ID]["assets"] = {}
+    digest = hashlib.sha256(data).hexdigest()
+    state["documents"][f"sha:{digest}"] = {"path": "documents/enc/images_x/IMG_001.png", "wiki_pages": []}
+    m.save_state(state)
+    item = m.pending()["changed"][0]
+    assert item["assets_migrated"] is True and item["image_notation_only"] is True and item["sections"] == []
+    m.mark([DOC_ID])
+    assert f"sha:{digest}" not in load_state(svc.cfg)["documents"]
+    pend = m.pending()
+    assert not any(pend[c] for c in ("new", "changed", "moved", "deleted"))
+
+
+def test_extract_file_names(svc):
+    """File names come from the alt text cut at a word boundary, with the document date; the proposal names them."""
+    b64 = base64.b64encode(big_png(40, 40)).decode()
+    alt = "GitHub Einstellungen Personal Access Token anlegen und Berechtigungen auswählen"
+    rel = "documents/KI/artikel.md"
+    write(svc.cfg, rel, f"---\ntitle: Artikel\ndate_markdown: 2026-11-04T10:00:00\nid: {DOC_ID}\nversion: 1\n---\n\n"
+          f"## A\n![{alt}](data:image/png;base64,{b64})\n")
+    Maintenance(svc).versions()
+    proposal = svc.fix_images(target=rel, expected_hash=svc.read(rel)["hash"], extract=True, min_kb=4)
+    res = svc.fix_images(target=rel, expected_hash=svc.read(rel)["hash"], extract=True, min_kb=4, apply=True)
+    path = res["extracted"][0]["path"]
+    assert proposal["files"] == [path]
+    name = path.rsplit("/", 1)[1]
+    assert name.endswith("_2026-11-04.png") and "YYYY" not in name
+    stem = name[:-len("_2026-11-04.png")]
+    assert len(stem) <= 60 and stem.startswith("github-einstellungen-personal-access-token-")
+    assert stem.split("-")[-1] in alt.lower().split()  # ends with a whole word
+
+
+def test_link_style(isolated_env, monkeypatch):
+    """Image links follow PKM_LINK_STYLE or Obsidian's new link format; read_image finds vault paths."""
+    del isolated_env
+    monkeypatch.setenv("PKM_INLINE_MAX_KB", "0")
+    cfg = Config.from_env()
+    init_vault(cfg)  # writes newLinkFormat: absolute
+    assert Config.from_env().images.link_style == "absolute"
+    png = base64.b64encode(make_png(4, 4, text=False)).decode()
+    svc = Service(cfg)
+    res = svc.create_document(title="A", content="{{image:pic}}",
+                              images=[{"name": "pic", "alt": "Pic", "png_base64": png}])
+    assert f"]({res['images'][0]['path']} " in (cfg.root / res["path"]).read_text(encoding="utf-8")
+    assert svc.read_image(res["path"], "pic")["data"] == base64.b64decode(png)
+    app = cfg.root / ".obsidian" / "app.json"
+    app.write_text(app.read_text(encoding="utf-8").replace('"absolute"', '"relative"'), encoding="utf-8")
+    assert Config.from_env().images.link_style == "relative"
+    monkeypatch.setenv("PKM_LINK_STYLE", "absolute")
+    assert Config.from_env().images.link_style == "absolute"
+    monkeypatch.setenv("PKM_LINK_STYLE", "relative")
+    svc = Service(Config.from_env())
+    png2 = base64.b64encode(make_png(5, 5, text=False)).decode()
+    res = svc.create_document(title="B", content="{{image:pic}}",
+                              images=[{"name": "pic", "alt": "Pic", "png_base64": png2}])
+    assert "](../_attachments/pic-2_" in (cfg.root / res["path"]).read_text(encoding="utf-8")
 
 
 # Main ************************************************************************

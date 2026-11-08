@@ -34,6 +34,7 @@ from .diffs import unified_diff
 from .errors import NO_VERSIONING, PkmError
 from .gitlayer import Commit, Git
 from .ids import is_valid_id
+from .images import to_placeholders
 from .index import SearchIndex, query_terms, snippet
 from .maint import Maintenance
 from .parse import normalize_key_input
@@ -505,7 +506,7 @@ class Service:  # pylint: disable=too-many-public-methods
             if sec is None:
                 raise PkmError("not_found", f"Section not found: {section}", section=section)
             res["section"] = key
-            res["content"] = "\n".join(([sec.heading] if sec.heading else []) + sec.content_lines)
+            res["content"] = to_placeholders("\n".join(([sec.heading] if sec.heading else []) + sec.content_lines))
             res["section_hash"] = doc.hashes.sections[key] if doc.hashes else None
         return res
 

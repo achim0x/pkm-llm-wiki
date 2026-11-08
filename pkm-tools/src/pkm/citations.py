@@ -30,7 +30,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote as urlquote
 
-from . import hashes
+from . import hashes, images
 from .errors import PkmError
 from .frontmatter import set_fields_linewise
 from .ids import is_valid_id
@@ -603,7 +603,7 @@ def section_text(doc: Doc, key: str | None) -> str | None:
 
 
 def _excerpt(text: str | None) -> str | None:
-    """Shorten text to ``MAX_EXCERPT`` characters.
+    """Shorten text to ``MAX_EXCERPT`` characters; embedded images become placeholders (no Base64).
 
     Args:
         text: Text or ``None``.
@@ -611,7 +611,8 @@ def _excerpt(text: str | None) -> str | None:
     Returns:
         Shortened text (with "…") or ``None``.
     """
-    return text if text is None or len(text) <= MAX_EXCERPT else text[:MAX_EXCERPT] + "…"
+    view = None if text is None else images.to_placeholders(text)
+    return view if view is None or len(view) <= MAX_EXCERPT else view[:MAX_EXCERPT] + "…"
 
 
 def norm_ws(text: str) -> str:

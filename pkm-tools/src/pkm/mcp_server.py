@@ -316,7 +316,8 @@ def _register_write_tools(server: Server) -> None:
         apply: bool = False, confirm_shortening: bool = False, note: str | None = None, extract: bool = False,
         min_kb: int = 32,
     ) -> dict:
-        """Fix the notation of nonconforming image data URIs of a document in documents/ or scratch/ per 4.9.
+        """Fix the notation of nonconforming image data URIs of a document in documents/ or scratch/ per 4.9,
+        or with extract=true store large embedded raster images as files.
         Without apply only a proposal (status proposal, image_issues, diff); only after explicit
         confirmation with apply=true (new version, PKM-Fix: images). images: only these image names. image_alt:
         alt texts per name. confirm_shortening: confirm removing unused definitions. extract=true (not in

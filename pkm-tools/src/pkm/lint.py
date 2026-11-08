@@ -46,7 +46,7 @@ from .schema import (
     looks_converted,
 )
 from .vault import Doc, extract_links, is_markdown, link_key, summary_of
-from .wikigen import FOLDER_TYPES, wiki_pages, write_if_changed
+from .wikigen import FOLDER_TYPES, page_type, wiki_pages, write_if_changed
 
 if TYPE_CHECKING:
     from .service import Service
@@ -61,6 +61,7 @@ SEVERITIES = ("error", "warning", "info")
 SEVERITY_LABELS = {"error": "Errors", "warning": "Warnings", "info": "Notes"}
 MIN_MISSING_PAGE_LINKS = 2
 MIN_TOPIC_DOCUMENTS = 3
+COVERING_TYPES = ("topic", "entity", "synthesis")  # pages whose tags cover a topic
 STATEMENT_PREVIEW = 80
 
 # Classes *********************************************************************
@@ -344,20 +345,25 @@ class Linter:  # pylint: disable=too-many-instance-attributes
                     incoming[dest] += 1
 
     def _topics_without_page(self) -> None:
-        """Topics that occur in several documents but have no wiki page."""
+        """Topics that occur in several documents but have no wiki page.
+
+        A tag counts as covered if a topic, entity or synthesis page carries it in ``tags``, or if the file
+        name, title or an alias of any wiki page equals it (ignoring case; hyphens and spaces count alike).
+        """
         names = set()
         for page in self.pages:
-            names.update({page.stem.casefold(), page.title.casefold()})
-            aliases = page.meta.get("aliases")
-            if isinstance(aliases, list):
-                names.update(str(a).casefold() for a in aliases)
+            names.update({_topic_key(page.stem), _topic_key(page.title)})
+            for field in ("aliases", "tags") if page_type(page) in COVERING_TYPES else ("aliases",):
+                values = page.meta.get(field)
+                if isinstance(values, list):
+                    names.update(_topic_key(str(v)) for v in values)
         topics: Counter[str] = Counter()
         for doc in self.docs:
             t = doc.meta.get("tags")
             if isinstance(t, list):
                 topics.update({str(x).casefold() for x in t})
         for topic, n in sorted(topics.items()):
-            if n >= MIN_TOPIC_DOCUMENTS and topic not in names:
+            if n >= MIN_TOPIC_DOCUMENTS and _topic_key(topic) not in names:
                 self.r.add("topic_without_page", "info", None,
                            f"Topic '{topic}' in {n} documents, but without a wiki page.")
 
@@ -461,6 +467,18 @@ class Linter:  # pylint: disable=too-many-instance-attributes
                        f"[^{cit.label}] quote is not in v{cit.version}, section '{key}'.", footnote=cit.label)
 
 # Functions *******************************************************************
+
+
+def _topic_key(name: str) -> str:
+    """Comparable form of a tag, title or file name.
+
+    Args:
+        name: Name.
+
+    Returns:
+        Lower case with hyphens and underscores as spaces, whitespace collapsed.
+    """
+    return " ".join(name.replace("-", " ").replace("_", " ").casefold().split())
 
 
 def _error_message(doc: Doc) -> str:

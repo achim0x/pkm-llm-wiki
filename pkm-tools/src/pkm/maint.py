@@ -556,6 +556,7 @@ class Maintenance:
                 "wiki_pages": wiki_pages,
                 "assets": amap.assets(doc.rel),
             }
+        _drop_standalone(docs_state, entry.get("assets") or {})
         docs_state[key] = entry
         return {"key": key, "path": doc.rel, "version": entry.get("processed_version")}
 
@@ -700,6 +701,12 @@ def _asset_pending(
 ) -> None:
     """Report documents with changed associated image files as ``changed`` (4.9).
 
+    Migration: a document whose text is unchanged, whose recorded ``assets`` were empty and whose image
+    files are all known from ``state.json`` as standalone entries (``sha:<hash>``, processed before as
+    documents of their own) is only being switched over to attachments. It is reported once with
+    ``assets_migrated: true`` and ``image_notation_only: true`` and without changed sections: nothing to
+    process, only list it in ``processed`` (then the old standalone entries are removed).
+
     Args:
         docs: Documents.
         entries: Entries from ``state.json``.
@@ -709,9 +716,14 @@ def _asset_pending(
     listed = {item.get("path"): item for cat in ("changed", "meta_changed") for item in result.get(cat, [])}
     for doc in docs:
         entry = entries.get(doc.id or "") if doc.kind == "md" else None
-        changed = asset_changes(entry.get("assets"), amap.assets(doc.rel)) if entry else set()
+        current = amap.assets(doc.rel)
+        changed = asset_changes(entry.get("assets"), current) if entry else set()
+        migrated = bool(changed) and entry is not None and not entry.get("assets") and doc.hashes is not None \
+            and entry.get("body_hash") == doc.hashes.body_hash and all(f"sha:{current.get(p)}" in entries
+                                                                        for p in changed)
         if changed:
-            sections = [{"key": k, "change": "changed"} for k in amap.sections_for(doc.rel, changed)]
+            sections = [] if migrated else [{"key": k, "change": "changed"}
+                                            for k in amap.sections_for(doc.rel, changed)]
             item = listed.get(doc.rel)
             if item is None:
                 item = {"id": doc.id, "path": doc.rel, "title": doc.title,
@@ -722,6 +734,21 @@ def _asset_pending(
             item["sections"] = item.get("sections", []) + [s for s in sections if s["key"] not in known]
             item["images_changed"] = sorted(changed)
             item["assets_changed"] = item["images_changed"]  # old name, kept for compatibility
+            if migrated and not item["sections"]:
+                item.update(assets_migrated=True, image_notation_only=True)
+
+
+def _drop_standalone(docs_state: dict[str, Any], assets: dict[str, str]) -> None:
+    """Remove standalone entries of images that are now attachments of a document (migration, 4.9).
+
+    Args:
+        docs_state: ``documents`` from ``state.json`` (changed).
+        assets: Attachments of the document (path → hash).
+    """
+    for path, digest in assets.items():
+        old = docs_state.get(f"sha:{digest}")
+        if old is not None and old.get("path") == path:
+            del docs_state[f"sha:{digest}"]
 
 
 def _pending_files(

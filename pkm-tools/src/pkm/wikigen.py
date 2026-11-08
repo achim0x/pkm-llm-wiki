@@ -35,6 +35,7 @@ from .maint import Maintenance
 from .normalize import encode
 from .state import load_state
 from .vault import Doc, summary_of
+from .wikitexts import text as wtext
 
 if TYPE_CHECKING:
     from .service import Service
@@ -42,12 +43,7 @@ if TYPE_CHECKING:
 # Variables *******************************************************************
 
 GENERATED = {"wiki/index.md", "wiki/_status.md", "wiki/log.md"}
-TYPE_HEADINGS = [
-    ("topic", "Topics"),
-    ("entity", "Entities"),
-    ("summary", "Summaries"),
-    ("synthesis", "Syntheses"),
-]
+PAGE_TYPES = ("topic", "entity", "summary", "synthesis")  # order in wiki/index.md
 FOLDER_TYPES = {"topics": "topic", "entities": "entity", "summaries": "summary", "syntheses": "synthesis"}
 INBOX = "documents/_inbox/"
 ATTACHMENTS = "documents/_attachments/"
@@ -123,19 +119,20 @@ def write_if_changed(svc: Service, rel: str, text: str) -> bool:
     return changed
 
 
-def _index_line(doc: Doc) -> str:
+def _index_line(doc: Doc, lang: str) -> str:
     """Line of a page in ``wiki/index.md``.
 
     Args:
         doc: Wiki page.
+        lang: Wiki language.
 
     Returns:
         ``- [[path]] – summary _(n sources, date)_`` (date without time).
     """
-    summary = strip_images(summary_of(doc)) or "_(no summary)_"
+    summary = strip_images(summary_of(doc)) or wtext(lang, "no_summary")
     n = source_count(doc)
     updated = str(doc.meta.get("date_updated") or "")[:10]
-    info = f"{n} {'source' if n == 1 else 'sources'}" + (f", {updated}" if updated else "")
+    info = f"{n} {wtext(lang, 'source' if n == 1 else 'sources')}" + (f", {updated}" if updated else "")
     return f"- {doc.wikilink} – {summary} _({info})_"
 
 
@@ -148,19 +145,21 @@ def build_index(svc: Service) -> dict[str, Any]:
     Returns:
         Number of pages and whether the file was changed.
     """
+    lang = svc.cfg.language
     pages = wiki_pages(svc)
     groups: dict[str, list[Doc]] = {}
     for doc in pages:
         groups.setdefault(page_type(doc), []).append(doc)
-    known = [t for t, _ in TYPE_HEADINGS]
-    others = [(t, "Other" if not t else f"Other ({t})") for t in sorted(groups) if t not in known]
-    lines = ["# Wiki index", ""]
-    for t, heading in TYPE_HEADINGS + others:
+    other = wtext(lang, "other")
+    headings = [(t, wtext(lang, t)) for t in PAGE_TYPES]
+    headings += [(t, other if not t else f"{other} ({t})") for t in sorted(groups) if t not in PAGE_TYPES]
+    lines = [f"# {wtext(lang, 'index_title')}", ""]
+    for t, heading in headings:
         docs = sorted(groups.get(t, []), key=lambda d: (d.title.casefold(), d.rel))
         if docs:
-            lines += [f"## {heading}", "", *(_index_line(d) for d in docs), ""]
+            lines += [f"## {heading}", "", *(_index_line(d, lang) for d in docs), ""]
     if len(lines) == 2:
-        lines += ["_No pages yet._", ""]
+        lines += [wtext(lang, "no_pages"), ""]
     changed = write_if_changed(svc, "wiki/index.md", "\n".join(lines))
     return {"status": "ok", "pages": len(pages), "changed": changed}
 
@@ -214,11 +213,34 @@ def _link(rel: str) -> str:
     return f"[[{rel[:-3] if rel.lower().endswith('.md') else rel}]]"
 
 
-def _unprocessed_lines(pend: dict[str, Any]) -> list[str]:
+def _change_text(item: dict[str, Any], lang: str) -> str:
+    """Description of a ``changed`` entry.
+
+    Args:
+        item: Entry of ``pending.changed``.
+        lang: Wiki language.
+
+    Returns:
+        Changed sections, or why there are none.
+    """
+    keys = [c["key"] for c in item.get("sections", [])]
+    if keys:
+        what = wtext(lang, "changed", keys=_quote_keys(keys))
+    elif item.get("assets_migrated"):
+        what = wtext(lang, "migrated")
+    elif item.get("images_changed"):
+        what = wtext(lang, "images_only")
+    else:
+        what = wtext(lang, "order_only")
+    return what
+
+
+def _unprocessed_lines(pend: dict[str, Any], lang: str = "en") -> list[str]:
     """Lines for "Not yet processed".
 
     Args:
         pend: Result of ``pkm pending``.
+        lang: Wiki language.
 
     Returns:
         One line per document.
@@ -226,21 +248,20 @@ def _unprocessed_lines(pend: dict[str, Any]) -> list[str]:
     lines: list[str] = []
     for item in pend["new"]:
         version = f" (v{item.get('version')})" if item.get("version") else ""
-        extra = ", without ID" if item.get("missing_id") else ""
-        lines.append(f"- {_link(item['path'])} – new{version}{extra}")
+        extra = wtext(lang, "without_id") if item.get("missing_id") else ""
+        lines.append(f"- {_link(item['path'])} – {wtext(lang, 'new')}{version}{extra}")
     for item in pend["changed"]:
-        keys = [c["key"] for c in item.get("sections", [])]
-        what = f"changed: {_quote_keys(keys)}" if keys else "only order changed"
-        lines.append(f"- {_link(item['path'])} – v{item.get('processed_version')} → v{item.get('version')}, {what}")
+        versions = f"v{item.get('processed_version')} → v{item.get('version')}"
+        lines.append(f"- {_link(item['path'])} – {versions}, {_change_text(item, lang)}")
     for item in pend["meta_changed"]:
-        lines.append(
-            f"- {_link(item['path'])} – v{item.get('processed_version')} → v{item.get('version')}, metadata only"
-        )
+        lines.append(f"- {_link(item['path'])} – v{item.get('processed_version')} → v{item.get('version')}, "
+                     f"{wtext(lang, 'meta_only')}")
     for item in pend["moved"]:
-        lines.append(f"- {_link(item['to'])} – moved from {item['from']}")
+        lines.append(f"- {_link(item['to'])} – {wtext(lang, 'moved', src=item['from'])}")
     for item in pend["deleted"]:
-        pages = ", ".join(item.get("wiki_pages") or []) or "no wiki pages"
-        lines.append(f"- {item.get('path')} – deleted (last v{item.get('processed_version')}), affects: {pages}")
+        pages = ", ".join(item.get("wiki_pages") or []) or wtext(lang, "no_pages_affected")
+        deleted = wtext(lang, "deleted", version=item.get("processed_version"), pages=pages)
+        lines.append(f"- {item.get('path')} – {deleted}")
     return lines
 
 
@@ -262,15 +283,18 @@ def _inbox_lines(svc: Service, pend: dict[str, Any], docs: list[Doc]) -> list[st
         key = doc.id if doc.kind == "md" else f"sha:{doc.bin_hash}"
         if doc.rel.startswith(INBOX) and doc.rel not in pending_paths and key and key in state:
             folder = suggest_folder(doc, docs)
-            lines.append(f"- {_link(doc.rel)} → {f'proposal: {folder}' if folder else 'no proposal'}")
+            lang = svc.cfg.language
+            lines.append(f"- {_link(doc.rel)} → "
+                         + (wtext(lang, "proposal", folder=folder) if folder else wtext(lang, "no_proposal")))
     return lines
 
 
-def _problem_lines(pend: dict[str, Any]) -> list[str]:
+def _problem_lines(pend: dict[str, Any], lang: str = "en") -> list[str]:
     """Lines for "Problems".
 
     Args:
         pend: Result of ``pkm pending``.
+        lang: Wiki language.
 
     Returns:
         One line per problem.
@@ -278,11 +302,11 @@ def _problem_lines(pend: dict[str, Any]) -> list[str]:
     lines = []
     for p in pend["problems"]:
         if p["problem"] == "conflict_copy":
-            lines.append(f"- Cloud storage conflict copy: {p['path']} (please merge in Obsidian)")
+            lines.append(f"- {wtext(lang, 'conflict_copy', path=p['path'])}")
         elif p["problem"] == "duplicate_id":
-            lines.append(f"- Duplicate ID {p['id']}: {', '.join(p['paths'])}")
+            lines.append(f"- {wtext(lang, 'duplicate_id', id=p['id'], paths=', '.join(p['paths']))}")
         elif p["problem"] == "case_collision":
-            lines.append(f"- Differ only in upper/lower case: {', '.join(p['paths'])}")
+            lines.append(f"- {wtext(lang, 'case_collision', paths=', '.join(p['paths']))}")
         else:
             lines.append(f"- {p['problem']}: {p.get('path')} – {p.get('message') or ''}".rstrip(" –"))
     return lines
@@ -301,17 +325,18 @@ def build_status(svc: Service, questions: list[str] | None = None) -> dict[str, 
     maint = Maintenance(svc)
     pend = maint.pending()
     docs, _ = maint.documents()
-    unprocessed = _unprocessed_lines(pend)
+    lang = svc.cfg.language
+    unprocessed = _unprocessed_lines(pend, lang)
     inbox_done = _inbox_lines(svc, pend, docs)
-    problems = _problem_lines(pend)
-    lines = ["# Status", "", f"## Not yet processed ({len(unprocessed)})", *unprocessed, "",
-             f"## Still in the inbox, already processed ({len(inbox_done)})", *inbox_done, "",
-             f"## Problems ({len(problems)})", *problems, ""]
+    problems = _problem_lines(pend, lang)
+    lines = [f"# {wtext(lang, 'status_title')}", "", f"## {wtext(lang, 'unprocessed')} ({len(unprocessed)})",
+             *unprocessed, "", f"## {wtext(lang, 'inbox_done')} ({len(inbox_done)})", *inbox_done, "",
+             f"## {wtext(lang, 'problems')} ({len(problems)})", *problems, ""]
     orphans = pend.get("orphaned_attachments") or []
     if orphans:
-        lines += [f"## Orphaned attachments ({len(orphans)})", *[f"- {_link(rel)}" for rel in orphans], ""]
+        lines += [f"## {wtext(lang, 'orphans')} ({len(orphans)})", *[f"- {_link(rel)}" for rel in orphans], ""]
     if questions:
-        lines += [f"## Questions ({len(questions)})", *[f"- {q}" for q in questions], ""]
+        lines += [f"## {wtext(lang, 'questions')} ({len(questions)})", *[f"- {q}" for q in questions], ""]
     changed = write_if_changed(svc, "wiki/_status.md", "\n".join(lines))
     return {"status": "ok", "unprocessed": len(unprocessed), "inbox_processed": len(inbox_done),
             "problems": len(problems), "changed": changed}

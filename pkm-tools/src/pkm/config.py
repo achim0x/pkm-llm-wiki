@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -56,7 +57,7 @@ DOC_LANGUAGES = {
 CONFIG_KEYS = (
     "PKM_ROOT", "PKM_VAULT_NAME", "PKM_LANGUAGE", "PKM_VERSIONING", "PKM_GIT", "PKM_GIT_DIR", "PKM_CACHE_DIR",
     "PKM_TZ", "PKM_MAX_KB", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
-    "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_SVG_RASTER", "PKM_IMAGE_FOLDER",
+    "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_SVG_RASTER", "PKM_IMAGE_FOLDER", "PKM_LINK_STYLE",
 )
 WIKI_SECTIONS = {
     "en": ("Summary", ("Content", "Contradictions / open questions", "See also", "Citations")),
@@ -66,6 +67,7 @@ LANGUAGE_ALIASES = {"en": "en", "english": "en", "englisch": "en", "de": "de", "
 ATTACHMENTS_FOLDER = "documents/_attachments"
 IMAGE_FOLDERS = ("attachments", "document")  # PKM_IMAGE_FOLDER: storage location of image files
 IMAGE_DIR_SUFFIX = "_img"
+LINK_STYLES = ("absolute", "relative")  # PKM_LINK_STYLE: links to image files
 IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX_MB": 5,
                   "PKM_IMAGE_PARAM_MAX_KB": 512}
 
@@ -73,7 +75,7 @@ IMAGE_DEFAULTS = {"PKM_INLINE_MAX_KB": 24, "PKM_SVG_MAX_KB": 200, "PKM_IMAGE_MAX
 
 
 @dataclass(frozen=True)
-class ImageConfig:
+class ImageConfig:  # pylint: disable=too-many-instance-attributes
     """Limits and folders for images (specification 4.9, 7.1).
 
     Attributes:
@@ -85,6 +87,8 @@ class ImageConfig:
         svg_raster: Rasterize SVG for ``read_image`` (``PKM_SVG_RASTER``).
         folder: Storage location of new image files (``PKM_IMAGE_FOLDER``): ``attachments``
             (``documents/_attachments/``) or ``document`` (``<folder of the document>/<name>_img/``).
+        link_style: Links to new image files (``PKM_LINK_STYLE``): ``absolute`` (path from the vault root)
+            or ``relative``; by default like Obsidian's "New link format" in ``.obsidian/app.json``.
     """
 
     inline_max_kb: int = 24
@@ -94,6 +98,7 @@ class ImageConfig:
     import_dir: Path | None = None
     svg_raster: bool = False
     folder: str = "attachments"
+    link_style: str = "absolute"
 
     def folder_for(self, doc_rel: str) -> str:
         """Folder for new image files of a document (``mode: file``, ``add_image``, ``extract``).
@@ -133,6 +138,10 @@ class ImageConfig:
         if folder not in IMAGE_FOLDERS:
             raise PkmError("config_error",
                            f"PKM_IMAGE_FOLDER must be one of {', '.join(IMAGE_FOLDERS)}, not {folder!r}.")
+        link_style = (env.get("PKM_LINK_STYLE") or obsidian_link_format(root)).strip().lower()
+        if link_style not in LINK_STYLES:
+            raise PkmError("config_error",
+                           f"PKM_LINK_STYLE must be one of {', '.join(LINK_STYLES)}, not {link_style!r}.")
         return cls(
             inline_max_kb=values["PKM_INLINE_MAX_KB"],
             svg_max_kb=values["PKM_SVG_MAX_KB"],
@@ -141,6 +150,7 @@ class ImageConfig:
             import_dir=import_dir.expanduser().resolve(),
             svg_raster=(env.get("PKM_SVG_RASTER") or "").strip().lower() in ("1", "true", "yes", "ja"),
             folder=folder,
+            link_style=link_style,
         )
 
 
@@ -343,6 +353,23 @@ def default_app_dir(home: Path | None = None) -> Path:
         base = os.environ.get("XDG_DATA_HOME")
         app = Path(base) / "pkm" if base else home / ".local" / "share" / "pkm"
     return app
+
+
+def obsidian_link_format(root: Path) -> str:
+    """Link style from Obsidian's setting "New link format" (``.obsidian/app.json``, ``newLinkFormat``).
+
+    Args:
+        root: Vault folder.
+
+    Returns:
+        ``relative`` for Obsidian's "relative path", otherwise ``absolute`` ("absolute path in vault" as set
+        by ``pkm init``, and "shortest path", which Markdown links cannot express reliably).
+    """
+    try:
+        data = json.loads((root / ".obsidian" / "app.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    return "relative" if isinstance(data, dict) and data.get("newLinkFormat") == "relative" else "absolute"
 
 
 def parse_language(value: str | None) -> str:

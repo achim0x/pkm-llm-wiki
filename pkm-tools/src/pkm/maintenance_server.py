@@ -80,7 +80,8 @@ def _register_maintenance_tools(server: Server) -> None:
         min_kb: int = 32,
     ) -> dict:
         """Only after explicit confirmation by the user, never unattended: fix the notation of nonconforming
-        image data URIs of a document in documents/ per 4.9 (image_issues from begin_maintenance).
+        image data URIs of a document in documents/ per 4.9 (image_issues from begin_maintenance), or with
+        extract=true store large embedded raster images as files.
         Without apply only a proposal with diff; apply=true writes a new version (PKM-Fix: images).
         extract=true: store embedded raster images of at least min_kb KB as files and link them (bytes
         unchanged, PKM-Fix: images-extract), e.g. for lint large_embedded_image."""

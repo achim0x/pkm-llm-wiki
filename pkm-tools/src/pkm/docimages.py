@@ -134,9 +134,10 @@ def place_images(
                 link = img.data_uri()
                 if img.mode == "file":
                     rel, new = imagefix.store_image(writer, writer.cfg.images.folder_for(doc.rel),
-                                                    slugify(img.name, MAX_NAME), img.fmt, img.data)
+                                                    slugify(img.name, MAX_NAME), img.fmt, img.data,
+                                                    date=imagefix.document_date(doc.meta))
                     files += [rel] if new else []
-                    link = images.relative_link(doc.rel, rel)
+                    link = images.file_link(doc.rel, rel, writer.cfg.images.link_style)
                 lines[img.name] = img.markdown(link)
                 infos.append({**img.info(), **({"path": rel} if img.mode == "file" else {})})
         except PkmError:
@@ -261,9 +262,9 @@ def fix_document(  # pylint: disable=too-many-arguments,too-many-locals
                                path=doc.rel)
             return _extract_document(writer, doc, apply, min_kb, images_only, note, source)
         opts = {"names": images_only, "image_alt": image_alt, "confirm_shortening": confirm_shortening,
-                "scratch": scratch, "doc_rel": doc.rel}
+                "scratch": scratch, "doc_rel": doc.rel, "file_date": imagefix.document_date(doc.meta)}
         if not apply:
-            new_body, _ = imagefix.fix_text(body, limits, **opts)
+            new_body, _ = imagefix.fix_text(body, limits, writer=writer, dry_run=True, **opts)
             result: dict[str, Any] = {
                 "status": "proposal" if new_body != body else "unchanged", "path": doc.rel, "image_issues": issues,
                 "diff": unified_diff(images.to_placeholders(body), images.to_placeholders(new_body), "before",
@@ -304,7 +305,9 @@ def _extract_document(  # pylint: disable=too-many-arguments,too-many-positional
     body = doc.parsed.body
     limits = writer.cfg.images
     if not apply:
-        new_body, _, infos = imagefix.extract_text(body, limits, doc_rel=doc.rel, min_kb=min_kb, names=names)
+        new_body, _, infos = imagefix.extract_text(body, limits, writer=writer, doc_rel=doc.rel, min_kb=min_kb,
+                                                   names=names, file_date=imagefix.document_date(doc.meta),
+                                                   dry_run=True)
         result: dict[str, Any] = {
             "status": "proposal" if infos else "unchanged", "path": doc.rel, "extracted": infos,
             "files": [i["path"] for i in infos],
@@ -313,7 +316,7 @@ def _extract_document(  # pylint: disable=too-many-arguments,too-many-positional
         }
     else:
         new_body, files, infos = imagefix.extract_text(body, limits, writer=writer, doc_rel=doc.rel, min_kb=min_kb,
-                                                       names=names)
+                                                       names=names, file_date=imagefix.document_date(doc.meta))
         try:
             result = writer.finish(doc, doc.parsed.frontmatter_text + new_body,
                                    note or f"{len(infos)} embedded images stored as files", source, files,
@@ -395,9 +398,10 @@ def _resolve_file(svc: Any, doc_rel: str, ref: images.ImageRef) -> str:
         PkmError: ``not_found``.
     """
     target = images.link_target(ref, doc_rel) or ""
-    if not svc.vault.exists(target) and "/" not in target:
-        matches = [r for r in svc.vault.iter_files(("documents",)) if PurePosixPath(r).name == target]
-        target = matches[0] if len(matches) == 1 else target
+    if not svc.vault.exists(target):  # vault path, other case, Obsidian's shortest path or bare name
+        from .assets import AssetMap  # pylint: disable=import-outside-toplevel  # avoids an import cycle
+        docs = [svc.vault.load(r) for r in svc.vault.iter_files(("documents",))]
+        target = AssetMap(svc, docs).resolve(doc_rel, ref) or target
     if not svc.vault.exists(target):
         raise PkmError("not_found", f"Image file not found: {ref.link}", image=ref.name)
     return target

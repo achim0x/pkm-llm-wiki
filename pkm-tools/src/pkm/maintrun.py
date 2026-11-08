@@ -46,6 +46,7 @@ from .paths import is_platform_safe_name, safe_resolve
 from .schema import KINDS, normalize_tags
 from .vault import Doc
 from .wikigen import build_index, build_status, wiki_pages, write_if_changed
+from .wikitexts import text
 
 if TYPE_CHECKING:
     from .service import Service
@@ -450,7 +451,7 @@ def append_log(svc: Service, operation: str, title: str | None, entry: str) -> s
     stamp = svc.now().strftime("%Y-%m-%d %H:%M")
     heading = f"## [{stamp}] {operation}" + (f" | {' '.join(title.split())}" if title else "")
     p = svc.cfg.root / LOG_PATH
-    old = p.read_text(encoding="utf-8").rstrip("\n") if p.is_file() else "# Maintenance log"
+    old = p.read_text(encoding="utf-8").rstrip("\n") if p.is_file() else f"# {text(svc.cfg.language, 'log_title')}"
     write_if_changed(svc, LOG_PATH, f"{old}\n\n{heading}\n{entry.strip()}\n")
     return heading
 

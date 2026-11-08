@@ -40,7 +40,7 @@ from . import images
 from .errors import PkmError
 from .fsutil import write_bytes_atomic
 from .imagescan import find_data_images
-from .paths import MAX_NAME, slugify
+from .paths import slug_words, slugify
 
 if TYPE_CHECKING:
     from .config import ImageConfig
@@ -52,6 +52,7 @@ LEGACY_PROBLEMS = ("reference_style", "html_img", "angle_brackets", "base64_whit
                    "invalid_data")
 NOTATION_PROBLEMS = {"reference": "reference_style", "html": "html_img", "angle": "angle_brackets"}
 LinkHash = Callable[[images.ImageRef], "str | None"]
+IMAGE_STEM_MAX = 60
 MIME = {"png": "png", "jpg": "jpeg", "gif": "gif", "webp": "webp"}
 SVG_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 
@@ -434,14 +435,15 @@ def _target_link(a: Analysis, ctx: dict[str, Any]) -> str:
         Relative link to the file.
     """
     writer, doc_rel, files = ctx["writer"], ctx["doc_rel"], ctx["files"]
-    stem = slugify(a.ref.name, MAX_NAME)
+    stem = file_stem(a.ref)
     folder = ctx["limits"].folder_for(doc_rel)
     if writer is None:
         rel = f"{folder}/{stem}_YYYY-MM-DD.{a.fmt}"
     else:
-        rel, new = store_image(writer, folder, stem, a.fmt, a.data)
+        rel, new = store_image(writer, folder, stem, a.fmt, a.data, date=ctx["file_date"], dry_run=ctx["dry_run"],
+                               reserved=ctx["reserved"])
         files += [rel] if new else []
-    return images.relative_link(doc_rel, rel)
+    return images.file_link(doc_rel, rel, ctx["limits"].link_style)
 
 
 def _replacement(a: Analysis, ctx: dict[str, Any]) -> str:
@@ -503,7 +505,8 @@ def _line_wrapped(text: str, start: int, end: int, line: str) -> tuple[int, int,
 def fix_text(  # pylint: disable=too-many-arguments,too-many-locals
     text: str, limits: ImageConfig, *, writer: Writer | None = None, doc_rel: str = "", names: list[str] | None = None,
     image_alt: dict[str, str] | None = None, confirm_shortening: bool = False, legacy: bool = True,
-    scratch: bool = False, wiki: bool = False, only_links: set[str] | None = None,
+    scratch: bool = False, wiki: bool = False, only_links: set[str] | None = None, file_date: str | None = None,
+    dry_run: bool = False,
 ) -> tuple[str, list[str]]:
     """Fix nonconforming data URIs per 4.9; the remaining text stays byte for byte.
 
@@ -519,6 +522,8 @@ def fix_text(  # pylint: disable=too-many-arguments,too-many-locals
         scratch: Target in ``scratch/``.
         wiki: Wiki page.
         only_links: Only images with these URIs.
+        file_date: Date in the names of new image files (``date_markdown``); today if omitted.
+        dry_run: With a writer only determine the real file names (proposal), write nothing.
 
     Returns:
         Tuple of (new text, newly written image files).
@@ -530,6 +535,7 @@ def fix_text(  # pylint: disable=too-many-arguments,too-many-locals
     found = [a for a in analyses(text, limits, legacy=legacy, scratch=scratch, wiki=wiki, only_links=only_links)
              if a.problems and a.fixable and (names is None or a.ref.name in names)]
     ctx: dict[str, Any] = {"writer": writer, "doc_rel": doc_rel, "limits": limits, "files": [],
+                           "file_date": file_date, "dry_run": dry_run, "reserved": set(),
                            "image_alt": dict(image_alt or {}),
                            "used": {r.name for r in images.find_images(text)}, "no_files": scratch or wiki,
                            "kept": set(),
@@ -642,11 +648,14 @@ def notation_only(
     a, b = canonical(old, limits, old_hash), canonical(new, limits, new_hash)
     return old != new and a == b and not any(d.startswith("unsafe:") for d in a[1])
 
-def store_image(writer: Writer, folder: str, stem: str, ext: str, data: bytes) -> tuple[str, bool]:
+def store_image(  # pylint: disable=too-many-arguments
+    writer: Writer, folder: str, stem: str, ext: str, data: bytes, *, date: str | None = None,
+    dry_run: bool = False, reserved: set[str] | None = None,
+) -> tuple[str, bool]:
     """Store an image file at the storage location; an identical file there is reused (4.9).
 
     Duplicates are detected by their bytes: if the folder already holds a file with the same content
-    and extension, its path is returned and nothing is written.
+    and extension, its path is returned and nothing is written. The name is ``<stem>_<date>.<ext>``.
 
     Args:
         writer: Writer (vault, free file names, clock).
@@ -654,6 +663,9 @@ def store_image(writer: Writer, folder: str, stem: str, ext: str, data: bytes) -
         stem: File name without date and extension (from the image name or alt text).
         ext: Extension without dot (``png``, ``jpg``, ``svg`` …).
         data: Bytes, written unchanged.
+        date: Date in the name (``YYYY-MM-DD``, usually ``date_markdown`` of the document); today if omitted.
+        dry_run: Only determine the real file name (proposal), write nothing.
+        reserved: Names already planned in this call (added to), so a proposal never repeats a name.
 
     Returns:
         Tuple of (path in the vault, ``True`` if the file was newly written).
@@ -663,13 +675,47 @@ def store_image(writer: Writer, folder: str, stem: str, ext: str, data: bytes) -
     if base.is_dir():
         same = next((p for p in sorted(base.iterdir()) if p.is_file() and p.suffix.lower() == f".{ext}"
                      and p.stat().st_size == len(data) and p.read_bytes() == data), None)
+    taken = reserved if reserved is not None else set()
     if same is not None:
         result = (f"{folder}/{same.name}", False)
     else:
-        rel = writer.free_name(folder, stem, f"_{writer.svc.now().date().isoformat()}", f".{ext}")
-        write_bytes_atomic(writer.vault.path(rel), data)
-        result = (rel, True)
+        tail = f"_{date or writer.svc.now().date().isoformat()}"
+        rel, n = writer.free_name(folder, stem, tail, f".{ext}"), 1
+        while rel in taken:
+            n += 1
+            rel = writer.free_name(folder, f"{stem}-{n}", tail, f".{ext}")
+        taken.add(rel)
+        if not dry_run:
+            write_bytes_atomic(writer.vault.path(rel), data)
+        result = (rel, not dry_run)
     return result
+
+
+def document_date(meta: dict[str, Any]) -> str | None:
+    """Date of a document for the names of its image files (``date_markdown``, 4.9).
+
+    Args:
+        meta: Frontmatter.
+
+    Returns:
+        ``YYYY-MM-DD`` or ``None`` (then today).
+    """
+    value = str(meta.get("date_markdown") or "")[:10]
+    return value if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) else None
+
+
+def file_stem(ref: images.ImageRef) -> str:
+    """Stem of the file name of an image: from the alt text, cut at a word boundary.
+
+    The image name (and with it ``[img:<name>]``) stays as it is; only the file is named readably.
+
+    Args:
+        ref: Image.
+
+    Returns:
+        Slug of the alt text, otherwise of the image name.
+    """
+    return slug_words(ref.alt or ref.name, IMAGE_STEM_MAX)
 
 
 # Extracting ******************************************************************
@@ -697,7 +743,8 @@ def extract_candidates(
 
 def extract_text(  # pylint: disable=too-many-arguments,too-many-locals
     text: str, limits: ImageConfig, *, writer: Writer | None = None, doc_rel: str = "",
-    min_kb: int = EXTRACT_MIN_KB, names: list[str] | None = None,
+    min_kb: int = EXTRACT_MIN_KB, names: list[str] | None = None, file_date: str | None = None,
+    dry_run: bool = False,
 ) -> tuple[str, list[str], list[dict[str, Any]]]:
     """Store large embedded raster images as files and link them instead (``fix_images`` with ``extract``).
 
@@ -711,6 +758,8 @@ def extract_text(  # pylint: disable=too-many-arguments,too-many-locals
         doc_rel: Path of the document.
         min_kb: Only images with at least this many KB.
         names: Only these images.
+        file_date: Date in the file names (``date_markdown`` of the document); today if omitted.
+        dry_run: With a writer only determine the real file names (proposal), write nothing.
 
     Returns:
         Tuple of (new text, newly written files, info per image: name, format, size, path).
@@ -718,18 +767,19 @@ def extract_text(  # pylint: disable=too-many-arguments,too-many-locals
     folder = limits.folder_for(doc_rel)
     files: list[str] = []
     infos: list[dict[str, Any]] = []
+    reserved: set[str] = set()
     out, pos = [], 0
     for ref in extract_candidates(text, min_kb, names):
         assert ref.occ is not None
         data = ref.data()
-        stem = slugify(ref.name, MAX_NAME)
+        stem = file_stem(ref)
         ext = "jpg" if ref.fmt == "jpg" else ref.fmt
         if writer is None:
             rel = f"{folder}/{stem}_YYYY-MM-DD.{ext}"
         else:
-            rel, new = store_image(writer, folder, stem, ext, data)
+            rel, new = store_image(writer, folder, stem, ext, data, date=file_date, dry_run=dry_run, reserved=reserved)
             files += [rel] if new else []
-        out += [text[pos:ref.occ.uri_start], images.relative_link(doc_rel, rel)]
+        out += [text[pos:ref.occ.uri_start], images.file_link(doc_rel, rel, limits.link_style)]
         pos = ref.occ.uri_end
         infos.append({"name": ref.name, "format": ref.fmt, "size": len(data), "path": rel,
                       "hash": hashlib.sha256(data).hexdigest()})

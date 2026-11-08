@@ -123,6 +123,23 @@ def slugify(title: str, max_len: int = 80) -> str:
     return s
 
 
+def slug_words(text: str, max_len: int = 60) -> str:
+    """Slug for a file name, shortened at a word boundary (hyphen) instead of in the middle of a word.
+
+    Args:
+        text: E.g. the alt text of an image.
+        max_len: Maximum length.
+
+    Returns:
+        Slug; cut at the last hyphen within ``max_len`` if that keeps at least half of it.
+    """
+    s = slugify(text, 10 * max_len)
+    if len(s) > max_len:
+        cut = s[:max_len + 1].rfind("-")
+        s = (s[:cut] if cut >= max_len // 2 else s[:max_len]).rstrip("-")
+    return s
+
+
 def fit_stem(stem: str, rest: str) -> str:
     """Shorten a name stem so that ``stem + rest`` has at most ``MAX_NAME`` characters.
 
