@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any
 from .errors import PkmError
 from .fsutil import write_bytes_atomic
 from .images import strip_images
+from .inboxnames import add_rename_proposals
 from .maint import Maintenance
 from .normalize import encode
 from .state import load_state
@@ -249,6 +250,8 @@ def _unprocessed_lines(pend: dict[str, Any], lang: str = "en") -> list[str]:
     for item in pend["new"]:
         version = f" (v{item.get('version')})" if item.get("version") else ""
         extra = wtext(lang, "without_id") if item.get("missing_id") else ""
+        if item.get("rename"):
+            extra += wtext(lang, "rename", name=PurePosixPath(item["rename"]["to"]).name)
         lines.append(f"- {_link(item['path'])} – {wtext(lang, 'new')}{version}{extra}")
     for item in pend["changed"]:
         versions = f"v{item.get('processed_version')} → v{item.get('version')}"
@@ -324,6 +327,7 @@ def build_status(svc: Service, questions: list[str] | None = None) -> dict[str, 
     """
     maint = Maintenance(svc)
     pend = maint.pending()
+    add_rename_proposals(svc, pend["new"])
     docs, _ = maint.documents()
     lang = svc.cfg.language
     unprocessed = _unprocessed_lines(pend, lang)

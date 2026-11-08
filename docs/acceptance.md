@@ -353,6 +353,7 @@ pkm lint --report
 | Wiki-Sprache | `begin_maintenance` | `wiki_language` entspricht `PKM_LANGUAGE` | ☐ |
 | Antwortgröße | `fix_images` mit `extract` und `apply` an einem Dokument mit großen eingebetteten Bildern | Antwort < 10 KB, Diff mit Platzhaltern `pkm-image:…`, kein Base64 | ☐ |
 | Erzeugte Wiki-Dateien | Pflegelauf mit `PKM_LANGUAGE = "de"` | `wiki/_status.md` mit „Noch nicht verarbeitet“, „Probleme“; `wiki/index.md` mit „Themen“ | ☐ |
+| Namen im Eingang | Umgewandeltes Dokument `Meeting Notes.md` mit Bildordner `Meeting Notes_files/` in `_inbox/` legen, Pflegelauf | Rückfrage vor der Verarbeitung mit neuem Namen `<slug>_YYYY-MM-DD.md` und Bildordner `<slug>_YYYY-MM-DD_img/`; nach Bestätigung beides umbenannt, Bilder sichtbar in Obsidian, ein Commit | ☐ |
 | Dateinamen und Links | `extract` an einem Dokument mit `date_markdown` | Vorschlag nennt die echten Namen, Datum aus `date_markdown`, an Wortgrenzen gekürzt; Links relativ zum Dokument | ☐ |
 
 **Dokumentsprache:**

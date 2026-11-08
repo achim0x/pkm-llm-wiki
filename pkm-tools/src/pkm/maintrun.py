@@ -40,6 +40,7 @@ from .doctor import doctor
 from .errors import PkmError
 from .frontmatter import set_fields_linewise
 from .ids import is_valid_id
+from .inboxnames import add_rename_proposals, rename_inbox_document
 from .lint import lint, write_report
 from .maint import Maintenance, page_ref
 from .paths import is_platform_safe_name, safe_resolve
@@ -85,6 +86,7 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
         ids = maint.ids()
         pend = maint.pending()
         add_missing_fields(svc, pend["new"])
+        add_rename_proposals(svc, pend["new"])
         fixed = fix_citations(svc) if pend["moved"] else None
         result = {
             "status": "needs_decision" if ids["duplicates"] else "ok",
@@ -371,6 +373,24 @@ def fix_document_images(  # pylint: disable=too-many-arguments,too-many-position
     return docimages.fix_document(svc.writer, target, expected_hash, images_only=images_only, image_alt=image_alt,
                                   apply=apply, confirm_shortening=confirm_shortening, note=note, source="agent",
                                   areas=("documents/",), extract=extract, min_kb=min_kb)
+
+
+def rename_document(
+    svc: Service, target: str, expected_hash: str, apply: bool = False, name: str | None = None
+) -> dict[str, Any]:
+    """Name a new document in the inbox after the convention, with its image folder (after confirmation).
+
+    Args:
+        svc: Service.
+        target: Document in ``documents/_inbox/``.
+        expected_hash: ``hash`` from ``read``.
+        apply: Carry out; without it only the proposal.
+        name: Desired name instead of the title.
+
+    Returns:
+        Result of ``rename_inbox_document``.
+    """
+    return rename_inbox_document(svc, target, expected_hash, apply=apply, stem=name)
 
 
 def _load_target(svc: Service, target: str) -> Doc:

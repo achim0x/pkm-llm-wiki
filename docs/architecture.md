@@ -84,7 +84,7 @@ flowchart LR
 | Component | Role |
 |---|---|
 | `pkm-mcp` | MCP server for all chats: search, read, create and continue documents, citations, images |
-| `pkm-maintenance-mcp` | MCP server for the maintenance project: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` plus the reading tools |
+| `pkm-maintenance-mcp` | MCP server for the maintenance project: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `fix_images`, `finish_maintenance` plus the reading tools |
 | `pkm` | CLI for setup, checks (`doctor`, `lint`) and troubleshooting; contains the same maintenance building blocks |
 | Skills `pkm-access`, `pkm-wiki` | Instructions for Claude in normal chats and in the maintenance project |
 | Vault | Markdown files in the cloud folder (or a local folder without cloud storage); never contains `.git` or the search index |
@@ -737,7 +737,8 @@ finds "Überlauf". Images are indexed only by their alt text.
 
 ```mermaid
 flowchart TB
-    maintrun["maintrun<br/>begin_maintenance, write_wiki_page,<br/>set_document_metadata, finish_maintenance"]
+    maintrun["maintrun<br/>begin_maintenance, write_wiki_page,<br/>set_document_metadata, rename_document,<br/>finish_maintenance"]
+    inboxnames["inboxnames<br/>name proposals in the inbox,<br/>renaming with the image folder"]
     maint["maint.Maintenance<br/>ids, versions, pending, mark,<br/>sha, fix-frontmatter, commit-wiki"]
     subgraph cit["Citations"]
         citations["citations<br/>parse, resolve, show,<br/>fix-/sync-citations"]
@@ -753,6 +754,7 @@ flowchart TB
     assets["assets<br/>image files per document"]
     cloudsync["cloudsync<br/>conflict copies"]
     maintrun --> maint
+    maintrun --> inboxnames
     maintrun --> citations
     maintrun --> citeraise
     maintrun --> lint

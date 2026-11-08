@@ -12,6 +12,7 @@
 > - **Regeln für die Umwandlung** (Docling-Pipeline, Import): große Bilder als Datei, Fotos skaliert, Dubletten einmal, Dateinamen und Alternativtexte aus der Bildbeschreibung (4.9).
 > - **`begin_maintenance` liefert `wiki_language`**, weil Server-Anweisungen nicht in jedem Client beim Modell ankommen (Cowork) (7.7, 9).
 > - **Nach dem Test (Review vom 07.11.2026):** Diffs und Beleg-Auszüge zeigen eingebettete Bilder als Platzhalter wie `read`, nie Base64 (7.2); `wiki/index.md`, `wiki/_status.md` und ein neues `wiki/log.md` folgen der Wiki-Sprache (4.3–4.5); `topic_without_page` erkennt Seiten über `tags`, Titel, Dateiname und `aliases` (8); der Wechsel von eigenständigen Bildern zu Anhängen erscheint einmal als `assets_migrated` (4.9); Bilddateinamen aus dem Alternativtext an Wortgrenzen gekürzt, mit `date_markdown` als Datum, echte Namen schon im Vorschlag (4.9); Linkstil für Bilddateien `PKM_LINK_STYLE`, standardmäßig relativ zum Dokument, `absolute` wahlweise (4.9, 7.1).
+> - **Namen im Eingang:** Neue Markdown-Dokumente in `documents/_inbox/`, deren Name nicht der Konvention `<slug>_YYYY-MM-DD.md` folgt (von Hand, aus Obsidian oder einer Umwandlung abgelegt), bekommen in `begin_maintenance` einen Namensvorschlag (`rename`). Nach ausdrücklicher Bestätigung benennt das neue Tool `rename_document` das Dokument um; ein Ordner daneben, der nur seine Bilder enthält, wird zu `<neuer Name>_img/`, die Bildlinks werden angepasst (3, 4.1, 4.4, 7.7, 9.8).
 
 > **Änderungen in 0.28**
 > - **Version anzeigen:** `pkm --version`; `pkm setup` und `pkm doctor` melden die installierte Version (8).
@@ -246,7 +247,7 @@ Außerhalb des Cloud-Ordners, nur auf dem PKM-Rechner (5.5):
 
 | Bereich | Nutzer (Obsidian) | pkm-mcp (Chat, auf Anweisung des Nutzers) | Pflege-Agent |
 |---|---|---|---|
-| `documents/_inbox/` | alles | neu anlegen, ändern | lesen, `id`/`version` setzen; nach Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` und Bildschreibweise (`fix_images`, 4.9) |
+| `documents/_inbox/` | alles | neu anlegen, ändern | lesen, `id`/`version` setzen; nach Bestätigung `title`, `context`, `tags`, `kind`, `short_citation`, Bildschreibweise (`fix_images`, 4.9) und Umbenennen neuer Dokumente nach der Namenskonvention samt eigenem Bildordner (`rename_document`, 9.8) |
 | `documents/**` (übrige) | alles | ändern (nur `.md`) | lesen, `id`/`version` setzen; nach Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` und Bildschreibweise (`fix_images`, 4.9) |
 | `wiki/` | lesen | **nur lesen** | lesen und schreiben |
 | `CLAUDE.md` | lesen und schreiben (Änderungen committet `pkm versions`) | – | Änderungen nur nach Zustimmung |
@@ -360,7 +361,7 @@ Der Server `pkm` nennt die Dokumentsprache und diese Abschnittsnamen in seinen A
 
 Bei einer fortgeführten Diskussion werden diese Abschnitte **aktualisiert**, nicht ergänzt (Abschnitt 6). Das Dokument zeigt immer den aktuellen Stand.
 
-**Dateinamen** in `_inbox/`: `<slug>_YYYY-MM-DD.md`, das Datum (Tag der Anlage) steht am Ende. Bei Namensgleichheit kommt ein Suffix vor das Datum: `<slug>-2_YYYY-MM-DD.md`. Ist der Name länger als 120 Zeichen (5.5), wird nur der Slug gekürzt, nie das Datum oder das Suffix. Beim Einsortieren darfst du sie frei umbenennen.
+**Dateinamen** in `_inbox/`: `<slug>_YYYY-MM-DD.md`, das Datum (Tag der Anlage) steht am Ende. Bei Namensgleichheit kommt ein Suffix vor das Datum: `<slug>-2_YYYY-MM-DD.md`. Ist der Name länger als 120 Zeichen (5.5), wird nur der Slug gekürzt, nie das Datum oder das Suffix. Beim Einsortieren darfst du sie frei umbenennen. Neue Markdown-Dokumente, die auf anderem Weg in `_inbox/` landen (von Hand, aus Obsidian, aus einer Umwandlung), schlägt der Pflege-Agent zum Umbenennen nach dieser Konvention vor: Slug aus `title` (sonst erste H1-Überschrift, sonst Dateiname), Datum aus `date_markdown`, sonst Tag der ID-Vergabe. Umbenannt wird nur nach Bestätigung (9.8).
 
 **Nicht-Markdown-Dateien** (PDF, Bilder) haben kein Frontmatter und keine Versionsnummer. Sie werden über ihren Inhalts-Hash identifiziert. Eine neue Fassung eines PDFs gilt als neues Dokument (Abschnitt 5).
 
@@ -455,8 +456,9 @@ Wird beim Abschluss des Pflegelaufs (`finish_maintenance`) bzw. von `pkm index` 
 Wird nach jedem Pflegelauf von `finish_maintenance` bzw. `pkm status` erzeugt, Rückfragen aus dem Lauf inklusive:
 
 ```markdown
-## Noch nicht verarbeitet (2)
+## Noch nicht verarbeitet (3)
 - [[documents/_inbox/bewaesserung-zeitplan_2026-11-02]] – neu (v1)
+- [[documents/_inbox/Meeting Notes]] – neu (v1), Namensvorschlag: projekt-uebergabe_2026-11-03.md
 - [[documents/haus/zisterne-ueberlaufsensor_2026-10-31]] – v2 → v3, geändert: „Entscheidungen“, „Offene Punkte“
 
 ## Noch im Eingang, bereits verarbeitet (1)
@@ -524,7 +526,7 @@ Alle Hashes werden voll (64 Hex-Zeichen) gespeichert, im Beispiel gekürzt. Was 
 | `pending`-Kategorien | `new`, `changed`, `meta_changed`, `moved`, `deleted`; je Abschnitt `added`, `removed`, `changed`, `renamed`; Anhänge `images`, `images_changed` (früher `assets_changed`), `assets_migrated`, `orphaned_attachments` |
 | Bereiche (`area`, `scope`) | `documents`, `scratch`; zusätzlich `wiki` und `all` (= `wiki` + `documents`) bei `search` |
 | MCP-Tools `pkm-mcp` | `create_document`, `rewrite_document`, `append_to_document`, `edit_document`, `update_frontmatter`, `add_image`, `fix_images`, `restore_document`, `search`, `read`, `read_image`, `history`, `show_citations`, `read_index`, `list_unprocessed` |
-| MCP-Tools `pkm-maintenance-mcp` | `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `fix_images`, `finish_maintenance` sowie die lesenden Tools von `pkm-mcp` |
+| MCP-Tools `pkm-maintenance-mcp` | `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `fix_images`, `finish_maintenance` sowie die lesenden Tools von `pkm-mcp` |
 | Pflege-Rückgaben | `missing_fields`, `image_issues`, `known_tags`, `operation` (`ingest` \| `lint` \| `fix`), `processed`, `removed`, `questions` |
 | Statuswerte | `ok`, `moved`, `newer_version`, `missing`, `created`, `changed`, `unchanged`, `conflict`, `ambiguous`, `not_found`, `large_shortening`, `invalid_frontmatter`, `invalid_encoding`, `not_versioned`, `svg_too_complex`, `too_large_for_inline`, `unknown_image`, `invalid_image`, `nonconforming_image`, `proposal`, `forbidden`, `protected_field`, `field_exists`, `blocked`, `needs_decision` |
 | CLI | `pkm init`, `ids`, `versions`, `pending`, `history`, `show`, `fix-citations`, `sync-citations`, `sha`, `mark`, `index`, `status`, `lint`, `restore`, `reindex`, `commit-wiki`, `fix-frontmatter`, `fix-images`, `doctor` |
@@ -768,7 +770,7 @@ PKM-Version: 3
 PKM-Source: chat
 ```
 
-`PKM-Source` ist `chat` (MCP), `user` (Änderung von Hand) oder `agent` (`pkm ids`, Duplikat-Auflösung, Metadaten nach Bestätigung über `set_document_metadata`, Bildschreibweise nach Bestätigung über `fix_images`). Korrekturen der Bildschreibweise tragen zusätzlich `PKM-Fix: images` (4.9). Über `git log --grep "PKM-Id: d-…"` findet man alle Versionen eines Dokuments, **unabhängig davon, wo es gerade liegt**.
+`PKM-Source` ist `chat` (MCP), `user` (Änderung von Hand) oder `agent` (`pkm ids`, Duplikat-Auflösung, Metadaten nach Bestätigung über `set_document_metadata`, Umbenennen im Eingang nach Bestätigung über `rename_document`, Bildschreibweise nach Bestätigung über `fix_images`). Korrekturen der Bildschreibweise tragen zusätzlich `PKM-Fix: images` (4.9). Über `git log --grep "PKM-Id: d-…"` findet man alle Versionen eines Dokuments, **unabhängig davon, wo es gerade liegt**.
 
 **Wer erhöht die Version?**
 
@@ -1220,6 +1222,22 @@ Nur nach **ausdrücklicher Bestätigung** des Nutzers (9.6).
 - `kind` muss einer der Werte aus 4.1 sein. Tags werden vereinheitlicht (klein, Umlaute ausgeschrieben, Leerraum zu Bindestrich) und ohne Duplikate gespeichert. Leere Werte ergeben `invalid_argument`.
 - Felder werden zeilengenau an ihrer Stelle nach 4.1 gesetzt. Das Ergebnis ist eine neue Version mit Commit und `PKM-Source: agent` (5.4), ohne Änderung `unchanged`.
 
+#### `rename_document`
+Nur nach **ausdrücklicher Bestätigung** des Nutzers (9.8), nie in unbeaufsichtigten Läufen.
+
+| Parameter | Typ | Pflicht | Beschreibung |
+|---|---|---|---|
+| `target` | string | ja | Markdown-Dokument in `documents/_inbox/` (auch in Unterordnern; Pfad, Wikilink oder `id:`) |
+| `expected_hash` | string | ja | `hash` aus `read` |
+| `apply` | bool | nein | Standard `false`: nur Vorschlag. `true`: umbenennen und committen |
+| `name` | string | nein | Anderer Name statt des Titels; wird zum Slug, Datum und Suffix kommen dazu |
+
+- **Neuer Name** nach 4.1: `<slug>_YYYY-MM-DD.md` im selben Ordner, Slug aus `name` bzw. Titel, Datum aus `date_markdown`, sonst aus der ID (Tag der Vergabe), sonst heute. Bei Namensgleichheit `-2`, `-3` … vor dem Datum, höchstens 120 Zeichen. Folgt der Name schon der Konvention und ist kein `name` angegeben: `unchanged`.
+- **Bildordner:** Ein Ordner neben dem Dokument, in dem nur Bilddateien liegen, die allein dieses Dokument verlinkt, wird zu `<neuer Name>_img/` (4.9). Die Links darauf werden angepasst: Markdown-Links relativ zum Dokument (oder ab der Vault-Wurzel, wenn sie so geschrieben waren), Obsidian-Einbettungen mit Pfad ab der Vault-Wurzel, bloße Dateinamen bleiben. Ordner, die auch andere Dokumente nutzen, und `documents/_attachments/` bleiben unverändert (`kept_folders` mit `shared` bzw. `target_exists`).
+- **Rückgabe:** `status` (`proposal`, `renamed`, `unchanged`), `from`, `path` (neu), `image_folders` (`from`, `to`), `kept_folders`, `links` (alt → neu), `linked_from` (Dokumente, deren Wikilinks auf das Dokument zeigen; sie werden nicht geändert), bei `renamed` zusätzlich `id`, `version`, `commit`, `new_hash`.
+- **Commit:** ein Commit mit `PKM-Source: agent`: reiner Namenswechsel als `moved` ohne neue Version, mit angepassten Bildlinks als neue Version (`date_updated`). Schlägt der Commit fehl, wird alles zurückgesetzt (`commit_failed`). Andere Ordner als `documents/_inbox/` oder andere Dateien als Markdown ergeben `forbidden`, ein falscher Hash `conflict`.
+- **Belege:** Ist das Dokument schon verarbeitet, erscheint es danach als verschoben; `finish_maintenance` (`operation: fix`, ID in `processed`) führt die Belege auf den neuen Pfad nach.
+
 #### `fix_images`
 Wie `fix_images` in `pkm-mcp` (7.2), für Dokumente in `documents/`, auch mit `extract` und `min_kb`. Nur nach **ausdrücklicher Bestätigung** des Nutzers (9.7), nie in unbeaufsichtigten Läufen. Commit mit `PKM-Source: agent` und `PKM-Fix: images` bzw. `PKM-Fix: images-extract`. `scratch/` und `wiki/` ergeben `forbidden`.
 
@@ -1279,6 +1297,7 @@ Der Agent arbeitet ausschließlich über die Tools von `pkm-maintenance-mcp` (7.
 ### 9.1 Ablauf „Ingest“
 
 1. `begin_maintenance`. Bei `blocked` wird abgebrochen und das Problem gemeldet. Bei `needs_decision` (doppelte IDs) fragt der Agent nach. Änderungen von Hand, auch die vom Windows-Rechner, sind danach als Versionen committet, fehlende IDs vergeben und Belege auf verschobene Dokumente korrigiert.
+   - **Namen im Eingang:** Haben neue Dokumente einen Namensvorschlag (`rename`), fragt der Agent vor der Verarbeitung, ob umbenannt werden soll, und benennt nach Bestätigung um (9.8). Die Zusammenfassung und die Belege verwenden dann gleich den neuen Namen.
 2. **Neue Dokumente:** mit `read` vollständig lesen (große Dokumente abschnittsweise, 7.3).
    1. Seite `wiki/summaries/<name>.md` mit `write_wiki_page` anlegen, mit Belegen.
    2. Über `read_index` (und bei Bedarf `search`) betroffene Seiten bestimmen. Höchstens 10–15 Themen-, Entitäts- und Syntheseseiten aktualisieren oder anlegen. Jede neue oder geänderte Aussage bekommt eine Fußnote nach 4.2. Werte für `id`, `v:` und `sha:` liefert `read` (`id`, `version`, `sections`).
@@ -1320,7 +1339,7 @@ Erst den Index, dann die relevanten Seiten, dann die Antwort mit Verweisen auf d
 - Sprache: Deutsch.
 - `scratch/` wird weder gelesen noch verarbeitet. Kein Beleg zeigt auf eine Datei dort.
 - `status_markdown` unverändert lassen. Der Wert spielt für die Verarbeitung keine Rolle.
-- In `documents/` setzt der Agent `id` und `version` (über `begin_maintenance`) und nach ausdrücklicher Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` (über `set_document_metadata`, 9.6) sowie die Bildschreibweise (über `fix_images`, 9.7). Sonst ändert, verschiebt oder löscht er dort nichts. Die schreibenden Tools von `pkm-mcp` benutzt er in der Pflege nicht.
+- In `documents/` setzt der Agent `id` und `version` (über `begin_maintenance`) und nach ausdrücklicher Bestätigung `title`, `context`, `tags`, `kind`, `short_citation` (über `set_document_metadata`, 9.6) sowie die Bildschreibweise (über `fix_images`, 9.7) und benennt neue Dokumente im Eingang nach der Namenskonvention um (über `rename_document`, 9.8). Sonst ändert, verschiebt oder löscht er dort nichts. Die schreibenden Tools von `pkm-mcp` benutzt er in der Pflege nicht.
 - Im Wiki nichts löschen. Aussagen und Belege werden ergänzt, aktualisiert oder als überholt gekennzeichnet.
 - Keine Aussage ohne Beleg auf ein Dokument. Zitate in Belegen sind wörtlich aus der genannten Version kopiert. Nichts erfinden, Lücken als offene Frage markieren.
 - Formate wie in Abschnitt 4.
@@ -1343,6 +1362,13 @@ Meldet `begin_maintenance` oder Lint `image_issues` für ein Dokument, zeigt der
 Korrigiert wird erst nach **ausdrücklicher Bestätigung**: `read` → `hash` → `fix_images` ohne `apply` (Vorschlag und Diff prüfen) → `fix_images` mit `apply: true` und `image_alt`. Bei `conflict` liest der Agent neu und meldet es. Nicht korrigierbare Befunde nennt er als offene Frage. Die Korrektur ist eine neue Version; beim nächsten Lauf erscheint das Dokument mit `image_notation_only` und braucht keine Neuverarbeitung. **In unbeaufsichtigten Läufen wird nie korrigiert;** die Vorschläge gehen als Frage nach `wiki/_status.md`. Bestehende eingebettete PNG behandelt der Agent nach 4.9 (nur Schreibweise, Bytes gleich, kein Name).
 
 **Auslagern großer eingebetteter Bilder:** Meldet Lint `large_embedded_image` oder ein Werkzeug `too_large` bei kleinem Text und großen eingebetteten Bildern, schlägt der Agent `fix_images` mit `extract` vor (4.9). Nach ausdrücklicher Bestätigung: `read` → `hash` → `fix_images` mit `extract: true` ohne `apply` (Liste `files` und Diff prüfen) → mit `apply: true`. Im Folgelauf ist das Dokument `image_notation_only`. Die übrigen Bild-Hinweise (`generic_alt_text`, `duplicate_image`, `orphaned_attachment`) meldet er als Vorschläge (Beschreibung nach Ansicht mit `read_image`, eine Datei verlinken und die anderen löschen, verwaisten Anhang löschen oder verlinken). In unbeaufsichtigten Läufen gehen alle Vorschläge als Frage nach `wiki/_status.md`.
+
+
+### 9.8 Namen im Eingang
+
+Liegt in `documents/_inbox/` ein **neues** Markdown-Dokument, dessen Name nicht der Konvention für neue Dokumente aus dem Chat folgt (`<slug>_YYYY-MM-DD.md`, 4.1), liefert `begin_maintenance` unter `pending.new[].rename` einen Vorschlag: neuer Pfad (`to`), umzubenennender Bildordner (`image_folders`, wird zu `<neuer Name>_img/`), unveränderte Ordner (`kept_folders`), angepasste Bildlinks (`links`) und Dokumente mit Wikilinks auf das Dokument (`linked_from`). `wiki/_status.md` nennt den Vorschlag hinter dem Eintrag („Namensvorschlag: …“). PDF und eigenständige Bilder werden nicht umbenannt.
+
+Im beaufsichtigten Lauf fragt der Agent **vor** der Verarbeitung je Dokument: alter Name → neuer Name, Bildordner, betroffene Links. Nach **ausdrücklicher Bestätigung**: `read` → `hash` → `rename_document` ohne `apply` (Vorschlag prüfen) → mit `apply: true`, danach mit dem neuen Pfad weiter. Wünscht der Nutzer einen anderen Namen, gibt der Agent ihn als `name` mit. Dokumente aus `linked_from` behalten ihre Links; der Agent nennt sie, damit der Nutzer sie anpasst. **In unbeaufsichtigten Läufen wird nie umbenannt;** die Vorschläge gehen als Frage nach `wiki/_status.md`. Bestätigt der Nutzer erst nach der Verarbeitung, benennt der Agent um und ruft `finish_maintenance` mit `operation: fix` und der ID in `processed` auf.
 
 ---
 
@@ -1420,6 +1446,7 @@ Git ist optional (seit 0.26, 5.4) und übernimmt, wenn vorhanden, zwei Aufgaben:
 | `doc: <title> v<n>` (Quelle `user`) | pkm-mcp bzw. `pkm versions` | vor einer MCP-Änderung bzw. zu Beginn eines Pflegelaufs | genau ein von Hand geändertes Dokument |
 | `doc: <title> v1` (Quelle `agent`) | `pkm ids` (über `begin_maintenance`) | im Pflegelauf, falls nötig | genau ein Dokument, nur Frontmatter-Felder `id`/`version` |
 | `doc: <title> v<n>` (Quelle `agent`) | `set_document_metadata` | nach Bestätigung des Nutzers | genau ein Dokument, nur `title`, `context`, `tags`, `kind`, `short_citation` |
+| `doc: <title> moved` bzw. `v<n>` (Quelle `agent`) | `rename_document` | nach Bestätigung des Nutzers | genau ein Dokument im Eingang mit altem und neuem Pfad, gegebenenfalls sein Bildordner (neue Version nur bei angepassten Bildlinks) |
 | `pkm: CLAUDE.md changed` (Quelle `user`) | `pkm versions` | zu Beginn eines Pflegelaufs | nur `CLAUDE.md` |
 | `pkm: ingest <n> documents` / `pkm: lint` / `pkm: fix` | Pflege-Agent über `finish_maintenance` (intern `commit-wiki`) | am Ende eines Laufs | nur `wiki/` und `.pkm/state.json` |
 
@@ -1475,6 +1502,7 @@ So bleibt sauber getrennt, was von dir, aus einem Chat oder vom Agenten stammt. 
 - `scratch/`: Anlegen mit `area: "scratch"` und `folder`, Ändern ohne Version und Commit, `history`/`restore_document` liefern `not_versioned`, `search` findet `scratch/` nur mit `scope: "scratch"`, `pending`, `ids`, `versions` und `lint` ignorieren den Bereich, Lint meldet einen Beleg im Wiki, der auf `scratch/` zeigt, Verschieben von `scratch/` nach `documents/` ergibt beim nächsten Lauf `version: 1` und einen Commit
 - Getrenntes Git-Verzeichnis: alle Git-Operationen mit `--git-dir`/`--work-tree`, im Vault entsteht nie ein `.git`
 - Dateinamen: `create_document` erzeugt `<slug>_YYYY-MM-DD.md`, bei Namensgleichheit `<slug>-2_YYYY-MM-DD.md`. Bei sehr langen Titeln wird der Slug gekürzt, Datum und Suffix bleiben vollständig, der Name hat höchstens 120 Zeichen
+- Namen im Eingang: Namensvorschlag nur bei abweichendem Namen, `rename_document` ohne `apply` ändert nichts, mit `apply` Datei, eigener Bildordner und Bildlinks in einem Commit; gemeinsam genutzte Ordner bleiben, `linked_from` wird gemeldet, Namensgleichheit ergibt `-2`, außerhalb des Eingangs `forbidden`, falscher Hash `conflict`; ein schon verarbeitetes Dokument erscheint danach als verschoben, die Belege folgen
 - `pkm-maintenance-mcp`: vollständiger Lauf (ID vergeben, Seite schreiben, abschließen, danach nichts offen), `blocked` bei Fehlern der Umgebung, `write_wiki_page` lehnt generierte Dateien, Bereiche außerhalb der Seitenordner und `..` ab und prüft `expected_hash`, `finish_maintenance` ermittelt die Seiten aus den Fußnoten und trägt `removed` aus. `set_document_metadata`: Whitelist, `field_exists` ohne `overwrite`, ungültiges `kind`, Tag-Vereinheitlichung, Commit mit `PKM-Source: agent`. `begin_maintenance` liefert `missing_fields` und `known_tags`. `pkm versions` committet eine geänderte `CLAUDE.md`
 - `read` mit `section`, `offset`/`max_chars`, `content: false` und `content_omitted` bei großen Inhalten. Leere Abschnitte mit `empty: true`
 - Lint: keine Warnung für Zwischenüberschriften, Hervorhebungs- und Link-Zeilen und belegte Tabellen, weiterhin Warnung für unbelegte Tabellen und Sätze, `citation_empty_section`

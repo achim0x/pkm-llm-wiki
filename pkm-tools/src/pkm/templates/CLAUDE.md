@@ -8,14 +8,16 @@ the user's consent.
 
 | Area | Owned by | Who writes |
 |---|---|---|
-| `documents/` (incl. `_inbox/`, `_attachments/`) | user | user (Obsidian), pkm-mcp on the user's instruction; the agent `id`/`version` via `pkm ids`/`pkm versions` as well as `title`, `context`, `tags`, `kind`, `short_citation` after the user's confirmation |
+| `documents/` (incl. `_inbox/`, `_attachments/`) | user | user (Obsidian), pkm-mcp on the user's instruction; the agent `id`/`version` via `pkm ids`/`pkm versions` as well as `title`, `context`, `tags`, `kind`, `short_citation` and the name of new documents in `_inbox/` (with their image folder) after the user's confirmation |
 | `wiki/` | maintenance agent | the agent only; read-only from chats |
 | `scratch/` | user | user (Obsidian), pkm-mcp on instruction; without version and commit, never in the wiki, not in Git |
 | `.pkm/state.json` | maintenance agent | `pkm mark` |
 | `CLAUDE.md` | user | the agent only with consent; `pkm versions` records changes as a user commit |
 
 New documents from chats and from the Web Clipper land in `documents/_inbox/`. Filing is done
-freely in Obsidian; documents are found by their ID, not by their path.
+freely in Obsidian; documents are found by their ID, not by their path. Names in the inbox follow
+`<slug>_YYYY-MM-DD.md`; for new documents named otherwise the agent proposes this name and renames
+them (and a folder holding only their images, to `<name>_img/`) only after confirmation.
 
 ## Documents
 

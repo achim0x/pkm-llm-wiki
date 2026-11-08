@@ -77,6 +77,11 @@ PNGs).
 - **Link style:** new option `PKM_LINK_STYLE` (`relative` or `absolute`); image links stay relative
   to the Markdown document by default, `absolute` writes paths from the vault root.
   `read_image` also finds images linked with a vault path or Obsidian's shortest path.
+- **Names in the inbox:** a new Markdown document in `documents/_inbox/` whose name does not follow
+  `<slug>_YYYY-MM-DD.md` (copied in by hand, from Obsidian or a conversion) gets a name proposal in
+  `begin_maintenance` (`rename`) and in `wiki/_status.md`. After confirmation the new maintenance tool
+  `rename_document` renames it; a folder next to it holding only its images becomes `<new name>_img/`
+  and the image links are adjusted, in one commit. Never in unattended runs.
 - **Tool lists:** if a client still shows a tool without its new parameters (e.g. `extract`), it
   shows a cached list: quit and restart Claude Desktop (in Cowork reconnect the computer).
 

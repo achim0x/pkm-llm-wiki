@@ -15,6 +15,7 @@ you need neither a shell nor the CLI `pkm` (there is none in Cowork).
 | `read_image` | View images (PNG as an image, SVG as text) |
 | `write_wiki_page` | Create or completely replace a wiki page (without commit) |
 | `set_document_metadata` | Only after confirmation: enter `title`, `context`, `tags`, `kind`, `short_citation` of a document |
+| `rename_document` | Only after confirmation: rename a new document in `documents/_inbox/` after the naming convention, with its image folder |
 | `fix_images` | Only after confirmation: fix the notation of nonconforming image data URIs of a document, or with `extract: true` store large embedded images as files |
 | `finish_maintenance` | Finish: citations (moved, renamed, `v:` raised for unchanged sections), `sources`, processing state, log, index, status, lint, agent commit |
 
@@ -44,7 +45,8 @@ values and tool parameters stay English.
   user in the chat and only with `set_document_metadata` (see "Frontmatter proposals"). You do not
   use the document tools of the server `pkm` (`create_document`, `edit_document`, `update_frontmatter` …)
   in maintenance. Likewise only after confirmation: the image notation with `fix_images`
-  (see "Fixing data URIs").
+  (see "Fixing data URIs") and the name of a new document in the inbox with `rename_document`
+  (see "Names in the inbox").
 - `scratch/` (short-lived notes, todo lists) is **neither read nor processed**. No
   citation points to a file there. If a note is moved to `documents/`, it is a new document in the
   next run; moved from `documents/` to `scratch/` it acts like a deletion.
@@ -81,6 +83,24 @@ confirmed fields, `add` only for further `tags`). Do not overwrite existing valu
 `overwrite: true` only if the user explicitly wants it. On `conflict` read again and tell the
 user; on `field_exists` name the existing value and ask. Every entry
 is a new version of the document; in the next run it appears as `meta_changed`.
+
+## Names in the inbox
+
+New documents from chats are named `<slug>_YYYY-MM-DD.md` (slug from the title: lower case, hyphens,
+umlauts spelled out; date = `date_markdown`). For a **new** Markdown document in `documents/_inbox/`
+whose name does not follow this (copied in by hand, from Obsidian, a conversion …), `begin_maintenance`
+returns a proposal under `pending.new[].rename`: `to` (new path), `image_folders` (a folder next to the
+document that holds only its images becomes `<new name>_img/`, the image links are adjusted, see `links`),
+`kept_folders` (folders also used by other documents stay as they are) and `linked_from` (documents
+whose wikilinks point to it; they are not changed and get a broken link – name them).
+
+**Ask before processing** (interactive run): list per document old name → new name and the image folder
+and ask whether to rename. Process the documents afterwards, so the summary and the citations use the
+new name. Wish for another name: `name` (becomes the slug, the date is added).
+After **explicit confirmation**: `read` → `hash` → `rename_document` without `apply` (check the
+proposal) → with `apply: true`. Then `read` again (new path, new `hash`). Never rename unattended;
+put the proposal into `questions`. If a document was renamed after it was processed, call
+`finish_maintenance` with `operation: fix` and its ID in `processed`; the citations follow the new path.
 
 ## Fixing data URIs
 
@@ -208,7 +228,9 @@ deliver the list as `log_entry`:
      More than 10 documents → process in stages (at most 10 each); simply do not list
      unprocessed documents in `processed`.
    - Moves are already fixed (`fixed_citations`).
-2. **`new`**: read the document completely with `read`.
+2. **Names in the inbox:** if new documents have a `rename` proposal, ask first and rename after
+   confirmation (see "Names in the inbox"); then continue with the new paths.
+3. **`new`**: read the document completely with `read`.
    1. Create `wiki/summaries/<name>.md` with `write_wiki_page`, with citations.
    2. Determine affected pages via `read_index` (and if needed `search`). Update or create at most
       10–15 topic, entity and synthesis pages. Every new or
@@ -220,7 +242,7 @@ deliver the list as `log_entry`:
    6. Read existing pages with `read` before changing them and pass their `hash` as `expected_hash`
       to `write_wiki_page` (always write the whole page content). On `conflict` read
       again.
-3. **`changed`**: process only the reported sections. Read the diff:
+4. **`changed`**: process only the reported sections. Read the diff:
    `history` with `diff_from: <processed_version>`. Without version control (`not_versioned`)
    there is no diff: read the reported sections in their current version and compare them with
    the wiki pages.
@@ -235,24 +257,24 @@ deliver the list as `log_entry`:
    - Citations of unchanged sections are raised to the new version by `finish_maintenance` itself
      (only `v:`; `sha:` stays).
    - Update the summary page of the document.
-4. **`meta_changed`**: only adjust the summary page (title, topics, references). The citations
+5. **`meta_changed`**: only adjust the summary page (title, topics, references). The citations
    are raised to the new version by `finish_maintenance`. **`image_notation_only`** (only the image notation
    changed): process nothing, only list it in `processed`; `finish_maintenance` raises the citations.
-5. **`deleted`**: **do not delete** the affected statements (see `wiki_pages`), but note under
+6. **`deleted`**: **do not delete** the affected statements (see `wiki_pages`), but note under
    "Contradictions / open questions": "Original no longer exists (last state in
    Git, v<n>; without version control: last processed v<n>)" (German page: „Original nicht mehr
    vorhanden (letzter Stand in Git, v<n>; ohne Versionsverwaltung: zuletzt verarbeitete v<n>)“), `confidence: low`, question in the report. List the key in `removed`.
-6. **Corrections** (`kind: correction` in the frontmatter): the user's correction takes precedence over
+7. **Corrections** (`kind: correction` in the frontmatter): the user's correction takes precedence over
    older sources and counts as a citation itself. Adjust the affected page (see `related`), note the
    old statement as replaced in the log. If the correction contradicts a **newer** source
    → ask.
-7. **Images**: view every new or changed image (embedded or linked, see `images` in
+8. **Images**: view every new or changed image (embedded or linked, see `images` in
    `read`, and `images`/`images_changed` in `pending`) with `read_image`. Take over the content in
    words and cite it with `[img:<name>]` as the quote. Attachments get no summary and no `processed`
    entry of their own; standalone images (without a document that links to them) as before. **PDF**: `read` only returns size and `hash`.
    You read the content if the vault folder is connected in the conversation; otherwise do not list the PDF
    in `processed` and name it in the report.
-8. Finish with `finish_maintenance`:
+9. Finish with `finish_maintenance`:
    - `processed`: IDs (or paths for PDF/standalone image) of all documents processed in this run –
      also the moved ones and those changed only in their metadata. Not the attachments of a document
      (if listed anyway, they are skipped without a warning). The tool determines the citing pages
@@ -261,7 +283,7 @@ deliver the list as `log_entry`:
    - `log_entry`, `log_title`, if needed `questions` (questions for `wiki/_status.md`).
    - If `lint` reports errors in your pages: fix them with `write_wiki_page` and
      call `finish_maintenance` again with `operation: fix` (without `processed`).
-9. Short report in the chat: new/changed pages, outdated statements, citation problems,
+10. Short report in the chat: new/changed pages, outdated statements, citation problems,
    filing proposals (from `wiki/_status.md`), questions – and **for each new document with
    missing fields the YAML block** with the question whether it should be entered, as well as for each document
    with `image_issues` the findings with a fix proposal and the question whether it should be fixed.
@@ -300,7 +322,7 @@ vault folder is connected; otherwise the user makes the change themselves.
 
 ## Unattended run (scheduled task)
 
-Do not wait for answers. **Never enter** frontmatter proposals and image fixes, but put them as a question via
+Do not wait for answers. **Never enter** frontmatter proposals, image fixes and renamings, but put them as a question via
 `questions` into `wiki/_status.md`. Decide conservatively: for unclear filing, duplicates,
 contradictions with newer sources or deleted originals **do nothing risky**, but
 put the question via `questions` of `finish_maintenance` into `wiki/_status.md` and note it in the

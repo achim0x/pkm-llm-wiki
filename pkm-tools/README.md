@@ -34,6 +34,8 @@ tools with `fix_images`/`image_alt`, tool `fix_images` in both servers, CLI `pkm
 **MCP tools of `pkm-maintenance-mcp`:** the reading tools as well as `begin_maintenance` (doctor, versions, ids,
 pending with `missing_fields`, `known_tags`, fix-citations), `set_document_metadata` (only `title`,
 `context`, `tags`, `kind`, `short_citation` after confirmation; new version with `PKM-Source: agent`),
+`rename_document` (after confirmation: a new document in `documents/_inbox/` named `<slug>_YYYY-MM-DD.md`,
+its own image folder becomes `<name>_img/`, links adjusted),
 `write_wiki_page` (only `wiki/topics|entities|summaries|syntheses/`, with
 `expected_hash`, without commit) and `finish_maintenance` (fix-/sync-citations, mark with the pages
 determined from the citations, raise citations of unchanged sections to the new version, log, index,
