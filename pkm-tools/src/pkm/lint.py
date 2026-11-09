@@ -46,6 +46,7 @@ from .schema import (
     is_valid_date_value,
     looks_converted,
 )
+from .sourcelint import check_sources
 from .vault import Doc, extract_links, is_markdown, link_key, summary_of
 from .wikigen import FOLDER_TYPES, page_type, wiki_pages, write_if_changed
 
@@ -142,6 +143,7 @@ class Linter:  # pylint: disable=too-many-instance-attributes
         check_names(self.r.add, self.svc, self.docs)
         self.structure()
         self.citations()
+        check_sources(self.r.add, self.pages, self.docs, self.svc.cfg.ip_well_known)
         return self.r.result()
 
     # Platform *****************************************************************

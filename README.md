@@ -12,7 +12,9 @@ A personal knowledge management system (PKM) made of plain Markdown that Claude 
   directly from a Claude chat ("put this into the PKM").
 - A **maintenance agent** compiles them into a **wiki** with summaries, topic and entity pages.
   **Every statement in the wiki carries a citation** of the original document: section, literal
-  quote, version.
+  quote, version. The wiki states only what the sources say: statements from different documents
+  are related only if a source does so itself, and IP addresses are only compared once you have said
+  whether they are concrete or placeholders.
 - From **any chat** you can query the wiki, ask for the sources and continue documents. With Git,
   every change becomes a **new version with a Git commit** and can be undone at any time. Git is
   optional: without Git the PKM runs without version control.
@@ -223,7 +225,7 @@ flowchart LR
 | Component | Role |
 |---|---|
 | **pkm-mcp** | MCP server for Claude Desktop. 16 tools for searching, reading, filing, continuing, for images, the history and the citations. |
-| **pkm-maintenance-mcp** | MCP server for wiki maintenance from Claude Desktop or Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `extract_images`, `finish_maintenance` plus the reading tools. Writes to `wiki/` and `.pkm/state.json`; on documents only IDs and – after your confirmation – `title`, `context`, `tags`, `kind`, `short_citation`. Enable it only in maintenance conversations. |
+| **pkm-maintenance-mcp** | MCP server for wiki maintenance from Claude Desktop or Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `extract_images`, `finish_maintenance` plus the reading tools. Writes to `wiki/` and `.pkm/state.json`; on documents only IDs and – after your confirmation – `title`, `context`, `tags`, `kind`, `short_citation`, `ip_addresses`, names and image locations. Enable it only in maintenance conversations. |
 | **pkm** | Command line for setup (`pkm setup`), checks and troubleshooting (the same maintenance commands, one by one). |
 | **Skill `pkm-access`** | Tells Claude in normal chats when and how to use the tools, e.g. "always a draft first". |
 | **Skill `pkm-wiki`** | Rules and flows for the maintenance agent in the project "PKM Maintenance". |
@@ -325,8 +327,9 @@ The roof area is 92 m².[^b1]
 [^b1]: [[documents/house/cistern#Roof]] · "Roof area according to plan 92 m²" · id:d-20261012-0915-x7mp · v:2 · sha:3f9a1c
 ```
 
-Generated wiki content (pages, index, status, log, reports) is English. Existing pages with the
-German sections "Inhalt" and "Widersprüche / offene Fragen" are still recognized.
+Generated wiki content (pages, index, status, log) follows the wiki language (`PKM_LANGUAGE`,
+English or German); lint reports are English. Pages with the English or the German section names
+are both recognized.
 
 ### Everyday use
 
@@ -636,7 +639,9 @@ Ein persönliches Wissensmanagement (PKM) aus reinem Markdown, das Claude für d
   einem Claude-Chat („leg das ins PKM“).
 - Ein **Pflege-Agent** baut daraus ein **kompiliertes Wiki** mit Zusammenfassungen, Themen- und
   Entitätsseiten. **Jede Aussage im Wiki ist mit einem Beleg** auf das Originaldokument versehen:
-  Abschnitt, wörtliches Zitat, Version.
+  Abschnitt, wörtliches Zitat, Version. Das Wiki gibt nur wieder, was die Quellen sagen: Aussagen
+  verschiedener Dokumente werden nur verknüpft, wenn eine Quelle das selbst tut, und IP-Adressen
+  werden erst verglichen, wenn du gesagt hast, ob sie konkret oder Platzhalter sind.
 - Aus **jedem Chat** kannst du das Wiki abfragen, dir die Quellen nennen lassen und Dokumente
   fortschreiben. Mit Git wird jede Änderung eine **neue Version mit Git-Commit** und ist jederzeit
   umkehrbar. Git ist optional: ohne Git läuft das PKM ohne Versionsverwaltung.
@@ -850,7 +855,7 @@ flowchart LR
 | Komponente | Rolle |
 |---|---|
 | **pkm-mcp** | MCP-Server für Claude Desktop. 16 Tools zum Suchen, Lesen, Ablegen, Fortschreiben, für Bilder, den Verlauf und die Belege. |
-| **pkm-maintenance-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `extract_images`, `finish_maintenance` plus die lesenden Tools. Schreibt in `wiki/` und `.pkm/state.json`, an Dokumenten nur IDs und – nach deiner Bestätigung – `title`, `context`, `tags`, `kind`, `short_citation`; nur in Pflege-Unterhaltungen einschalten. |
+| **pkm-maintenance-mcp** | MCP-Server für die Wiki-Pflege aus Claude Desktop bzw. Cowork: `begin_maintenance`, `write_wiki_page`, `set_document_metadata`, `rename_document`, `move_images`, `fix_images`, `extract_images`, `finish_maintenance` plus die lesenden Tools. Schreibt in `wiki/` und `.pkm/state.json`, an Dokumenten nur IDs und – nach deiner Bestätigung – `title`, `context`, `tags`, `kind`, `short_citation`, `ip_addresses`, Namen und Bildorte; nur in Pflege-Unterhaltungen einschalten. |
 | **pkm** | Kommandozeile für Einrichtung (`pkm setup`), Prüfung und Fehlersuche (dieselben Pflege-Befehle, einzeln). |
 | **Skill `pkm-access`** | Sagt Claude in normalen Chats, wann und wie die Tools zu nutzen sind, z. B. „immer erst ein Entwurf“. |
 | **Skill `pkm-wiki`** | Regeln und Abläufe für den Pflege-Agenten im Projekt „PKM Maintenance“. |
@@ -954,9 +959,9 @@ The roof area is 92 m².[^b1]
 [^b1]: [[documents/house/cistern#Roof]] · "Roof area according to plan 92 m²" · id:d-20261012-0915-x7mp · v:2 · sha:3f9a1c
 ```
 
-Inhalte, die das PKM erzeugt (Wiki-Seiten, Index, Status, Log, Berichte), sind englisch. Bestehende
-Seiten mit den deutschen Abschnitten „Inhalt“ und „Widersprüche / offene Fragen“ werden weiter
-erkannt.
+Inhalte, die das PKM erzeugt (Wiki-Seiten, Index, Status, Log), folgen der Wiki-Sprache
+(`PKM_LANGUAGE`, englisch oder deutsch); Lint-Berichte sind englisch. Seiten mit englischen und mit
+deutschen Abschnittsnamen werden beide erkannt.
 
 
 ### Benutzung im Alltag

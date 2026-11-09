@@ -27,6 +27,7 @@ the LLM; the mechanical maintenance commands run here bundled in a fixed order.
 
 from __future__ import annotations
 
+import ipaddress
 from collections import Counter
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
@@ -42,6 +43,15 @@ from .frontmatter import set_fields_linewise
 from .ids import is_valid_id
 from .imageplace import move_images as move_document_images
 from .inboxnames import add_rename_proposals, rename_inbox_document
+from .ipaddrs import (
+    IP_CLASSES,
+    IP_CONCRETE_FIELD,
+    IP_FIELD,
+    classification,
+    concrete_exceptions,
+    find_ip_details,
+    unclassified,
+)
 from .lint import lint, write_report
 from .maint import Maintenance, page_ref
 from .paths import is_platform_safe_name, safe_resolve
@@ -58,7 +68,7 @@ if TYPE_CHECKING:
 WRITABLE_DIRS = ("wiki/topics/", "wiki/entities/", "wiki/summaries/", "wiki/syntheses/")
 LOG_PATH = "wiki/log.md"
 OPERATIONS = ("ingest", "lint", "fix")
-METADATA_FIELDS = ("title", "context", "tags", "kind", "short_citation")
+METADATA_FIELDS = ("title", "context", "tags", "kind", "short_citation", "ip_addresses", "ip_addresses_concrete")
 SUGGESTED_FIELDS = ("title", "context", "tags", "kind")
 
 # Classes *********************************************************************
@@ -89,6 +99,7 @@ def begin_maintenance(svc: Service, with_lint: bool = False) -> dict[str, Any]:
         pend = maint.pending()
         add_missing_fields(svc, pend["new"])
         add_rename_proposals(svc, pend["new"])
+        add_ip_addresses(svc, pend)
         fixed = fix_citations(svc) if pend["moved"] else None
         result = {
             "status": "needs_decision" if ids["duplicates"] else "ok",
@@ -145,6 +156,38 @@ def add_missing_fields(svc: Service, new_docs: list[dict[str, Any]]) -> None:
             entry["missing_fields"] = [f for f in SUGGESTED_FIELDS if _empty(meta.get(f))]
 
 
+def add_ip_addresses(svc: Service, pend: dict[str, Any]) -> None:
+    """Add ``ip_addresses`` (``found``, ``classification``) to new and changed Markdown documents (9.5).
+
+    New documents get it if they contain IP addresses, changed ones only if the addresses changed since the
+    processed version.
+
+    Args:
+        svc: Service.
+        pend: Result of ``pending`` (entries are added to).
+    """
+    for category in ("new", "changed"):
+        for entry in pend.get(category, []):
+            rel = str(entry.get("path") or "")
+            if not rel.lower().endswith(".md") or not svc.vault.exists(rel):
+                continue
+            doc = svc.vault.load(rel)
+            details = find_ip_details(doc.body or "", svc.cfg.ip_well_known) if not doc.error else None
+            found = details.found if details else []
+            if found and category == "changed" and doc.id and entry.get("processed_version"):
+                try:
+                    _, old_text = svc.text_at_version(doc.id, int(entry["processed_version"]))
+                    old = find_ip_details(old_text, svc.cfg.ip_well_known).found
+                except PkmError:
+                    old = None
+                found = [] if old is not None and set(old) == set(found) else found
+            if found and details:
+                entry["ip_addresses"] = {"found": found, "classification": classification(doc.meta),
+                                         "unclassified": unclassified(doc.meta, found),
+                                         "concrete": sorted(concrete_exceptions(doc.meta)),
+                                         "well_known": details.well_known}
+
+
 def known_tags(svc: Service) -> dict[str, int]:
     """Existing tags from ``documents/`` and ``wiki/`` with their frequency.
 
@@ -192,11 +235,11 @@ def _metadata_fields(
                        + " are allowed (add only for tags).", fields=sorted(set(bad)))
     fields: dict[str, Any] = {}
     for key, value in set_fields.items():
-        new = normalize_tags(value if isinstance(value, list) else [value]) if key == "tags" else " ".join(
-            str(value).split())
-        if _empty(new) or (key == "kind" and new not in KINDS):
+        new = _field_value(key, value)
+        allowed = {"kind": KINDS, IP_FIELD: IP_CLASSES}.get(key)
+        if _empty(new) or (allowed and new not in allowed):
             raise PkmError("invalid_argument", f"Invalid value for {key}: {value!r}"
-                           + (f" (allowed: {', '.join(KINDS)})" if key == "kind" else ""), field=key)
+                           + (f" (allowed: {', '.join(allowed)})" if allowed else ""), field=key)
         if not _empty(meta.get(key)) and meta.get(key) != new and not overwrite:
             raise PkmError("field_exists", f"{key} is already set ({meta.get(key)!r}); change only with overwrite.",
                            field=key, value=meta.get(key))
@@ -206,6 +249,48 @@ def _metadata_fields(
         extra = add_fields["tags"] if isinstance(add_fields["tags"], list) else [add_fields["tags"]]
         fields["tags"] = normalize_tags([*fields.get("tags", current), *extra])
     return {k: v for k, v in fields.items() if meta.get(k) != v}
+
+
+def _field_value(key: str, value: Any) -> Any:
+    """Normalized value of a metadata field.
+
+    Args:
+        key: Field.
+        value: Given value.
+
+    Returns:
+        Tags normalized, ``ip_addresses_concrete`` as a list of valid addresses, otherwise text.
+
+    Raises:
+        PkmError: ``invalid_argument`` for an invalid address in ``ip_addresses_concrete``.
+    """
+    items = value if isinstance(value, list) else [value]
+    if key == "tags":
+        result: Any = normalize_tags(items)
+    elif key == IP_CONCRETE_FIELD:
+        result = [str(v).strip() for v in items if str(v).strip()]
+        bad = [v for v in result if _bad_ip(v)]
+        if bad:
+            raise PkmError("invalid_argument", f"Invalid IP addresses for {key}: {', '.join(bad)}", field=key)
+    else:
+        result = " ".join(str(value).split())
+    return result
+
+
+def _bad_ip(value: str) -> bool:
+    """Whether a text is not a valid IPv4/IPv6 address (optionally with prefix length).
+
+    Args:
+        value: Text.
+
+    Returns:
+        ``True`` if invalid.
+    """
+    try:
+        ipaddress.ip_network(value, strict=False)
+    except ValueError:
+        return True
+    return False
 
 
 def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -546,9 +631,29 @@ def finish_maintenance(  # pylint: disable=too-many-arguments,too-many-positiona
     if lint_report:
         report["report"] = write_report(svc, report)
     result["lint"] = report
+    result["cross_source"] = cross_source_findings(svc, report)
     result["commit"] = Maintenance(svc).commit_wiki(_commit_message(operation, len(marked)))
     result["warnings"] = warnings
     return result
+
+
+def cross_source_findings(svc: Service, report: dict[str, Any]) -> list[dict[str, Any]]:
+    """Source fidelity findings on the wiki pages changed in this run, for the report to the user.
+
+    Args:
+        svc: Service.
+        report: Lint report.
+
+    Returns:
+        Findings ``cross_source_statement`` and ``synthesis_unmarked`` of pages with uncommitted changes
+        (without version control: of all pages).
+    """
+    checks = {"cross_source_statement", "synthesis_unmarked"}
+    found = [f for f in report.get("findings", []) if f.get("check") in checks]
+    if svc.versioning and found:
+        changed = {path for _, path in svc.git.status_entries("wiki")}
+        found = [f for f in found if f.get("path") in changed]
+    return found
 
 
 def _commit_message(operation: str, count: int) -> str:

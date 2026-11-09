@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Umsetzungsplan
 
-**Bezug:** [Spezifikation v0.29](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 07.11.2026 · **Plan-Version:** 4
+**Bezug:** [Spezifikation v0.30](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 09.11.2026 · **Plan-Version:** 4
 
 Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnissen, Tests und Abnahmekriterien. Abschnittsnummern in Klammern (z. B. „5.4“) verweisen auf die Spezifikation.
 
@@ -280,6 +280,7 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - **Bilder und Größengrenze, pkm-tools 0.3.0** (0.29): verlinkte Bilder als Anhänge unabhängig vom Ordner (robuste Link-Auflösung, `images`/`images_changed` in `pending`, kein `processed`-Eintrag), Ablageort `PKM_IMAGE_FOLDER`, Dubletten einmal abgelegt, eigenständige Dateien über Pfad und Hash (kein `moved` für Dubletten), `PKM_MAX_KB` für den Text ohne Data-URIs (nach Bestätigung mit `confirm_large` für einen Aufruf überschreibbar), `fix_images` mit `extract`, Lint `large_embedded_image`/`generic_alt_text`/`duplicate_image`, `wiki_language` in `begin_maintenance` (`test_image_attachments.py`). Nach dem Test (Review 07.11.2026): kein Base64 in Antworten, erzeugte Wiki-Dateien in der Wiki-Sprache, `topic_without_page` über Tags, `assets_migrated`, Dateinamen an Wortgrenzen mit `date_markdown`, Linkstil `PKM_LINK_STYLE`.
 - **Namen im Eingang** (0.29): Namensvorschlag `rename` für neue Markdown-Dokumente in `documents/_inbox/` mit abweichendem Namen, Pflege-Tool `rename_document` (nach Bestätigung; Bilddateien wandern nach `<Name>_img/`, nichtssagende Namen aus dem Alternativtext, Bildlinks angepasst, ein Commit), Hinweis in `wiki/_status.md`, Lint `naming`; Skill `pkm-wiki` führt die Vorschläge im Bericht auf.
 - **Zweiter Test, 08.11.2026** (0.29): Bilddateien immer in `<Dokumentname>_img/` (`PKM_IMAGE_FOLDER` entfällt, Obsidian-Anhänge neben der Notiz), relative Links mit `./`, Pflege-Tool `move_images` und Lint `image_location`, `images_moved`/`images_removed` und `image_notation_only` bei von Hand verschobenen Bildern, `topic_without_page` nur über Name, Titel, Alias oder erstes Tag, `tools_version` in `begin_maintenance`, Vorlage `CLAUDE.md` mit Namensregeln und Kurzfassungszeile je Sprache.
+- **Quellentreue, pkm-tools 0.3.1** (0.30): Regeln im Skill `pkm-wiki` und in der Vorlage `CLAUDE.md`, Prüfschritt im Ingest, Lint `cross_source_statement` und `synthesis_unmarked` (`sourcelint.py`), `cross_source` in `finish_maintenance`. IP-Adressen: Feld `ip_addresses` (`placeholder` | `concrete`) und `ip_addresses_concrete`, Angabe in `begin_maintenance`, Lint `ip_addresses_unclassified`/`ip_comparison` (`ipaddrs.py`; Sonderadressen und Abschnittsnummern ausgeschlossen, öffentliche Dienste `PKM_IP_WELL_KNOWN`), reine Quellenzeilen ohne Meldung.
 - **Vorhandene Konfiguration übernehmen** (0.27): `pkm setup` zeigt Einstellungen aus Umgebung, `env`-Blöcken in Claude Desktop und `config.toml` und übernimmt sie nach Bestätigung (`test_setup_adopt.py`).
 
 ### Phase 7e – Abnahme mit der neuen Installation
@@ -348,6 +349,6 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 
 ## 8. Nächste Schritte
 
-1. Erledigt: Releases `v0.2.0`, `v0.2.1` und `v0.2.2`. Nächste Release `v0.3.0` (Bilder und Größengrenze, `pkm --version`).
+1. Erledigt: Releases `v0.2.0`, `v0.2.1`, `v0.2.2` und `v0.3.0` (Bilder, Größengrenze, Namen und Bildorte). Nächste Release `v0.3.1` (Quellentreue, IP-Adressen).
 2. Abnahme nach Phase 7e auf dem PKM-Rechner (`docs/acceptance.md`, ab Schritt 0).
 3. Befunde beheben; erst danach Phase 8 (Automatik) und nur auf Anweisung.

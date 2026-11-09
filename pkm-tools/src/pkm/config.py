@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -40,6 +41,8 @@ from .errors import PkmError
 
 DEFAULT_AUTHOR = "pkm-mcp <pkm@localhost>"
 DEFAULT_MAX_KB = 200
+DEFAULT_WELL_KNOWN = ("1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4", "9.9.9.9", "149.112.112.112",
+                      "208.67.222.222", "208.67.220.220")  # PKM_IP_WELL_KNOWN: public services, no question
 DEFAULT_SLUG_MAX = 40  # PKM_SLUG_MAX: name part of new document names (chat and inbox proposals)
 DEFAULT_TZ = "Europe/Berlin"
 IMPORT_FOLDER = "pkm_img_import"
@@ -56,7 +59,8 @@ DOC_LANGUAGES = {
 }
 CONFIG_KEYS = (
     "PKM_ROOT", "PKM_VAULT_NAME", "PKM_LANGUAGE", "PKM_VERSIONING", "PKM_GIT", "PKM_GIT_DIR", "PKM_CACHE_DIR",
-    "PKM_TZ", "PKM_MAX_KB", "PKM_SLUG_MAX", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR", "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
+    "PKM_TZ", "PKM_MAX_KB", "PKM_SLUG_MAX", "PKM_IP_WELL_KNOWN", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR",
+    "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
     "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_SVG_RASTER", "PKM_LINK_STYLE",
 )
 WIKI_SECTIONS = {
@@ -164,6 +168,8 @@ class Config:  # pylint: disable=too-many-instance-attributes
         config_file: Configuration file that was read, or ``None``.
         slug_max: Maximum length of the name part of new documents (not in ``scratch/``) and of name
             proposals in the inbox (``PKM_SLUG_MAX``, 4.1).
+        ip_well_known: IP addresses of well-known public services that raise no question
+            (``PKM_IP_WELL_KNOWN``, comma separated, 4.2).
     """
 
     root: Path
@@ -179,6 +185,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
     language: str = DEFAULT_LANGUAGE
     config_file: Path | None = None
     slug_max: int = DEFAULT_SLUG_MAX
+    ip_well_known: tuple[str, ...] = DEFAULT_WELL_KNOWN
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None, search_from: Path | None = None) -> Config:
@@ -231,6 +238,7 @@ class Config:  # pylint: disable=too-many-instance-attributes
             language=parse_language(env.get("PKM_LANGUAGE")),
             config_file=config_path if file_values else None,
             slug_max=slug_max,
+            ip_well_known=_ip_list(env.get("PKM_IP_WELL_KNOWN")),
         )
 
     # Derived paths ************************************************************
@@ -326,6 +334,19 @@ class Config:  # pylint: disable=too-many-instance-attributes
         return problem
 
 # Functions *******************************************************************
+
+
+def _ip_list(value: str | None) -> tuple[str, ...]:
+    """Addresses of well-known public services from ``PKM_IP_WELL_KNOWN``.
+
+    Args:
+        value: Comma or space separated list; empty for the default list.
+
+    Returns:
+        The addresses.
+    """
+    items = tuple(v for v in re.split(r"[,\s]+", value or "") if v)
+    return items or DEFAULT_WELL_KNOWN
 
 
 def image_folder(doc_rel: str) -> str:
