@@ -173,7 +173,8 @@ def test_begin_maintenance_reports_ip_addresses_and_field(svc, cfg):
     begin = maintrun.begin_maintenance(svc)
     by_path = {e["path"]: e for e in begin["pending"]["new"]}
     assert by_path["documents/_inbox/netz.md"]["ip_addresses"] == {
-        "found": ["192.0.2.1", "192.0.2.2", "2001:db8::5"], "classification": None}
+        "found": ["192.0.2.1", "192.0.2.2", "2001:db8::5"], "classification": None,
+        "unclassified": ["192.0.2.1", "192.0.2.2", "2001:db8::5"], "concrete": [], "well_known": []}
     assert "ip_addresses" not in by_path["documents/_inbox/ohne.md"]
     doc = svc.read("documents/_inbox/netz.md")
     with pytest.raises(Exception) as exc:
@@ -201,6 +202,61 @@ def test_changed_document_reports_ip_addresses_only_if_they_changed(svc, cfg):
     path.write_text(path.read_text(encoding="utf-8") + "\nSwitch 192.0.2.9.\n", encoding="utf-8")
     item = next(i for i in maintrun.begin_maintenance(svc)["pending"]["changed"] if i["id"] == doc_id)
     assert item["ip_addresses"]["found"] == ["192.0.2.1", "192.0.2.9"]
+
+
+@pytest.mark.parametrize(("text", "found"), [
+    ("Lauscht auf 0.0.0.0 und 127.0.0.1, IPv6 :: und ::1, link-local fe80::1 und 169.254.1.1.", []),
+    ("Siehe nach Abschnitt 61.3.6.1 der Norm.", []),
+    ("OLLAMA_HOST=0.0.0.0:11434", []),
+    ("Version 1.2.3.4 im Text.", []),
+    ("Freigabe //192.168.1.2/Bilder", ["192.168.1.2"]),
+    ("Start mit --server 192.168.1.10", ["192.168.1.10"]),
+    ("Dienst auf 192.168.4.46:9382", ["192.168.4.46"]),
+    ("Befehl `ping 52.10.1.3`", ["52.10.1.3"]),
+    ("Gateway 52.10.1.1, Netz 52.10.0.0/16", ["52.10.1.1", "52.10.0.0/16"]),
+])
+def test_ip_detection_rules(text, found):
+    """R13: special addresses, number false positives and context."""
+    from pkm.ipaddrs import find_ip_details  # pylint: disable=import-outside-toplevel
+    assert find_ip_details(text).found == found
+
+
+def test_well_known_addresses_raise_no_question(svc, cfg):
+    """R13: 1.1.1.1 as DNS server is well_known, not found; a document with only special addresses is quiet."""
+    write(cfg, "documents/_inbox/dns.md", "---\ntitle: DNS\n---\n\nDNS-Server 1.1.1.1 und 8.8.8.8.\n")
+    write(cfg, "documents/_inbox/lokal.md", "---\ntitle: Lokal\n---\n\nServer auf 0.0.0.0 und 127.0.0.1.\n")
+    begin = maintrun.begin_maintenance(svc)
+    assert not [e for e in begin["pending"]["new"] if "ip_addresses" in e]
+    assert not _findings(svc, "ip_addresses_unclassified")
+
+
+def test_concrete_exceptions(svc, cfg):
+    """R14: ip_addresses: placeholder with ip_addresses_concrete [X]: X counts as concrete, others not."""
+    write(cfg, "documents/a.md", f"---\ntitle: a\nid: {ID_A}\nversion: 1\nip_addresses: placeholder\n"
+          "ip_addresses_concrete: [\"203.0.113.5\"]\n---\n\n## A\nHost a hat 203.0.113.5, NAS 192.0.2.7.\n")
+    write(cfg, "documents/b.md", f"---\ntitle: b\nid: {ID_B}\nversion: 1\nip_addresses: concrete\n---\n\n"
+          "## B\nHost b hat 203.0.113.5, NAS 192.0.2.7.\n")
+    _page(cfg, "wiki/topics/x.md", "## Contradictions / open questions\n- 203.0.113.5 ist in A Host a, in B Host b."
+          "[^b1][^b2] <!-- lint: cross-source ok -->\n\n")
+    _page(cfg, "wiki/topics/y.md", "## Contradictions / open questions\n- 192.0.2.7 ist in A NAS, in B Switch."
+          "[^b1][^b2] <!-- lint: cross-source ok -->\n\n")
+    assert [f["path"] for f in _findings(svc, "ip_comparison")] == ["wiki/topics/y.md"]
+    assert not _findings(svc, "ip_addresses_unclassified")
+
+
+def test_set_concrete_exceptions(svc, cfg):
+    """R14: set_document_metadata accepts ip_addresses_concrete as a list of valid addresses."""
+    write(cfg, "documents/netz.md", "---\ntitle: Netz\n---\n\nHost 192.0.2.1 und 203.0.113.5.\n")
+    maintrun.begin_maintenance(svc)
+    doc = svc.read("documents/netz.md")
+    with pytest.raises(Exception) as exc:
+        maintrun.set_document_metadata(svc, "documents/netz.md", doc["hash"],
+                                       set={"ip_addresses_concrete": ["kein-ip"]})
+    assert getattr(exc.value, "status", "") == "invalid_argument"
+    maintrun.set_document_metadata(svc, "documents/netz.md", doc["hash"],
+                                   set={"ip_addresses": "placeholder", "ip_addresses_concrete": ["203.0.113.5"]})
+    entry = next(e for e in maintrun.begin_maintenance(svc)["pending"]["new"] if e["path"] == "documents/netz.md")
+    assert entry["ip_addresses"]["concrete"] == ["203.0.113.5"] and entry["ip_addresses"]["unclassified"] == []
 
 
 # Main ************************************************************************

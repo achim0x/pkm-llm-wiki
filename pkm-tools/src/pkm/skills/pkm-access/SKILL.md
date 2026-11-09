@@ -81,7 +81,8 @@ original with `edit_document`:
 - `edit_document`: `old` must occur exactly once; include enough context.
 - `update_frontmatter`: `id`, `version`, `date_markdown`, `date_updated` and `status_markdown`
   are protected. `ip_addresses` (`placeholder` | `concrete`) says whether the IP addresses in a document
-  are placeholders or concrete; set it only when the user says so. Caution:
+  are placeholders or concrete (exceptions that are concrete in `ip_addresses_concrete`); set it only
+  when the user says so. Caution:
   comments in the frontmatter are lost – mention this beforehand for documents with comments.
 
 ## Tool responses

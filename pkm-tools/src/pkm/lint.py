@@ -143,7 +143,7 @@ class Linter:  # pylint: disable=too-many-instance-attributes
         check_names(self.r.add, self.svc, self.docs)
         self.structure()
         self.citations()
-        check_sources(self.r.add, self.pages, self.docs)
+        check_sources(self.r.add, self.pages, self.docs, self.svc.cfg.ip_well_known)
         return self.r.result()
 
     # Platform *****************************************************************

@@ -33,8 +33,8 @@ import re
 from typing import Any
 
 from .citations import Citation, parse_page
-from .config import WIKI_SECTIONS
-from .ipaddrs import IP_FIELD, classification, find_ips
+from .config import DEFAULT_WELL_KNOWN, WIKI_SECTIONS
+from .ipaddrs import IP_FIELD, address_class, find_ips, unclassified
 from .pagetext import DEF_RE, LIST_ITEM_RE, REF_RE, section_blocks
 from .parse import body_lines
 from .vault import Doc
@@ -143,33 +143,33 @@ def _sentence_hint(add: Any, page: Doc, sec: Any, sentence: str, definitions: di
                 **detail)
 
 
-def _ip_hint(add: Any, page: Doc, unit: str, definitions: dict[str, Citation], classes: dict[str, str]) -> None:
+def _ip_hint(add: Any, page: Doc, unit: str, definitions: dict[str, Citation], ctx: dict[str, Any]) -> None:
     """``ip_comparison``: an entry in the contradictions section with an IP address and citations of two or more
-    documents, at least one of them not classified as ``concrete``.
+    documents, at least one of which does not hold that address as ``concrete`` (field or exception list).
 
     Args:
         add: ``Report.add``.
         page: Wiki page.
         unit: Raw list item or paragraph.
         definitions: Footnote definitions of the page.
-        classes: Document ID → classification of its IP addresses.
+        ctx: ``metas`` (document ID → frontmatter) and ``well_known`` (addresses without a question).
     """
-    ips = find_ips(REF_RE.sub("", unit))
+    ips = find_ips(REF_RE.sub("", unit), ctx["well_known"])
     docs = sorted({s for s in (_source(definitions.get(r.group(1))) for r in REF_RE.finditer(unit)) if s})
-    loose = [d for d in docs if classes.get(d) != "concrete"]
+    loose = sorted({d for d in docs for ip in ips if address_class(ctx["metas"].get(d, {}), ip) != "concrete"})
     if ips and len(docs) >= 2 and loose:
         add(IP_COMPARISON, "info", page.rel, f"Contradiction with IP addresses ({', '.join(ips[:3])}) between "
             f"documents not both classified as concrete ({', '.join(loose)}); IP addresses may be placeholders – "
             "remove the entry or ask the user.", ips=ips, documents=docs, not_concrete=loose)
 
 
-def _page_hints(add: Any, page: Doc, classes: dict[str, str]) -> None:
+def _page_hints(add: Any, page: Doc, ctx: dict[str, Any]) -> None:
     """``cross_source_statement`` and ``ip_comparison`` for one page.
 
     Args:
         add: ``Report.add``.
         page: Wiki page.
-        classes: Document ID → classification of its IP addresses.
+        ctx: ``metas`` (document ID → frontmatter) and ``well_known`` (see ``_ip_hint``).
     """
     assert page.parsed is not None
     definitions = parse_page(page).definitions
@@ -182,51 +182,53 @@ def _page_hints(add: Any, page: Doc, classes: dict[str, str]) -> None:
                 continue
             for unit in _units(block):
                 if (sec.base or "").casefold() in CONTRADICTION_SECTIONS:
-                    _ip_hint(add, page, unit, definitions, classes)
+                    _ip_hint(add, page, unit, definitions, ctx)
                 if OK_MARK not in unit:
                     for sentence in sentences(unit):
                         _sentence_hint(add, page, sec, sentence, definitions)
 
 
-def _document_hints(add: Any, docs: list[Doc]) -> dict[str, str]:
-    """``ip_addresses_unclassified`` for documents with IP addresses and without the field ``ip_addresses``.
+def _document_hints(add: Any, docs: list[Doc], well_known: Any) -> dict[str, dict[str, Any]]:
+    """``ip_addresses_unclassified`` for documents with IP addresses that have no classification.
 
     Args:
         add: ``Report.add``.
         docs: Files from ``documents/``.
+        well_known: Addresses of well-known public services (no question).
 
     Returns:
-        Document ID → classification (``placeholder`` / ``concrete``) of the classified documents.
+        Document ID → frontmatter (for the classification of single addresses).
     """
-    classes: dict[str, str] = {}
+    metas: dict[str, dict[str, Any]] = {}
     for doc in docs:
         if doc.kind != "md" or doc.error or doc.parsed is None:
             continue
-        value = classification(doc.meta)
-        if value and doc.id:
-            classes[doc.id] = value
-        found = [] if value else find_ips(doc.body or "")
-        if found:
-            add(IP_UNCLASSIFIED, "info", doc.rel, f"Document with IP addresses ({', '.join(found[:3])}) without "
+        if doc.id:
+            metas[doc.id] = doc.meta
+        open_ips = unclassified(doc.meta, find_ips(doc.body or "", well_known))
+        if open_ips:
+            add(IP_UNCLASSIFIED, "info", doc.rel, f"Document with IP addresses ({', '.join(open_ips[:3])}) without "
                 f"{IP_FIELD}: ask the user whether they are concrete or placeholders and propose "
-                f"{IP_FIELD}: placeholder | concrete.", found=found)
-    return classes
+                f"{IP_FIELD}: placeholder | concrete.", found=open_ips)
+    return metas
 
 
-def check_sources(add: Any, pages: list[Doc], docs: list[Doc] | None = None) -> None:
+def check_sources(add: Any, pages: list[Doc], docs: list[Doc] | None = None,
+                  well_known: Any = DEFAULT_WELL_KNOWN) -> None:
     """Source fidelity checks for wiki pages below ``wiki/topics|entities|summaries|syntheses/`` and IP hints.
 
     Args:
         add: ``Report.add``.
         pages: Wiki pages.
         docs: Files from ``documents/`` (for ``ip_addresses_unclassified`` and the classifications).
+        well_known: Addresses of well-known public services (``PKM_IP_WELL_KNOWN``).
     """
-    classes = _document_hints(add, docs or [])
+    ctx = {"metas": _document_hints(add, docs or [], well_known), "well_known": well_known}
     for page in pages:
         if page.error or page.parsed is None or not page.rel.startswith(CHECKED_DIRS):
             continue
         if not _ignored(page):
-            _page_hints(add, page, classes)
+            _page_hints(add, page, ctx)
         if page.rel.startswith("wiki/syntheses/"):
             body = (page.body or "").casefold()
             if not page.meta.get("confidence") or not any(m in body for m in OWN_MARKERS):

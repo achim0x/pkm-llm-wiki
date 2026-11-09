@@ -201,14 +201,18 @@ in `processed`.
   "Own interpretation, not stated in the sources." (German: „Eigene Einordnung, nicht aus den
   Quellen.“).
 - **IP addresses: ask, then follow the answer.** If a new or changed document contains IP addresses
-  and `ip_addresses.classification` is `null`, ask the user in the run report whether they are
+  and `ip_addresses.unclassified` is not empty, ask the user in the run report whether they are
   concrete addresses or placeholders, and propose the frontmatter field
-  (`ip_addresses: placeholder` or `ip_addresses: concrete`); in unattended runs put the question
-  into `questions`. Enter the field only after the answer (`set_document_metadata`).
+  (`ip_addresses: placeholder` or `ip_addresses: concrete`); for a mix, `ip_addresses: placeholder`
+  with the concrete exceptions in `ip_addresses_concrete: ["203.0.113.5"]`. In unattended runs put the
+  question into `questions`. Enter the fields only after the answer (`set_document_metadata`).
+  Special addresses (`0.0.0.0`, `127.0.0.1`, `::`, link-local) are never reported; well-known public
+  services (`ip_addresses.well_known`, e.g. `1.1.1.1`) are concrete and need no question.
   - Until the question is answered, and for `placeholder`: never derive contradictions, open
     questions or conclusions from IP addresses, and do not compare them with other documents.
-  - `concrete`: IP addresses are facts like any other; a contradiction may only be recorded if
-    *both* documents are `concrete` and refer to the same host or network.
+  - `concrete` (or listed in `ip_addresses_concrete`): IP addresses are facts like any other; a
+    contradiction may only be recorded if *both* documents hold the address as concrete and refer to the
+    same host or network.
   - Never change IP addresses in `documents/`.
 - If a source itself makes the connection between two documents, the sentence may cite both; mark it
   with `<!-- lint: cross-source ok -->` at the end of the line so that lint does not report it again.

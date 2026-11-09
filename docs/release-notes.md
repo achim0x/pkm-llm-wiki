@@ -40,6 +40,15 @@ correctly cited statements from different documents into a new claim that no sou
   field. Until the answer and for `placeholder` nothing is derived from IP addresses; a contradiction
   about IP addresses only between two `concrete` documents about the same host or network. IP
   addresses in `documents/` are never changed.
+- **Fewer false alarms:** special addresses (`0.0.0.0`, `127.0.0.0/8`, `169.254.0.0/16`,
+  `255.255.255.255`, `::`, `::1`, `fe80::/10`) are ignored; well-known public services
+  (`PKM_IP_WELL_KNOWN`, default `1.1.1.1`, `8.8.8.8`, `9.9.9.9` and others) are listed separately as
+  `well_known` and raise no question; an IPv4-like number only counts as an address in a network
+  context (private or documentation range, port, prefix length, scheme or share path, code, network
+  terms in the line) and never after "Abschnitt", "Kap.", "§", "DIN", "IEC" … (so section 61.3.6.1 of a
+  standard is no address).
+- **Mixed documents:** `ip_addresses_concrete: ["203.0.113.5"]` lists concrete exceptions in a
+  `placeholder` document; lint and `ip_comparison` treat them as concrete.
 - **Lint:** `ip_addresses_unclassified` (document with IP addresses without the field) and
   `ip_comparison` (contradiction entry with an IP address between documents that are not both
   `concrete`), both `info`.

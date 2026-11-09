@@ -34,7 +34,9 @@ move it); the agent proposes that.
   `kind` (`note` | `standard` | `regulation` | `correction`), `ip_addresses` (`placeholder` |
   `concrete`: whether the IP addresses in the document are placeholders or concrete addresses; set only
   after the user's answer; missing with IP addresses in the text = unclassified, nothing is derived
-  from them).
+  from them), `ip_addresses_concrete` (list of addresses that are concrete although `ip_addresses` is
+  `placeholder`). Special addresses (`0.0.0.0`, `127.0.0.1`, `::`) and well-known public services
+  (`1.1.1.1`, `8.8.8.8` …) need no classification.
 - `id`, `version`, `date_markdown`, `date_updated` are set only by pkm-mcp or the `pkm` CLI.
   `status_markdown` is taken over unchanged and changed by no tool.
 - `context`: one line "<kind>: <content>" (kind: chat, podcast, book, article, research, note).

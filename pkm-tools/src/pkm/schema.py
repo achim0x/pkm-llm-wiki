@@ -42,7 +42,8 @@ DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 DATE_VALUE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?$")
 CONVERTED_MARKERS = ("status_markdown", SHORT_CITATION, LEGACY_SHORT_CITATION, "date_document")
 FIELD_ORDER = ("title", "short_citation", "date_document", "status_markdown", "date_markdown", "toolchain_markdown",
-               "id", "version", "date_updated", "context", "tags", "related", "kind", "ip_addresses")
+               "id", "version", "date_updated", "context", "tags", "related", "kind", "ip_addresses",
+               "ip_addresses_concrete")
 UMLAUTS = {"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}
 
 # Classes *********************************************************************
