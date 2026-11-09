@@ -3,64 +3,74 @@
 ## V0.3.1
 
 Changes compared to `V0.3.0`. Specification now **0.30**. Prompted by an ingest that combined two
-correctly cited statements from different documents into a new claim that no source makes.
+correctly cited statements from different documents into a new claim that no source makes, and by
+IP address comparisons in the wiki that were based on placeholder addresses.
+
+### Highlights
+
+- The wiki states only what the sources say: no new claims from combining sources, visible
+  attribution, own interpretations only on request and marked.
+- New lint checks find sentences that combine sources and unmarked synthesis pages.
+- IP addresses: the agent asks whether they are concrete or placeholders, keeps the answer in the
+  frontmatter and derives nothing from them until then.
 
 ### Source fidelity
 
 - **Rules** in the skill `pkm-wiki` (new section "Source fidelity") and in the `CLAUDE.md` template:
-  wiki pages state only what the sources say; statements from different documents are related only
-  if a source makes that connection itself; each statement is visibly attributed to its source;
-  "Contradictions / open questions" only lists contradictions between sources on the same subject,
-  open points named in documents and values the documents themselves mark as outdated. Own
-  interpretations only on request, in `wiki/syntheses/` with `confidence: low` and the line "Own
-  interpretation, not stated in the sources." – never in unattended runs.
+  - wiki pages state only what the sources say;
+  - statements from different documents are related only if a source makes that connection itself;
+  - each statement is visibly attributed to its source; in tables the citation goes into the row it
+    supports, not into a collective "Sources:" line;
+  - "Contradictions / open questions" only lists contradictions between sources on the same subject,
+    open points named in documents and values the documents themselves mark as outdated;
+  - own interpretations only on request, in `wiki/syntheses/` with `confidence: low` and the line
+    "Own interpretation, not stated in the sources." – never in unattended runs.
 - **Ingest:** before `finish_maintenance` the agent checks every sentence citing two or more documents
   and lists the checked sentences in the report.
 - **New lint check `cross_source_statement`** for pages below `wiki/topics|entities|summaries|syntheses/`:
   a sentence or list item with citations from two or more documents is a `warning` in
   "Contradictions / open questions" and an `info` elsewhere (`detail`: `section`, `footnotes`,
-  `documents`, start of the sentence). Several citations of the same document count once. Exceptions:
-  `<!-- lint: cross-source ok -->` at the line or `lint_ignore: [cross_source_statement]` in the
-  frontmatter of the page.
+  `documents`, start of the sentence). Several citations of the same document count once; lines
+  without a statement of their own (e.g. "Sources: [^b1] [^b2]") and table rows are skipped.
+  Exceptions: `<!-- lint: cross-source ok -->` at the line or `lint_ignore: [cross_source_statement]`
+  in the frontmatter of the page.
 - **New lint check `synthesis_unmarked`** (info): synthesis page without `confidence` or without the
   marker for an own interpretation.
-- **`finish_maintenance`** returns these findings for the pages changed in the run as `cross_source`.
-- Lines without a statement of their own (e.g. "Sources: [^b1] [^b2]" below a table) are not reported;
-  the skill asks for the citation in the table row it supports.
+- **`finish_maintenance`** returns the source fidelity findings of the pages changed in the run as
+  `cross_source`.
 
 ### IP addresses: ask, then follow the answer
 
-- **New frontmatter field `ip_addresses`** (`placeholder` | `concrete`): whether the IP addresses in a
-  document are placeholders or concrete. Set only after the user's answer, via
-  `set_document_metadata` (other values are `invalid_argument`).
+- **New frontmatter fields:** `ip_addresses` (`placeholder` | `concrete`) says whether the IP
+  addresses in a document are placeholders or concrete; `ip_addresses_concrete: ["203.0.113.5"]` lists
+  concrete exceptions in a `placeholder` document. Both are set only after the user's answer, via
+  `set_document_metadata` (invalid values or addresses are `invalid_argument`).
+- **Detection:**
+  - special addresses (`0.0.0.0`, `127.0.0.0/8`, `169.254.0.0/16`, `255.255.255.255`, `::`, `::1`,
+    `fe80::/10`) are ignored;
+  - well-known public services (`PKM_IP_WELL_KNOWN`, new option; default `1.1.1.1`, `1.0.0.1`,
+    `8.8.8.8`, `8.8.4.4`, `9.9.9.9` and others) are always concrete and raise no question;
+  - an IPv4-like number only counts as an address in a network context (private or documentation
+    range, port, prefix length, scheme or share path, code, network terms in the line) and never after
+    "Abschnitt", "Kap.", "§", "DIN", "IEC" … – so section 61.3.6.1 of a standard is no address.
 - **`begin_maintenance`** marks new documents with IP addresses, and changed ones whose addresses
-  changed, with `ip_addresses: {found, classification}` (IPv4/IPv6, at most 20; `classification`
-  `null` = unclassified).
-- **Skill `pkm-wiki`:** the agent asks in the report (unattended: via `questions`) and proposes the
-  field. Until the answer and for `placeholder` nothing is derived from IP addresses; a contradiction
-  about IP addresses only between two `concrete` documents about the same host or network. IP
-  addresses in `documents/` are never changed.
-- **Fewer false alarms:** special addresses (`0.0.0.0`, `127.0.0.0/8`, `169.254.0.0/16`,
-  `255.255.255.255`, `::`, `::1`, `fe80::/10`) are ignored; well-known public services
-  (`PKM_IP_WELL_KNOWN`, default `1.1.1.1`, `8.8.8.8`, `9.9.9.9` and others) are listed separately as
-  `well_known` and raise no question; an IPv4-like number only counts as an address in a network
-  context (private or documentation range, port, prefix length, scheme or share path, code, network
-  terms in the line) and never after "Abschnitt", "Kap.", "§", "DIN", "IEC" … (so section 61.3.6.1 of a
-  standard is no address).
-- **Mixed documents:** `ip_addresses_concrete: ["203.0.113.5"]` lists concrete exceptions in a
-  `placeholder` document; lint and `ip_comparison` treat them as concrete.
-- **Lint:** `ip_addresses_unclassified` (document with IP addresses without the field) and
-  `ip_comparison` (contradiction entry with an IP address between documents that are not both
-  `concrete`), both `info`.
+  changed, with `ip_addresses`: `found` (at most 20), `classification` (`null` = unclassified),
+  `unclassified`, `concrete` (exceptions) and `well_known`.
+- **Skill `pkm-wiki`:** for addresses in `unclassified` the agent asks in the report (unattended: via
+  `questions`) and proposes the fields. Until the answer and for placeholders nothing is derived from
+  IP addresses; a contradiction about an address only if both documents hold it as concrete and mean
+  the same host or network. IP addresses in `documents/` are never changed.
+- **Lint** (`info`): `ip_addresses_unclassified` (document with addresses that have no
+  classification) and `ip_comparison` (contradiction entry with an address that one of the cited
+  documents does not hold as concrete).
 
 ### Upgrading from V0.3.0
 
 1. Run the installer again.
 2. In `pkm setup`, let it update `CLAUDE.md` (or merge `CLAUDE.md.new`).
-3. Upload the new skill ZIP `pkm-wiki` in Claude Desktop and restart it.
-4. Upload the skill ZIP `pkm-access` as well (field `ip_addresses`).
-5. Run a lint and check the `cross_source_statement`, `synthesis_unmarked`, `ip_addresses_unclassified`
-   and `ip_comparison` hints on existing pages and documents.
+3. Upload both new skill ZIPs (`pkm-wiki`, `pkm-access`) in Claude Desktop and restart it.
+4. Run a lint and work through the hints `cross_source_statement`, `synthesis_unmarked`,
+   `ip_addresses_unclassified` and `ip_comparison` on existing pages and documents.
 
 ## V0.3.0
 
