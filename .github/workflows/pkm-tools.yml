@@ -19,8 +19,8 @@ jobs:
         working-directory: pkm-tools
         shell: bash
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
       - name: Create .venv
@@ -39,8 +39,8 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Local release of this commit (stands in for a GitHub release)
