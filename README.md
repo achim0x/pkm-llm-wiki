@@ -27,9 +27,9 @@ a purely local folder works as well. Obsidian is the recommended front end, but 
 
 > **Installation:** one command, then `pkm setup` guides you through the setup.
 >
-> Mac: `curl -LsSf https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.sh | sh`
+> Mac: `curl -LsSf https://github.com/achim0x/pkm-llm-wiki/releases/latest/download/install.sh | sh`
 >
-> Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.ps1 | iex"`
+> Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://github.com/achim0x/pkm-llm-wiki/releases/latest/download/install.ps1 | iex"`
 >
 > Details, including a manual installation, in [docs/installation.md](docs/installation.md); how it
 > works inside in [docs/architecture.md](docs/architecture.md). This README describes what the system
@@ -613,6 +613,9 @@ Log of all chat accesses: `<Vault>/.pkm/mcp.log`.
   back up a document before overwriting it (`<APPDIR>/backups/documents/`, 30 days).
 - **Read-only:** with `PKM_READ_ONLY = "true"` in `config.toml` the chat server `pkm` offers only
   reading tools, e.g. for a vault with sensitive content.
+- **Installation:** the installer installs the wheel of a GitHub release only if its SHA-256
+  checksum matches, with the dependency versions tested for that release; every release has a build
+  provenance attestation (`gh attestation verify <file> --repo achim0x/pkm-llm-wiki`).
 - **Uninstalling:** [installation guide, section 11](docs/installation.md#11-uninstalling).
 - **Reporting a vulnerability:** see [SECURITY.md](SECURITY.md).
 
@@ -674,9 +677,9 @@ Voraussetzung.
 
 > **Installation:** ein Befehl, danach führt `pkm setup` durch die Einrichtung.
 >
-> Mac: `curl -LsSf https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.sh | sh`
+> Mac: `curl -LsSf https://github.com/achim0x/pkm-llm-wiki/releases/latest/download/install.sh | sh`
 >
-> Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.ps1 | iex"`
+> Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://github.com/achim0x/pkm-llm-wiki/releases/latest/download/install.ps1 | iex"`
 >
 > Einzelheiten, auch zur manuellen Installation, in [docs/installation.de.md](docs/installation.de.md); wie
 > es intern funktioniert, in [docs/architecture.md](docs/architecture.md) (englisch). Diese README
@@ -1277,6 +1280,9 @@ Protokoll aller Chat-Zugriffe: `<Vault>/.pkm/mcp.log`.
   (`<APPDIR>/backups/documents/`, 30 Tage).
 - **Nur lesen:** Mit `PKM_READ_ONLY = "true"` in `config.toml` bietet der Chat-Server `pkm` nur lesende
   Tools, z. B. für einen Vault mit vertraulichen Inhalten.
+- **Installation:** Der Installer installiert das Wheel eines GitHub-Release nur, wenn seine
+  SHA-256-Prüfsumme stimmt, und mit den für dieses Release getesteten Versionen der Abhängigkeiten;
+  jedes Release hat einen Herkunftsnachweis (`gh attestation verify <Datei> --repo achim0x/pkm-llm-wiki`).
 - **Deinstallieren:** [Einrichtungsanleitung, Abschnitt 11](docs/installation.de.md#11-deinstallieren).
 - **Schwachstelle melden:** siehe [SECURITY.md](SECURITY.md).
 

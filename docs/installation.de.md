@@ -82,25 +82,36 @@ installieren und danach `pkm setup` ausführen).
 Mac (Terminal):
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.sh | sh
+curl -LsSf https://github.com/achim0x/pkm-llm-wiki/releases/latest/download/install.sh | sh
 ```
 
 Windows (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://github.com/achim0x/pkm-llm-wiki/releases/latest/download/install.ps1 | iex"
 ```
 
 Der Installer
 
 1. installiert `uv` nach `<HOME>/.local/bin`, falls es fehlt,
 2. prüft, ob Git vorhanden ist, und gibt sonst einen Hinweis aus,
-3. lädt `pkm-tools` von GitHub und installiert die Befehle `pkm`, `pkm-mcp` und `pkm-maintenance-mcp`
-   nach `<HOME>/.local/bin` (unter Windows mit Endung `.exe`),
+3. lädt das Paket `pkm-tools` des GitHub-Release, **prüft seine SHA-256-Prüfsumme** (stimmt sie
+   nicht, bricht er ab und installiert nichts) und installiert es mit genau den für dieses Release
+   getesteten Versionen der Abhängigkeiten; die Befehle `pkm`, `pkm-mcp` und `pkm-maintenance-mcp`
+   landen in `<HOME>/.local/bin` (unter Windows mit Endung `.exe`),
 4. startet `pkm setup` (Abschnitt 3).
 
+**Welche Version:** Der Installer eines Release installiert genau dieses Release; die Links oben
+(`releases/latest`) führen immer zum neuesten. `PKM_VERSION` (z. B. `v0.3.3`) installiert ein
+bestimmtes Release.
+
+**Download selbst prüfen (optional):** Jedes Release enthält `SHA256SUMS` und einen von GitHub Actions
+signierten Herkunftsnachweis (Build Provenance). Mit der GitHub CLI bestätigt
+`gh attestation verify install.ps1 --repo achim0x/pkm-llm-wiki` (ebenso für `install.sh` oder das
+Wheel), dass die Datei vom Release-Workflow dieses Repositorys gebaut wurde.
+
 Außer `uv` und dem Paket ändert der Installer nichts ohne Rückfrage. **Aktualisieren:** den
-Installer erneut ausführen; `pkm setup` bietet an, die vorhandene Konfiguration zu übernehmen
+Installer erneut ausführen (er installiert das neueste Release); `pkm setup` bietet an, die vorhandene Konfiguration zu übernehmen
 (Abschnitt 3), auch aus einer Installation aus der Zeit vor `pkm setup`. Meldet ein neues Terminal, dass `pkm` nicht gefunden wird, einmal
 `uv tool update-shell` ausführen.
 
@@ -108,13 +119,13 @@ Installer erneut ausführen; `pkm setup` bietet an, die vorhandene Konfiguration
 die Shell zu leiten (Firmenregeln), das Skript herunterladen, lesen und dann ausführen:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.sh -o install.sh
+curl -LsSf https://github.com/achim0x/pkm-llm-wiki/releases/latest/download/install.sh -o install.sh
 less install.sh
 sh install.sh
 ```
 
 ```powershell
-irm https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.ps1 -OutFile install.ps1
+irm https://github.com/achim0x/pkm-llm-wiki/releases/latest/download/install.ps1 -OutFile install.ps1
 notepad install.ps1
 powershell -ExecutionPolicy ByPass -File .\install.ps1
 ```
@@ -124,7 +135,9 @@ sperrt. Es gilt nur für diesen einen PowerShell-Prozess, braucht keine Administ
 die Systemeinstellung nicht; eine von der Organisation gesetzte Richtlinie (Gruppenrichtlinie) hat
 Vorrang.
 
-**Optionen:** `PKM_VAULT` übergibt den Vault-Ordner an `pkm setup` (Leerzeichen erlaubt),
+**Optionen:** `PKM_VERSION` installiert ein bestimmtes Release; `PKM_ARCHIVE` installiert stattdessen
+aus einem ZIP des Repositorys (Entwicklung, anderer Branch – **ohne** Prüfsummenprüfung);
+`PKM_VAULT` übergibt den Vault-Ordner an `pkm setup` (Leerzeichen erlaubt),
 `PKM_SETUP_ARGS` weitere Argumente (Pfade mit Leerzeichen in Anführungszeichen), `PKM_UV_VERSION` die
 uv-Version, die der Installer lädt, wenn `uv` fehlt (eine feste Version; alternativ `uv` selbst
 installieren mit `winget install astral-sh.uv` oder `brew install uv`). Beispiel:
@@ -345,6 +358,7 @@ Die vollständige Abnahme steht in [acceptance.md](acceptance.md) bzw. Abschnitt
 
 | Problem | Prüfen |
 |---|---|
+| Installer: `checksum … does not match` | Die heruntergeladene Datei weicht vom Release ab (abgebrochener Download, Proxy oder Manipulation); es wurde nichts installiert. Installer erneut ausführen; bleibt es dabei, nicht installieren und melden (siehe `SECURITY.md`) |
 | Welche Version ist installiert? | `pkm --version`; `pkm setup` gibt sie als erste Zeile aus und `pkm doctor` meldet sie als `version` (auch in `begin_maintenance` zu sehen). `uv tool list` zeigt die von uv installierte Version (bei editierbarer Installation ggf. veraltet) |
 | Neue Tool-Parameter fehlen nach einem Update (z. B. `extract` bei `fix_images`) | Stattdessen das Tool `extract_images` verwenden (gleiche Funktion, neuer Name). Sonst zeigt der Client noch die alte Tool-Liste: Claude Desktop ganz beenden und neu starten, in Cowork den Rechner neu verbinden. Hilft das nicht, startet der Client eine andere Installation: `tools_version` aus `begin_maintenance` mit `pkm --version` vergleichen und den Befehl der Einträge `pkm` und `pkm-maintenance` in `claude_desktop_config.json` prüfen (z. B. ein altes `pkm-pflege-mcp` oder eine zweite virtuelle Umgebung); `pkm setup` schreibt die Einträge neu |
 | Tools erscheinen nicht in Claude Desktop | `pkm setup` erneut ausführen (trägt die Server ein), Claude Desktop vollständig beenden und neu starten, Log von Claude Desktop |

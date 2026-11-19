@@ -1,5 +1,42 @@
 # Release notes
 
+## V0.3.3
+
+Changes compared to `V0.3.2`. Specification now **0.32**. Package C of the security review of
+19 November 2026: the installers install a checked release instead of the current state of `main`.
+
+### Installation from the release, with checksum
+
+- **New install commands:** the installers are attached to every release;
+  `https://github.com/achim0x/pkm-llm-wiki/releases/latest/download/install.sh` (or `install.ps1`)
+  always leads to the newest one. The old links to `raw.githubusercontent.com/…/main/` keep working:
+  that copy fetches the newest release itself.
+- **Checksum before installing:** the installers download the wheel of the release, `constraints.txt`
+  and `SHA256SUMS`, and compare the SHA-256 of the wheel and of `constraints.txt`. The installer
+  attached to a release carries the checksum of its wheel itself, so a manipulated wheel is refused
+  even if `SHA256SUMS` was changed as well. On a mismatch nothing is installed.
+- **Tested dependency versions:** `constraints.txt` pins the exact versions of `mcp`, `pyyaml` and their
+  dependencies that the release was tested with. (uv does not enforce file hashes from a constraints
+  file, so it pins versions, not hashes.)
+- **Options:** `PKM_VERSION` installs a certain release; `PKM_ARCHIVE` keeps installing from a ZIP of
+  the repository for development, without a checksum check; `PKM_RELEASE_URL` takes the release files
+  from another place (tests).
+
+### Release workflow
+
+- Checks that the tag matches the package version.
+- Pins the dependencies (`uv pip compile --universal`), installs the wheel with exactly these
+  versions and runs the test suite against the installed wheel; no release if a test fails.
+- Attaches the stamped installers, `constraints.txt`, `SHA256SUMS` and the skill ZIPs.
+- Creates a **build provenance attestation** for every file; check it with
+  `gh attestation verify <file> --repo achim0x/pkm-llm-wiki`.
+- The CI rebuilds such a release for every push and checks on Linux, macOS and Windows that the
+  stamped installers install it and refuse a tampered wheel.
+
+### Upgrading from V0.3.2
+
+Run the installer again, preferably from the new link. Nothing else changes; the skills are unchanged.
+
 ## V0.3.2
 
 Changes compared to `V0.3.1`. Specification now **0.31**. Prompted by a security review of
