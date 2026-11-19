@@ -112,8 +112,8 @@ The user runs one command; everything else is guided by `pkm setup`.
 
 | Platform | Command |
 |---|---|
-| macOS (also Linux) | `curl -LsSf https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.sh \| sh` |
-| Windows (PowerShell) | `powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.ps1 \| iex"` |
+| macOS (also Linux) | `curl -LsSf https://github.com/achim0x/pkm-llm-wiki/releases/latest/download/install.sh \| sh` |
+| Windows (PowerShell) | `powershell -ExecutionPolicy ByPass -c "irm https://github.com/achim0x/pkm-llm-wiki/releases/latest/download/install.ps1 \| iex"` |
 
 ```mermaid
 flowchart TD
@@ -143,26 +143,41 @@ instructions, and restart Claude Desktop (and Obsidian, if used, so that it read
 ### 3.1 `install.sh` (macOS, Linux)
 
 1. **uv.** Uses `uv` from `PATH` or `~/.local/bin/uv`; otherwise installs it with the official
-   installer (`curl -LsSf https://astral.sh/uv/install.sh | sh`). `uv` brings a suitable Python, so
+   installer of a pinned uv version (`https://astral.sh/uv/<PKM_UV_VERSION>/install.sh`). `uv` brings a suitable Python, so
    Python does not have to be installed.
 2. **Git check.** Runs `git --version`. On macOS `/usr/bin/git` exists even without the developer
    tools but only shows an installation prompt; the check therefore runs the program instead of
    looking for the file. Without Git the installer prints a note and continues. It never installs
    Git itself.
-3. **Download.** Fetches the ZIP archive of the repository (default
-   `https://github.com/achim0x/pkm-llm-wiki/archive/refs/heads/main.zip`, overridable with
-   `PKM_ARCHIVE`, e.g. for a branch or a local file in CI) into a temporary folder and unpacks it.
-   The archive is used instead of `uv tool install git+https://…` because that would require Git,
-   and uv ignores the `subdirectory` of archive URLs.
-4. **Package.** `uv tool install --force --reinstall <unpacked>/pkm-tools` creates an isolated
-   environment for the package and links `pkm`, `pkm-mcp` and `pkm-maintenance-mcp` into
-   `~/.local/bin`. The temporary folder is removed on exit.
+3. **Download.** Fetches the wheel `pkm_tools-<version>-py3-none-any.whl`, `constraints.txt` and
+   `SHA256SUMS` of a GitHub release into a temporary folder. The installer attached to a release is
+   stamped by the release workflow with its version and the SHA-256 of its wheel; the copy in the
+   repository (placeholders) asks the GitHub API for the latest release and takes the checksum from
+   its `SHA256SUMS`. `PKM_VERSION` selects another release, `PKM_RELEASE_URL` another place for the
+   files (CI). `PKM_ARCHIVE` keeps the old path for development: a ZIP of the repository, built
+   locally, **without** checksum check.
+4. **Check and install.** Compares the SHA-256 of the wheel and of `constraints.txt` with the
+   expected values and stops before installing if they differ. Then `uv tool install --force
+   --reinstall --constraints constraints.txt <wheel>` creates an isolated environment with exactly
+   the dependency versions tested for the release and links `pkm`, `pkm-mcp` and
+   `pkm-maintenance-mcp` into `~/.local/bin`. (uv does not enforce hashes from a constraints file, so
+   `constraints.txt` pins versions, not file hashes.) The temporary folder is removed on exit.
 5. **Setup.** Starts `~/.local/bin/pkm setup` and passes all arguments of the installer on. When
    the installer was started via `curl … | sh`, standard input is the script itself; the answers
    are then read from `/dev/tty`.
 6. Prints a hint to run `uv tool update-shell` if `pkm` is not found in a new terminal.
 
 The script uses `set -eu`; it fails if a step fails, including `pkm setup` reporting errors.
+
+**Release workflow** (`.github/workflows/release.yml`, tag `v*`): checks that the tag matches the
+package version, builds the wheel, pins the dependencies with `uv pip compile --universal`
+(`constraints.txt`), installs the wheel with exactly these versions into a fresh environment and runs
+the test suite against it (not against `src/`), packs the skill ZIPs, stamps `install.sh` and
+`install.ps1` with version and wheel checksum, writes `SHA256SUMS`, creates a build provenance
+attestation for all files (`actions/attest-build-provenance`; check with
+`gh attestation verify <file> --repo achim0x/pkm-llm-wiki`) and publishes everything as the release.
+The CI job `installer` rebuilds such a release locally for every push and checks that the stamped
+installers install it and refuse a tampered wheel.
 
 ### 3.2 `install.ps1` (Windows)
 

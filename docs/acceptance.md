@@ -416,3 +416,6 @@ pkm lint --report
 | Sicherung ohne Git | Ohne Versionsverwaltung ein Dokument per Chat umschreiben | Kopie des alten Inhalts unter `<APPDIR>/backups/documents/<Datum>/` | ☐ |
 | Pfad mit Leerzeichen | `$env:PKM_VAULT = "C:\Users\ich\Mein Vault"`, Installer ausführen | `pkm setup` erhält den Pfad als ein Argument | ☐ |
 | Maskierte Einträge | Eintrag `pkm` mit `env`-Block in `claude_desktop_config.json`, `pkm setup` | Ausgabe zeigt `***` statt der Werte | ☐ |
+| Installation aus dem Release | Nach dem Tag `v0.3.3` den Einzeiler mit `releases/latest/download/install.sh` bzw. `install.ps1` ausführen | „Checksum OK (v0.3.3)“, `pkm --version` zeigt 0.3.3 | ☐ |
+| Herkunftsnachweis | `gh attestation verify install.ps1 --repo achim0x/pkm-llm-wiki` mit der Datei aus dem Release | Prüfung erfolgreich | ☐ |
+| Bestimmte Version | `PKM_VERSION=v0.3.3` mit dem Installer aus `main` | installiert v0.3.3 nach Prüfsummenprüfung | ☐ |

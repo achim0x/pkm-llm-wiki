@@ -1,12 +1,17 @@
 name: release
 
-# For every tag v* a GitHub release with the skill ZIP files and the wheel of pkm-tools.
+# For every tag v*: a GitHub release with the wheel of pkm-tools, the tested dependency versions
+# (constraints.txt), the skill ZIP files, the installers stamped with version and wheel checksum,
+# SHA256SUMS and a build provenance attestation (check with: gh attestation verify <file> --repo <owner/repo>).
+
 on:
   push:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: write       # create the release
+  id-token: write       # sign the provenance attestation
+  attestations: write   # store the attestation
 
 jobs:
   release:
@@ -16,12 +21,39 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Build the wheel and the skill ZIP files
+      - name: Install build tools
+        run: python -m pip install build uv
+      - name: Tag and package version must match
         run: |
-          python -m pip install build
-          python -m build --wheel --outdir dist pkm-tools
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pkm-tools/pyproject.toml', 'rb'))['project']['version'])")
+          test "v$VERSION" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME does not match version $VERSION"; exit 1; }
+      - name: Build the wheel
+        run: python -m build --wheel --outdir dist pkm-tools
+      - name: Pin the dependency versions (constraints.txt)
+        run: uv pip compile --universal --no-header pkm-tools/pyproject.toml -o dist/constraints.txt
+      - name: Test the wheel with exactly these versions
+        run: |
+          python -m venv "$RUNNER_TEMP/rel"
+          "$RUNNER_TEMP/rel/bin/python" -m pip install -c dist/constraints.txt dist/pkm_tools-*.whl pytest
+          cd pkm-tools && "$RUNNER_TEMP/rel/bin/python" -m pytest -q -p no:cacheprovider -o pythonpath= tests  # the installed wheel, not src/
+      - name: Skill ZIP files
+        run: |
           cd pkm-tools/src/pkm/skills
           for s in pkm-access pkm-wiki; do zip -r "$GITHUB_WORKSPACE/dist/$s.zip" "$s"; done
+      - name: Installers with version and wheel checksum
+        run: |
+          WHEEL=$(cd dist && ls pkm_tools-*.whl)
+          SHA=$(sha256sum "dist/$WHEEL" | cut -d' ' -f1)
+          for f in install.sh install.ps1; do
+            sed -e "s/__PKM_VERSION__/$GITHUB_REF_NAME/" -e "s/__PKM_WHEEL_SHA256__/$SHA/" "$f" > "dist/$f"
+            grep -q "$SHA" "dist/$f"
+          done
+      - name: SHA256SUMS
+        run: cd dist && sha256sum -- * > SHA256SUMS && cat SHA256SUMS
+      - name: Build provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*

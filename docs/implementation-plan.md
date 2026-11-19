@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Umsetzungsplan
 
-**Bezug:** [Spezifikation v0.31](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 19.11.2026 · **Plan-Version:** 4
+**Bezug:** [Spezifikation v0.32](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 19.11.2026 · **Plan-Version:** 4
 
 Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnissen, Tests und Abnahmekriterien. Abschnittsnummern in Klammern (z. B. „5.4“) verweisen auf die Spezifikation.
 
@@ -282,6 +282,7 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - **Zweiter Test, 08.11.2026** (0.29): Bilddateien immer in `<Dokumentname>_img/` (`PKM_IMAGE_FOLDER` entfällt, Obsidian-Anhänge neben der Notiz), relative Links mit `./`, Pflege-Tool `move_images` und Lint `image_location`, `images_moved`/`images_removed` und `image_notation_only` bei von Hand verschobenen Bildern, `topic_without_page` nur über Name, Titel, Alias oder erstes Tag, `tools_version` in `begin_maintenance`, Vorlage `CLAUDE.md` mit Namensregeln und Kurzfassungszeile je Sprache.
 - **Quellentreue, pkm-tools 0.3.1** (0.30): Regeln im Skill `pkm-wiki` und in der Vorlage `CLAUDE.md`, Prüfschritt im Ingest, Lint `cross_source_statement` und `synthesis_unmarked` (`sourcelint.py`), `cross_source` in `finish_maintenance`. IP-Adressen: Feld `ip_addresses` (`placeholder` | `concrete`) und `ip_addresses_concrete`, Angabe in `begin_maintenance`, Lint `ip_addresses_unclassified`/`ip_comparison` (`ipaddrs.py`; Sonderadressen und Abschnittsnummern ausgeschlossen, öffentliche Dienste `PKM_IP_WELL_KNOWN`), reine Quellenzeilen ohne Meldung.
 - **Sicherheit, pkm-tools 0.3.2** (0.31): Inhalte sind Daten (Server-Anweisungen, Skills), MCP-Annotationen `readOnlyHint`/`destructiveHint`, `PKM_READ_ONLY`, Sicherung ohne Git-Version (`docbackup.py`), Abhängigkeiten mit Obergrenzen, Dependabot, feste uv-Version im Installer, `PKM_VAULT`/`PKM_SETUP_ARGS` mit Leerzeichen, maskierte `env`-Werte und Typprüfung in `pkm setup`, README-Abschnitt Sicherheit, `SECURITY.md` (`test_security.py`).
+- **Lieferkette, pkm-tools 0.3.3** (0.32): Installer laden das Wheel eines Release und prüfen die SHA-256 (gestempelt durch den Release-Workflow, sonst aus `SHA256SUMS`), `constraints.txt` mit getesteten Versionen, `PKM_VERSION`/`PKM_RELEASE_URL`; Release-Workflow mit Versionsprüfung, Test des installierten Wheels, `SHA256SUMS` und Herkunftsnachweis; CI baut ein lokales Release und prüft Installation und Abweisung eines manipulierten Wheels.
 - **Vorhandene Konfiguration übernehmen** (0.27): `pkm setup` zeigt Einstellungen aus Umgebung, `env`-Blöcken in Claude Desktop und `config.toml` und übernimmt sie nach Bestätigung (`test_setup_adopt.py`).
 
 ### Phase 7e – Abnahme mit der neuen Installation
@@ -350,6 +351,6 @@ Erst auf ausdrückliche Anweisung: geplante Aufgabe „Ingest, danach Lint“ im
 
 ## 8. Nächste Schritte
 
-1. Erledigt: Releases `v0.2.0`, `v0.2.1`, `v0.2.2`, `v0.3.0` (Bilder, Größengrenze, Namen und Bildorte) und `v0.3.1` (Quellentreue, IP-Adressen). Nächste Release `v0.3.2` (Sicherheit).
+1. Erledigt: Releases `v0.2.0`, `v0.2.1`, `v0.2.2`, `v0.3.0` (Bilder, Größengrenze, Namen und Bildorte), `v0.3.1` (Quellentreue, IP-Adressen) und `v0.3.2` (Sicherheit). Nächste Release `v0.3.3` (Installation aus dem Release mit Prüfsumme).
 2. Abnahme nach Phase 7e auf dem PKM-Rechner (`docs/acceptance.md`, ab Schritt 0).
 3. Befunde beheben; erst danach Phase 8 (Automatik) und nur auf Anweisung.
