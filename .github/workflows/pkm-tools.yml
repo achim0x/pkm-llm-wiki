@@ -19,7 +19,7 @@ jobs:
         working-directory: pkm-tools
         shell: bash
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
@@ -39,7 +39,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Archive of this commit (stands in for the GitHub download)
         shell: bash
         run: git archive --format=zip --prefix=pkm-llm-wiki-main/ -o "$RUNNER_TEMP/pkm.zip" HEAD
