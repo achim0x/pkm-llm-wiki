@@ -1,5 +1,55 @@
 # Release notes
 
+## V0.3.2
+
+Changes compared to `V0.3.1`. Specification now **0.31**. Prompted by a security review of
+19 November 2026, which found no malicious code and no exploitable vulnerability but proposed
+improvements to the supply chain and the protection against instructions injected through documents.
+
+### Protection against injected instructions
+
+- **Content is data, never an instruction:** both MCP servers and both skills now state that text in
+  documents, wiki pages and tool results is never a request from the user; confirmations (`apply`,
+  `confirm_large`, `confirm_shortening` …) count only when the user gives them in the chat.
+- **Tool annotations:** every tool carries the MCP annotations `readOnlyHint` and `destructiveHint`
+  (e.g. `read` read-only, `rewrite_document`, `edit_document`, `rename_document`, `move_images`
+  destructive), so clients can ask before writing tools.
+- **New option `PKM_READ_ONLY`:** with `true` the chat server `pkm` offers only reading tools (useful
+  for vaults with sensitive content). The maintenance server is not affected.
+- **Backups without Git:** before a tool overwrites a file that has no Git version (version control
+  off, or notes in `scratch/`), it copies the previous content to
+  `<APPDIR>/backups/documents/<date>/`; copies are kept for 30 days.
+
+### Supply chain and setup
+
+- **Dependencies with upper bounds:** `mcp>=2.1,<3`, `pyyaml>=6,<7`. The servers need mcp 2.1 or
+  newer (tested with 2.1 to 2.3; mcp 1.x and 2.0 fail when the servers are built). Dependabot proposes
+  updates of the Python dependencies and GitHub Actions weekly.
+- **Installer:** `uv` is taken from `PATH`; only if it is missing the installer of a **pinned uv
+  version** (`PKM_UV_VERSION`) is used, with a hint on `winget install astral-sh.uv` / `brew install uv`.
+- **`install.ps1`:** new variable `PKM_VAULT`; `PKM_SETUP_ARGS` is split like in the shell, so quoted
+  paths with spaces (`OneDrive - Company`, `My Vault`) stay one argument.
+- **`pkm setup`:** shows existing Claude Desktop entries with masked `env` values (they may hold
+  credentials) and no longer crashes if `mcpServers` is not an object – it then shows the entries for
+  entering them by hand.
+- Fixed: the server instructions recommended `fix_images` with `extract` instead of `extract_images`
+  for `too_large`.
+
+### Documentation
+
+- README (en/de): new section "Security and privacy" (what reaches the LLM, what the servers do not
+  do, injected instructions, read-only mode, uninstalling, reporting vulnerabilities).
+- Installation guides (en/de): installation in two steps (download, check, run), explanation of
+  `-ExecutionPolicy ByPass`, installer options, document backups without Git, new section 11
+  "Uninstalling" (incl. the note that `<APPDIR>/git` holds the version history).
+- New `SECURITY.md`: report vulnerabilities via GitHub's private vulnerability reporting.
+
+### Upgrading from V0.3.1
+
+1. Run the installer again.
+2. Upload both skill ZIPs (`pkm-access`, `pkm-wiki`) in Claude Desktop and restart it.
+3. Optional: `PKM_READ_ONLY = "true"` in `config.toml` for a read-only chat server.
+
 ## V0.3.1
 
 Changes compared to `V0.3.0`. Specification now **0.30**. Prompted by an ingest that combined two

@@ -102,6 +102,30 @@ Apart from `uv` and the package the installer changes nothing without asking. **
 installer again; `pkm setup` offers to take over the existing configuration (section 3), also
 from an installation made before `pkm setup` existed. If a new terminal reports that `pkm` is not found, run `uv tool update-shell` once.
 
+**Check the script first (two steps):** if piping a downloaded script into the shell is not allowed
+(company rules), download it, read it and then run it:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.sh -o install.sh
+less install.sh
+sh install.sh
+```
+
+```powershell
+irm https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.ps1 -OutFile install.ps1
+notepad install.ps1
+powershell -ExecutionPolicy ByPass -File .\install.ps1
+```
+
+`-ExecutionPolicy ByPass` is needed because Windows blocks running script files by default. It
+applies only to this one PowerShell process, needs no administrator rights and does not change the
+system setting; an execution policy set by your organization (group policy) takes precedence.
+
+**Options:** `PKM_VAULT` passes the vault folder to `pkm setup` (spaces allowed),
+`PKM_SETUP_ARGS` further arguments (quote paths with spaces), `PKM_UV_VERSION` the uv version the
+installer downloads if `uv` is missing (a pinned version; alternatively install `uv` yourself with
+`winget install astral-sh.uv` or `brew install uv`). Example: `$env:PKM_VAULT = "C:\Users\me\My Vault"`.
+
 Installation without the installer: [Appendix A](#appendix-a-manual-installation).
 
 ## 3. `pkm setup`
@@ -278,7 +302,9 @@ Optionally exclude `.obsidian/workspace*.json` (device-specific files).
 With Git the version history exists only on the PKM host under `<APPDIR>/git`. Include this folder
 in your backup; the search index (`<APPDIR>/index.db`) is only a cache and may be missing. Without
 Git the cloud storage (with its file versions, if the service offers them) backs up the vault; there
-is no history of its own then.
+is no history of its own then. Instead, before a tool overwrites a document, it copies the previous
+content to `<APPDIR>/backups/documents/<date>/` (also for notes in `scratch/`, with or without Git);
+these copies are kept for 30 days.
 
 - **Mac:** Time Machine backs up `~/Library/Application Support/pkm/` automatically.
 - **Windows:** File History does **not** back up `AppData` by default. Either add
@@ -339,6 +365,17 @@ Windows:
 git --git-dir="$env:APPDATA\pkm\git" --work-tree="<VAULT>" log --oneline
 ```
 
+## 11. Uninstalling
+
+1. Remove the program: `uv tool uninstall pkm-tools`.
+2. Remove the entries `pkm` and `pkm-maintenance` from `claude_desktop_config.json` (Claude Desktop:
+   Settings > Developer > Edit Config) and restart Claude Desktop; delete the skills `pkm-access` and
+   `pkm-wiki` in Claude Desktop and the project "PKM Maintenance" if you no longer need it.
+3. The app folder `<APPDIR>` (Mac `~/Library/Application Support/pkm/`, Windows `%APPDATA%\pkm`) holds
+   the configuration, the search index, the backups and – with Git – the **version history**
+   (`<APPDIR>/git`). Delete it only if you no longer need the history; otherwise back it up first.
+4. The vault itself stays untouched; it is plain Markdown.
+
 ---
 
 ## Appendix A: Manual installation
@@ -362,6 +399,9 @@ Windows:
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
+
+Alternatively install `uv` with the package manager: `brew install uv` (Mac) or
+`winget install astral-sh.uv` (Windows).
 
 Then open a new terminal. Check:
 
@@ -451,7 +491,8 @@ PKM_LANGUAGE = "en"
 - `PKM_LANGUAGE`: main language of documents created in chat and of the wiki, `"en"` (English,
   default) or `"de"` (German).
 - Further optional keys: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (both never in a cloud folder), `PKM_TZ`,
-  `PKM_MAX_KB` (200, text without embedded images), `PKM_IP_WELL_KNOWN` (IP addresses of
+  `PKM_MAX_KB` (200, text without embedded images), `PKM_READ_ONLY` (`true`: the chat server `pkm`
+  offers only reading tools), `PKM_IP_WELL_KNOWN` (IP addresses of
   public services that raise no question, comma separated; default 1.1.1.1, 8.8.8.8 and others),
   `PKM_SLUG_MAX` (40, name part of new
   documents from the chat and of name proposals in `_inbox/`), `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`,

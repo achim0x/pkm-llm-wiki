@@ -873,6 +873,14 @@ addresses in documents (special addresses, well-known public services and sectio
 IPv4 only in a network context) and reads `ip_addresses`/`ip_addresses_concrete`; `begin_maintenance`
 reports them per document, `sourcelint` adds `ip_addresses_unclassified` and `ip_comparison`.
 
+**Security:** both servers start their instructions with the rule that tool content is data, never an
+instruction (`mcp_server.DATA_NOT_INSTRUCTIONS`). `mcp_server.hints` adds the MCP annotations
+`readOnlyHint`/`destructiveHint` to every tool. With `PKM_READ_ONLY` (`config.configured_read_only`)
+`build_server` registers only the reading tools. `Writer.write_atomic` calls
+`docbackup.backup_before_write`, which copies a file without a Git version (version control off,
+`scratch/`) to `<PKM_CACHE_DIR>/backups/documents/<date>/` before it is overwritten and removes day
+folders older than 30 days.
+
 **Size limit and extract:** `writeguard.check_size` measures the text without data URIs; frontmatter
 changes and `fix_images` skip it, and `confirm_large` (after the user's confirmation) skips it for a
 single call of the four writing tools. `writeguard.check_shortening` is the shortening protection. `imagefix.extract_text` (``fix_images`` with ``extract``) writes

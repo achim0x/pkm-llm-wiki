@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pkm-tools"
-version = "0.3.1"
+version = "0.3.2"
 description = "PKM with LLM wiki: MCP servers and CLI"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,8 +12,8 @@ license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [{ name = "Achim0x" }]
 dependencies = [
-    "mcp>=1.2",
-    "pyyaml>=6",
+    "mcp>=2.1,<3",  # tested with 2.1–2.3; 1.x and 2.0 fail when building the servers
+    "pyyaml>=6,<7",
     "tzdata; sys_platform == 'win32'",  # Windows has no time zone database for zoneinfo
 ]
 

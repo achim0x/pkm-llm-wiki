@@ -6,7 +6,9 @@
 #   powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.ps1 | iex"
 #
 # Run it again to update. $env:PKM_ARCHIVE overrides the download (URL or path of a ZIP of the repository).
-# $env:PKM_SETUP_ARGS passes arguments on to `pkm setup` (e.g. "--vault C:\Users\me\Nextcloud\Vault").
+# $env:PKM_VAULT passes the vault folder to `pkm setup` (spaces allowed); $env:PKM_SETUP_ARGS passes further
+# arguments (quote paths with spaces: '--vault "C:\Users\me\My Vault"').
+# uv is taken from PATH; otherwise the installer of the pinned uv version $env:PKM_UV_VERSION is used.
 
 $ErrorActionPreference = "Stop"
 
@@ -16,8 +18,10 @@ $Bin = Join-Path $env:USERPROFILE ".local\bin"
 $Uv = (Get-Command uv -ErrorAction SilentlyContinue).Source
 if (-not $Uv -and (Test-Path (Join-Path $Bin "uv.exe"))) { $Uv = Join-Path $Bin "uv.exe" }
 if (-not $Uv) {
-    Write-Host "Installing uv (manages Python for the PKM) ..."
-    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    $UvVersion = if ($env:PKM_UV_VERSION) { $env:PKM_UV_VERSION } else { "0.11.32" }
+    Write-Host "Installing uv $UvVersion (manages Python for the PKM) ..."
+    Write-Host "  (Alternative: install uv yourself, e.g. 'winget install astral-sh.uv', and run this installer again.)"
+    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/$UvVersion/install.ps1 | iex"
     $Uv = Join-Path $Bin "uv.exe"
 }
 
@@ -49,7 +53,13 @@ try {
 Write-Host ""
 Write-Host "Starting the setup ..."
 $SetupArgs = @()
-if ($env:PKM_SETUP_ARGS) { $SetupArgs = $env:PKM_SETUP_ARGS -split " " }
+if ($env:PKM_VAULT) { $SetupArgs += @("--vault", $env:PKM_VAULT) }
+if ($env:PKM_SETUP_ARGS) {
+    # Split like the shell does, so that quoted paths with spaces stay one argument.
+    $Tokens = [System.Management.Automation.PSParser]::Tokenize($env:PKM_SETUP_ARGS, [ref]$null)
+    $SetupArgs += $Tokens | Where-Object { $_.Type -in "CommandArgument", "String", "CommandParameter", "Number" } |
+        ForEach-Object { $_.Content }
+}
 & (Join-Path $Bin "pkm.exe") setup @SetupArgs
 $SetupCode = $LASTEXITCODE
 Write-Host ""

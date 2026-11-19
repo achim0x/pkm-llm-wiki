@@ -8,6 +8,7 @@
 #
 # Run it again to update. Arguments are passed on to `pkm setup` (e.g. --vault <folder>).
 # PKM_ARCHIVE overrides the download (ZIP of the repository, e.g. another branch).
+# uv is taken from PATH; otherwise the installer of the pinned uv version PKM_UV_VERSION is used.
 
 set -eu
 
@@ -21,8 +22,10 @@ if command -v uv >/dev/null 2>&1; then
 elif [ -x "$BIN/uv" ]; then
   UV="$BIN/uv"
 else
-  say "Installing uv (manages Python for the PKM) ..."
-  curl -LsSf https://astral.sh/uv/install.sh | sh
+  UV_VERSION="${PKM_UV_VERSION:-0.11.32}"
+  say "Installing uv $UV_VERSION (manages Python for the PKM) ..."
+  say "  (Alternative: install uv yourself, e.g. 'brew install uv', and run this installer again.)"
+  curl -LsSf "https://astral.sh/uv/$UV_VERSION/install.sh" | sh
   UV="$BIN/uv"
 fi
 

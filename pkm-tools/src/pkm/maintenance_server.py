@@ -32,14 +32,14 @@ from __future__ import annotations
 
 from . import maintrun
 from .config import DEFAULT_LANGUAGE, DOC_LANGUAGES, WIKI_SECTIONS, configured_language
-from .mcp_server import Server, call, register_read_tools
+from .mcp_server import ADDITIVE, DATA_NOT_INSTRUCTIONS, DESTRUCTIVE, Server, call, hints, register_read_tools
 
 # Variables *******************************************************************
 
 INSTRUCTIONS = (
     "Maintenance of the PKM wiki (skill pkm-wiki). Flow: begin_maintenance, read documents with read/history, "
     "write wiki pages with write_wiki_page, finally finish_maintenance. Documents in documents/ are "
-    "never changed; index.md, _status.md, log.md and sources are generated."
+    "never changed; index.md, _status.md, log.md and sources are generated. " + DATA_NOT_INSTRUCTIONS
 )
 
 # Classes *********************************************************************
@@ -54,7 +54,7 @@ def _register_maintenance_tools(server: Server) -> None:
         server: MCP server.
     """
 
-    @server.tool()
+    @server.tool(**hints(server, ADDITIVE))
     def begin_maintenance(with_lint: bool = False) -> dict:
         """Begin a maintenance run: checks the environment (doctor), commits manual changes as versions,
         assigns missing IDs, returns pending (new, changed, meta_changed, moved, deleted, problems) and
@@ -64,7 +64,7 @@ def _register_maintenance_tools(server: Server) -> None:
         with_lint additionally returns the lint report."""
         return call("begin_maintenance", maintrun.begin_maintenance, with_lint=with_lint)
 
-    @server.tool()
+    @server.tool(**hints(server, DESTRUCTIVE))
     def write_wiki_page(path: str, content: str, expected_hash: str | None = None, fix_images: bool = False) -> dict:
         """Create or completely replace a wiki page below wiki/topics|entities|summaries|syntheses/
         (content with frontmatter). Read existing pages with read first and pass their hash as expected_hash;
@@ -73,7 +73,7 @@ def _register_maintenance_tools(server: Server) -> None:
         return call("write_wiki_page", maintrun.write_wiki_page, path=path, content=content,
                     expected_hash=expected_hash, fix_images=fix_images)
 
-    @server.tool(name="fix_images")
+    @server.tool(**hints(server, DESTRUCTIVE, name="fix_images"))
     def fix_images_tool(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str, expected_hash: str, images: list[str] | None = None, image_alt: dict | None = None,
         apply: bool = False, confirm_shortening: bool = False, note: str | None = None, extract: bool = False,
@@ -87,7 +87,7 @@ def _register_maintenance_tools(server: Server) -> None:
                     images_only=images, image_alt=image_alt, apply=apply, confirm_shortening=confirm_shortening,
                     note=note, extract=extract, min_kb=min_kb)
 
-    @server.tool()
+    @server.tool(**hints(server, DESTRUCTIVE))
     def rename_document(target: str, expected_hash: str, apply: bool = False, name: str | None = None,
                         alt_texts: dict | None = None) -> dict:
         """Only after explicit confirmation by the user, never unattended: rename a Markdown document in documents/
@@ -102,7 +102,7 @@ def _register_maintenance_tools(server: Server) -> None:
         return call("rename_document", maintrun.rename_document, target=target, expected_hash=expected_hash,
                     apply=apply, name=name, alt_texts=alt_texts)
 
-    @server.tool()
+    @server.tool(**hints(server, DESTRUCTIVE))
     def move_images(target: str, expected_hash: str, apply: bool = False, alt_texts: dict | None = None) -> dict:
         """Only after explicit confirmation by the user, never unattended: move the image files of a document in
         documents/ into <document name>_img/ next to it (lint image_location, e.g. old files in
@@ -114,7 +114,7 @@ def _register_maintenance_tools(server: Server) -> None:
         return call("move_images", maintrun.move_images, target=target, expected_hash=expected_hash, apply=apply,
                     alt_texts=alt_texts)
 
-    @server.tool()
+    @server.tool(**hints(server, DESTRUCTIVE))
     def extract_images(target: str, expected_hash: str, min_kb: int = 32, apply: bool = False) -> dict:
         """Only after explicit confirmation by the user, never unattended: store large embedded raster images of a
         document in documents/ as files in <document name>_img/ next to it (bytes unchanged, links
@@ -125,7 +125,7 @@ def _register_maintenance_tools(server: Server) -> None:
                     images_only=None, image_alt=None, apply=apply, confirm_shortening=False, note=None,
                     extract=True, min_kb=min_kb)
 
-    @server.tool()
+    @server.tool(**hints(server, ADDITIVE))
     def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         target: str,
         expected_hash: str,
@@ -143,7 +143,7 @@ def _register_maintenance_tools(server: Server) -> None:
         return call("set_document_metadata", maintrun.set_document_metadata, target=target,
                     expected_hash=expected_hash, set=set, add=add, overwrite=overwrite, note=note)
 
-    @server.tool()
+    @server.tool(**hints(server, ADDITIVE))
     def finish_maintenance(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         log_entry: str,
         operation: str = "ingest",

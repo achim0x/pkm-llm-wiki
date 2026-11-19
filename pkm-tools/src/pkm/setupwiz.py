@@ -429,6 +429,8 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         path = self._claude_config_path()
         entries = self._server_entries()
         data = self._read_claude(path)
+        wrong_type = data is not None and not isinstance(data.get("mcpServers", {}), dict)
+        data = None if wrong_type else data
         servers = (data or {}).get("mcpServers") or {}
         missing = [n for n in entries if n not in servers]
         differing = [n for n, entry in entries.items() if n in servers and servers[n] != entry]
@@ -438,7 +440,8 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         if not entries:
             result["status"] = "skipped"
         elif data is None:
-            self.warn(f"{path} is not valid JSON; Claude Desktop was not changed.")
+            self.warn(f"{path}: \"mcpServers\" is not an object; Claude Desktop was not changed." if wrong_type
+                      else f"{path} is not valid JSON; Claude Desktop was not changed.")
             result.update(status="unreadable", manual=self._manual_claude(path, entries))
         elif not missing and not differing and not obsolete:
             self.say(f"Claude Desktop: the servers {', '.join(entries)} are already entered ({path}).")
@@ -446,7 +449,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
             for name in missing:
                 self.say(f"Claude Desktop: server {name} is missing; new entry: {json.dumps(entries[name])}")
             for name in differing:
-                self.say(f"Claude Desktop: server {name} is entered as {json.dumps(servers[name])}; "
+                self.say(f"Claude Desktop: server {name} is entered as {json.dumps(_redacted(servers[name]))}; "
                          f"new entry: {json.dumps(entries[name])}")
             for name in obsolete:
                 self.say(f"Claude Desktop: server {name} is the old name of pkm-maintenance; the entry is removed.")
@@ -603,6 +606,20 @@ class Setup:  # pylint: disable=too-many-instance-attributes
                 "doctor": check}
 
 # Functions *******************************************************************
+
+
+def _redacted(entry: Any) -> Any:
+    """Server entry for the console: values in ``env`` are masked (they may hold credentials).
+
+    Args:
+        entry: Entry from ``mcpServers``.
+
+    Returns:
+        Copy with ``env`` values replaced by ``***``.
+    """
+    if isinstance(entry, dict) and isinstance(entry.get("env"), dict):
+        entry = {**entry, "env": {key: "***" for key in entry["env"]}}
+    return entry
 
 
 def is_pkm_entry(name: str, entry: Any) -> bool:

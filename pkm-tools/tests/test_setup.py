@@ -228,6 +228,25 @@ def test_setup_with_unreadable_claude_config(paths):
     assert paths["claude"].read_text(encoding="utf-8") == "{broken"
 
 
+def test_setup_with_wrong_mcp_servers_type(paths):
+    """"mcpServers" that is no object: no crash, file unchanged, entries shown for entering by hand."""
+    paths["claude"].parent.mkdir(parents=True)
+    paths["claude"].write_text(json.dumps({"mcpServers": ["x"]}), encoding="utf-8")
+    res, out = _setup(paths)
+    assert res["claude"]["status"] == "unreadable" and res["claude"]["manual"]
+    assert "is not an object" in out
+    assert json.loads(paths["claude"].read_text(encoding="utf-8")) == {"mcpServers": ["x"]}
+
+
+def test_setup_masks_env_of_existing_entries(paths):
+    """A differing entry is shown without the values of its env block (they may hold credentials)."""
+    paths["claude"].parent.mkdir(parents=True)
+    old = {"mcpServers": {"pkm": {"command": "old", "env": {"API_TOKEN": "secret-123"}}}}
+    paths["claude"].write_text(json.dumps(old), encoding="utf-8")
+    _, out = _setup(paths, ask=lambda q: "n" if "Claude Desktop" in q else "")
+    assert "secret-123" not in out and '"API_TOKEN": "***"' in out
+
+
 def test_setup_without_git_then_with_git(paths):
     """Without Git: hint, no Git directory, PKM works; after installing Git a new run turns version control on."""
     res, out = _setup(paths, git_finder=lambda: None)

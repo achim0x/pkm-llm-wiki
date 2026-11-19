@@ -104,6 +104,32 @@ Installer erneut ausführen; `pkm setup` bietet an, die vorhandene Konfiguration
 (Abschnitt 3), auch aus einer Installation aus der Zeit vor `pkm setup`. Meldet ein neues Terminal, dass `pkm` nicht gefunden wird, einmal
 `uv tool update-shell` ausführen.
 
+**Skript erst prüfen (zwei Schritte):** Ist es nicht erlaubt, ein heruntergeladenes Skript direkt in
+die Shell zu leiten (Firmenregeln), das Skript herunterladen, lesen und dann ausführen:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.sh -o install.sh
+less install.sh
+sh install.sh
+```
+
+```powershell
+irm https://raw.githubusercontent.com/achim0x/pkm-llm-wiki/main/install.ps1 -OutFile install.ps1
+notepad install.ps1
+powershell -ExecutionPolicy ByPass -File .\install.ps1
+```
+
+`-ExecutionPolicy ByPass` ist nötig, weil Windows das Ausführen von Skriptdateien standardmäßig
+sperrt. Es gilt nur für diesen einen PowerShell-Prozess, braucht keine Administratorrechte und ändert
+die Systemeinstellung nicht; eine von der Organisation gesetzte Richtlinie (Gruppenrichtlinie) hat
+Vorrang.
+
+**Optionen:** `PKM_VAULT` übergibt den Vault-Ordner an `pkm setup` (Leerzeichen erlaubt),
+`PKM_SETUP_ARGS` weitere Argumente (Pfade mit Leerzeichen in Anführungszeichen), `PKM_UV_VERSION` die
+uv-Version, die der Installer lädt, wenn `uv` fehlt (eine feste Version; alternativ `uv` selbst
+installieren mit `winget install astral-sh.uv` oder `brew install uv`). Beispiel:
+`$env:PKM_VAULT = "C:\Users\ich\Mein Vault"`.
+
 Installation ohne Installer: [Anhang A](#anhang-a-manuelle-installation).
 
 ## 3. `pkm setup`
@@ -285,7 +311,9 @@ Optional `.obsidian/workspace*.json` ausschließen (geräteabhängige Dateien).
 Mit Git existiert der Versionsverlauf nur auf dem PKM-Rechner unter `<APPDIR>/git`. Diesen Ordner in
 die Datensicherung aufnehmen; der Suchindex (`<APPDIR>/index.db`) ist nur ein Cache und kann fehlen.
 Ohne Git sichert der Cloud-Speicher (mit seinen Dateiversionen, sofern der Dienst welche bietet) den
-Vault; einen eigenen Verlauf gibt es dann nicht.
+Vault; einen eigenen Verlauf gibt es dann nicht. Stattdessen kopiert ein Werkzeug, bevor es ein
+Dokument überschreibt, den bisherigen Inhalt nach `<APPDIR>/backups/documents/<Datum>/` (auch für
+Notizen in `scratch/`, mit oder ohne Git); diese Kopien bleiben 30 Tage erhalten.
 
 - **Mac:** Time Machine sichert `~/Library/Application Support/pkm/` automatisch mit.
 - **Windows:** Der Dateiversionsverlauf sichert `AppData` standardmäßig **nicht**. Entweder
@@ -346,6 +374,18 @@ Windows:
 git --git-dir="$env:APPDATA\pkm\git" --work-tree="<VAULT>" log --oneline
 ```
 
+## 11. Deinstallieren
+
+1. Programm entfernen: `uv tool uninstall pkm-tools`.
+2. Die Einträge `pkm` und `pkm-maintenance` aus `claude_desktop_config.json` entfernen (Claude Desktop:
+   Einstellungen > Entwickler > Konfiguration bearbeiten) und Claude Desktop neu starten; die Skills
+   `pkm-access` und `pkm-wiki` und, falls nicht mehr gebraucht, das Projekt „PKM Maintenance“ in Claude
+   Desktop löschen.
+3. Der App-Ordner `<APPDIR>` (Mac `~/Library/Application Support/pkm/`, Windows `%APPDATA%\pkm`)
+   enthält Konfiguration, Suchindex, Sicherungen und – mit Git – den **Versionsverlauf**
+   (`<APPDIR>/git`). Nur löschen, wenn der Verlauf nicht mehr gebraucht wird; sonst vorher sichern.
+4. Der Vault selbst bleibt unverändert; er besteht aus reinem Markdown.
+
 ---
 
 ## Anhang A: Manuelle Installation
@@ -369,6 +409,9 @@ Windows:
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
+
+Alternativ `uv` über den Paketmanager installieren: `brew install uv` (Mac) oder
+`winget install astral-sh.uv` (Windows).
 
 Danach ein neues Terminal öffnen. Prüfen:
 
@@ -458,7 +501,8 @@ PKM_LANGUAGE = "en"
 - `PKM_LANGUAGE`: Hauptsprache von im Chat erzeugten Dokumenten und vom Wiki, `"en"` (Englisch,
   Standard) oder `"de"` (Deutsch).
 - Weitere optionale Schlüssel: `PKM_GIT_DIR`, `PKM_CACHE_DIR` (beide nie in einen Cloud-Ordner),
-  `PKM_TZ`, `PKM_MAX_KB` (200, Text ohne eingebettete Bilder), `PKM_IP_WELL_KNOWN` (IP-Adressen
+  `PKM_TZ`, `PKM_MAX_KB` (200, Text ohne eingebettete Bilder), `PKM_READ_ONLY` (`true`: der Chat-Server `pkm`
+  bietet nur lesende Tools), `PKM_IP_WELL_KNOWN` (IP-Adressen
   öffentlicher Dienste ohne Rückfrage, durch Kommas getrennt; Standard 1.1.1.1, 8.8.8.8 u. a.), `PKM_SLUG_MAX` (40,
   Namensteil neuer Dokumente aus dem Chat und der Namensvorschläge in `_inbox/`), `PKM_GIT_AUTHOR`, `PKM_IMPORT_DIR`,
   `PKM_LINK_STYLE` (`relative` (Standard, relativ zum Dokument) oder `absolute`
