@@ -48,6 +48,7 @@ DEFAULT_TZ = "Europe/Berlin"
 IMPORT_FOLDER = "pkm_img_import"
 CONFIG_FILE = "config.toml"
 FALSE_VALUES = ("0", "false", "no", "off", "nein", "aus")
+TRUE_VALUES = ("1", "true", "yes", "on", "ja", "an")
 GIT_CANDIDATES = (
     "/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git",
     r"C:\Program Files\Git\cmd\git.exe", r"C:\Program Files (x86)\Git\cmd\git.exe",
@@ -59,7 +60,7 @@ DOC_LANGUAGES = {
 }
 CONFIG_KEYS = (
     "PKM_ROOT", "PKM_VAULT_NAME", "PKM_LANGUAGE", "PKM_VERSIONING", "PKM_GIT", "PKM_GIT_DIR", "PKM_CACHE_DIR",
-    "PKM_TZ", "PKM_MAX_KB", "PKM_SLUG_MAX", "PKM_IP_WELL_KNOWN", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR",
+    "PKM_TZ", "PKM_MAX_KB", "PKM_SLUG_MAX", "PKM_IP_WELL_KNOWN", "PKM_READ_ONLY", "PKM_GIT_AUTHOR", "PKM_IMPORT_DIR",
     "PKM_INLINE_MAX_KB", "PKM_SVG_MAX_KB",
     "PKM_IMAGE_MAX_MB", "PKM_IMAGE_PARAM_MAX_KB", "PKM_SVG_RASTER", "PKM_LINK_STYLE",
 )
@@ -423,6 +424,25 @@ def configured_language(env: Mapping[str, str] | None = None) -> str:
     except PkmError:
         language = DEFAULT_LANGUAGE
     return language
+
+
+def configured_read_only(env: Mapping[str, str] | None = None) -> bool:
+    """Whether the chat server offers only reading tools (``PKM_READ_ONLY``), without a complete configuration.
+
+    Args:
+        env: Environment variables; ``os.environ`` if omitted.
+
+    Returns:
+        ``True`` if ``PKM_READ_ONLY`` is set to a true value in the environment or the configuration file.
+    """
+    env = os.environ if env is None else env
+    home = Path(env["HOME"]) if env.get("HOME") else None
+    path = Path(env.get("PKM_CONFIG") or default_app_dir(home) / CONFIG_FILE).expanduser()
+    try:
+        value = env.get("PKM_READ_ONLY") or read_config_file(path).get("PKM_READ_ONLY") or ""
+    except PkmError:
+        value = ""
+    return str(value).strip().lower() in TRUE_VALUES
 
 
 def read_config_file(path: Path) -> dict[str, str]:

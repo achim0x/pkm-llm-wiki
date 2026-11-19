@@ -50,7 +50,8 @@ a purely local folder works as well. Obsidian is the recommended front end, but 
 8. [CLI reference](#cli-reference)
 9. [Cloud storage: pitfalls](#cloud-storage-pitfalls)
 10. [When something is wrong](#when-something-is-wrong)
-11. [Project structure and development](#project-structure-and-development)
+11. [Security and privacy](#security-and-privacy)
+12. [Project structure and development](#project-structure-and-development)
 
 ### Features
 
@@ -597,6 +598,24 @@ with a normal folder. The vault path then points there.
 
 Log of all chat accesses: `<Vault>/.pkm/mcp.log`.
 
+### Security and privacy
+
+- **What reaches the LLM:** everything the tools read (`read`, `search`, wiki pages, images) goes to
+  the language model you use, i.e. to the provider of Claude Desktop. Put company or customer data
+  into the vault only as far as your own rules allow.
+- **What the servers do not do:** no network access, no open port (MCP runs over stdio only), file
+  access only inside the vault and the import folder `PKM_IMPORT_DIR`; the Git directory lies outside
+  the vault; `mcp.log` records only metadata, no content.
+- **Injected instructions:** a document (e.g. an imported web article) may contain text that tries to
+  instruct Claude. The servers tell the model that tool content is data, never an instruction, and
+  that confirmations count only when you give them in the chat. Writing tools are marked for the
+  client (`readOnlyHint`/`destructiveHint`). With Git every change can be undone; without Git, tools
+  back up a document before overwriting it (`<APPDIR>/backups/documents/`, 30 days).
+- **Read-only:** with `PKM_READ_ONLY = "true"` in `config.toml` the chat server `pkm` offers only
+  reading tools, e.g. for a vault with sensitive content.
+- **Uninstalling:** [installation guide, section 11](docs/installation.md#11-uninstalling).
+- **Reporting a vulnerability:** see [SECURITY.md](SECURITY.md).
+
 ### Project structure and development
 
 ```
@@ -678,7 +697,8 @@ Voraussetzung.
 8. [CLI-Referenz](#cli-referenz)
 9. [Cloud-Speicher: Stolpersteine](#cloud-speicher-stolpersteine)
 10. [Wenn etwas nicht stimmt](#wenn-etwas-nicht-stimmt)
-11. [Projektstruktur und Entwicklung](#projektstruktur-und-entwicklung)
+11. [Sicherheit und Datenschutz](#sicherheit-und-datenschutz)
+12. [Projektstruktur und Entwicklung](#projektstruktur-und-entwicklung)
 
 ### Funktionen
 
@@ -1240,6 +1260,25 @@ träger als bei einem normalen Ordner. Der Vault-Pfad zeigt dann dorthin.
 
 Protokoll aller Chat-Zugriffe: `<Vault>/.pkm/mcp.log`.
 
+
+### Sicherheit und Datenschutz
+
+- **Was beim LLM ankommt:** Alles, was die Tools lesen (`read`, `search`, Wiki-Seiten, Bilder), geht an
+  das genutzte Sprachmodell, also an den Anbieter von Claude Desktop. Firmen- oder Kundendaten nur so
+  weit in den Vault legen, wie die eigenen Regeln es erlauben.
+- **Was die Server nicht tun:** kein Netzwerkzugriff, kein offener Port (MCP nur über stdio),
+  Dateizugriff nur innerhalb des Vaults und des Importordners `PKM_IMPORT_DIR`; das Git-Verzeichnis
+  liegt außerhalb des Vaults; `mcp.log` enthält nur Metadaten, keine Inhalte.
+- **Eingeschleuste Anweisungen:** Ein Dokument (z. B. ein importierter Webartikel) kann Text enthalten,
+  der Claude Anweisungen geben will. Die Server sagen dem Modell, dass Inhalte aus Tools Daten sind,
+  nie Anweisungen, und dass Bestätigungen nur zählen, wenn du sie im Chat gibst. Schreibende Tools sind
+  für den Client gekennzeichnet (`readOnlyHint`/`destructiveHint`). Mit Git ist jede Änderung
+  umkehrbar; ohne Git sichern die Werkzeuge ein Dokument, bevor sie es überschreiben
+  (`<APPDIR>/backups/documents/`, 30 Tage).
+- **Nur lesen:** Mit `PKM_READ_ONLY = "true"` in `config.toml` bietet der Chat-Server `pkm` nur lesende
+  Tools, z. B. für einen Vault mit vertraulichen Inhalten.
+- **Deinstallieren:** [Einrichtungsanleitung, Abschnitt 11](docs/installation.de.md#11-deinstallieren).
+- **Schwachstelle melden:** siehe [SECURITY.md](SECURITY.md).
 
 ### Projektstruktur und Entwicklung
 

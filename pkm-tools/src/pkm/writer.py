@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 from . import docimages
 from .appendtext import append_lines
 from .diffs import unified_diff
+from .docbackup import backup_before_write
 from .errors import NO_VERSIONING, PkmError
 from .frontmatter import PROTECTED, dump_meta, set_fields_linewise
 from .fsutil import file_lock, replace_file
@@ -147,12 +148,16 @@ class Writer:
     def write_atomic(self, rel: str, text: str) -> None:
         """Write a file atomically (temporary file, then rename), keeping the file permissions.
 
+        Without a Git version of the file (version control off, ``scratch/``) the previous content is backed up
+        first (``docbackup``).
+
         Args:
             rel: Relative path.
             text: Content; brought into write form.
         """
         p = self.vault.path(rel)
         p.parent.mkdir(parents=True, exist_ok=True)
+        backup_before_write(self.cfg, rel, self.svc.now())  # only without a Git version (docbackup)
         tmp = p.with_name(f".pkm-tmp-{uuid.uuid4().hex}-{p.name}")
         mode = p.stat().st_mode & FILE_MODE_MASK if p.exists() else None
         try:

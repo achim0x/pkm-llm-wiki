@@ -1,0 +1,11 @@
+# Weekly update proposals for the Python dependencies of pkm-tools and for the GitHub Actions.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/pkm-tools"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
