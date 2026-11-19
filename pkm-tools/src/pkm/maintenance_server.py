@@ -134,11 +134,12 @@ def _register_maintenance_tools(server: Server) -> None:
         overwrite: bool = False,
         note: str | None = None,
     ) -> dict:
-        """Only after explicit confirmation by the user: enter title, context, tags, kind, short_citation of a
-        document in documents/ (new version, commit with PKM-Source agent). set sets fields, add
+        """Only after explicit confirmation by the user: enter title, context, tags, kind, short_citation or
+        ip_addresses of a document in documents/ (new version, commit with PKM-Source agent). set sets fields, add
         appends to tags. Change existing values only with overwrite=true (otherwise field_exists). kind: note |
-        standard | regulation | correction. Tags are normalized (lower case, umlauts spelled out,
-        hyphens). expected_hash from read; on conflict read again."""
+        standard | regulation | correction. ip_addresses: placeholder | concrete (only after the user's
+        answer). Tags are normalized (lower case, umlauts spelled out, hyphens). expected_hash from read; on
+        conflict read again."""
         return call("set_document_metadata", maintrun.set_document_metadata, target=target,
                     expected_hash=expected_hash, set=set, add=add, overwrite=overwrite, note=note)
 

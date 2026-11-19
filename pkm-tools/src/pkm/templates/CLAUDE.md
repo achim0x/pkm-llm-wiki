@@ -8,7 +8,7 @@ the user's consent.
 
 | Area | Owned by | Who writes |
 |---|---|---|
-| `documents/` (incl. `_inbox/`) | user | user (Obsidian), pkm-mcp on the user's instruction; the agent `id`/`version` via `pkm ids`/`pkm versions` as well as `title`, `context`, `tags`, `kind`, `short_citation` and the name of new documents in `_inbox/` (with their image folder) after the user's confirmation; after confirmation also moving image files into `<document name>_img/` |
+| `documents/` (incl. `_inbox/`) | user | user (Obsidian), pkm-mcp on the user's instruction; the agent `id`/`version` via `pkm ids`/`pkm versions` as well as `title`, `context`, `tags`, `kind`, `short_citation`, `ip_addresses` and the name of new documents in `_inbox/` (with their image folder) after the user's confirmation; after confirmation also moving image files into `<document name>_img/` |
 | `wiki/` | maintenance agent | the agent only; read-only from chats |
 | `scratch/` | user | user (Obsidian), pkm-mcp on instruction; without version and commit, never in the wiki, not in Git |
 | `.pkm/state.json` | maintenance agent | `pkm mark` |
@@ -31,7 +31,12 @@ move it); the agent proposes that.
 - Further fields (schema of the digitized standards, first in this order): `title`,
   `short_citation`, `date_document`, `status_markdown`, `date_markdown`, `toolchain_markdown`;
   then `id`, `version`, `date_updated`, `context`, `tags`, `related`,
-  `kind` (`note` | `standard` | `regulation` | `correction`).
+  `kind` (`note` | `standard` | `regulation` | `correction`), `ip_addresses` (`placeholder` |
+  `concrete`: whether the IP addresses in the document are placeholders or concrete addresses; set only
+  after the user's answer; missing with IP addresses in the text = unclassified, nothing is derived
+  from them), `ip_addresses_concrete` (list of addresses that are concrete although `ip_addresses` is
+  `placeholder`). Special addresses (`0.0.0.0`, `127.0.0.1`, `::`) and well-known public services
+  (`1.1.1.1`, `8.8.8.8` …) need no classification.
 - `id`, `version`, `date_markdown`, `date_updated` are set only by pkm-mcp or the `pkm` CLI.
   `status_markdown` is taken over unchanged and changed by no tool.
 - `context`: one line "<kind>: <content>" (kind: chat, podcast, book, article, research, note).
@@ -72,6 +77,11 @@ move it); the agent proposes that.
   `[^b1]: [[<path>#<anchor>]] · "<quote>" · id:<id> · v:<version> · sha:<6 characters>`
   (PDF/image: `[[<path>.pdf#page=<n>]] · "<quote>" · sha:<6 characters>`).
 - Wiki pages do not count as citations. Invent nothing, mark gaps as open questions.
+- Source fidelity: wiki pages state only what the sources say. Do not combine statements from
+  different sources into a new claim. "Contradictions / open questions" lists only contradictions
+  between sources on the same subject and open points named in the documents. Own interpretations
+  only on request, in `wiki/syntheses/`, marked as such ("Own interpretation, not stated in the
+  sources." / „Eigene Einordnung, nicht aus den Quellen.“, `confidence: low`).
 - Nothing is deleted in the wiki; outdated statements keep their citation of the old version.
 - Generated, do not change by hand: `wiki/index.md`, `wiki/_status.md`, `sources`.
 - `wiki/log.md` is append-only.

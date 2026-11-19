@@ -33,7 +33,7 @@ tools with `fix_images`/`image_alt`, tool `fix_images` in both servers, CLI `pkm
 
 **MCP tools of `pkm-maintenance-mcp`:** the reading tools as well as `begin_maintenance` (doctor, versions, ids,
 pending with `missing_fields`, `known_tags`, fix-citations), `set_document_metadata` (only `title`,
-`context`, `tags`, `kind`, `short_citation` after confirmation; new version with `PKM-Source: agent`),
+`context`, `tags`, `kind`, `short_citation`, `ip_addresses`, `ip_addresses_concrete` after confirmation; new version with `PKM-Source: agent`),
 `rename_document` (after confirmation: a document in `documents/_inbox/`, or one whose name breaks the rules,
 named `<slug>_YYYY-MM-DD.md`; wiki pages citing it are listed with `cited_by`,
 its image files move into `<name>_img/`, generic names from the alt text, links adjusted),

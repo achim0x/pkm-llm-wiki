@@ -863,6 +863,16 @@ image files of a document into that folder (generic names from the alt text, lin
 commit) for `move_images` and `rename_document`; `namelint` reports `naming` (inbox) and
 `image_location` (other documents) with the same plan.
 
+**Source fidelity:** `sourcelint` splits the paragraphs of wiki pages (outside the citations section
+and tables) into list items and sentences (up to `.`, `;`, `!`, `?` with the footnotes right after) and
+reports a sentence whose footnotes cite two or more documents (`id:`, otherwise the path) as
+`cross_source_statement` – a `warning` in "Contradictions / open questions", otherwise `info`; synthesis
+pages without the marker for an own interpretation as `synthesis_unmarked`. `maintrun.finish_maintenance`
+returns these findings for the pages with uncommitted changes as `cross_source`. `ipaddrs` finds IP
+addresses in documents (special addresses, well-known public services and section numbers excluded,
+IPv4 only in a network context) and reads `ip_addresses`/`ip_addresses_concrete`; `begin_maintenance`
+reports them per document, `sourcelint` adds `ip_addresses_unclassified` and `ip_comparison`.
+
 **Size limit and extract:** `writeguard.check_size` measures the text without data URIs; frontmatter
 changes and `fix_images` skip it, and `confirm_large` (after the user's confirmation) skips it for a
 single call of the four writing tools. `writeguard.check_shortening` is the shortening protection. `imagefix.extract_text` (``fix_images`` with ``extract``) writes
