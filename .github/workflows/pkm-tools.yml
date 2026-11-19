@@ -52,7 +52,7 @@ jobs:
           uv pip compile -q --universal --no-header pkm-tools/pyproject.toml -o "$REL/constraints.txt"
           VERSION="v$(python -c "import tomllib; print(tomllib.load(open('pkm-tools/pyproject.toml', 'rb'))['project']['version'])")"
           if command -v sha256sum >/dev/null; then SUM="sha256sum"; else SUM="shasum -a 256"; fi
-          SHA=$($SUM "$REL"/pkm_tools-*.whl | cut -d' ' -f1)
+          SHA=$(cd "$REL" && $SUM pkm_tools-*.whl | cut -d' ' -f1)  # no path: sha256sum escapes backslashes
           (cd "$REL" && $SUM -- pkm_tools-*.whl constraints.txt > SHA256SUMS)
           mkdir -p "$RUNNER_TEMP/stamped"
           for f in install.sh install.ps1; do
