@@ -1,18 +1,18 @@
 # Update proposals for the Python dependencies of pkm-tools and for the GitHub Actions: one pull
-# request per ecosystem and run (groups), weekly.
+# request per ecosystem and run (groups), monthly.
 version: 2
 updates:
   - package-ecosystem: "pip"
     directory: "/pkm-tools"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     groups:
       python-dependencies:
         patterns: ["*"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     groups:
       github-actions:
         patterns: ["*"]

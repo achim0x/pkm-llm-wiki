@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 
-from pkm import __version__, cli
+from pkm import __version__, cli, setupwiz
 from pkm.config import read_config_file
 from pkm.setupwiz import NO_GIT_HINT, Setup, SetupOptions
 
@@ -97,7 +97,12 @@ def test_setup_with_git(paths):
     with zipfile.ZipFile(paths["skills"] / "pkm-access.zip") as zf:
         assert "pkm-access/SKILL.md" in zf.namelist()
     assert (paths["root"] / ".obsidian" / "app.json").is_file()
-    assert "PKM Maintenance" in out
+    assert "PKM Maintenance" in out and "(right side bar)" in out
+    assert f"Detailed usage instructions: {setupwiz.USAGE_URL}" in out
+    assert "check that Claude Desktop uses this configuration file and that it contains the entries below" in out
+    assert f"  {paths['claude']}\n" in out and '"pkm-maintenance": {' in out
+    assert f"Detailed installation instructions: {setupwiz.INSTALL_URL}" in out
+    assert setupwiz.INSTALL_URL.endswith("/blob/main/docs/installation.md")
 
 
 def test_setup_asks_before_changing_claude_desktop(paths):
@@ -286,5 +291,44 @@ def test_setup_cli(paths, capsys):
     assert code == 0 and json.loads(capsys.readouterr().out)["status"] == "ok"
     code = cli.main(["setup", "--yes", "--vault", "relative/path"])
     assert code == 1 and "absolute path" in capsys.readouterr().out
+
+
+def test_setup_opens_skills_folder(paths, monkeypatch):
+    """With open_skills the folder of the skill ZIP files is opened at the end; by default it is not."""
+    opened: list[Path] = []
+    monkeypatch.setattr(setupwiz, "open_folder", lambda folder: opened.append(folder) or True)
+    _, out = _setup(paths)
+    assert not opened
+    _, out = _setup(paths, open_skills=True)
+    assert opened == [paths["skills"]] and out.splitlines()[-1].startswith("Opening the folder")
+    monkeypatch.setattr(setupwiz, "open_folder", lambda folder: False)
+    _, out = _setup(paths, open_skills=True)
+    assert out.splitlines()[-1] == f"Could not open the folder; the skill ZIP files are in: {paths['skills']}"
+
+
+def test_cli_opens_skills_folder_only_interactively(paths, monkeypatch):
+    """pkm setup opens the folder only without --yes/--json/--no-open and with a terminal."""
+    seen: list[bool] = []
+    monkeypatch.setattr(cli, "Setup", lambda opts, say: type("S", (), {
+        "run": lambda self: seen.append(opts.open_skills) or {"status": "ok"}})())
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    base = ["setup", "--vault", str(paths["root"])]
+    for extra, expected in (([], True), (["--yes"], False), (["--no-open"], False), (["--json"], False)):
+        cli.cmd_setup(cli.build_parser().parse_args(base + extra))
+        assert seen.pop() is expected, extra
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    cli.cmd_setup(cli.build_parser().parse_args(base))
+    assert seen.pop() is False
+
+
+def test_open_folder_uses_file_manager(tmp_path, monkeypatch):
+    """open_folder starts the file manager of the system and reports a missing one."""
+    calls: list[list[str]] = []
+    monkeypatch.setattr(setupwiz.subprocess, "Popen", lambda cmd, **kw: calls.append(cmd) or object())
+    monkeypatch.setattr(setupwiz.sys, "platform", "darwin")
+    assert setupwiz.open_folder(tmp_path) and calls.pop() == ["open", str(tmp_path)]
+    monkeypatch.setattr(setupwiz.sys, "platform", "linux")
+    monkeypatch.setattr(setupwiz.shutil, "which", lambda name: None)
+    assert not setupwiz.open_folder(tmp_path) and not calls
 
 # Main ************************************************************************

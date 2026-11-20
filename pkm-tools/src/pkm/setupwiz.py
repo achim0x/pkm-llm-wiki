@@ -33,6 +33,7 @@ import configparser
 import json
 import os
 import shutil
+import subprocess
 import sys
 import zipfile
 from collections.abc import Callable, Mapping
@@ -74,6 +75,8 @@ NO_GIT_HINT = (
     "later, install Git (https://git-scm.com/install/) and run `pkm setup` again."
 )
 SCHEMA_FILE = "CLAUDE.md"
+USAGE_URL = "https://github.com/achim0x/pkm-llm-wiki#everyday-use"
+INSTALL_URL = "https://github.com/achim0x/pkm-llm-wiki/blob/main/docs/installation.md"
 PROJECT_INSTRUCTIONS = (
     "This is the maintenance project for the PKM. Use the skill `pkm-wiki` and the tools of the server "
     "`pkm-maintenance`. You do not change documents in `documents/`."
@@ -95,6 +98,7 @@ class SetupOptions:  # pylint: disable=too-many-instance-attributes
         claude_config: Path of ``claude_desktop_config.json`` (default per operating system).
         skills_dir: Target folder for the skill ZIP files (default ``<app folder>/skills``).
         language: Main language of documents created in chat and of the wiki, ``en`` or ``de``.
+        open_skills: Open the folder with the skill ZIP files in Explorer/Finder at the end.
     """
 
     vault: str | None = None
@@ -105,6 +109,7 @@ class SetupOptions:  # pylint: disable=too-many-instance-attributes
     claude_config: str | None = None
     skills_dir: str | None = None
     language: str | None = None
+    open_skills: bool = False
 
 
 class Setup:  # pylint: disable=too-many-instance-attributes
@@ -464,6 +469,21 @@ class Setup:  # pylint: disable=too-many-instance-attributes
                 result.update(status="declined", manual=self._manual_claude(path, entries, obsolete))
         return result
 
+    def _claude_check(self, claude: dict[str, Any]) -> None:
+        """Show the path of the Claude Desktop configuration and the PKM entries, with the request to check them.
+
+        Args:
+            claude: Result of ``_claude``.
+        """
+        entries = self._server_entries()
+        if entries:
+            text = json.dumps(entries, indent=2, ensure_ascii=False)
+            self.say(f"\nThird step: check that Claude Desktop uses this configuration file and that it contains the "
+                     f"entries below in \"mcpServers\":\n  {claude['path']}\n" + text + "\n"
+                     "Claude Desktop opens the file it really uses via Settings > Developer > Edit Config. If that is "
+                     "another file or the entries are missing, run `pkm setup --claude-config <that file>` or add the "
+                     "entries by hand, then quit Claude Desktop completely and start it again.\n")
+
     def _manual_claude(self, path: Path, entries: dict[str, dict[str, Any]], obsolete: list[str] | None = None) -> str:
         """Show the entries for Claude Desktop so that the user can enter them by hand.
 
@@ -558,8 +578,8 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         """
         target = Path(self.opts.skills_dir).expanduser() if self.opts.skills_dir else self._app_dir() / "skills"
         paths = [str(p) for p in build_skill_zips(target)]
-        self.say("Skills: upload these files in Claude Desktop (Settings > Capabilities > Skills):\n  "
-                 + "\n  ".join(paths))
+        self.say("To use or update your PKM it is necessary to install the following Skills, by uploading these "
+                 "files in Claude Desktop (Settings > Capabilities > Skills):\n  " + "\n  ".join(paths) + "\n")
         return paths
 
     def warn(self, text: str) -> None:
@@ -594,11 +614,18 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         schema = self._claude_md(cfg)
         claude = self._claude()
         skills = self._skills()
-        self.say("Project \"PKM Maintenance\" in Claude Desktop - project instructions:\n  " + PROJECT_INSTRUCTIONS)
+        self.say("Second step is to setup a Project \"PKM Maintenance\" in Claude Desktop - and add the following "
+                 "project instructions (right side bar):\n  " + PROJECT_INSTRUCTIONS)
+        self._claude_check(claude)
+        self.say(f"Detailed usage instructions: {USAGE_URL}\nDetailed installation instructions: {INSTALL_URL}")
         check = doctor(Service(cfg), short=True)
         for c in check["checks"]:
             self.say(f"Error: {c['message']}")
         self.say("Setup finished." if not check["errors"] else "Setup finished with errors (see above, `pkm doctor`).")
+        if self.opts.open_skills and skills:
+            folder = Path(skills[0]).parent
+            self.say(f"Opening the folder with the skill ZIP files: {folder}" if open_folder(folder)
+                     else f"Could not open the folder; the skill ZIP files are in: {folder}")
         return {"status": "ok" if not check["errors"] else "error", "version": __version__, "root": str(root),
                 "config_file": str(self.config_path), "versioning": cfg.versioning, "git": git_exe,
                 "language": cfg.language,
@@ -700,6 +727,28 @@ def find_program(name: str) -> str | None:
     candidates = [Path(sys.argv[0]).absolute().parent / exe, Path(sys.executable).parent / exe]
     found = next((str(p) for p in candidates if p.is_file()), None)
     return found or shutil.which(name)
+
+
+def open_folder(folder: Path) -> bool:
+    """Open a folder in the file manager (Explorer, Finder, or ``xdg-open`` on Linux) without waiting.
+
+    Args:
+        folder: Folder to show.
+
+    Returns:
+        ``True`` if the file manager was started.
+    """
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(str(folder))  # type: ignore[attr-defined]  # pylint: disable=no-member
+            started = True
+        else:
+            opener = "open" if sys.platform == "darwin" else shutil.which("xdg-open")
+            started = bool(opener) and subprocess.Popen(  # pylint: disable=consider-using-with
+                [str(opener), str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) is not None
+    except OSError:
+        started = False
+    return started
 
 
 def build_skill_zips(target: Path) -> list[Path]:

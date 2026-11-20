@@ -1,5 +1,22 @@
 # Release notes
 
+## V0.3.4
+
+Changes compared to `V0.3.3`. Specification now **0.33**.
+
+- **Skills folder opens after the setup:** at the end of an interactive `pkm setup` (also when started
+  by the installer) the folder with the skill ZIP files opens in Explorer (Windows) or Finder (macOS),
+  so they can be uploaded to Claude Desktop right away. Not with `--yes`, `--json` or the new option
+  `--no-open`; if the folder cannot be opened, its path is shown.
+- **Clearer closing text of `pkm setup`:** it explains the two remaining steps (upload the skills,
+  create the project "PKM Maintenance" with its instructions in the right side bar) and links to the
+  usage and installation instructions on GitHub.
+- **Check of the Claude Desktop entries:** `pkm setup` also shows the path of
+  `claude_desktop_config.json` and the entries for `pkm` and `pkm-maintenance`, with the request to
+  check in Claude Desktop (Settings > Developer > Edit Config) that this is the file the app uses and
+  that the entries are there. Otherwise the tools of the PKM do not reach Claude.
+- **Dependabot** now checks for updates monthly instead of weekly.
+
 ## V0.3.3
 
 Changes compared to `V0.3.2`. Specification now **0.32**. Package C of the security review of

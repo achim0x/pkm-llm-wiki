@@ -1,6 +1,9 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.32 (Entwurf zum Review) · **Stand:** 19.11.2026
+**Version:** 0.33 (Entwurf zum Review) · **Stand:** 20.11.2026
+
+> **Änderungen in 0.33** (pkm-tools 0.3.4)
+> - **Skill-Ordner öffnen:** `pkm setup` öffnet am Ende eines interaktiven Laufs den Ordner mit den Skill-ZIPs im Explorer bzw. Finder; `--no-open` schaltet das ab (15.1).
 
 > **Änderungen in 0.32** (pkm-tools 0.3.3; Paket C des Security-Reviews vom 19.11.2026)
 > - **Installation aus dem Release mit Prüfsumme:** Die Installer laden das Wheel eines GitHub-Release statt des Archivs von `main`, prüfen seine SHA-256-Prüfsumme vor der Installation und installieren mit den für das Release getesteten Versionen der Abhängigkeiten (`constraints.txt`). Der Installer eines Release kennt Version und Prüfsumme selbst; die Kopie im Repository holt das neueste Release und nimmt die Prüfsumme aus dessen `SHA256SUMS`. `PKM_VERSION` wählt ein Release, `PKM_ARCHIVE` bleibt für die Entwicklung (ohne Prüfung) (15.1).
@@ -1632,7 +1635,8 @@ Vorher brauchte die Einrichtung rund zehn Handschritte. Jetzt: Installer ausfüh
    - prüft `CLAUDE.md` im Vault: `pkm init` legt die Datei nur an, wenn sie fehlt. Weicht eine vorhandene von der Vorlage der installierten Version ab (ältere Fassung oder eigene Änderungen), fragt der Assistent, ob er sie ersetzen soll. Bei „ja“ sichert er die alte nach `<App-Ordner>/backups/` (außerhalb des Vaults), schreibt die Vorlage und committet sie mit Versionsverwaltung (`PKM-Source: user`). Bei „nein“ bleibt die Datei und die Vorlage kommt daneben als `CLAUDE.md.new` (wird von Pflege und Suche nicht erfasst, da außerhalb von `documents/` und `wiki/`);
    - prüft die Einträge in Claude Desktop (7.6); fehlen sie oder weichen sie ab, fragt es, ob es die Datei ändern darf (dann mit Sicherungskopie, andere Server bleiben), sonst zeigt es den Text zum Selbst-Eintragen;
    - baut die ZIP-Dateien der Skills `pkm-access` und `pkm-wiki` nach `<Standardordner>/skills/` (das Hochladen bleibt Handarbeit);
-   - gibt die Projektanweisung für „PKM Maintenance“ aus (11) und endet mit `pkm doctor`.
+   - gibt die Projektanweisung für „PKM Maintenance“ (11), den Pfad von `claude_desktop_config.json` mit den PKM-Einträgen und der Bitte, sie in Claude Desktop zu prüfen (Settings > Developer > Edit Config zeigt die tatsächlich gelesene Datei), sowie Links zur Bedienungsanleitung (README, „Everyday use“) und zur Einrichtungsanleitung (`docs/installation.md`) aus und endet mit `pkm doctor`;
+   - öffnet seit 0.33 zum Schluss den Ordner mit den Skill-ZIPs im Dateimanager (Explorer, Finder, unter Linux `xdg-open`), aber nur bei einem interaktiven Lauf (Terminal, ohne `--yes`, `--json` und `--no-open`); gelingt das nicht, nennt er den Pfad.
 2. **Konfigurationsdatei statt Umgebungsvariablen** (7.1): Der Eintrag in Claude Desktop braucht nur `command`, kein `env`; Git wird über `PKM_GIT` bzw. an den üblichen Orten gefunden, sodass auch `PATH` entfällt. `pkm doctor` nennt, welches Git verwendet wird und ob die Versionsverwaltung an ist.
 3. **Obsidian-Einstellungen durch `pkm init`** (13): in `.obsidian/app.json`, wie die Property-Typen in `types.json`.
 4. **Installation ohne Klonen:** Die Skills liegen im Paket (`pkm/skills/`). Der Installer lädt das ZIP-Archiv des Repositorys von GitHub und installiert daraus; das funktioniert ohne Git (`uv tool install git+…` bräuchte Git). Mit Git geht alternativ `uv tool install "git+https://github.com/achim0x/pkm-llm-wiki#subdirectory=pkm-tools"` (Aktualisieren mit `uv tool upgrade pkm-tools`). Jede GitHub-Release (Tag `v*`) enthält die Skill-ZIPs und das Paket als Wheel. PyPI bleibt optional für später.

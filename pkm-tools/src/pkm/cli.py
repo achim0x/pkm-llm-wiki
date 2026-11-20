@@ -370,14 +370,16 @@ def cmd_setup(args: argparse.Namespace) -> dict[str, Any]:
 
     Args:
         args: Answers given in advance (``vault``, ``vault_name``, ``git_name``, ``git_email``, ``yes``,
-            ``claude_config``, ``skills_dir``, ``language``).
+            ``claude_config``, ``skills_dir``, ``language``, ``no_open``); the folder with the skill ZIP
+            files is opened at the end only in an interactive run (not with ``--yes``, ``--json`` or ``--no-open``).
 
     Returns:
         Result of ``Setup.run``.
     """
     opts = SetupOptions(vault=args.vault, vault_name=args.vault_name, git_name=args.git_name,
                         git_email=args.git_email, yes=args.yes, claude_config=args.claude_config,
-                        skills_dir=args.skills_dir, language=args.language)
+                        skills_dir=args.skills_dir, language=args.language,
+                        open_skills=not (args.no_open or args.yes or args.json) and sys.stdin.isatty())
     say = (lambda text: print(text, file=sys.stderr)) if args.json else print
     return Setup(opts, say=say).run()
 
@@ -398,6 +400,8 @@ def _add_setup(sub: Any) -> None:
     se.add_argument("--skills-dir", help="target folder for the skill ZIP files")
     se.add_argument("--language",
                     help="main language of chat documents and of the wiki: en (English) or de (German)")
+    se.add_argument("--no-open", action="store_true",
+                    help="do not open the folder with the skill ZIP files in Explorer/Finder at the end")
     se.add_argument("--json", action="store_true", help="print the result as JSON")
 
 
