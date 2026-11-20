@@ -469,6 +469,21 @@ class Setup:  # pylint: disable=too-many-instance-attributes
                 result.update(status="declined", manual=self._manual_claude(path, entries, obsolete))
         return result
 
+    def _claude_check(self, claude: dict[str, Any]) -> None:
+        """Show the path of the Claude Desktop configuration and the PKM entries, with the request to check them.
+
+        Args:
+            claude: Result of ``_claude``.
+        """
+        entries = self._server_entries()
+        if entries:
+            text = json.dumps(entries, indent=2, ensure_ascii=False)
+            self.say(f"\nThird step: check that Claude Desktop uses this configuration file and that it contains the "
+                     f"entries below in \"mcpServers\":\n  {claude['path']}\n" + text + "\n"
+                     "Claude Desktop opens the file it really uses via Settings > Developer > Edit Config. If that is "
+                     "another file or the entries are missing, run `pkm setup --claude-config <that file>` or add the "
+                     "entries by hand, then quit Claude Desktop completely and start it again.\n")
+
     def _manual_claude(self, path: Path, entries: dict[str, dict[str, Any]], obsolete: list[str] | None = None) -> str:
         """Show the entries for Claude Desktop so that the user can enter them by hand.
 
@@ -601,6 +616,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         skills = self._skills()
         self.say("Second step is to setup a Project \"PKM Maintenance\" in Claude Desktop - and add the following "
                  "project instructions (right side bar):\n  " + PROJECT_INSTRUCTIONS)
+        self._claude_check(claude)
         self.say(f"Detailed usage instructions: {USAGE_URL}\nDetailed installation instructions: {INSTALL_URL}")
         check = doctor(Service(cfg), short=True)
         for c in check["checks"]:

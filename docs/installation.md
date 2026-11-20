@@ -188,8 +188,10 @@ Installation without the installer: [Appendix A](#appendix-a-manual-installation
    alone and the text is shown as well. An entry with the old name `pkm-pflege` (up to version
    0.2.1) is replaced by `pkm-maintenance` in the same step.
 8. Write the **skill ZIP files** to `<APPDIR>/skills/` (section 4).
-9. Print the **project instructions** for "PKM Maintenance" (section 5) and links to the usage
-   instructions (README, "Everyday use") and to this installation guide.
+9. Print the **project instructions** for "PKM Maintenance" (section 5) the path of
+   `claude_desktop_config.json` with the PKM entries to check (Claude Desktop shows the file it really
+   uses under Settings → Developer → "Edit Config"), and links to the usage instructions (README,
+   "Everyday use") and to this installation guide.
 10. Run **`pkm doctor`** and name any errors.
 11. **Open the folder with the skill ZIP files** in Explorer (Windows) or Finder (macOS), so you can
     upload them right away (section 4). Only in an interactive run: not with `--yes`, `--json` or

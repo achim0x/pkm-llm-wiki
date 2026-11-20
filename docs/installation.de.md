@@ -196,7 +196,9 @@ idempotent.
    angezeigt. Ein Eintrag mit dem alten Namen `pkm-pflege` (bis Version 0.2.1) wird im selben
    Schritt durch `pkm-maintenance` ersetzt.
 8. **Skill-ZIPs** nach `<APPDIR>/skills/` schreiben (Abschnitt 4).
-9. Die **Projektanweisung** für „PKM Maintenance“ und Links zur Bedienungsanleitung (README,
+9. Die **Projektanweisung** für „PKM Maintenance“ den Pfad von
+   `claude_desktop_config.json` mit den PKM-Einträgen zum Prüfen (welche Datei Claude Desktop wirklich
+   liest, zeigt Settings → Developer → „Edit Config“) sowie Links zur Bedienungsanleitung (README,
    „Everyday use“) und zu dieser Einrichtungsanleitung ausgeben.
 10. **`pkm doctor`** ausführen und Fehler nennen.
 11. Den **Ordner mit den Skill-ZIPs** im Explorer (Windows) bzw. Finder (macOS) öffnen, damit du sie

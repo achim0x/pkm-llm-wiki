@@ -99,6 +99,8 @@ def test_setup_with_git(paths):
     assert (paths["root"] / ".obsidian" / "app.json").is_file()
     assert "PKM Maintenance" in out and "(right side bar)" in out
     assert f"Detailed usage instructions: {setupwiz.USAGE_URL}" in out
+    assert "check that Claude Desktop uses this configuration file and that it contains the entries below" in out
+    assert f"  {paths['claude']}\n" in out and '"pkm-maintenance": {' in out
     assert f"Detailed installation instructions: {setupwiz.INSTALL_URL}" in out
     assert setupwiz.INSTALL_URL.endswith("/blob/main/docs/installation.md")
 
