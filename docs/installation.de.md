@@ -196,7 +196,8 @@ idempotent.
    angezeigt. Ein Eintrag mit dem alten Namen `pkm-pflege` (bis Version 0.2.1) wird im selben
    Schritt durch `pkm-maintenance` ersetzt.
 8. **Skill-ZIPs** nach `<APPDIR>/skills/` schreiben (Abschnitt 4).
-9. Die **Projektanweisung** für „PKM Maintenance“ ausgeben (Abschnitt 5).
+9. Die **Projektanweisung** für „PKM Maintenance“ und einen Link zur Bedienungsanleitung ausgeben
+   (README, „Everyday use“).
 10. **`pkm doctor`** ausführen und Fehler nennen.
 11. Den **Ordner mit den Skill-ZIPs** im Explorer (Windows) bzw. Finder (macOS) öffnen, damit du sie
     gleich hochladen kannst (Abschnitt 4). Nur bei einem interaktiven Lauf: nicht mit `--yes`, `--json`

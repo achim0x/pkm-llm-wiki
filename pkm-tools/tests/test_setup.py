@@ -97,7 +97,8 @@ def test_setup_with_git(paths):
     with zipfile.ZipFile(paths["skills"] / "pkm-access.zip") as zf:
         assert "pkm-access/SKILL.md" in zf.namelist()
     assert (paths["root"] / ".obsidian" / "app.json").is_file()
-    assert "PKM Maintenance" in out
+    assert "PKM Maintenance" in out and "(right side bar)" in out
+    assert "Detailed usage instructions: https://github.com/achim0x/pkm-llm-wiki#everyday-use" in out
 
 
 def test_setup_asks_before_changing_claude_desktop(paths):

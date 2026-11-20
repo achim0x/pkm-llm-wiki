@@ -75,6 +75,7 @@ NO_GIT_HINT = (
     "later, install Git (https://git-scm.com/install/) and run `pkm setup` again."
 )
 SCHEMA_FILE = "CLAUDE.md"
+USAGE_URL = "https://github.com/achim0x/pkm-llm-wiki#everyday-use"
 PROJECT_INSTRUCTIONS = (
     "This is the maintenance project for the PKM. Use the skill `pkm-wiki` and the tools of the server "
     "`pkm-maintenance`. You do not change documents in `documents/`."
@@ -561,8 +562,8 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         """
         target = Path(self.opts.skills_dir).expanduser() if self.opts.skills_dir else self._app_dir() / "skills"
         paths = [str(p) for p in build_skill_zips(target)]
-        self.say("Skills: upload these files in Claude Desktop (Settings > Capabilities > Skills):\n  "
-                 + "\n  ".join(paths))
+        self.say("To use or update your PKM it is necessary to install the following Skills, by uploading these "
+                 "files in Claude Desktop (Settings > Capabilities > Skills):\n  " + "\n  ".join(paths) + "\n")
         return paths
 
     def warn(self, text: str) -> None:
@@ -597,7 +598,9 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         schema = self._claude_md(cfg)
         claude = self._claude()
         skills = self._skills()
-        self.say("Project \"PKM Maintenance\" in Claude Desktop - project instructions:\n  " + PROJECT_INSTRUCTIONS)
+        self.say("Second step is to setup a Project \"PKM Maintenance\" in Claude Desktop - and add the following "
+                 "project instructions (right side bar):\n  " + PROJECT_INSTRUCTIONS)
+        self.say(f"Detailed usage instructions: {USAGE_URL}")
         check = doctor(Service(cfg), short=True)
         for c in check["checks"]:
             self.say(f"Error: {c['message']}")
