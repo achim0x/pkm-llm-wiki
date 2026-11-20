@@ -33,6 +33,7 @@ import configparser
 import json
 import os
 import shutil
+import subprocess
 import sys
 import zipfile
 from collections.abc import Callable, Mapping
@@ -95,6 +96,7 @@ class SetupOptions:  # pylint: disable=too-many-instance-attributes
         claude_config: Path of ``claude_desktop_config.json`` (default per operating system).
         skills_dir: Target folder for the skill ZIP files (default ``<app folder>/skills``).
         language: Main language of documents created in chat and of the wiki, ``en`` or ``de``.
+        open_skills: Open the folder with the skill ZIP files in Explorer/Finder at the end.
     """
 
     vault: str | None = None
@@ -105,6 +107,7 @@ class SetupOptions:  # pylint: disable=too-many-instance-attributes
     claude_config: str | None = None
     skills_dir: str | None = None
     language: str | None = None
+    open_skills: bool = False
 
 
 class Setup:  # pylint: disable=too-many-instance-attributes
@@ -599,6 +602,10 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         for c in check["checks"]:
             self.say(f"Error: {c['message']}")
         self.say("Setup finished." if not check["errors"] else "Setup finished with errors (see above, `pkm doctor`).")
+        if self.opts.open_skills and skills:
+            folder = Path(skills[0]).parent
+            self.say(f"Opening the folder with the skill ZIP files: {folder}" if open_folder(folder)
+                     else f"Could not open the folder; the skill ZIP files are in: {folder}")
         return {"status": "ok" if not check["errors"] else "error", "version": __version__, "root": str(root),
                 "config_file": str(self.config_path), "versioning": cfg.versioning, "git": git_exe,
                 "language": cfg.language,
@@ -700,6 +707,28 @@ def find_program(name: str) -> str | None:
     candidates = [Path(sys.argv[0]).absolute().parent / exe, Path(sys.executable).parent / exe]
     found = next((str(p) for p in candidates if p.is_file()), None)
     return found or shutil.which(name)
+
+
+def open_folder(folder: Path) -> bool:
+    """Open a folder in the file manager (Explorer, Finder, or ``xdg-open`` on Linux) without waiting.
+
+    Args:
+        folder: Folder to show.
+
+    Returns:
+        ``True`` if the file manager was started.
+    """
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(str(folder))  # type: ignore[attr-defined]  # pylint: disable=no-member
+            started = True
+        else:
+            opener = "open" if sys.platform == "darwin" else shutil.which("xdg-open")
+            started = bool(opener) and subprocess.Popen(  # pylint: disable=consider-using-with
+                [str(opener), str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) is not None
+    except OSError:
+        started = False
+    return started
 
 
 def build_skill_zips(target: Path) -> list[Path]:

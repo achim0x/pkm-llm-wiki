@@ -198,10 +198,13 @@ idempotent.
 8. **Skill-ZIPs** nach `<APPDIR>/skills/` schreiben (Abschnitt 4).
 9. Die **Projektanweisung** für „PKM Maintenance“ ausgeben (Abschnitt 5).
 10. **`pkm doctor`** ausführen und Fehler nennen.
+11. Den **Ordner mit den Skill-ZIPs** im Explorer (Windows) bzw. Finder (macOS) öffnen, damit du sie
+    gleich hochladen kannst (Abschnitt 4). Nur bei einem interaktiven Lauf: nicht mit `--yes`, `--json`
+    oder `--no-open`.
 
 Optionen (alle optional): `--vault <ordner>`, `--vault-name <name>`, `--git-name <name>`,
 `--git-email <adresse>`, `--language en|de`, `--yes` (Standardwerte ohne Rückfrage), `--claude-config <datei>`,
-`--skills-dir <ordner>`, `--json`.
+`--skills-dir <ordner>`, `--no-open` (Skill-Ordner nicht öffnen), `--json`.
 
 **Versionsverwaltung nachträglich einschalten:** Git installieren (Abschnitt 1) und `pkm setup`
 erneut ausführen. Der Assistent findet Git, legt das Repo an und committet die Grunddateien

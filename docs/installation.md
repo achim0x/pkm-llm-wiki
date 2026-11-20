@@ -190,10 +190,13 @@ Installation without the installer: [Appendix A](#appendix-a-manual-installation
 8. Write the **skill ZIP files** to `<APPDIR>/skills/` (section 4).
 9. Print the **project instructions** for "PKM Maintenance" (section 5).
 10. Run **`pkm doctor`** and name any errors.
+11. **Open the folder with the skill ZIP files** in Explorer (Windows) or Finder (macOS), so you can
+    upload them right away (section 4). Only in an interactive run: not with `--yes`, `--json` or
+    `--no-open`.
 
 Options (all optional): `--vault <folder>`, `--vault-name <name>`, `--git-name <name>`,
 `--git-email <address>`, `--language en|de`, `--yes` (defaults without asking), `--claude-config <file>`,
-`--skills-dir <folder>`, `--json`.
+`--skills-dir <folder>`, `--no-open` (do not open the skills folder), `--json`.
 
 **Turning version control on later:** install Git (section 1) and run `pkm setup` again. The wizard
 finds Git, creates the repo and commits the base files (`pkm: init`). The documents go into Git with

@@ -1,5 +1,15 @@
 # Release notes
 
+## V0.3.4
+
+Changes compared to `V0.3.3`. Specification now **0.33**.
+
+- **Skills folder opens after the setup:** at the end of an interactive `pkm setup` (also when started
+  by the installer) the folder with the skill ZIP files opens in Explorer (Windows) or Finder (macOS),
+  so they can be uploaded to Claude Desktop right away. Not with `--yes`, `--json` or the new option
+  `--no-open`; if the folder cannot be opened, its path is shown.
+- **Dependabot** now checks for updates monthly instead of weekly.
+
 ## V0.3.3
 
 Changes compared to `V0.3.2`. Specification now **0.32**. Package C of the security review of

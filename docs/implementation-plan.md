@@ -1,6 +1,6 @@
 # PKM mit LLM-Wiki – Umsetzungsplan
 
-**Bezug:** [Spezifikation v0.32](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 19.11.2026 · **Plan-Version:** 4
+**Bezug:** [Spezifikation v0.33](specification.md) (Phasen 0–6 ursprünglich zu v0.12) · **Stand:** 20.11.2026 · **Plan-Version:** 4
 
 Dieser Plan zerlegt die Spezifikation in umsetzbare Arbeitspakete mit Ergebnissen, Tests und Abnahmekriterien. Abschnittsnummern in Klammern (z. B. „5.4“) verweisen auf die Spezifikation.
 
@@ -283,6 +283,7 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - **Quellentreue, pkm-tools 0.3.1** (0.30): Regeln im Skill `pkm-wiki` und in der Vorlage `CLAUDE.md`, Prüfschritt im Ingest, Lint `cross_source_statement` und `synthesis_unmarked` (`sourcelint.py`), `cross_source` in `finish_maintenance`. IP-Adressen: Feld `ip_addresses` (`placeholder` | `concrete`) und `ip_addresses_concrete`, Angabe in `begin_maintenance`, Lint `ip_addresses_unclassified`/`ip_comparison` (`ipaddrs.py`; Sonderadressen und Abschnittsnummern ausgeschlossen, öffentliche Dienste `PKM_IP_WELL_KNOWN`), reine Quellenzeilen ohne Meldung.
 - **Sicherheit, pkm-tools 0.3.2** (0.31): Inhalte sind Daten (Server-Anweisungen, Skills), MCP-Annotationen `readOnlyHint`/`destructiveHint`, `PKM_READ_ONLY`, Sicherung ohne Git-Version (`docbackup.py`), Abhängigkeiten mit Obergrenzen, Dependabot, feste uv-Version im Installer, `PKM_VAULT`/`PKM_SETUP_ARGS` mit Leerzeichen, maskierte `env`-Werte und Typprüfung in `pkm setup`, README-Abschnitt Sicherheit, `SECURITY.md` (`test_security.py`).
 - **Lieferkette, pkm-tools 0.3.3** (0.32): Installer laden das Wheel eines Release und prüfen die SHA-256 (gestempelt durch den Release-Workflow, sonst aus `SHA256SUMS`), `constraints.txt` mit getesteten Versionen, `PKM_VERSION`/`PKM_RELEASE_URL`; Release-Workflow mit Versionsprüfung, Test des installierten Wheels, `SHA256SUMS` und Herkunftsnachweis; CI baut ein lokales Release und prüft Installation und Abweisung eines manipulierten Wheels.
+- **Einrichtung, pkm-tools 0.3.4** (0.33): `pkm setup` öffnet am Ende eines interaktiven Laufs den Ordner mit den Skill-ZIPs (`open_folder`, `--no-open`; `test_setup.py`).
 - **Vorhandene Konfiguration übernehmen** (0.27): `pkm setup` zeigt Einstellungen aus Umgebung, `env`-Blöcken in Claude Desktop und `config.toml` und übernimmt sie nach Bestätigung (`test_setup_adopt.py`).
 
 ### Phase 7e – Abnahme mit der neuen Installation
