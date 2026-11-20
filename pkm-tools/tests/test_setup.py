@@ -98,9 +98,9 @@ def test_setup_with_git(paths):
         assert "pkm-access/SKILL.md" in zf.namelist()
     assert (paths["root"] / ".obsidian" / "app.json").is_file()
     assert "PKM Maintenance" in out and "(right side bar)" in out
-    assert "Detailed usage instructions: https://github.com/achim0x/pkm-llm-wiki#everyday-use" in out
-    assert "Detailed installation instructions: https://github.com/achim0x/pkm-llm-wiki/blob/main/docs/installation.md" \
-        in out
+    assert f"Detailed usage instructions: {setupwiz.USAGE_URL}" in out
+    assert f"Detailed installation instructions: {setupwiz.INSTALL_URL}" in out
+    assert setupwiz.INSTALL_URL.endswith("/blob/main/docs/installation.md")
 
 
 def test_setup_asks_before_changing_claude_desktop(paths):
