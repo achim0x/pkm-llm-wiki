@@ -76,6 +76,7 @@ NO_GIT_HINT = (
 )
 SCHEMA_FILE = "CLAUDE.md"
 USAGE_URL = "https://github.com/achim0x/pkm-llm-wiki#everyday-use"
+INSTALL_URL = "https://github.com/achim0x/pkm-llm-wiki/blob/main/docs/installation.md"
 PROJECT_INSTRUCTIONS = (
     "This is the maintenance project for the PKM. Use the skill `pkm-wiki` and the tools of the server "
     "`pkm-maintenance`. You do not change documents in `documents/`."
@@ -600,7 +601,7 @@ class Setup:  # pylint: disable=too-many-instance-attributes
         skills = self._skills()
         self.say("Second step is to setup a Project \"PKM Maintenance\" in Claude Desktop - and add the following "
                  "project instructions (right side bar):\n  " + PROJECT_INSTRUCTIONS)
-        self.say(f"Detailed usage instructions: {USAGE_URL}")
+        self.say(f"Detailed usage instructions: {USAGE_URL}\nDetailed installation instructions: {INSTALL_URL}")
         check = doctor(Service(cfg), short=True)
         for c in check["checks"]:
             self.say(f"Error: {c['message']}")

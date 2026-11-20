@@ -10,7 +10,7 @@ Changes compared to `V0.3.3`. Specification now **0.33**.
   `--no-open`; if the folder cannot be opened, its path is shown.
 - **Clearer closing text of `pkm setup`:** it explains the two remaining steps (upload the skills,
   create the project "PKM Maintenance" with its instructions in the right side bar) and links to the
-  usage instructions on GitHub.
+  usage and installation instructions on GitHub.
 - **Dependabot** now checks for updates monthly instead of weekly.
 
 ## V0.3.3

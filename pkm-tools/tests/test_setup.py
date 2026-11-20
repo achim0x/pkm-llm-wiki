@@ -99,6 +99,8 @@ def test_setup_with_git(paths):
     assert (paths["root"] / ".obsidian" / "app.json").is_file()
     assert "PKM Maintenance" in out and "(right side bar)" in out
     assert "Detailed usage instructions: https://github.com/achim0x/pkm-llm-wiki#everyday-use" in out
+    assert "Detailed installation instructions: https://github.com/achim0x/pkm-llm-wiki/blob/main/docs/installation.md" \
+        in out
 
 
 def test_setup_asks_before_changing_claude_desktop(paths):
