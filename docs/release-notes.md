@@ -1,5 +1,19 @@
 # Release notes
 
+## V0.3.6
+
+Changes compared to `V0.3.5`. Specification now **0.35**.
+
+- **IP addresses only when clearly recognized:** a number counts as an IPv4 address only with a network
+  context right next to it (within 40 characters instead of anywhere in the line) and never after a
+  version label ("Version", "Firmware", "Build", "Release", "Rev." …); an IPv6-like value needs `::` or a
+  hex letter. The maintenance agent asks only about documents for which the tools report addresses and
+  sets `ip_addresses` only if you answer "concrete" or "placeholder".
+- **Answer "these are no IP addresses":** then no field is set in the document. The new maintenance tool
+  `mark_not_ip_addresses` keeps these values per document in `.pkm/state.json`, so neither the maintenance
+  run nor lint reports them again.
+- **Upload the skill `pkm-wiki` again** in Claude Desktop after the update.
+
 ## V0.3.5
 
 Changes compared to `V0.3.4`. Specification now **0.34**.

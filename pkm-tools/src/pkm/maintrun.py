@@ -47,9 +47,11 @@ from .ipaddrs import (
     IP_CLASSES,
     IP_CONCRETE_FIELD,
     IP_FIELD,
+    NOT_IP_KEY,
     classification,
     concrete_exceptions,
     find_ip_details,
+    not_ip_values,
     unclassified,
 )
 from .lint import lint, write_report
@@ -166,18 +168,20 @@ def add_ip_addresses(svc: Service, pend: dict[str, Any]) -> None:
         svc: Service.
         pend: Result of ``pending`` (entries are added to).
     """
+    state = svc.state()
     for category in ("new", "changed"):
         for entry in pend.get(category, []):
             rel = str(entry.get("path") or "")
             if not rel.lower().endswith(".md") or not svc.vault.exists(rel):
                 continue
             doc = svc.vault.load(rel)
-            details = find_ip_details(doc.body or "", svc.cfg.ip_well_known) if not doc.error else None
+            not_ip = not_ip_values(state, doc.id)
+            details = find_ip_details(doc.body or "", svc.cfg.ip_well_known, not_ip) if not doc.error else None
             found = details.found if details else []
             if found and category == "changed" and doc.id and entry.get("processed_version"):
                 try:
                     _, old_text = svc.text_at_version(doc.id, int(entry["processed_version"]))
-                    old = find_ip_details(old_text, svc.cfg.ip_well_known).found
+                    old = find_ip_details(old_text, svc.cfg.ip_well_known, not_ip).found
                 except PkmError:
                     old = None
                 found = [] if old is not None and set(old) == set(found) else found
@@ -340,6 +344,34 @@ def set_document_metadata(  # pylint: disable=too-many-arguments,too-many-positi
 
     default = "metadata after confirmation: " + ", ".join(fields or set or add or {})
     return svc.writer.change(rel, expected_hash, transform, note or default, source="agent", check_limit=False)
+
+
+def mark_not_ip_addresses(svc: Service, target: str, values: list[str]) -> dict[str, Any]:
+    """Record values of a document that the user named as "not an IP address" (only after the user's answer).
+
+    They are kept in ``.pkm/state.json`` (``ip_not_addresses``), not in the document: no field is set, and
+    ``pending`` and lint no longer report them for this document.
+
+    Args:
+        svc: Service.
+        target: Document in ``documents/`` (path, wikilink or ``id:``).
+        values: Values as reported in ``ip_addresses.found``.
+
+    Returns:
+        ``id`` and all values recorded for the document.
+
+    Raises:
+        PkmError: ``invalid_argument`` without values or for a document without ID.
+    """
+    doc = svc.vault.load(svc.resolve(target, ("documents",)))
+    clean = [str(v).strip() for v in values or [] if str(v).strip()]
+    if not clean or not doc.id:
+        raise PkmError("invalid_argument", "No values given." if not clean else "The document has no ID yet.")
+    state = svc.state()
+    recorded = sorted(set(not_ip_values(state, doc.id)) | set(clean))
+    state.setdefault(NOT_IP_KEY, {})[doc.id] = recorded
+    Maintenance(svc).save_state(state)
+    return {"status": "ok", "id": doc.id, "path": doc.rel, "not_ip_addresses": recorded}
 
 
 def _page_path(path: str) -> str:

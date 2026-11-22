@@ -108,7 +108,7 @@ original with `edit_document`:
 - `update_frontmatter`: `id`, `version`, `date_markdown`, `date_updated` and `status_markdown`
   are protected. `ip_addresses` (`placeholder` | `concrete`) says whether the IP addresses in a document
   are placeholders or concrete (exceptions that are concrete in `ip_addresses_concrete`); set it only
-  when the user says so. Caution:
+  when the user says so, and never if the values are no IP addresses (then no field at all). Caution:
   comments in the frontmatter are lost – mention this beforehand for documents with comments.
 
 ## Tool responses

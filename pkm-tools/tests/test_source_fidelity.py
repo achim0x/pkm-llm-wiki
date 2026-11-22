@@ -188,6 +188,27 @@ def test_begin_maintenance_reports_ip_addresses_and_field(svc, cfg):
     assert entry["ip_addresses"]["classification"] == "placeholder"
 
 
+def test_values_marked_as_no_ip_addresses(svc, cfg):
+    """Values the user names as no IP addresses: no field in the document, not reported again."""
+    write(cfg, "documents/_inbox/fw.md", "---\ntitle: FW\n---\n\n## Stand\nGateway 192.0.2.1, Host 52.10.1.3.\n")
+    begin = maintrun.begin_maintenance(svc)
+    entry = next(e for e in begin["pending"]["new"] if e["path"] == "documents/_inbox/fw.md")
+    assert entry["ip_addresses"]["found"] == ["192.0.2.1", "52.10.1.3"]
+    before = (cfg.root / "documents/_inbox/fw.md").read_text(encoding="utf-8")
+    res = maintrun.mark_not_ip_addresses(svc, "documents/_inbox/fw.md", ["52.10.1.3"])
+    assert res["not_ip_addresses"] == ["52.10.1.3"]
+    assert (cfg.root / "documents/_inbox/fw.md").read_text(encoding="utf-8") == before  # no field set
+    entry = next(e for e in maintrun.begin_maintenance(svc)["pending"]["new"] if e["path"] == "documents/_inbox/fw.md")
+    assert entry["ip_addresses"]["found"] == ["192.0.2.1"]
+    assert [f["detail"]["found"] for f in _findings(svc, "ip_addresses_unclassified")] == [["192.0.2.1"]]
+    maintrun.mark_not_ip_addresses(svc, "id:" + res["id"], ["192.0.2.1"])
+    entry = next(e for e in maintrun.begin_maintenance(svc)["pending"]["new"] if e["path"] == "documents/_inbox/fw.md")
+    assert "ip_addresses" not in entry and not _findings(svc, "ip_addresses_unclassified")
+    with pytest.raises(Exception) as exc:
+        maintrun.mark_not_ip_addresses(svc, "id:" + res["id"], [])
+    assert getattr(exc.value, "status", "") == "invalid_argument"
+
+
 def test_changed_document_reports_ip_addresses_only_if_they_changed(svc, cfg):
     """N2: a changed document carries ip_addresses only if its addresses changed."""
     write(cfg, "documents/netz.md", "---\ntitle: Netz\n---\n\n## Hosts\nRouter 192.0.2.1.\n")
@@ -214,6 +235,10 @@ def test_changed_document_reports_ip_addresses_only_if_they_changed(svc, cfg):
     ("Dienst auf 192.168.4.46:9382", ["192.168.4.46"]),
     ("Befehl `ping 52.10.1.3`", ["52.10.1.3"]),
     ("Gateway 52.10.1.1, Netz 52.10.0.0/16", ["52.10.1.1", "52.10.0.0/16"]),
+    ("Firmware 10.2.0.15 auf dem Server eingespielt.", []),
+    ("Der Server wurde 2023 beschafft; in Tabelle 4 der Messreihe steht der Faktor 52.10.1.3 als Ergebnis.", []),
+    ("Ablauf 1:2:3:4:5:6:7:8 der Schritte.", []),
+    ("Host 2001:db8::5 und fd00:1:2:3::a.", ["2001:db8::5", "fd00:1:2:3::a"]),
 ])
 def test_ip_detection_rules(text, found):
     """R13: special addresses, number false positives and context."""

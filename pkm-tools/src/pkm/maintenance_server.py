@@ -144,6 +144,13 @@ def _register_maintenance_tools(server: Server) -> None:
                     expected_hash=expected_hash, set=set, add=add, overwrite=overwrite, note=note)
 
     @server.tool(**hints(server, ADDITIVE))
+    def mark_not_ip_addresses(target: str, values: list[str]) -> dict:
+        """Only after the user's answer that reported values are no IP addresses (e.g. version numbers): record
+        them for the document in .pkm/state.json. The document gets no field; pending and lint no longer report
+        these values for it."""
+        return call("mark_not_ip_addresses", maintrun.mark_not_ip_addresses, target=target, values=values)
+
+    @server.tool(**hints(server, ADDITIVE))
     def finish_maintenance(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         log_entry: str,
         operation: str = "ingest",

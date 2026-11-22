@@ -1,6 +1,10 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.34 (Entwurf zum Review) · **Stand:** 22.11.2026
+**Version:** 0.35 (Entwurf zum Review) · **Stand:** 22.11.2026
+
+> **Änderungen in 0.35** (pkm-tools 0.3.6)
+> - **IP-Adressen nur bei eindeutiger Erkennung:** Netzwerk-Begriffe zählen nur in höchstens 40 Zeichen Abstand, nach einer Versionsangabe („Version“, „Firmware“, „Build“ …) zählt eine Zahl nie als Adresse, IPv6-förmige Werte nur mit `::` oder Hex-Buchstaben. Der Agent fragt nur bei Dokumenten mit gemeldeten Adressen und setzt `ip_addresses` nur bei der Antwort „konkret“ oder „Platzhalter“ (4.1, 4.2).
+> - **„Keine IP-Adresse“:** Neues Pflege-Werkzeug `mark_not_ip_addresses` hält solche Werte je Dokument in `.pkm/state.json` fest, ohne Feld im Dokument; sie werden nicht mehr gemeldet (7.7).
 
 > **Änderungen in 0.34** (pkm-tools 0.3.5)
 > - **Vorhandene Markdown-Dateien unverändert ablegen:** Eine im Chat übergebene Markdown-Datei wird standardmäßig unverändert abgelegt (Titel, Tags usw. aus ihrem Frontmatter); eine Zusammenfassung gibt es nur auf Wunsch (4.1, Skill `pkm-access`, Anweisungen des Servers `pkm`).
@@ -355,7 +359,7 @@ kind: standard
 | `tags` | Tags (Liste) | nein | Chat, Nutzer bzw. Pflege-Agent nach Bestätigung | Schlagwörter, Kleinbuchstaben mit Bindestrich, ohne Leerzeichen, Umlaute ausgeschrieben, vorhandene Tags wiederverwenden (4–8 je Dokument empfohlen). Werkzeuge vereinheitlichen beim Schreiben. Obsidian zeigt nur dieses Feld in Tag-Ansicht, Tag-Suche und Graph an |
 | `related` | Liste (Links) | nein | Chat bzw. Nutzer | Verwandte Dokumente |
 | `kind` | Text | nein | Umwandlung, Chat bzw. Pflege-Agent nach Bestätigung | Art des Dokuments: `note` (Standardwert, wenn das Feld fehlt), `standard` (Normen und Standards), `regulation` (Gesetze und Verordnungen) oder `correction` (Korrekturwunsch für das Wiki, 9.1) |
-| `ip_addresses` | Text | nein | Nutzer bzw. Pflege-Agent nach Antwort des Nutzers | Einordnung der IP-Adressen im Dokument: `placeholder` (Beispielwerte, anonymisiert) oder `concrete` (konkrete Adressen). Fehlt das Feld und enthält das Dokument IP-Adressen, sind sie **ungeklärt**: dann wird nichts aus ihnen abgeleitet (4.2). Als IP-Adressen zählen nicht: Sonderadressen (`0.0.0.0`, `127.0.0.0/8`, `169.254.0.0/16`, `255.255.255.255`, `::`, `::1`, `fe80::/10`), bekannte öffentliche Dienste (`PKM_IP_WELL_KNOWN`; immer konkret, keine Frage) und IPv4-förmige Zahlen ohne Netzwerk-Kontext (kein privater oder Dokumentationsbereich, kein Port, keine Präfixlänge, kein Schema oder Pfad, nicht in Code, keine Netzwerk-Begriffe wie IP, Host, Server, Adresse, Gateway, DNS, Subnetz, ping, ssh, curl, mount in der Zeile) oder direkt nach „Abschnitt“, „Kap.“, „Teil“, „§“, „DIN“, „VDE“, „IEC“, „EN“, „ISO“. Kein Werkzeug ändert IP-Adressen in `documents/` |
+| `ip_addresses` | Text | nein | Nutzer bzw. Pflege-Agent nach Antwort des Nutzers | Einordnung der IP-Adressen im Dokument: `placeholder` (Beispielwerte, anonymisiert) oder `concrete` (konkrete Adressen). Fehlt das Feld und enthält das Dokument IP-Adressen, sind sie **ungeklärt**: dann wird nichts aus ihnen abgeleitet (4.2). Als IP-Adressen zählen nicht: Sonderadressen (`0.0.0.0`, `127.0.0.0/8`, `169.254.0.0/16`, `255.255.255.255`, `::`, `::1`, `fe80::/10`), bekannte öffentliche Dienste (`PKM_IP_WELL_KNOWN`; immer konkret, keine Frage) und IPv4-förmige Zahlen ohne Netzwerk-Kontext (kein privater oder Dokumentationsbereich, kein Port, keine Präfixlänge, kein Schema oder Pfad, nicht in Code, keine Netzwerk-Begriffe wie IP, Host, Server, Adresse, Gateway, DNS, Subnetz, ping, ssh, curl, mount in höchstens 40 Zeichen Abstand – seit 0.35, vorher in der ganzen Zeile) oder direkt nach „Abschnitt“, „Kap.“, „Teil“, „§“, „DIN“, „VDE“, „IEC“, „EN“, „ISO“ bzw. (seit 0.35) nach einer Versionsangabe („Version“, „v“, „Firmware“, „FW“, „Release“, „Build“, „Rev.“, „Stand“, „Update“, „Patch“, „Treiber“). IPv6-förmige Werte zählen seit 0.35 nur mit `::` oder einem Hex-Buchstaben (nicht z. B. `1:2:3:4:5:6:7:8`). Werte, die der Nutzer als „keine IP-Adresse“ benennt, setzen **kein** Feld; sie stehen je Dokument in `.pkm/state.json` (`ip_not_addresses`, Werkzeug `mark_not_ip_addresses`) und werden nicht mehr gemeldet. Kein Werkzeug ändert IP-Adressen in `documents/` |
 | `ip_addresses_concrete` | Liste | nein | Nutzer bzw. Pflege-Agent nach Antwort des Nutzers | Adressen, die konkret sind, obwohl `ip_addresses: placeholder` gilt (Mischfall). Lint und `ip_comparison` behandeln sie als `concrete`, alle übrigen nach `ip_addresses` |
 
 **Regeln:**
@@ -478,7 +482,7 @@ Der Tank fasst 6.500 L.[^b4]
   - **Sichtbar zuordnen:** Stützt sich ein Abschnitt auf mehrere Quellen, beginnt jede Aussage mit ihrer Quelle („Laut <Autor> …“, „Das Dokument zu <Thema> nennt …“). Eine Aussage aus Quelle B steht nie so direkt hinter einer aus Quelle A, dass sie wie A’s Aussage wirkt.
   - **„Widersprüche / offene Fragen“** enthält nur (a) Widersprüche zwischen Quellen zum *selben* Gegenstand, (b) offene Punkte oder Unsicherheiten, die ein Dokument nennt, (c) veraltete oder zeitabhängige Werte, die das Dokument selbst so kennzeichnet. Keine eigenen Schlüsse, keine konstruierten Spannungen.
   - **Eigene Einordnung nur auf Wunsch:** Vorschläge (z. B. Risiken, die aus zwei Quellen zusammen folgen) gehen als Frage in den Bericht; erst nach Bestätigung kommen sie nach `wiki/syntheses/` mit `confidence: low` und der Zeile „Eigene Einordnung, nicht aus den Quellen.“ (englisch „Own interpretation, not stated in the sources.“).
-  - **IP-Adressen:** Ob IP-Adressen eines Dokuments konkret oder Platzhalter sind, weiß nur der Nutzer. Solange `ip_addresses` fehlt und bei `placeholder` werden aus IP-Adressen keine Widersprüche, offenen Fragen oder Schlüsse abgeleitet und sie werden nicht mit anderen Dokumenten verglichen; bei `concrete` sind sie Tatsachen wie andere auch, ein Widerspruch nur, wenn *beide* Dokumente `concrete` sind und denselben Host bzw. dasselbe Netz meinen. Der Agent fragt im Bericht nach (unbeaufsichtigt über `questions`) und trägt das Feld nur nach der Antwort ein.
+  - **IP-Adressen:** Ob IP-Adressen eines Dokuments konkret oder Platzhalter sind, weiß nur der Nutzer. Solange `ip_addresses` fehlt und bei `placeholder` werden aus IP-Adressen keine Widersprüche, offenen Fragen oder Schlüsse abgeleitet und sie werden nicht mit anderen Dokumenten verglichen; bei `concrete` sind sie Tatsachen wie andere auch, ein Widerspruch nur, wenn *beide* Dokumente `concrete` sind und denselben Host bzw. dasselbe Netz meinen. Der Agent fragt nur, wenn `pending` für das Dokument `ip_addresses` mit nicht leerem `unclassified` meldet (also eindeutig erkannte Adressen), im Bericht nach (unbeaufsichtigt über `questions`): konkret, Platzhalter oder keine IP-Adressen. Das Feld trägt er nur nach der Antwort ein und nur bei „konkret“ oder „Platzhalter“; sind es keine IP-Adressen, setzt er kein Feld und hält die Werte mit `mark_not_ip_addresses` fest. Dokumente ohne diesen Eintrag bekommen weder Frage noch Feld.
   - In Tabellen steht der Beleg in der Zeile, die er stützt, nicht in einer Sammelzeile „Quellen:“ unter der Tabelle.
   - Stellt eine Quelle die Verbindung selbst her, darf der Satz beide Dokumente belegen und wird mit `<!-- lint: cross-source ok -->` am Zeilenende gekennzeichnet; eine ganze Seite nimmt `lint_ignore: [cross_source_statement]` im Frontmatter aus.
 - Seiten unter `wiki/summaries/` fassen genau ein Dokument in seiner aktuellen Version zusammen und belegen ihre Aussagen genauso.
@@ -1249,7 +1253,7 @@ Unter Windows heißen die Programme `pkm-mcp.exe` und `pkm-maintenance-mcp.exe` 
 
 Zweiter lokaler Server aus demselben Paket für die Wiki-Pflege aus Claude Desktop bzw. Cowork. Grund: Cowork führt Shell-Befehle nur in einer abgeschotteten Umgebung aus (lokale VM bzw. Cloud), in der `pkm`, Git und das Git-Verzeichnis fehlen. MCP-Server dagegen laufen auf dem PKM-Rechner und sind über die Desktop-App erreichbar. Technik, Konfiguration, Sicherheit und Protokoll wie 7.1, 7.5 und 7.2. Keine LLM-Aufrufe: Der Server bündelt nur die deterministischen Schritte. Inhaltliche Arbeit (Seiten formulieren, Belege wählen) macht der Agent.
 
-Der Server bietet die lesenden Tools aus 7.3 und fünf Pflege-Tools:
+Der Server bietet die lesenden Tools aus 7.3 und die folgenden Pflege-Tools:
 
 #### `begin_maintenance`
 | Parameter | Typ | Standard | Beschreibung |
@@ -1290,6 +1294,16 @@ Nur nach **ausdrücklicher Bestätigung** des Nutzers (9.6).
 - Vorhandene, nicht leere Werte werden ohne `overwrite: true` nicht geändert (`field_exists` mit dem vorhandenen Wert). Entfernen ist nicht möglich.
 - `kind` muss einer der Werte aus 4.1 sein. Tags werden vereinheitlicht (klein, Umlaute ausgeschrieben, Leerraum zu Bindestrich) und ohne Duplikate gespeichert. Leere Werte ergeben `invalid_argument`.
 - Felder werden zeilengenau an ihrer Stelle nach 4.1 gesetzt. Das Ergebnis ist eine neue Version mit Commit und `PKM-Source: agent` (5.4), ohne Änderung `unchanged`.
+
+#### `mark_not_ip_addresses`
+Nur nach der **Antwort des Nutzers**, dass gemeldete Werte keine IP-Adressen sind (seit 0.35).
+
+| Parameter | Typ | Pflicht | Beschreibung |
+|---|---|---|---|
+| `target` | string | ja | Dokument in `documents/` (Pfad, Wikilink, `id:` oder Kurzbezeichnung), mit ID |
+| `values` | list | ja | Werte wie in `ip_addresses.found` gemeldet |
+
+Speichert die Werte je Dokument-ID in `.pkm/state.json` unter `ip_not_addresses`; das Dokument selbst bleibt unverändert (kein Feld, keine neue Version). `pending` und `pkm lint` melden diese Werte für das Dokument nicht mehr. Ohne Werte oder für ein Dokument ohne ID `invalid_argument`. Ergebnis: `id`, `path` und alle für das Dokument festgehaltenen Werte (`not_ip_addresses`).
 
 #### `rename_document`
 Nur nach **ausdrücklicher Bestätigung** des Nutzers (9.8), nie in unbeaufsichtigten Läufen.

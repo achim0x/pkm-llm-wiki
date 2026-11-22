@@ -34,7 +34,7 @@ from typing import Any
 
 from .citations import Citation, parse_page
 from .config import DEFAULT_WELL_KNOWN, WIKI_SECTIONS
-from .ipaddrs import IP_FIELD, address_class, find_ips, unclassified
+from .ipaddrs import IP_FIELD, address_class, find_ips, not_ip_values, unclassified
 from .pagetext import DEF_RE, LIST_ITEM_RE, REF_RE, section_blocks
 from .parse import body_lines
 from .vault import Doc
@@ -188,13 +188,14 @@ def _page_hints(add: Any, page: Doc, ctx: dict[str, Any]) -> None:
                         _sentence_hint(add, page, sec, sentence, definitions)
 
 
-def _document_hints(add: Any, docs: list[Doc], well_known: Any) -> dict[str, dict[str, Any]]:
+def _document_hints(add: Any, docs: list[Doc], well_known: Any, state: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """``ip_addresses_unclassified`` for documents with IP addresses that have no classification.
 
     Args:
         add: ``Report.add``.
         docs: Files from ``documents/``.
         well_known: Addresses of well-known public services (no question).
+        state: Processing state (values named "not an IP address" per document).
 
     Returns:
         Document ID → frontmatter (for the classification of single addresses).
@@ -205,16 +206,17 @@ def _document_hints(add: Any, docs: list[Doc], well_known: Any) -> dict[str, dic
             continue
         if doc.id:
             metas[doc.id] = doc.meta
-        open_ips = unclassified(doc.meta, find_ips(doc.body or "", well_known))
+        open_ips = unclassified(doc.meta, find_ips(doc.body or "", well_known, not_ip_values(state, doc.id)))
         if open_ips:
             add(IP_UNCLASSIFIED, "info", doc.rel, f"Document with IP addresses ({', '.join(open_ips[:3])}) without "
                 f"{IP_FIELD}: ask the user whether they are concrete or placeholders and propose "
-                f"{IP_FIELD}: placeholder | concrete.", found=open_ips)
+                f"{IP_FIELD}: placeholder | concrete (or, if they are no IP addresses, record that with "
+                "mark_not_ip_addresses and set no field).", found=open_ips)
     return metas
 
 
 def check_sources(add: Any, pages: list[Doc], docs: list[Doc] | None = None,
-                  well_known: Any = DEFAULT_WELL_KNOWN) -> None:
+                  well_known: Any = DEFAULT_WELL_KNOWN, state: dict[str, Any] | None = None) -> None:
     """Source fidelity checks for wiki pages below ``wiki/topics|entities|summaries|syntheses/`` and IP hints.
 
     Args:
@@ -222,8 +224,9 @@ def check_sources(add: Any, pages: list[Doc], docs: list[Doc] | None = None,
         pages: Wiki pages.
         docs: Files from ``documents/`` (for ``ip_addresses_unclassified`` and the classifications).
         well_known: Addresses of well-known public services (``PKM_IP_WELL_KNOWN``).
+        state: Processing state (values named "not an IP address" per document).
     """
-    ctx = {"metas": _document_hints(add, docs or [], well_known), "well_known": well_known}
+    ctx = {"metas": _document_hints(add, docs or [], well_known, state or {}), "well_known": well_known}
     for page in pages:
         if page.error or page.parsed is None or not page.rel.startswith(CHECKED_DIRS):
             continue
