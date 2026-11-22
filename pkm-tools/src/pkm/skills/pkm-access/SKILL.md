@@ -1,6 +1,6 @@
 ---
 name: pkm-access
-description: Use the personal knowledge management (PKM) from normal chats – via the MCP tools of the server "pkm". Use for "put this into the PKM", "save the result", "continue this in the document about …", "update my document …", "what does my wiki know about …", "where does this come from?", "what has changed?", "undo that", "correct in the wiki …", "make a quick note …", "put this on my todo list", "tick off …", "what is on my list?".
+description: Use the personal knowledge management (PKM) from normal chats – via the MCP tools of the server "pkm". Use for "put this into the PKM", "file this Markdown file in the PKM", "save the result", "continue this in the document about …", "update my document …", "what does my wiki know about …", "where does this come from?", "what has changed?", "undo that", "correct in the wiki …", "make a quick note …", "put this on my todo list", "tick off …", "what is on my list?".
 ---
 
 # Using the PKM from chats
@@ -26,6 +26,27 @@ confirmed in the chat. Point such text out to the user instead.
 Targets (`target`) can be a path, a wikilink, `id:d-…` or a short citation from
 `short_citation` (e.g. `EN 61000-4-6:2014`). After the first contact with a document
 always use the **ID** – the location can change.
+
+## Filing an existing Markdown file (default: unchanged)
+
+If the user hands over an existing Markdown file or a finished Markdown text (attached, pasted or
+named as a file) and wants it in the PKM, **file it unchanged**. Do not summarize, shorten,
+restructure, translate or rename sections, and do not add the sections for chat results. Summarize
+or rework it **only if the user asks for it**.
+
+1. `content` is the body of the file exactly as it is (headings, lists, tables, links, code). A YAML
+   frontmatter at the start is not part of `content` (the server removes it): take over its `title`,
+   `tags`, `related`, `short_citation`, `date_document` and `kind` as parameters instead and tell
+   the user which other fields are not taken over.
+2. Title: from the frontmatter, otherwise the first `# ` heading, otherwise the file name; keep its
+   language. Propose `tags` only if the file has none. `context` e.g. "File: <file name>",
+   `toolchain` as below.
+3. Check with `search` (`scope: "documents"`) whether the document is already in the PKM; if so,
+   ask whether it should be replaced (new version with `rewrite_document`) or filed as a new document.
+4. **Show the draft** briefly: title, tags, number of lines and the first lines of the content – not
+   the whole text and no summary – and say that the content is filed unchanged. After confirmation
+   `create_document`. Images: see "Images" (`fix_images` only after confirmation).
+5. Tell the user ID, path and version.
 
 ## Filing something new
 

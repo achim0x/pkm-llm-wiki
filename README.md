@@ -59,6 +59,8 @@ a purely local folder works as well. Obsidian is the recommended front end, but 
 - "Put this into the PKM": Claude condenses the result of a discussion into the sections
   **Result · Decisions · Open points · Context / rationale** and shows you a **draft**. It saves only
   after you confirm.
+- **Existing Markdown files** that you hand over in the chat are filed **unchanged** (title and tags
+  from their frontmatter). A summary only if you ask for it.
 - **Language:** during installation you choose whether documents created in chat and the wiki are
   mainly English or German (`pkm setup`, `PKM_LANGUAGE`). With German the sections are called
   **Ergebnis · Entscheidungen · Offene Punkte · Kontext / Begründung**, wiki pages use Kurzfassung,
@@ -342,6 +344,7 @@ flows:
 | You say | Claude does |
 |---|---|
 | "Put this into the PKM." / "Save the result." | Searches for an existing document, shows a draft and creates it after confirmation. |
+| "File this Markdown file in the PKM." | Files the file **unchanged** (no summary) after a short draft; "summarize it" only on request. |
 | "Continue the discussion about …" | Finds the document and shows before/after per section plus a change note. After confirmation a new version is created. |
 | "Add … to the open points in the document …" | Targeted small change, also with before/after. |
 | "What has changed?" / "What was it like before?" | History with notes and diff, or an earlier version (needs Git). |
@@ -709,6 +712,8 @@ Voraussetzung.
 - „Leg das ins PKM“: Claude verdichtet das Ergebnis einer Diskussion in die Abschnitte
   **Ergebnis · Entscheidungen · Offene Punkte · Kontext / Begründung** und zeigt dir einen
   **Entwurf**. Erst nach deiner Bestätigung wird gespeichert.
+- **Vorhandene Markdown-Dateien**, die du im Chat übergibst, werden **unverändert** abgelegt (Titel
+  und Tags aus ihrem Frontmatter). Eine Zusammenfassung gibt es nur auf Wunsch.
 - **Sprache:** Bei der Installation legst du fest, ob im Chat erzeugte Dokumente und das Wiki
   hauptsächlich englisch oder deutsch sind (`pkm setup`, `PKM_LANGUAGE`). Mit Englisch heißen die
   Abschnitte **Result · Decisions · Open points · Context / rationale**, Wiki-Seiten nutzen
@@ -997,6 +1002,7 @@ lösen die passenden Abläufe aus:
 | Du sagst | Claude macht |
 |---|---|
 | „Leg das ins PKM.“ / „Speicher das Ergebnis.“ | Sucht nach einem bestehenden Dokument, zeigt einen Entwurf und legt nach Bestätigung an. |
+| „Leg diese Markdown-Datei ins PKM.“ | Legt die Datei nach kurzem Entwurf **unverändert** ab (keine Zusammenfassung); zusammengefasst wird nur auf Wunsch. |
 | „Führ die Diskussion zu … weiter.“ | Findet das Dokument und zeigt Vorher/Nachher je Abschnitt plus Änderungsnotiz. Nach Bestätigung entsteht eine neue Version. |
 | „Ergänz im Dokument … bei den offenen Punkten …“ | Gezielte kleine Änderung, ebenfalls mit Vorher/Nachher. |
 | „Was hat sich geändert?“ / „Wie war das vorher?“ | Verlauf mit Notizen und Diff bzw. eine frühere Version (braucht Git). |
