@@ -209,6 +209,42 @@ def test_values_marked_as_no_ip_addresses(svc, cfg):
     assert getattr(exc.value, "status", "") == "invalid_argument"
 
 
+def test_anonymize_ip_addresses(svc, cfg):
+    """Anonymizing: preview first, then documentation addresses, consistent mapping, field placeholder."""
+    from pkm import ipanon  # pylint: disable=import-outside-toplevel
+    write(cfg, "documents/_inbox/lan.md", "---\ntitle: LAN\n---\n\n## Hosts\nRouter 192.168.1.1, "
+          "NAS 192.168.1.20:5000, Netz 192.168.1.0/24, Doku 192.0.2.1, IPv6 fd00::5.\nNochmal Router 192.168.1.1.\n")
+    maintrun.begin_maintenance(svc)
+    doc = svc.read("documents/_inbox/lan.md")
+    before = (cfg.root / "documents/_inbox/lan.md").read_text(encoding="utf-8")
+    prev = ipanon.anonymize_ip_addresses(svc, "documents/_inbox/lan.md", doc["hash"])
+    assert prev["status"] == "preview" and prev["marked_placeholder"] is True
+    assert prev["mapping"] == {"192.168.1.1": "192.0.2.2", "192.168.1.20": "192.0.2.3", "192.168.1.0": "192.0.2.4",
+                               "fd00::5": "2001:db8::1"}
+    assert (cfg.root / "documents/_inbox/lan.md").read_text(encoding="utf-8") == before
+    res = ipanon.anonymize_ip_addresses(svc, "documents/_inbox/lan.md", doc["hash"], apply=True)
+    assert res["status"] == "changed"
+    text = (cfg.root / "documents/_inbox/lan.md").read_text(encoding="utf-8")
+    assert "Router 192.0.2.2, NAS 192.0.2.3:5000, Netz 192.0.2.4/24, Doku 192.0.2.1, IPv6 2001:db8::1." in text
+    assert "Nochmal Router 192.0.2.2." in text and "ip_addresses: placeholder" in text and "192.168" not in text
+    doc = svc.read("documents/_inbox/lan.md")
+    with pytest.raises(Exception) as exc:
+        ipanon.anonymize_ip_addresses(svc, "documents/_inbox/lan.md", doc["hash"])
+    assert getattr(exc.value, "status", "") == "invalid_argument"
+
+
+def test_anonymize_only_chosen_values(svc, cfg):
+    """With values only those are replaced; the field is not set while other addresses remain."""
+    from pkm import ipanon  # pylint: disable=import-outside-toplevel
+    write(cfg, "documents/_inbox/zwei.md", "---\ntitle: Zwei\n---\n\nHost a 10.0.0.5, Host b 10.0.0.6.\n")
+    maintrun.begin_maintenance(svc)
+    doc = svc.read("documents/_inbox/zwei.md")
+    res = ipanon.anonymize_ip_addresses(svc, "documents/_inbox/zwei.md", doc["hash"], values=["10.0.0.5"], apply=True)
+    assert res["mapping"] == {"10.0.0.5": "192.0.2.1"} and res["marked_placeholder"] is False
+    text = (cfg.root / "documents/_inbox/zwei.md").read_text(encoding="utf-8")
+    assert "Host a 192.0.2.1, Host b 10.0.0.6." in text and "ip_addresses" not in text
+
+
 def test_changed_document_reports_ip_addresses_only_if_they_changed(svc, cfg):
     """N2: a changed document carries ip_addresses only if its addresses changed."""
     write(cfg, "documents/netz.md", "---\ntitle: Netz\n---\n\n## Hosts\nRouter 192.0.2.1.\n")

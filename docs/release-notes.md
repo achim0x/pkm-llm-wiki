@@ -12,6 +12,14 @@ Changes compared to `V0.3.5`. Specification now **0.35**.
 - **Answer "these are no IP addresses":** then no field is set in the document. The new maintenance tool
   `mark_not_ip_addresses` keeps these values per document in `.pkm/state.json`, so neither the maintenance
   run nor lint reports them again.
+- **Keep or anonymize:** for recognized IP addresses the maintenance agent also asks whether they should
+  be kept as they are or anonymized. The new maintenance tool `anonymize_ip_addresses` first shows the
+  mapping (e.g. `192.168.1.1` → `192.0.2.1`, `fd00::5` → `2001:db8::1`; the same address always gets the
+  same placeholder, ports and prefix lengths stay) and the changed lines; after your confirmation it
+  writes a new version of the document and marks it `ip_addresses: placeholder`. Earlier versions in
+  Git (or the backup without Git) still contain the original addresses.
+- `CLAUDE.md` in the vault was updated (the agent may anonymize IP addresses after your choice);
+  `pkm setup` offers to replace it.
 - **Upload the skill `pkm-wiki` again** in Claude Desktop after the update.
 
 ## V0.3.5

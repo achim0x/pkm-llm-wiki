@@ -285,7 +285,7 @@ Skill `pkm-wiki` und Einrichtung (Abschnitte 5 und 7) sind umgestellt; die CLI b
 - **Lieferkette, pkm-tools 0.3.3** (0.32): Installer laden das Wheel eines Release und prüfen die SHA-256 (gestempelt durch den Release-Workflow, sonst aus `SHA256SUMS`), `constraints.txt` mit getesteten Versionen, `PKM_VERSION`/`PKM_RELEASE_URL`; Release-Workflow mit Versionsprüfung, Test des installierten Wheels, `SHA256SUMS` und Herkunftsnachweis; CI baut ein lokales Release und prüft Installation und Abweisung eines manipulierten Wheels.
 - **Einrichtung, pkm-tools 0.3.4** (0.33): `pkm setup` öffnet am Ende eines interaktiven Laufs den Ordner mit den Skill-ZIPs (`open_folder`, `--no-open`; `test_setup.py`).
 - **Markdown-Dateien unverändert, pkm-tools 0.3.5** (0.34): Skill `pkm-access` (Abschnitt „Filing an existing Markdown file“) und Server-Anweisungen; `test_language.py`.
-- **IP-Adressen eindeutig, pkm-tools 0.3.6** (0.35): engere IPv4-Kontextprüfung, Versionspräfixe, IPv6 nur mit `::`/Hex-Buchstabe, Werkzeug `mark_not_ip_addresses` mit `ip_not_addresses` in `state.json`; `test_source_fidelity.py`.
+- **IP-Adressen eindeutig, pkm-tools 0.3.6** (0.35): engere IPv4-Kontextprüfung, Versionspräfixe, IPv6 nur mit `::`/Hex-Buchstabe, Werkzeug `mark_not_ip_addresses` mit `ip_not_addresses` in `state.json`, Werkzeug `anonymize_ip_addresses` (`ipanon.py`, Vorschau/`apply`, Dokumentationsadressen); `test_source_fidelity.py`.
 - **Vorhandene Konfiguration übernehmen** (0.27): `pkm setup` zeigt Einstellungen aus Umgebung, `env`-Blöcken in Claude Desktop und `config.toml` und übernimmt sie nach Bestätigung (`test_setup_adopt.py`).
 
 ### Phase 7e – Abnahme mit der neuen Installation

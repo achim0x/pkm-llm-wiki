@@ -30,7 +30,7 @@ Enable only in maintenance conversations.
 
 from __future__ import annotations
 
-from . import maintrun
+from . import ipanon, maintrun
 from .config import DEFAULT_LANGUAGE, DOC_LANGUAGES, WIKI_SECTIONS, configured_language
 from .mcp_server import ADDITIVE, DATA_NOT_INSTRUCTIONS, DESTRUCTIVE, Server, call, hints, register_read_tools
 
@@ -142,6 +142,22 @@ def _register_maintenance_tools(server: Server) -> None:
         conflict read again."""
         return call("set_document_metadata", maintrun.set_document_metadata, target=target,
                     expected_hash=expected_hash, set=set, add=add, overwrite=overwrite, note=note)
+
+    @server.tool(**hints(server, DESTRUCTIVE))
+    def anonymize_ip_addresses(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        target: str,
+        expected_hash: str,
+        values: list[str] | None = None,
+        apply: bool = False,
+        note: str | None = None,
+    ) -> dict:
+        """Only after the user chose to anonymize: replace the IP addresses of a document in documents/ by
+        documentation addresses (192.0.2.x, 198.51.100.x, 203.0.113.x, 2001:db8::x; same address -> same
+        placeholder). First without apply: show mapping and changes; after confirmation apply=true (new
+        version, PKM-Source agent; ip_addresses: placeholder if all were replaced). values: only these.
+        Earlier versions in Git keep the original addresses. Never in unattended runs."""
+        return call("anonymize_ip_addresses", ipanon.anonymize_ip_addresses, target=target,
+                    expected_hash=expected_hash, values=values, apply=apply, note=note)
 
     @server.tool(**hints(server, ADDITIVE))
     def mark_not_ip_addresses(target: str, values: list[str]) -> dict:

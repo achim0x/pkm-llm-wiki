@@ -15,7 +15,8 @@ A personal knowledge management system (PKM) made of plain Markdown that Claude 
   quote, version. The wiki states only what the sources say: statements from different documents
   are related only if a source does so itself, and IP addresses are only compared once you have said
   whether they are concrete or placeholders. Claude asks only about clearly recognized IP addresses;
-  if you say they are none (e.g. version numbers), no field is set and they are not reported again.
+  if you say they are none (e.g. version numbers), no field is set and they are not reported again. You
+  can also have them anonymized: they are replaced by documentation addresses such as `192.0.2.1`.
 - From **any chat** you can query the wiki, ask for the sources and continue documents. With Git,
   every change becomes a **new version with a Git commit** and can be undone at any time. Git is
   optional: without Git the PKM runs without version control.
@@ -669,7 +670,8 @@ Ein persönliches Wissensmanagement (PKM) aus reinem Markdown, das Claude für d
   verschiedener Dokumente werden nur verknüpft, wenn eine Quelle das selbst tut, und IP-Adressen
   werden erst verglichen, wenn du gesagt hast, ob sie konkret oder Platzhalter sind. Claude fragt nur
   bei eindeutig erkannten IP-Adressen; sagst du, dass es keine sind (z. B. Versionsnummern), wird kein
-  Feld gesetzt und sie werden nicht mehr gemeldet.
+  Feld gesetzt und sie werden nicht mehr gemeldet. Du kannst sie auch anonymisieren lassen: Sie werden
+  dann durch Dokumentationsadressen wie `192.0.2.1` ersetzt.
 - Aus **jedem Chat** kannst du das Wiki abfragen, dir die Quellen nennen lassen und Dokumente
   fortschreiben. Mit Git wird jede Änderung eine **neue Version mit Git-Commit** und ist jederzeit
   umkehrbar. Git ist optional: ohne Git läuft das PKM ohne Versionsverwaltung.

@@ -8,7 +8,7 @@ the user's consent.
 
 | Area | Owned by | Who writes |
 |---|---|---|
-| `documents/` (incl. `_inbox/`) | user | user (Obsidian), pkm-mcp on the user's instruction; the agent `id`/`version` via `pkm ids`/`pkm versions` as well as `title`, `context`, `tags`, `kind`, `short_citation`, `ip_addresses` and the name of new documents in `_inbox/` (with their image folder) after the user's confirmation; after confirmation also moving image files into `<document name>_img/` |
+| `documents/` (incl. `_inbox/`) | user | user (Obsidian), pkm-mcp on the user's instruction; the agent `id`/`version` via `pkm ids`/`pkm versions` as well as `title`, `context`, `tags`, `kind`, `short_citation`, `ip_addresses` and the name of new documents in `_inbox/` (with their image folder) after the user's confirmation; after confirmation also moving image files into `<document name>_img/` and anonymizing IP addresses (`anonymize_ip_addresses`, only if the user chose it) |
 | `wiki/` | maintenance agent | the agent only; read-only from chats |
 | `scratch/` | user | user (Obsidian), pkm-mcp on instruction; without version and commit, never in the wiki, not in Git |
 | `.pkm/state.json` | maintenance agent | `pkm mark` |
