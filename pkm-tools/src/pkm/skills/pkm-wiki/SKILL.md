@@ -89,7 +89,8 @@ also thin values). Proposals as a YAML block in the report, **do not enter anyth
 - `kind`: `note` (default) | `standard` / `regulation` (then also propose `short_citation`) |
   `correction`.
 - `ip_addresses` (only for documents with `ip_addresses` in `pending`, see "Source fidelity"):
-  `placeholder` | `concrete` – as a question, the user decides.
+  `placeholder` | `concrete` – as a question, the user decides. Never propose it for a document without
+  `ip_addresses` in `pending`, and never if the user says the values are no IP addresses.
 
 After explicit confirmation: `read` → `hash` → `set_document_metadata` (`set` with the
 confirmed fields, `add` only for further `tags`). Do not overwrite existing values;
@@ -204,12 +205,27 @@ in `processed`.
   confirmation write them to `wiki/syntheses/` with `confidence: low` and the line
   "Own interpretation, not stated in the sources." (German: „Eigene Einordnung, nicht aus den
   Quellen.“).
-- **IP addresses: ask, then follow the answer.** If a new or changed document contains IP addresses
-  and `ip_addresses.unclassified` is not empty, ask the user in the run report whether they are
-  concrete addresses or placeholders, and propose the frontmatter field
-  (`ip_addresses: placeholder` or `ip_addresses: concrete`); for a mix, `ip_addresses: placeholder`
-  with the concrete exceptions in `ip_addresses_concrete: ["203.0.113.5"]`. In unattended runs put the
-  question into `questions`. Enter the fields only after the answer (`set_document_metadata`).
+- **IP addresses: ask, then follow the answer.** Ask only if `pending` reports `ip_addresses` with a
+  non-empty `unclassified` for a new or changed document – the tools report only unambiguous addresses
+  (network context next to them, no version or section number). Do not look for IP addresses yourself,
+  and do not ask or set a field for documents without this entry. Ask in the run report, per document
+  with the listed values, **two things**: are they concrete addresses, placeholders or no IP addresses at
+  all – and, if they are IP addresses, should they be **kept as they are or anonymized**?
+  - kept, concrete or placeholder: propose the frontmatter field (`ip_addresses: placeholder` or
+    `ip_addresses: concrete`); for a mix, `ip_addresses: placeholder` with the concrete exceptions in
+    `ip_addresses_concrete: ["203.0.113.5"]`. Enter it only after the answer (`set_document_metadata`).
+  - **anonymize**: `anonymize_ip_addresses` (target, `expected_hash`) first without `apply` and show the
+    `mapping` (original → documentation address such as `192.0.2.x`, `2001:db8::x`; the same address
+    always gets the same placeholder) and the changed lines; after confirmation the same call with
+    `apply: true`. This changes the original document (new version); when all addresses were replaced it
+    is marked `ip_addresses: placeholder`. Only some addresses: `values`, then classify the rest. Tell the
+    user that earlier versions in Git (or the backup without Git) still contain the original addresses.
+    Afterwards update quotes with the old addresses on wiki pages that cite the document.
+  - **no IP addresses** (e.g. version numbers): set **no** field; record the values with
+    `mark_not_ip_addresses` (target, values) so that they are not reported again. For a mix, record only
+    the values that are no addresses and classify the rest.
+
+  In unattended runs put the question into `questions` and set or change nothing.
   Special addresses (`0.0.0.0`, `127.0.0.1`, `::`, link-local) are never reported; well-known public
   services (`ip_addresses.well_known`, e.g. `1.1.1.1`) are concrete and need no question.
   - Until the question is answered, and for `placeholder`: never derive contradictions, open
@@ -217,7 +233,8 @@ in `processed`.
   - `concrete` (or listed in `ip_addresses_concrete`): IP addresses are facts like any other; a
     contradiction may only be recorded if *both* documents hold the address as concrete and refer to the
     same host or network.
-  - Never change IP addresses in `documents/`.
+  - Never change IP addresses in `documents/` except with `anonymize_ip_addresses` after the user's
+    explicit choice and confirmation.
 - If a source itself makes the connection between two documents, the sentence may cite both; mark it
   with `<!-- lint: cross-source ok -->` at the end of the line so that lint does not report it again.
   Lint reports sentences citing two or more documents as `cross_source_statement` (`warning` in
@@ -382,8 +399,8 @@ deliver the list as `log_entry`:
    missing fields the YAML block** with the question whether it should be entered, as well as for each document
    with `image_issues` the findings with a fix proposal and the question whether it should be fixed,
    and the name proposals (`rename`) with the question whether to rename; for each document with
-   unclassified IP addresses the found addresses and the question whether they are concrete or
-   placeholders; the checked cross-source
+   unclassified IP addresses the found addresses and the questions whether they are concrete,
+   placeholders or no IP addresses, and whether they should be kept or anonymized; the checked cross-source
    sentences (what was split or why a connection is in a source) and proposals for own
    interpretations as a question (only after confirmation into `wiki/syntheses/`, marked).
 
@@ -407,7 +424,7 @@ Conflict copies of the cloud storage are never processed; the user merges them i
    `<document name>_img/`) → propose the tool named in `tool` (`rename_document` or `move_images`).
    Source fidelity: `cross_source_statement` → check the sentence; if no source makes the connection,
    split it or remove the connection yourself (it is your page), otherwise mark it with
-   `<!-- lint: cross-source ok -->`; `ip_addresses_unclassified` → ask the user and propose the field;
+   `<!-- lint: cross-source ok -->`; `ip_addresses_unclassified` → ask the user (concrete / placeholder / no IP addresses; keep or anonymize) and propose the field, `anonymize_ip_addresses` or `mark_not_ip_addresses`;
    `ip_comparison` → remove the entry unless both documents are `concrete`; `synthesis_unmarked` → add `confidence` and the marker if the page
    is an own interpretation, otherwise rewrite it so that every statement is a source's.
 4. `finish_maintenance` with `operation: lint`, `lint_report: true` (report to
