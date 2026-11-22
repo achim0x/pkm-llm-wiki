@@ -1,6 +1,9 @@
 # PKM mit LLM-Wiki – Implementierungsspezifikation
 
-**Version:** 0.33 (Entwurf zum Review) · **Stand:** 20.11.2026
+**Version:** 0.34 (Entwurf zum Review) · **Stand:** 22.11.2026
+
+> **Änderungen in 0.34** (pkm-tools 0.3.5)
+> - **Vorhandene Markdown-Dateien unverändert ablegen:** Eine im Chat übergebene Markdown-Datei wird standardmäßig unverändert abgelegt (Titel, Tags usw. aus ihrem Frontmatter); eine Zusammenfassung gibt es nur auf Wunsch (4.1, Skill `pkm-access`, Anweisungen des Servers `pkm`).
 
 > **Änderungen in 0.33** (pkm-tools 0.3.4)
 > - **Skill-Ordner öffnen:** `pkm setup` öffnet am Ende eines interaktiven Laufs den Ordner mit den Skill-ZIPs im Explorer bzw. Finder; `--no-open` schaltet das ab (15.1).
@@ -390,6 +393,8 @@ kind: standard
 | `## Kontext / Begründung` | `## Context / rationale` |
 
 Der Server `pkm` nennt die Dokumentsprache und diese Abschnittsnamen in seinen Anweisungen an den Chat. Neue Dokumente entstehen in dieser Sprache (Titel, Text, Abschnitte), auch wenn der Chat in einer anderen Sprache geführt wird. Nur wenn der Nutzer ausdrücklich eine andere Sprache verlangt, gilt diese. Fortgeführte Dokumente behalten ihre Sprache und ihre Abschnittsnamen. Die Beispiele in dieser Spezifikation verwenden die deutschen Namen. Werkzeuge und Pflege behandeln beide Varianten gleich. Für Wiki-Seiten gilt dieselbe Sprache (4.2).
+
+**Vorhandene Markdown-Dateien** (seit 0.34): Übergibt der Nutzer im Chat eine fertige Markdown-Datei oder einen fertigen Markdown-Text zum Ablegen, wird der Inhalt **unverändert** abgelegt: keine Zusammenfassung, keine Umgliederung in die Abschnitte oben, keine Übersetzung. Ein Frontmatter der Datei wird nicht Teil des Inhalts; `title`, `tags`, `related`, `short_citation`, `date_document` und `kind` daraus werden als Parameter von `create_document` übernommen. Der Entwurf zeigt Titel, Tags, Umfang und den Anfang des Inhalts. Zusammengefasst oder umgearbeitet wird nur auf ausdrücklichen Wunsch. Skill `pkm-access` und die Anweisungen des Servers `pkm` nennen diese Regel.
 
 Bei einer fortgeführten Diskussion werden diese Abschnitte **aktualisiert**, nicht ergänzt (Abschnitt 6). Das Dokument zeigt immer den aktuellen Stand.
 

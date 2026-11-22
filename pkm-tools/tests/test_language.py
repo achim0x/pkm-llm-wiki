@@ -25,9 +25,11 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
+import pkm
 from pkm import cli
 from pkm.config import Config, configured_language, parse_language, read_config_file
 from pkm.errors import PkmError
@@ -124,6 +126,17 @@ def test_server_instructions_name_language_and_sections():
     assert "English" in english and "## Open points" in english and "Ergebnis" not in english
     assert "## Offene Punkte" in build_server("de").instructions
     assert "## Open points" in build_server("en").instructions
+
+
+def test_existing_markdown_is_filed_unchanged(svc):
+    """Instructions and skill: an existing Markdown file is filed unchanged; create_document keeps its body."""
+    assert "filed unchanged" in language_instructions("en") and "only when the user asks" in language_instructions("de")
+    skill = (Path(pkm.__file__).parent / "skills" / "pkm-access" / "SKILL.md").read_text(encoding="utf-8")
+    assert "## Filing an existing Markdown file (default: unchanged)" in skill
+    body = "# Messplan\n\nText *mit* Format.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```sh\nls -l\n```\n"
+    res = svc.create_document(title="Messplan", content="---\ntitle: Messplan\ntags: [x]\n---\n" + body)
+    text = (svc.cfg.root / res["path"]).read_text(encoding="utf-8")
+    assert text.split("\n---\n", 1)[1].strip() == body.strip()
 
 
 def test_maintenance_instructions_name_wiki_language_and_sections(isolated_env, tmp_path):

@@ -408,7 +408,9 @@ def language_instructions(language: str) -> str:
     headings = ", ".join(f"## {s}" for s in sections)
     return (f" Document language: {name}. Write new documents created in chat in {name} with the sections "
             f"{headings}, unless the user asks for another language. When continuing a document keep its "
-            "language and section names.")
+            "language and section names. An existing Markdown file or finished Markdown text the user hands over "
+            "is filed unchanged (without its frontmatter, whose title and tags become parameters), not "
+            "summarized or restructured; summarize it only when the user asks for it.")
 
 
 def build_server(language: str | None = None) -> Server:

@@ -1,5 +1,16 @@
 # Release notes
 
+## V0.3.5
+
+Changes compared to `V0.3.4`. Specification now **0.34**.
+
+- **Existing Markdown files are filed unchanged:** when you hand over a Markdown file (or a finished
+  Markdown text) in the chat and ask to put it into the PKM, Claude files its content as it is – no
+  summary, no restructuring into the sections for chat results, no translation. Title, tags and
+  similar fields come from the file's frontmatter. A summary only if you ask for it. Skill
+  `pkm-access` and the instructions of the server `pkm` say so.
+- **Upload the skill `pkm-access` again** in Claude Desktop after the update.
+
 ## V0.3.4
 
 Changes compared to `V0.3.3`. Specification now **0.33**.
